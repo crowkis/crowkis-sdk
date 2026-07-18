@@ -1,0 +1,42 @@
+{
+  "name": "@crowkis/client",
+  "version": "0.5.0",
+  "description": "Official Node.js and TypeScript SDK for Crowkis — intelligent, Redis-compatible cache & memory for LLM apps and agents",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": "./index.js",
+    "./langchain": "./langchain.js",
+    "./memory": "./memory.js"
+  },
+  "license": "MIT",
+  "keywords": ["crowkis", "llm", "cache", "semantic-cache", "agent-memory", "langchain", "langgraph", "redis"],
+  "homepage": "https://crowkis.com",
+  "peerDependencies": {
+    "@grpc/grpc-js": ">=1.9.0",
+    "@grpc/proto-loader": ">=0.7.0"
+  },
+  "peerDependenciesMeta": {
+    "@grpc/grpc-js": {
+      "optional": true
+    },
+    "@grpc/proto-loader": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "langchain.js",
+    "memory.js",
+    "grpc.js",
+    "crowkis.proto",
+    "README.md"
+  ],
+  "scripts": {
+    "check": "node --check index.js"
+  }
+}

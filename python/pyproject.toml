@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crowkis"
+version = "0.5.0"
+description = "Official Python SDK for Crowkis — intelligent, Redis-compatible cache & memory for LLM apps and agents"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Crowkis" }]
+license = { text = "MIT" }
+keywords = ["crowkis", "llm", "cache", "semantic-cache", "agent-memory", "langchain", "langgraph", "redis"]
+dependencies = []
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Database",
+  "Topic :: Software Development :: Libraries",
+]
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.2"]
+openai = ["openai>=1.0"]
+grpc = ["grpcio>=1.60", "protobuf>=4.0"]
+all = ["langchain-core>=0.2", "openai>=1.0"]
+
+[project.urls]
+Homepage = "https://crowkis.com"
+Documentation = "https://crowkis.com"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["crowkis*"]
+
+[tool.setuptools.package-data]
+crowkis = ["crowkis.proto"]

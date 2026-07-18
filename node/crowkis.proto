@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package crowkis.v1;
+
+service CrowkisCache {
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc Set(SetRequest) returns (SetResponse);
+  rpc GetStream(GetRequest) returns (stream StreamChunk);
+  rpc Stats(Empty) returns (StatsResponse);
+  rpc Invalidate(InvalidateRequest) returns (InvalidateResponse);
+}
+
+message Empty {}
+
+message GetRequest {
+  bytes query = 1;
+  string tenant = 2;
+  string model = 3;
+  float threshold = 4;
+  uint32 chunk_tokens = 5;
+  uint32 delay_ms = 6;
+  string format = 7;
+  bytes image = 8;
+}
+
+message GetResponse {
+  bool hit = 1;
+  bytes response = 2;
+  float similarity = 3;
+  int64 ttl_remaining = 4;
+  bytes matched_key = 5;
+  float confidence = 6;
+  string hit_type = 7;
+}
+
+message SetRequest {
+  bytes query = 1;
+  bytes response = 2;
+  uint64 ttl_secs = 3;
+  string tenant = 4;
+  string model = 5;
+  bytes image = 6;
+}
+
+message SetResponse {
+  bool ok = 1;
+  string error = 2;
+}
+
+message StreamChunk {
+  bytes delta = 1;
+  bool is_final = 2;
+  string format = 3;
+}
+
+message StatsResponse {
+  uint64 total_requests = 1;
+  uint64 total_hits = 2;
+  uint64 total_misses = 3;
+  double hit_rate_pct = 4;
+  uint64 tokens_saved = 5;
+  double avg_confidence = 6;
+  double avg_latency_ms = 7;
+  uint64 vector_index_entries = 8;
+  uint64 memtable_bytes = 9;
+  uint64 memtable_keys = 10;
+}
+
+message InvalidateRequest {
+  string tenant = 1;
+}
+
+message InvalidateResponse {
+  bool ok = 1;
+  uint64 removed = 2;
+}

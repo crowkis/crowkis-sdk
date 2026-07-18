@@ -1,7 +1,7 @@
 """Semantic LLM cache for LangChain (and LangGraph) in two lines.
 
     pip install crowkis[langchain]
-    docker run -p 6379:6379 -v "$(pwd)/.crow:/data/.crow" crowkis/crowkis:latest \
+    docker run -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" crowkis/crowkis:latest \
         server --data /data/.crow
 
 Unlike LangChain's built-in caches (exact string match), Crowkis matches on

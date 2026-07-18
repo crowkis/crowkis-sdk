@@ -40,7 +40,7 @@ class CrowkisMemory:
         *,
         user: Optional[str] = None,
         host: str = "127.0.0.1",
-        port: int = 6379,
+        port: int = 6383,
         tenant: Optional[str] = None,
         auth_token: Optional[str] = None,
     ) -> None:

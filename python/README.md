@@ -1,7 +1,34 @@
-# Crowkis Python SDK
+<div align="center">
 
-Official Python client for Crowkis — an intelligent, Redis-compatible cache and
-memory layer for LLM apps and AI agents. Stop paying twice for answers you already have.
+<img src="https://raw.githubusercontent.com/crowkis/crowkis-sdk/main/assets/crowkis-logo.png" alt="Crowkis" width="96" />
+
+# Crowkis — Python SDK
+
+**Stop paying twice for answers you already have.**
+A model-agnostic semantic cache & agent-memory client for LLM apps.
+
+<p>
+<a href="https://pypi.org/project/crowkis/"><img src="https://img.shields.io/pypi/v/crowkis?color=d62221&label=PyPI&logo=pypi&logoColor=white" alt="PyPI" /></a>
+<img src="https://img.shields.io/pypi/pyversions/crowkis?color=d62221" alt="Python versions" />
+<a href="https://hub.docker.com/r/crowkis/crowkis"><img src="https://img.shields.io/docker/pulls/crowkis/crowkis?color=d62221&label=Docker&logo=docker&logoColor=white" alt="Docker" /></a>
+<img src="https://img.shields.io/badge/License-MIT-d62221" alt="MIT" />
+</p>
+
+<p>
+<a href="https://www.crowkis.com"><b>Website</b></a> ·
+<a href="https://www.crowkis.com/docs/sdk-python"><b>Docs</b></a> ·
+<a href="https://hub.docker.com/r/crowkis/crowkis"><b>Docker Hub</b></a>
+</p>
+
+</div>
+
+---
+
+Crowkis is an intelligent, Redis-compatible cache and memory layer for LLM apps and
+agents. It serves repeated and **rephrased** questions from a semantic cache — so you
+stop paying twice — and it's **model-agnostic**: wrap the call you already make to any
+provider (OpenAI, Anthropic, a local model, whatever comes next) and the repeats come
+back free.
 
 ## Install
 
@@ -9,160 +36,117 @@ memory layer for LLM apps and AI agents. Stop paying twice for answers you alrea
 pip install crowkis
 ```
 
-That's it — zero dependencies. (LangChain/OpenAI adapters use those libraries if you
-already have them; nothing extra to install.)
+Zero dependencies. LangChain / OpenAI adapters use those libraries only if you already have them.
 
-## Discover everything
-
-```python
-import crowkis
-crowkis.help()            # grouped cheat-sheet of every feature
-crowkis.help("memory")    # just the agent-memory commands
-```
-
-## Server Defaults
-
-If you start Crowkis with:
+## Run a Crowkis server
 
 ```bash
-./target/release/crowkis server --port 6383 --data ./crowkis.data
+docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
+  crowkis/crowkis:latest server --data /data/.crow
 ```
 
-then the default ports are:
+→ [hub.docker.com/r/crowkis/crowkis](https://hub.docker.com/r/crowkis/crowkis)
 
-- RESP: `6383`
-- dashboard / management HTTP: `6384`
+## Cache any model — the decorator
 
-## Quick Start
+Works like `functools.lru_cache`, but matches on **meaning**, so rephrased prompts hit too.
 
 ```python
-from crowkis import CrowkisClient
+from crowkis import Crowkis
 
-cache = CrowkisClient(host="127.0.0.1", port=6383, tenant="demo", model="gpt-4o")
+cache = Crowkis(tenant="my-app")
 
-answer = cache.get_or_compute(
-    "Explain vector caches",
-    lambda query: call_llm(query),
-    ttl=3600,
-)
+@cache.cached(ttl=3600)
+def answer(prompt: str) -> str:
+    return my_model(prompt)          # OpenAI, Anthropic, a local model — anything
 
-print(answer.decode("utf-8", errors="replace"))
-cache.close()
+answer("How do refunds work?")       # miss → your model runs, result cached
+answer("What's the refund process?") # semantic HIT → no model call
 ```
 
-## LangChain / LangGraph — semantic LLM cache (2 lines)
+Prefer inline? `cache.ask("...", compute=lambda p: my_model(p), ttl=3600)`.
+
+## Read & write directly
+
+```python
+hit = cache.lookup("what's the refund timeline?")   # semantic match
+if hit:
+    print(hit.text, hit.similarity, hit.confidence)
+else:
+    cache.store("what's the refund timeline?", "5–7 business days.", ttl=3600)
+```
+
+## LangChain & LangGraph
 
 ```python
 from langchain_core.globals import set_llm_cache
 from crowkis.integrations.langchain import CrowkisCache
 
 set_llm_cache(CrowkisCache(tenant="my-app", ttl=3600))
-# every LangChain / LangGraph model call now checks Crowkis first;
-# rephrased prompts still hit — that's the token savings.
+# every LangChain / LangGraph model call is now cached by meaning
 ```
 
-## Agent memory (any framework — LangGraph, CrewAI, AutoGen, custom)
+## Agent memory (LangGraph, CrewAI, AutoGen, custom)
 
 ```python
 from crowkis import CrowkisMemory
 
 mem = CrowkisMemory(agent="support-bot", user="alice")
 mem.remember("Alice prefers email over phone")
-hits = mem.recall("how should I contact Alice?")   # semantic recall
+mem.recall("how should I contact Alice?")   # semantic, per-user recall
 ```
 
-## Drop-in OpenAI (change 2 lines)
+## Authentication
+
+If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —
+**never hard-code it.** Keep it in a gitignored `.env`.
 
 ```python
-from crowkis import CachedOpenAI
+import os
+from crowkis import Crowkis
 
-client = CachedOpenAI(tenant="my-app")              # was: OpenAI()
-resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
-```
-
-## Semantic Cache
-
-```python
-from crowkis import CrowkisClient
-
-cache = CrowkisClient(host="127.0.0.1", port=6383, tenant="demo", model="gpt-4o")
-
-cache.cset(
-    "Explain vector caches",
-    "Explain vector caches as reusable cached answers for similar queries.",
-    ttl=3600,
+cache = Crowkis(
+    host=os.getenv("CROWKIS_HOST", "127.0.0.1"),
+    port=int(os.getenv("CROWKIS_PORT", "6383")),
+    tenant="my-app",
+    auth_token=os.getenv("CROWKIS_TOKEN"),   # from .env, not the code
 )
-
-cached = cache.cget("Explain vector caches")
-print(cached.decode("utf-8", errors="replace") if cached else "miss")
-cache.close()
 ```
 
-## Streaming Cache
+## Discover every command
 
 ```python
-from crowkis import AsyncCrowkisClient
-
-async with AsyncCrowkisClient(host="127.0.0.1", port=6383, tenant="demo", model="gpt-4o") as cache:
-    async for chunk in cache.stream_get_or_compute(
-        "Explain vector caches",
-        lambda query: openai_stream(query),
-        ttl=3600,
-        chunk_tokens=4,
-        delay_ms=20,
-    ):
-        print(chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk, end="")
+import crowkis
+crowkis.help()            # grouped cheat-sheet of every feature
+crowkis.help("memory")    # filter by topic
 ```
 
-## Multi-Modal Cache
+## Method reference
 
-```python
-from pathlib import Path
+| Group | Methods |
+|---|---|
+| **Caching** | `cached()` · `ask()` · `stream()` · `lookup()` · `store()` · `similar()` · `embed()` · `flush()` |
+| **Agent memory** | `remember` · `recall` · `extract` · `history` · `as_of` · `forget` · `link` · `graph` |
+| **Sessions / docs / pins / tools** | `csession_*` · `cdoc_*` · `cpin*` · `ctool*` |
+| **Safety & quality** | `cguard` · `coutcheck` · `cflag` · `ccheckbad` |
+| **Cost / limits / compliance** | `cbudget_*` · `ckeylimit_*` · `cpii_*` · `cdedup` |
+| **Evals / prompts / freshness** | `ceval` · `cprompt_*` · `csource_*` · `cstale` · `cinvalidate` |
+| **Ops** | `cinfo` · `cscan` · `csave` · `creload` · `compact` |
 
-from crowkis import CrowkisClient
+Full reference: **[crowkis.com/docs/sdk-python](https://www.crowkis.com/docs/sdk-python)**.
 
-image = Path("receipt.png").read_bytes()
-cache = CrowkisClient(host="127.0.0.1", port=6383, tenant="demo", model="gpt-4o-vision")
+## Author
 
-cache.cset(
-    "What is the total on this receipt?",
-    "The receipt total is $42.15.",
-    ttl=3600,
-    image=image,
-)
+<table>
+<tr>
+<td width="96"><img src="https://raw.githubusercontent.com/crowkis/crowkis-sdk/main/assets/founder.jpg" width="84" alt="Mohit Rohilla" /></td>
+<td>
+<b><a href="https://github.com/itsmohitrohilla">Mohit Rohilla</a></b> — founder &amp; creator of Crowkis.<br/>
+Building the intelligent cache &amp; memory layer for the agentic era. Contributions and issues welcome.
+</td>
+</tr>
+</table>
 
-cached = cache.cget("What is the total on this receipt?", image=image)
-print(cached.decode("utf-8", errors="replace") if cached else "miss")
-cache.close()
-```
+## License
 
-## Image-Only Lookup
-
-```python
-answer = cache.cimgget(image, tenant="demo")
-```
-
-## gRPC API
-
-```python
-from crowkis import CrowkisGrpcStub
-
-grpc_cache = CrowkisGrpcStub("127.0.0.1:6381")
-grpc_cache.set(
-    "Explain vector caches",
-    "Explain vector caches as reusable cached answers for similar queries.",
-    tenant="demo",
-    model="gpt-4o",
-    ttl=3600,
-)
-
-hit = grpc_cache.get("Explain vector caches", tenant="demo")
-print(hit.text)
-grpc_cache.close()
-```
-
-Install `grpcio` to use the gRPC helper. RESP users do not need it.
-
-## Management API
-
-Management helpers talk to the dashboard / management HTTP port, usually `6384` when the RESP server is on `6383`.
+MIT © Crowkis

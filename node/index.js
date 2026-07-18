@@ -195,7 +195,7 @@ async function* streamValues(value) {
 class CrowkisClient {
   constructor(options = {}) {
     this.host = options.host || "127.0.0.1";
-    this.port = options.port || 6379;
+    this.port = options.port || 6383;
     this.tenant = options.tenant;
     this.model = options.model;
     this.authToken = options.authToken || options.auth_token;

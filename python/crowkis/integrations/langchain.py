@@ -51,7 +51,7 @@ class CrowkisCache(BaseCache):
         threshold: Optional[float] = None,
         tenant: Optional[str] = None,
         host: str = "127.0.0.1",
-        port: int = 6379,
+        port: int = 6383,
         auth_token: Optional[str] = None,
     ) -> None:
         self.client = client or CrowkisClient(

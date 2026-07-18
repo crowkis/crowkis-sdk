@@ -69,7 +69,7 @@ class CachedOpenAI:
         self,
         *,
         crowkis_host: str = "127.0.0.1",
-        crowkis_port: int = 6379,
+        crowkis_port: int = 6383,
         tenant: Optional[str] = None,
         ttl: int = 3600,
         openai_client: Any = None,

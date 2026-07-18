@@ -1,7 +1,34 @@
-# Crowkis Node SDK
+<div align="center">
 
-Official Node.js and TypeScript client for Crowkis — an intelligent,
-Redis-compatible cache and memory layer for LLM apps and AI agents.
+<img src="https://raw.githubusercontent.com/crowkis/crowkis-sdk/main/assets/crowkis-logo.png" alt="Crowkis" width="96" />
+
+# Crowkis — Node / TypeScript SDK
+
+**Stop paying twice for answers you already have.**
+A model-agnostic semantic cache & agent-memory client for LLM apps.
+
+<p>
+<a href="https://www.npmjs.com/package/@crowkis/client"><img src="https://img.shields.io/npm/v/@crowkis/client?color=d62221&label=npm&logo=npm&logoColor=white" alt="npm" /></a>
+<img src="https://img.shields.io/badge/TypeScript-included-d62221?logo=typescript&logoColor=white" alt="TypeScript" />
+<a href="https://hub.docker.com/r/crowkis/crowkis"><img src="https://img.shields.io/docker/pulls/crowkis/crowkis?color=d62221&label=Docker&logo=docker&logoColor=white" alt="Docker" /></a>
+<img src="https://img.shields.io/badge/License-MIT-d62221" alt="MIT" />
+</p>
+
+<p>
+<a href="https://www.crowkis.com"><b>Website</b></a> ·
+<a href="https://www.crowkis.com/docs/sdk-node"><b>Docs</b></a> ·
+<a href="https://hub.docker.com/r/crowkis/crowkis"><b>Docker Hub</b></a>
+</p>
+
+</div>
+
+---
+
+Crowkis is an intelligent, Redis-compatible cache and memory layer for LLM apps and
+agents. It serves repeated and **rephrased** questions from a semantic cache — so you
+stop paying twice — and it's **model-agnostic**: wrap the call you already make to any
+provider (OpenAI, Anthropic, a local model, whatever comes next) and the repeats come
+back free. TypeScript typings included.
 
 ## Install
 
@@ -9,147 +36,99 @@ Redis-compatible cache and memory layer for LLM apps and AI agents.
 npm install @crowkis/client
 ```
 
-## LangChain.js — semantic LLM cache
-
-```js
-const { CrowkisCache } = require("@crowkis/client/langchain");
-const { OpenAI } = require("@langchain/openai");
-
-// Matches on MEANING (not exact text), so rephrased prompts hit the cache.
-const llm = new OpenAI({ cache: new CrowkisCache({ tenant: "my-app", ttl: 3600 }) });
-```
-
-## Agent memory (LangGraph.js or any agent loop)
-
-```js
-const { CrowkisMemory } = require("@crowkis/client/memory");
-
-const mem = new CrowkisMemory("support-bot", { user: "alice" });
-await mem.remember("Alice prefers email over phone");
-const hits = await mem.recall("how should I contact Alice?");
-```
-
-## Server Defaults
-
-If you start Crowkis with:
+## Run a Crowkis server
 
 ```bash
-./target/release/crowkis server --port 6383 --data ./crowkis.data
+docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
+  crowkis/crowkis:latest server --data /data/.crow
 ```
 
-then the default ports are:
+→ [hub.docker.com/r/crowkis/crowkis](https://hub.docker.com/r/crowkis/crowkis)
 
-- RESP: `6383`
-- dashboard / management HTTP: `6384`
-
-## Quick Start
+## Demo — cache any model
 
 ```ts
-import { CrowkisClient } from "@crowkis/client";
+import { Crowkis } from "@crowkis/client";
 
-const cache = new CrowkisClient({
-  host: "127.0.0.1",
-  port: 6383,
-  tenant: "demo",
-  model: "gpt-4o",
-});
+const cache = new Crowkis({ tenant: "my-app" });
 
-const answer = await cache.getOrCompute(
-  "Explain vector caches",
-  async (query) => callLLM(query),
-  { ttl: 3600 },
-);
+// Wrap any async model call. Matches on MEANING, so rephrased prompts hit too.
+const answer = cache.cached(async (prompt: string) => myModel(prompt), { ttl: 3600 });
 
-console.log(Buffer.isBuffer(answer) ? answer.toString() : answer);
-cache.close();
+await answer("How do refunds work?");         // miss → your model runs, result cached
+await answer("What's the refund process?");   // semantic HIT → no model call
 ```
 
-## Semantic Cache
+Prefer inline? `await cache.ask("...", async (p) => myModel(p), { ttl: 3600 })`.
+
+## Read & write directly
 
 ```ts
-import { CrowkisClient } from "@crowkis/client";
-
-const cache = new CrowkisClient({
-  host: "127.0.0.1",
-  port: 6383,
-  tenant: "demo",
-  model: "gpt-4o",
-});
-
-await cache.cset(
-  "Explain vector caches",
-  "Explain vector caches as reusable cached answers for similar queries.",
-  { ttl: 3600 },
-);
-
-const cached = await cache.cget("Explain vector caches");
-console.log(cached ? cached.toString() : "miss");
-cache.close();
-```
-
-## Streaming Cache
-
-```ts
-for await (const chunk of cache.streamGetOrCompute(
-  "Explain vector caches",
-  async (query) => openAIStream(query),
-  { ttl: 3600, chunkTokens: 4, delayMs: 20 },
-)) {
-  process.stdout.write(Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk));
+const hit = await cache.lookup("what's the refund timeline?");
+if (hit) {
+  console.log(hit.text, hit.similarity, hit.confidence);
+} else {
+  await cache.store("what's the refund timeline?", "5–7 business days.", { ttl: 3600 });
 }
 ```
 
-## Multi-Modal Cache
+## LangChain.js
 
 ```ts
-import fs from "node:fs";
-import { CrowkisClient } from "@crowkis/client";
+import { CrowkisCache } from "@crowkis/client/langchain";
+import { OpenAI } from "@langchain/openai";
 
-const image = await fs.promises.readFile("receipt.png");
-const cache = new CrowkisClient({
-  host: "127.0.0.1",
-  port: 6383,
-  tenant: "demo",
-  model: "gpt-4o-vision",
+const llm = new OpenAI({ cache: new CrowkisCache({ tenant: "my-app", ttl: 3600 }) });
+```
+
+## Agent memory (LangGraph.js or any loop)
+
+```ts
+import { CrowkisMemory } from "@crowkis/client/memory";
+
+const mem = new CrowkisMemory("support-bot", { user: "alice" });
+await mem.remember("Alice prefers email over phone");
+await mem.recall("how should I contact Alice?");   // semantic, per-user recall
+```
+
+## Authentication
+
+If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —
+**never hard-code it.** Keep it in a gitignored `.env`.
+
+```ts
+const cache = new Crowkis({
+  host: process.env.CROWKIS_HOST ?? "127.0.0.1",
+  port: Number(process.env.CROWKIS_PORT ?? 6383),
+  tenant: "my-app",
+  authToken: process.env.CROWKIS_TOKEN,   // from .env, not the code
 });
-
-await cache.cset(
-  "What is the total on this receipt?",
-  "The receipt total is $42.15.",
-  { ttl: 3600, image },
-);
-
-const cached = await cache.cget("What is the total on this receipt?", { image });
-console.log(cached ? cached.toString() : "miss");
-cache.close();
 ```
 
-## Image-Only Lookup
+## Method reference
 
-```ts
-const answer = await cache.cimgget(image, { tenant: "demo" });
-```
+| Group | Methods |
+|---|---|
+| **Caching** | `cached()` · `ask()` · `stream()` · `lookup()` · `store()` · `similar()` · `embed()` · `flush()` |
+| **Agent memory** | `cmemset` · `cmemget` · `cmemextract` · `cmemhistory` · `cmemforget` · `cmemlink` · `cmemgraph` |
+| **Sessions / docs / pins / tools** | `csession*` · `cdoc*` · `cpin*` · `ctool*` |
+| **Safety / cost / compliance** | `cguard` · `coutcheck` · `cbudget*` · `ckeylimit*` · `cpii*` |
+| **Evals / prompts / freshness / ops** | `ceval` · `cprompt*` · `csource*` · `cscan` · `csave` · `compact` |
 
-## gRPC API
+Full reference: **[crowkis.com/docs/sdk-node](https://www.crowkis.com/docs/sdk-node)**.
 
-```ts
-import { CrowkisGrpcClient } from "@crowkis/client";
+## Author
 
-const grpcCache = new CrowkisGrpcClient({ target: "127.0.0.1:6381" });
+<table>
+<tr>
+<td width="96"><img src="https://raw.githubusercontent.com/crowkis/crowkis-sdk/main/assets/founder.jpg" width="84" alt="Mohit Rohilla" /></td>
+<td>
+<b><a href="https://github.com/itsmohitrohilla">Mohit Rohilla</a></b> — founder &amp; creator of Crowkis.<br/>
+Building the intelligent cache &amp; memory layer for the agentic era. Contributions and issues welcome.
+</td>
+</tr>
+</table>
 
-await grpcCache.set("Explain vector caches", "Explain vector caches as reusable cached answers for similar queries.", {
-  tenant: "demo",
-  model: "gpt-4o",
-  ttl: 3600,
-});
+## License
 
-const hit = await grpcCache.get("Explain vector caches", { tenant: "demo" });
-console.log(hit.response.toString());
-grpcCache.close();
-```
-
-Install `@grpc/grpc-js` and `@grpc/proto-loader` to use the gRPC helper. RESP users do not need those packages.
-
-## Management API
-
-The management client talks to the dashboard / management HTTP port, usually `6384` when the RESP server is on `6383`.
+MIT © Crowkis

@@ -3,10 +3,10 @@
 <img src="https://raw.githubusercontent.com/crowkis/crowkis-sdk/main/assets/banner.png" alt="Crowkis — the intelligent cache & memory for LLM apps, built in Rust" width="100%" />
 
 <p>
-<a href="https://www.npmjs.com/package/@crowkis/client"><img src="https://img.shields.io/badge/npm-v0.5.0-d62221?logo=npm&logoColor=white" alt="npm" /></a>
-<img src="https://img.shields.io/badge/TypeScript-included-d62221?logo=typescript&logoColor=white" alt="TypeScript" />
-<a href="https://hub.docker.com/r/crowkis/crowkis"><img src="https://img.shields.io/badge/Docker-crowkis%2Fcrowkis-d62221?logo=docker&logoColor=white" alt="Docker" /></a>
-<img src="https://img.shields.io/badge/License-Apache_2.0-d62221" alt="Apache 2.0" />
+<a href="https://www.npmjs.com/package/@crowkis/client"><b>npm</b></a> &nbsp;·&nbsp;
+<b>TypeScript included</b> &nbsp;·&nbsp;
+<a href="https://hub.docker.com/r/crowkis/crowkis"><b>Docker</b></a> &nbsp;·&nbsp;
+<b>Apache 2.0</b>
 </p>
 
 <p>

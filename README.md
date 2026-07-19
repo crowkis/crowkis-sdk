@@ -4,7 +4,7 @@
 
 <p>
 <a href="https://pypi.org/project/crowkis/"><img src="https://img.shields.io/pypi/v/crowkis?color=d62221&label=PyPI&logo=pypi&logoColor=white" alt="PyPI" /></a>
-<a href="https://www.npmjs.com/package/@crowkis/client"><img src="https://img.shields.io/npm/v/@crowkis/client?color=d62221&label=npm&logo=npm&logoColor=white" alt="npm" /></a>
+<a href="https://www.npmjs.com/package/@crowkis/client"><img src="https://img.shields.io/npm/v/%40crowkis%2Fclient?color=d62221&label=npm&logo=npm&logoColor=white" alt="npm" /></a>
 <a href="https://hub.docker.com/r/crowkis/crowkis"><img src="https://img.shields.io/docker/pulls/crowkis/crowkis?color=d62221&label=Docker&logo=docker&logoColor=white" alt="Docker" /></a>
 <img src="https://img.shields.io/badge/License-Apache_2.0-d62221" alt="Apache 2.0" />
 </p>

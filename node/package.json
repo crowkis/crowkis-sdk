@@ -9,9 +9,11 @@
     "./langchain": "./langchain.js",
     "./memory": "./memory.js"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": "Mohit Rohilla",
   "keywords": ["crowkis", "llm", "cache", "semantic-cache", "agent-memory", "langchain", "langgraph", "redis"],
-  "homepage": "https://crowkis.com",
+  "homepage": "https://www.crowkis.com",
+  "repository": { "type": "git", "url": "https://github.com/crowkis/crowkis-sdk.git" },
   "peerDependencies": {
     "@grpc/grpc-js": ">=1.9.0",
     "@grpc/proto-loader": ">=0.7.0"

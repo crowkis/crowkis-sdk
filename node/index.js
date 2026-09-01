@@ -313,6 +313,7 @@ class CrowkisClient {
     }
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
+    if (options.template) args.push("TEMPLATE");
     await this.execute(...args);
   }
 
@@ -329,6 +330,7 @@ class CrowkisClient {
     }
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
+    if (options.template) args.push("TEMPLATE");
     const value = await this.execute(...args);
     if (value && typeof value === "object" && !Buffer.isBuffer(value)) return value.response || null;
     return Buffer.isBuffer(value) ? value : null;
@@ -348,6 +350,7 @@ class CrowkisClient {
     }
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
+    if (options.template) args.push("TEMPLATE");
     const value = await this.execute(...args);
     if (!value || Buffer.isBuffer(value)) return null;
     return {
@@ -440,67 +443,75 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
-  async cmemset(agent, fact, { user, ex } = {}) {
+  async cmemset(agent, fact, { user, ex, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMSET", agent, fact];
     if (user) args.push("USER", user);
     if (ex !== undefined) args.push("EX", String(ex));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemget(agent, query, { user, k } = {}) {
+  async cmemget(agent, query, { user, k, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMGET", agent, query];
     if (user) args.push("USER", user);
     if (k !== undefined) args.push("K", String(k));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemextract(agent, conversation, { user, ex } = {}) {
+  async cmemextract(agent, conversation, { user, ex, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMEXTRACT", agent, conversation];
     if (user) args.push("USER", user);
     if (ex !== undefined) args.push("EX", String(ex));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemhistory(agent, query, { user, k } = {}) {
+  async cmemhistory(agent, query, { user, k, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMHISTORY", agent, query];
     if (user) args.push("USER", user);
     if (k !== undefined) args.push("K", String(k));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemasof(agent, query, unixMs, { user, k } = {}) {
+  async cmemasof(agent, query, unixMs, { user, k, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMASOF", agent, query, String(unixMs)];
     if (user) args.push("USER", user);
     if (k !== undefined) args.push("K", String(k));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemforget(agent, { query, user, threshold } = {}) {
+  async cmemforget(agent, { query, user, threshold, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMFORGET", agent];
     if (query) args.push(query);
     if (user) args.push("USER", user);
     if (threshold !== undefined) args.push("THRESHOLD", String(threshold));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemlink(agent, subject, relation, object, { user } = {}) {
+  async cmemlink(agent, subject, relation, object, { user, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMLINK", agent, subject, relation, object];
     if (user) args.push("USER", user);
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
-  async cmemgraph(agent, entity, { user, depth } = {}) {
+  async cmemgraph(agent, entity, { user, depth, tenant } = {}) {
     await this._hello3();
     const args = ["CMEMGRAPH", agent, entity];
     if (user) args.push("USER", user);
     if (depth !== undefined) args.push("DEPTH", String(depth));
+    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
     return this.execute(...args);
   }
 
@@ -958,4 +969,19 @@ module.exports = {
   CrowkisAdmin,
   CrowkisError,
   ...require("./grpc"),
+  get Agent() {
+    return require("./agent.js").Agent;
+  },
+  get VoiceSession() {
+    return require("./voice.js").VoiceSession;
+  },
+  get TurnDecision() {
+    return require("./voice.js").TurnDecision;
+  },
+  get RealtimeAdapter() {
+    return require("./realtime.js").RealtimeAdapter;
+  },
+  get RealtimeGate() {
+    return require("./realtime.js").RealtimeGate;
+  },
 };

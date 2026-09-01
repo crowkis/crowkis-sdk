@@ -8,6 +8,7 @@ import json
 import sys
 import types
 import unittest
+from io import BytesIO
 
 # ── stub langchain_core BEFORE importing the integration ────────────────────
 _caches = types.ModuleType("langchain_core.caches")
@@ -43,19 +44,6 @@ from crowkis.client import CrowkisError, _encode, _read_resp  # noqa: E402
 from crowkis.integrations.langchain import CrowkisCache  # noqa: E402
 
 
-class FakeSock:
-    """A socket whose recv() serves a fixed byte buffer."""
-
-    def __init__(self, data: bytes):
-        self.data = data
-        self.pos = 0
-
-    def recv(self, n: int) -> bytes:
-        chunk = self.data[self.pos : self.pos + n]
-        self.pos += len(chunk)
-        return chunk
-
-
 class ProtocolTests(unittest.TestCase):
     def test_encode_matches_resp(self):
         self.assertEqual(_encode(["PING"]), b"*1\r\n$4\r\nPING\r\n")
@@ -65,15 +53,15 @@ class ProtocolTests(unittest.TestCase):
         )
 
     def test_read_resp_types(self):
-        self.assertEqual(_read_resp(FakeSock(b"+PONG\r\n")), "PONG")
-        self.assertEqual(_read_resp(FakeSock(b":42\r\n")), 42)
-        self.assertEqual(_read_resp(FakeSock(b"$5\r\nhello\r\n")), b"hello")
-        self.assertIsNone(_read_resp(FakeSock(b"$-1\r\n")))
-        self.assertEqual(_read_resp(FakeSock(b"*2\r\n:1\r\n:2\r\n")), [1, 2])
+        self.assertEqual(_read_resp(BytesIO(b"+PONG\r\n")), "PONG")
+        self.assertEqual(_read_resp(BytesIO(b":42\r\n")), 42)
+        self.assertEqual(_read_resp(BytesIO(b"$5\r\nhello\r\n")), b"hello")
+        self.assertIsNone(_read_resp(BytesIO(b"$-1\r\n")))
+        self.assertEqual(_read_resp(BytesIO(b"*2\r\n:1\r\n:2\r\n")), [1, 2])
 
     def test_read_resp_error_raises(self):
         with self.assertRaises(CrowkisError):
-            _read_resp(FakeSock(b"-ERR boom\r\n"))
+            _read_resp(BytesIO(b"-ERR boom\r\n"))
 
 
 class MemMock:

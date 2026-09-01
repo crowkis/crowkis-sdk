@@ -19,7 +19,7 @@ For long-term agent memory in LangGraph/CrewAI/AutoGen, use
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 from ..client import CrowkisClient
 

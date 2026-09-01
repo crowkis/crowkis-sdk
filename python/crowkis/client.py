@@ -5,8 +5,10 @@ import base64
 import functools
 import inspect
 import json
+import logging
 import random
 import socket
+import threading
 import time
 from dataclasses import dataclass
 from http.client import HTTPConnection
@@ -28,7 +30,15 @@ BytesLike = Union[str, bytes, bytearray, memoryview]
 
 
 class CrowkisError(Exception):
-    """Raised when Crowkis returns an error or an SDK protocol failure occurs."""
+
+    retryable = True
+
+
+_LOG = logging.getLogger("crowkis")
+
+MAX_LINE_BYTES = 512 * 1024
+BUSY_DEFAULT_RETRY_SECONDS = 0.05
+BUSY_MAX_RETRY_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -81,37 +91,32 @@ def _encode(args: Iterable[BytesLike]) -> bytes:
     return b"".join(chunks)
 
 
-def _read_line(sock: socket.socket) -> bytes:
-    out = bytearray()
-    while True:
-        b = sock.recv(1)
-        if not b:
-            raise CrowkisError("connection closed")
-        out.extend(b)
-        if out.endswith(b"\r\n"):
-            return bytes(out[:-2])
+def _read_line(reader: Any) -> bytes:
+    line = reader.readline(MAX_LINE_BYTES)
+    if not line.endswith(b"\r\n"):
+        raise CrowkisError("connection closed")
+    return line[:-2]
 
 
-def _read_exact(sock: socket.socket, n: int) -> bytes:
-    out = bytearray()
-    while len(out) < n:
-        chunk = sock.recv(n - len(out))
-        if not chunk:
-            raise CrowkisError("connection closed")
-        out.extend(chunk)
-    return bytes(out)
+def _read_exact(reader: Any, n: int) -> bytes:
+    if n == 0:
+        return b""
+    data = reader.read(n)
+    if data is None or len(data) != n:
+        raise CrowkisError("connection closed")
+    return data
 
 
-def _read_resp(sock: socket.socket) -> Any:
-    line = _read_line(sock)
+def _read_frame(reader: Any) -> Any:
+    line = _read_line(reader)
     if not line:
         raise CrowkisError("empty RESP frame")
     prefix, payload = line[:1], line[1:]
 
     if prefix == b"+":
-        return payload.decode()
+        return payload.decode(errors="replace")
     if prefix == b"-":
-        raise CrowkisError(payload.decode(errors="replace"))
+        return CrowkisError(payload.decode(errors="replace"))
     if prefix == b":":
         return int(payload)
     if prefix == b",":
@@ -120,52 +125,60 @@ def _read_resp(sock: socket.socket) -> Any:
         return None
     if prefix == b"#":
         return payload == b"t"
-    if prefix == b"$":
+    if prefix in (b"$", b"=", b"!"):
         length = int(payload)
         if length < 0:
             return None
-        data = _read_exact(sock, length)
-        _read_exact(sock, 2)
-        return data
-    if prefix == b"*":
+        data = _read_exact(reader, length)
+        _read_exact(reader, 2)
+        return CrowkisError(data.decode(errors="replace")) if prefix == b"!" else data
+    if prefix in (b"*", b"~", b">"):
         count = int(payload)
         if count < 0:
             return None
-        return [_read_resp(sock) for _ in range(count)]
-    if prefix == b"%":
+        return [_read_frame(reader) for _ in range(count)]
+    if prefix in (b"%", b"|"):
         count = int(payload)
         out: Dict[Any, Any] = {}
         for _ in range(count):
-            key = _read_resp(sock)
-            value = _read_resp(sock)
+            key = _read_frame(reader)
+            value = _read_frame(reader)
             if isinstance(key, bytes):
                 key = key.decode(errors="replace")
             out[key] = value
+        if prefix == b"|":
+            return _read_frame(reader)
         return out
-    if prefix == b">":
-        count = int(payload)
-        return [_read_resp(sock) for _ in range(count)]
+    if prefix == b"(":
+        return int(payload)
 
     raise CrowkisError(f"unexpected RESP frame: {line!r}")
 
 
+def _read_resp(reader: Any) -> Any:
+    reply = _read_frame(reader)
+    if isinstance(reply, CrowkisError):
+        raise reply
+    return reply
+
+
 async def _aread_line(reader: asyncio.StreamReader) -> bytes:
     line = await reader.readline()
-    if not line:
+    if not line.endswith(b"\r\n"):
         raise CrowkisError("connection closed")
-    return line.rstrip(b"\r\n")
+    return line[:-2]
 
 
-async def _aread_resp(reader: asyncio.StreamReader) -> Any:
+async def _aread_frame(reader: asyncio.StreamReader) -> Any:
     line = await _aread_line(reader)
     if not line:
         raise CrowkisError("empty RESP frame")
     prefix, payload = line[:1], line[1:]
 
     if prefix == b"+":
-        return payload.decode()
+        return payload.decode(errors="replace")
     if prefix == b"-":
-        raise CrowkisError(payload.decode(errors="replace"))
+        return CrowkisError(payload.decode(errors="replace"))
     if prefix == b":":
         return int(payload)
     if prefix == b",":
@@ -174,33 +187,41 @@ async def _aread_resp(reader: asyncio.StreamReader) -> Any:
         return None
     if prefix == b"#":
         return payload == b"t"
-    if prefix == b"$":
+    if prefix in (b"$", b"=", b"!"):
         length = int(payload)
         if length < 0:
             return None
         data = await reader.readexactly(length)
         await reader.readexactly(2)
-        return data
-    if prefix == b"*":
+        return CrowkisError(data.decode(errors="replace")) if prefix == b"!" else data
+    if prefix in (b"*", b"~", b">"):
         count = int(payload)
         if count < 0:
             return None
-        return [await _aread_resp(reader) for _ in range(count)]
-    if prefix == b"%":
+        return [await _aread_frame(reader) for _ in range(count)]
+    if prefix in (b"%", b"|"):
         count = int(payload)
         out: Dict[Any, Any] = {}
         for _ in range(count):
-            key = await _aread_resp(reader)
-            value = await _aread_resp(reader)
+            key = await _aread_frame(reader)
+            value = await _aread_frame(reader)
             if isinstance(key, bytes):
                 key = key.decode(errors="replace")
             out[key] = value
+        if prefix == b"|":
+            return await _aread_frame(reader)
         return out
-    if prefix == b">":
-        count = int(payload)
-        return [await _aread_resp(reader) for _ in range(count)]
+    if prefix == b"(":
+        return int(payload)
 
     raise CrowkisError(f"unexpected RESP frame: {line!r}")
+
+
+async def _aread_resp(reader: asyncio.StreamReader) -> Any:
+    reply = await _aread_frame(reader)
+    if isinstance(reply, CrowkisError):
+        raise reply
+    return reply
 
 
 def _cache_hit(payload: Dict[str, Any]) -> CacheHit:
@@ -237,6 +258,92 @@ def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
         yield " ".join(words[idx : idx + chunk_tokens])
 
 
+def _scope(
+    tenant: Optional[str], user: Optional[str], topic: Optional[str]
+) -> List[BytesLike]:
+    args: List[BytesLike] = []
+    if tenant:
+        args += ["TENANT", tenant]
+    if user:
+        args += ["USER", user]
+    if topic:
+        args += ["TOPIC", topic]
+    return args
+
+
+def _tenant_model(tenant: Optional[str], model: Optional[str]) -> List[BytesLike]:
+    args: List[BytesLike] = []
+    if tenant:
+        args += ["TENANT", tenant]
+    if model:
+        args += ["MODEL", model]
+    return args
+
+
+def _busy_retry_seconds(error: BaseException) -> Optional[float]:
+    message = str(error)
+    if not message.upper().startswith("BUSY"):
+        return None
+    marker = "retry-after-ms"
+    at = message.find(marker)
+    if at < 0:
+        return BUSY_DEFAULT_RETRY_SECONDS
+    digits = ""
+    for char in message[at + len(marker) :].lstrip(" ="):
+        if not char.isdigit():
+            break
+        digits += char
+    if not digits:
+        return BUSY_DEFAULT_RETRY_SECONDS
+    return min(max(int(digits) / 1000.0, 0.001), BUSY_MAX_RETRY_SECONDS)
+
+
+TRANSPORT_FAILURES = (OSError, CrowkisError, ValueError, RecursionError)
+
+
+def _transport_error(host: str, port: int, attempts: int, cause: BaseException) -> CrowkisError:
+    if isinstance(cause, CrowkisError) and not cause.retryable:
+        return cause
+    return CrowkisError(
+        f"connection to {host}:{port} failed after {attempts} attempt(s): {cause}"
+    )
+
+
+class _Conn:
+    __slots__ = ("sock", "reader")
+
+    def __init__(self, sock: socket.socket, reader: Any) -> None:
+        self.sock = sock
+        self.reader = reader
+
+    def close(self) -> None:
+        try:
+            self.reader.close()
+        except OSError:
+            pass
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+
+class _AsyncConn:
+    __slots__ = ("reader", "writer")
+
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self.reader = reader
+        self.writer = writer
+
+    def close(self) -> None:
+        try:
+            self.writer.close()
+        except (OSError, ConnectionError):
+            pass
+
+
+ASYNC_TRANSPORT_FAILURES = TRANSPORT_FAILURES + (asyncio.TimeoutError,)
+
+
 async def _stream_values(value: Any) -> AsyncIterator[Any]:
     if inspect.isawaitable(value):
         value = await value
@@ -259,27 +366,55 @@ class CrowkisClient:
         *,
         tenant: Optional[str] = None,
         model: Optional[str] = None,
+        user: Optional[str] = None,
         auth_token: Optional[str] = None,
         timeout: float = 5.0,
+        connect_timeout: Optional[float] = None,
+        read_timeout: Optional[float] = None,
         max_retries: int = 2,
         backoff_base: float = 0.1,
+        pool_size: int = 8,
+        fail_soft: bool = False,
+        on_error: Optional[Callable[[BaseException], None]] = None,
     ) -> None:
         self.host = host
         self.port = port
         self.tenant = tenant
         self.model = model
+        self.user = user
         self.auth_token = auth_token
         self.timeout = timeout
+        self.connect_timeout = float(timeout if connect_timeout is None else connect_timeout)
+        self.read_timeout = float(timeout if read_timeout is None else read_timeout)
         self.max_retries = max(0, max_retries)
         self.backoff_base = max(0.0, backoff_base)
-        self._sock: Optional[socket.socket] = None
-        self._resp3 = False
+        self.pool_size = max(1, int(pool_size))
+        self.fail_soft = bool(fail_soft)
+        self.on_error = on_error
+        self._pool: List[_Conn] = []
+        self._pool_lock = threading.Lock()
+        self._slots = threading.BoundedSemaphore(self.pool_size)
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(host={self.host!r}, port={self.port}, "
+            f"tenant={self.tenant!r}, model={self.model!r})"
+        )
+
+    def scoped_tenant(self, tenant: Optional[str] = None) -> Optional[str]:
+        return tenant or self.tenant
+
+    def scoped_model(self, model: Optional[str] = None) -> Optional[str]:
+        return model or self.model
+
+    def scoped_user(self, user: Optional[str] = None) -> Optional[str]:
+        return user or self.user
 
     def close(self) -> None:
-        if self._sock is not None:
-            self._sock.close()
-            self._sock = None
-            self._resp3 = False
+        with self._pool_lock:
+            pool, self._pool = self._pool, []
+        for conn in pool:
+            conn.close()
 
     def __enter__(self) -> "CrowkisClient":
         self.connect()
@@ -288,40 +423,125 @@ class CrowkisClient:
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def connect(self) -> None:
-        if self._sock is None:
-            self._sock = socket.create_connection((self.host, self.port), self.timeout)
+    def _open(self) -> _Conn:
+        sock = socket.create_connection((self.host, self.port), self.connect_timeout)
+        sock.settimeout(self.read_timeout)
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
+        conn = _Conn(sock, sock.makefile("rb"))
+        try:
             if self.auth_token:
-                self._sock.sendall(_encode(["AUTH", self.auth_token]))
-                _read_resp(self._sock)
+                sock.sendall(_encode(["AUTH", self.auth_token]))
+                denied = _read_frame(conn.reader)
+                if isinstance(denied, CrowkisError):
+                    denied.retryable = False
+                    raise denied
+            sock.sendall(_encode(["HELLO", "3"]))
+            _read_frame(conn.reader)
+        except BaseException:
+            conn.close()
+            raise
+        return conn
+
+    def _take(self) -> _Conn:
+        with self._pool_lock:
+            if self._pool:
+                return self._pool.pop()
+        return self._open()
+
+    def _give(self, conn: _Conn) -> None:
+        with self._pool_lock:
+            if len(self._pool) < self.pool_size:
+                self._pool.append(conn)
+                return
+        conn.close()
+
+    def connect(self) -> None:
+        self._give(self._take())
+
+    def _report(self, error: BaseException) -> None:
+        handler = self.on_error
+        if handler is None:
+            _LOG.warning("crowkis request failed, treated as a cache miss: %s", error)
+            return
+        try:
+            handler(error)
+        except Exception:
+            pass
+
+    def _backoff(self, attempt: int) -> float:
+        delay = self.backoff_base * (2 ** attempt)
+        return delay + random.uniform(0, delay * 0.1)
 
     def execute(self, *args: BytesLike) -> Any:
-        # Retry connection-level failures with exponential backoff +
-        # jitter. RESP-level errors (CrowkisError) are NOT retried —
-        # the server answered; retrying a rejected command is wrong.
+        frame = _encode(args)
+        try:
+            return self.execute_strict(frame)
+        except CrowkisError as exc:
+            if not self.fail_soft:
+                raise
+            self._report(exc)
+            return None
+
+    def execute_strict(self, frame: bytes) -> Any:
         attempt = 0
         while True:
+            delay: Optional[float] = None
+            reply: Any = None
+            self._slots.acquire()
             try:
-                self.connect()
-                assert self._sock is not None
-                self._sock.sendall(_encode(args))
-                return _read_resp(self._sock)
-            except (OSError, ConnectionError) as exc:
-                self.close()
-                if attempt >= self.max_retries:
-                    raise CrowkisError(
-                        f"connection to {self.host}:{self.port} failed after "
-                        f"{attempt + 1} attempt(s): {exc}"
-                    ) from exc
-                delay = self.backoff_base * (2 ** attempt)
-                delay += random.uniform(0, delay * 0.1)
-                time.sleep(delay)
-                attempt += 1
+                conn = self._take()
+                try:
+                    conn.sock.sendall(frame)
+                    reply = _read_frame(conn.reader)
+                except BaseException:
+                    conn.close()
+                    raise
+                self._give(conn)
+            except TRANSPORT_FAILURES as exc:
+                if not getattr(exc, "retryable", True) or attempt >= self.max_retries:
+                    raise _transport_error(self.host, self.port, attempt + 1, exc) from exc
+                delay = self._backoff(attempt)
+            finally:
+                self._slots.release()
 
-    def _hello3(self) -> None:
-        if not self._resp3:
-            self.execute("HELLO", "3")
-            self._resp3 = True
+            if delay is None:
+                if isinstance(reply, CrowkisError):
+                    busy = _busy_retry_seconds(reply)
+                    if busy is None or attempt >= self.max_retries:
+                        raise reply
+                    delay = busy
+                else:
+                    return reply
+            time.sleep(delay)
+            attempt += 1
+
+    def pipeline(self, *commands: Iterable[BytesLike]) -> List[Any]:
+        batch = list(commands)
+        if not batch:
+            return []
+        frame = b"".join(_encode(command) for command in batch)
+        self._slots.acquire()
+        try:
+            conn = self._take()
+            try:
+                conn.sock.sendall(frame)
+                replies = [_read_frame(conn.reader) for _ in batch]
+            except BaseException:
+                conn.close()
+                raise
+            self._give(conn)
+            return replies
+        except TRANSPORT_FAILURES as exc:
+            failure = _transport_error(self.host, self.port, 1, exc)
+            if not self.fail_soft:
+                raise failure from exc
+            self._report(failure)
+            return [None] * len(batch)
+        finally:
+            self._slots.release()
 
     def ping(self) -> bool:
         return self.execute("PING") in ("PONG", b"PONG")
@@ -346,6 +566,7 @@ class CrowkisClient:
         model: Optional[str] = None,
         model_version: Optional[str] = None,
         image: Optional[BytesLike] = None,
+        template: bool = False,
     ) -> None:
         args: List[BytesLike] = ["CSET", query, response]
         if ttl is not None:
@@ -359,6 +580,8 @@ class CrowkisClient:
         image_payload = _image_b64(image)
         if image_payload is not None:
             args += ["IMAGE", image_payload]
+        if template:
+            args += ["TEMPLATE"]
         self.execute(*args)
 
     def cget(
@@ -371,6 +594,7 @@ class CrowkisClient:
         model_version: Optional[str] = None,
         migration_mode: Optional[str] = None,
         image: Optional[BytesLike] = None,
+        template: bool = False,
     ) -> Optional[bytes]:
         args: List[BytesLike] = ["CGET", query]
         if threshold is not None:
@@ -386,13 +610,14 @@ class CrowkisClient:
         image_payload = _image_b64(image)
         if image_payload is not None:
             args += ["IMAGE", image_payload]
+        if template:
+            args += ["TEMPLATE"]
         value = self.execute(*args)
         if isinstance(value, dict):
             return value.get("response")
         return value if isinstance(value, bytes) else None
 
     def cget_hit(self, query: BytesLike, **kwargs: Any) -> Optional[CacheHit]:
-        self._hello3()
         args: List[BytesLike] = ["CGET", query]
         threshold = kwargs.get("threshold")
         tenant = kwargs.get("tenant") or self.tenant
@@ -400,6 +625,7 @@ class CrowkisClient:
         model_version = kwargs.get("model_version")
         migration_mode = kwargs.get("migration_mode")
         image_payload = _image_b64(kwargs.get("image"))
+        template = bool(kwargs.get("template"))
         if threshold is not None:
             args += ["THRESHOLD", str(threshold)]
         if tenant:
@@ -412,6 +638,8 @@ class CrowkisClient:
             args += ["MIGRATION_MODE", migration_mode]
         if image_payload is not None:
             args += ["IMAGE", image_payload]
+        if template:
+            args += ["TEMPLATE"]
         value = self.execute(*args)
         return _cache_hit(value) if isinstance(value, dict) else None
 
@@ -435,11 +663,16 @@ class CrowkisClient:
             return value.get("response")
         return value if isinstance(value, bytes) else None
 
-    def csim(self, query: BytesLike, *, k: int = 10, tenant: Optional[str] = None) -> List[SimResult]:
-        self._hello3()
+    def csim(
+        self,
+        query: BytesLike,
+        *,
+        k: int = 10,
+        tenant: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> List[SimResult]:
         args: List[BytesLike] = ["CSIM", query, "K", str(max(1, k))]
-        if tenant or self.tenant:
-            args += ["TENANT", tenant or self.tenant or ""]
+        args += _tenant_model(self.scoped_tenant(tenant), self.scoped_model(model))
         value = self.execute(*args)
         return [
             SimResult(key=item.get("key") or b"", similarity=float(item.get("similarity") or 0.0))
@@ -451,20 +684,50 @@ class CrowkisClient:
         args: List[BytesLike] = ["CFLUSH"]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
-        return int(self.execute(*args))
+        return int(self.execute(*args) or 0)
 
     def cveccount(self) -> int:
-        return int(self.execute("CVECCOUNT"))
+        return int(self.execute("CVECCOUNT") or 0)
 
     def cembed(self, text: str) -> List[float]:
         value = self.execute("CEMBED", text)
         return [float(v) for v in value] if isinstance(value, list) else []
 
-    def creuse(self, query: str) -> Any:
-        return self.execute("CREUSE", query)
 
-    def cthink(self, query: str, cot_trace: str) -> Any:
-        return self.execute("CTHINK", query, cot_trace)
+    def _args_creuse(
+        self, query: str, *, tenant: Optional[str] = None, model: Optional[str] = None
+    ) -> List[BytesLike]:
+        args: List[BytesLike] = ["CREUSE", query]
+        args += _tenant_model(self.scoped_tenant(tenant), self.scoped_model(model))
+        return args
+
+    def creuse(
+        self, query: str, *, tenant: Optional[str] = None, model: Optional[str] = None
+    ) -> Any:
+        return self.execute(*self._args_creuse(query, tenant=tenant, model=model))
+
+
+    def _args_cthink(
+        self,
+        query: str,
+        cot_trace: str,
+        *,
+        tenant: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> List[BytesLike]:
+        args: List[BytesLike] = ["CTHINK", query, cot_trace]
+        args += _tenant_model(self.scoped_tenant(tenant), self.scoped_model(model))
+        return args
+
+    def cthink(
+        self,
+        query: str,
+        cot_trace: str,
+        *,
+        tenant: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cthink(query, cot_trace, tenant=tenant, model=model))
 
     def cwhyevict(self, query: str, tenant: Optional[str] = None) -> Any:
         args: List[BytesLike] = ["CWHYEVICT", query]
@@ -498,69 +761,235 @@ class CrowkisClient:
             args.append("COMMIT")
         return self.execute(*args)
 
-    def cmemset(self, agent: str, fact: str, *, user: Optional[str] = None, ex: Optional[int] = None) -> Any:
+
+    def _args_cmemset(
+        self,
+        agent: str,
+        fact: str,
+        *,
+        user: Optional[str] = None,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMSET", agent, fact]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if ex is not None:
             args += ["EX", str(ex)]
-        return self.execute(*args)
+        return args
 
-    def cmemget(self, agent: str, query: str, *, user: Optional[str] = None, k: Optional[int] = None) -> Any:
+    def cmemset(
+        self,
+        agent: str,
+        fact: str,
+        *,
+        user: Optional[str] = None,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemset(agent, fact, user=user, ex=ex, tenant=tenant, topic=topic))
+
+
+    def _args_cmemget(
+        self,
+        agent: str,
+        query: str,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMGET", agent, query]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if k is not None:
             args += ["K", str(k)]
-        return self.execute(*args)
+        return args
 
-    def cmemextract(self, agent: str, conversation: str, *, user: Optional[str] = None, ex: Optional[int] = None) -> Any:
+    def cmemget(
+        self,
+        agent: str,
+        query: str,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemget(agent, query, user=user, k=k, tenant=tenant, topic=topic))
+
+
+    def _args_cmemextract(
+        self,
+        agent: str,
+        conversation: str,
+        *,
+        user: Optional[str] = None,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMEXTRACT", agent, conversation]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if ex is not None:
             args += ["EX", str(ex)]
-        return self.execute(*args)
+        return args
 
-    def cmemhistory(self, agent: str, query: str, *, user: Optional[str] = None, k: Optional[int] = None) -> Any:
+    def cmemextract(
+        self,
+        agent: str,
+        conversation: str,
+        *,
+        user: Optional[str] = None,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemextract(agent, conversation, user=user, ex=ex, tenant=tenant, topic=topic))
+
+
+    def _args_cmemhistory(
+        self,
+        agent: str,
+        query: str,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMHISTORY", agent, query]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if k is not None:
             args += ["K", str(k)]
-        return self.execute(*args)
+        return args
 
-    def cmemasof(self, agent: str, query: str, unix_ms: int, *, user: Optional[str] = None, k: Optional[int] = None) -> Any:
+    def cmemhistory(
+        self,
+        agent: str,
+        query: str,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemhistory(agent, query, user=user, k=k, tenant=tenant, topic=topic))
+
+
+    def _args_cmemasof(
+        self,
+        agent: str,
+        query: str,
+        unix_ms: int,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMASOF", agent, query, str(unix_ms)]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if k is not None:
             args += ["K", str(k)]
-        return self.execute(*args)
+        return args
 
-    def cmemforget(self, agent: str, *, query: Optional[str] = None, user: Optional[str] = None, threshold: Optional[float] = None) -> Any:
-        args: List[BytesLike] = ["CMEMFORGET", agent]
-        if query:
-            args.append(query)
-        if user:
-            args += ["USER", user]
+    def cmemasof(
+        self,
+        agent: str,
+        query: str,
+        unix_ms: int,
+        *,
+        user: Optional[str] = None,
+        k: Optional[int] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemasof(agent, query, unix_ms, user=user, k=k, tenant=tenant, topic=topic))
+
+
+    def _args_cmemforget(
+        self,
+        agent: str,
+        *,
+        query: Optional[str] = None,
+        user: Optional[str] = None,
+        threshold: Optional[float] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> List[BytesLike]:
+        args: List[BytesLike] = ["CMEMFORGET", agent, query or ""]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), topic)
         if threshold is not None:
             args += ["THRESHOLD", str(threshold)]
-        return self.execute(*args)
+        return args
 
-    def cmemlink(self, agent: str, subject: str, relation: str, obj: str, *, user: Optional[str] = None) -> Any:
+    def cmemforget(
+        self,
+        agent: str,
+        *,
+        query: Optional[str] = None,
+        user: Optional[str] = None,
+        threshold: Optional[float] = None,
+        tenant: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemforget(agent, query=query, user=user, threshold=threshold, tenant=tenant, topic=topic))
+
+
+    def _args_cmemlink(
+        self,
+        agent: str,
+        subject: str,
+        relation: str,
+        obj: str,
+        *,
+        user: Optional[str] = None,
+        tenant: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMLINK", agent, subject, relation, obj]
-        if user:
-            args += ["USER", user]
-        return self.execute(*args)
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), None)
+        return args
 
-    def cmemgraph(self, agent: str, entity: str, *, user: Optional[str] = None, depth: Optional[int] = None) -> Any:
+    def cmemlink(
+        self,
+        agent: str,
+        subject: str,
+        relation: str,
+        obj: str,
+        *,
+        user: Optional[str] = None,
+        tenant: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemlink(agent, subject, relation, obj, user=user, tenant=tenant))
+
+
+    def _args_cmemgraph(
+        self,
+        agent: str,
+        entity: str,
+        *,
+        user: Optional[str] = None,
+        depth: Optional[int] = None,
+        tenant: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CMEMGRAPH", agent, entity]
-        if user:
-            args += ["USER", user]
+        args += _scope(self.scoped_tenant(tenant), self.scoped_user(user), None)
         if depth is not None:
             args += ["DEPTH", str(depth)]
-        return self.execute(*args)
+        return args
+
+    def cmemgraph(
+        self,
+        agent: str,
+        entity: str,
+        *,
+        user: Optional[str] = None,
+        depth: Optional[int] = None,
+        tenant: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_cmemgraph(agent, entity, user=user, depth=depth, tenant=tenant))
 
     def cdoc_add(self, doc_id: str, text: str, *, tenant: Optional[str] = None, ex: Optional[int] = None) -> Any:
         args: List[BytesLike] = ["CDOC", "ADD", doc_id, text]
@@ -578,23 +1007,62 @@ class CrowkisClient:
             args += ["TENANT", tenant or self.tenant]
         return self.execute(*args)
 
-    def csession_add(self, session: str, role: str, text: str, *, ex: Optional[int] = None) -> Any:
+
+    def _args_csession_add(
+        self,
+        session: str,
+        role: str,
+        text: str,
+        *,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CSESSION", "ADD", session, role, text]
+        args += _scope(self.scoped_tenant(tenant), None, None)
         if ex is not None:
             args += ["EX", str(ex)]
-        return self.execute(*args)
+        return args
 
-    def csession_recent(self, session: str, *, n: Optional[int] = None) -> Any:
+    def csession_add(
+        self,
+        session: str,
+        role: str,
+        text: str,
+        *,
+        ex: Optional[int] = None,
+        tenant: Optional[str] = None,
+    ) -> Any:
+        return self.execute(*self._args_csession_add(session, role, text, ex=ex, tenant=tenant))
+
+
+    def _args_csession_recent(
+        self, session: str, *, n: Optional[int] = None, tenant: Optional[str] = None
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CSESSION", "RECENT", session]
+        args += _scope(self.scoped_tenant(tenant), None, None)
         if n is not None:
             args += ["N", str(n)]
-        return self.execute(*args)
+        return args
 
-    def csession_search(self, session: str, query: str, *, k: Optional[int] = None) -> Any:
+    def csession_recent(
+        self, session: str, *, n: Optional[int] = None, tenant: Optional[str] = None
+    ) -> Any:
+        return self.execute(*self._args_csession_recent(session, n=n, tenant=tenant))
+
+
+    def _args_csession_search(
+        self, session: str, query: str, *, k: Optional[int] = None, tenant: Optional[str] = None
+    ) -> List[BytesLike]:
         args: List[BytesLike] = ["CSESSION", "SEARCH", session, query]
+        args += _scope(self.scoped_tenant(tenant), None, None)
         if k is not None:
             args += ["K", str(k)]
-        return self.execute(*args)
+        return args
+
+    def csession_search(
+        self, session: str, query: str, *, k: Optional[int] = None, tenant: Optional[str] = None
+    ) -> Any:
+        return self.execute(*self._args_csession_search(session, query, k=k, tenant=tenant))
 
     def cpin(self, query: str, answer: str, *, by: Optional[str] = None, tenant: Optional[str] = None) -> Any:
         args: List[BytesLike] = ["CPIN", query, answer]
@@ -668,8 +1136,6 @@ class CrowkisClient:
         count: Optional[int] = None,
         intent: Optional[str] = None,
     ) -> Tuple[str, List[bytes]]:
-        """Cursor-scan cached entries, optionally filtered by intent class.
-        Returns ``(next_cursor, keys)``; keep calling until next_cursor == "0"."""
         args: List[BytesLike] = ["CSCAN", str(cursor)]
         if match is not None:
             args += ["MATCH", match]
@@ -693,8 +1159,6 @@ class CrowkisClient:
         expect: Optional[str] = None,
         threshold: Optional[float] = None,
     ) -> Any:
-        """Score an ``output`` for an ``input`` with a named evaluator (or ``SUITE``).
-        Returns rows of ``(name, score, passed, detail)`` — LLM-as-judge style evals."""
         args: List[BytesLike] = ["CEVAL", evaluator, input, output]
         if expect is not None:
             args += ["EXPECT", expect]
@@ -703,11 +1167,9 @@ class CrowkisClient:
         return self.execute(*args)
 
     def cprompt_set(self, name: str, template: BytesLike) -> int:
-        """Store a new version of a named prompt template. Returns the version number."""
-        return int(self.execute("CPROMPT", "SET", name, template))
+        return int(self.execute("CPROMPT", "SET", name, template) or 0)
 
     def cprompt_get(self, name: str, *, version: Optional[int] = None) -> Optional[bytes]:
-        """Fetch a prompt template (latest, or a specific ``version``)."""
         args: List[BytesLike] = ["CPROMPT", "GET", name]
         if version is not None:
             args.append(str(version))
@@ -715,50 +1177,43 @@ class CrowkisClient:
         return value if isinstance(value, bytes) else None
 
     def cprompt_list(self) -> List[Any]:
-        """List all stored prompt names (prompt versioning / A/B)."""
         value = self.execute("CPROMPT", "LIST")
         return value if isinstance(value, list) else []
 
     def cprompt_versions(self, name: str) -> Any:
-        """List the versions of a named prompt."""
         return self.execute("CPROMPT", "VERSIONS", name)
 
     def csource_link(self, source_id: str, query: BytesLike, *, tenant: Optional[str] = None) -> bool:
-        """Link a cached query to a data source, so a source change can invalidate it."""
         args: List[BytesLike] = ["CSOURCE", "LINK", source_id, query]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
         return self.execute(*args) in ("OK", b"OK")
 
     def csource_purge(self, source_id: str) -> int:
-        """Purge every cached entry linked to ``source_id``. Returns the count purged."""
-        return int(self.execute("CSOURCE", "PURGE", source_id))
+        return int(self.execute("CSOURCE", "PURGE", source_id) or 0)
 
     def csource_list(self, source_id: str) -> List[Any]:
-        """List the queries linked to a data source."""
         value = self.execute("CSOURCE", "LIST", source_id)
         return value if isinstance(value, list) else []
 
     def compact(self) -> Any:
-        """Trigger a storage-engine compaction pass (reclaim space, GC deletes)."""
         return self.execute("COMPACT")
 
-    # ── Phase 0.1 operator surface ───────────────────────────────────────
 
     def cinfo(self, section: Optional[str] = None) -> str:
         args: List[BytesLike] = ["CINFO"]
         if section:
             args.append(section)
         value = self.execute(*args)
-        return value.decode() if isinstance(value, bytes) else str(value)
+        if value is None:
+            return ""
+        return value.decode(errors="replace") if isinstance(value, bytes) else str(value)
 
     def cbudget_get(self, tenant: Optional[str] = None) -> Dict[str, Any]:
-        self._hello3()
         value = self.execute("CBUDGET", "GET", tenant or self.tenant or "default")
         return value if isinstance(value, dict) else {}
 
     def cbudget_alerts(self) -> List[Dict[str, Any]]:
-        self._hello3()
         value = self.execute("CBUDGET", "ALERTS")
         return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
 
@@ -772,10 +1227,6 @@ class CrowkisClient:
         alert_pct: Optional[float] = None,
         circuit_pct: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Set a tenant's spend budget. The gateway enforces it: cost-aware
-        routing past the alert %, and a hard block on upstream calls past the
-        circuit-breaker %."""
-        self._hello3()
         args: List[BytesLike] = ["CBUDGET", "SET", tenant or self.tenant or "default"]
         if daily_usd is not None:
             args += ["DAILY", str(daily_usd)]
@@ -791,7 +1242,6 @@ class CrowkisClient:
         return value if isinstance(value, dict) else {}
 
     def cdedup(self, tenant: Optional[str] = None) -> Dict[str, Any]:
-        self._hello3()
         args: List[BytesLike] = ["CDEDUP"]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
@@ -799,7 +1249,6 @@ class CrowkisClient:
         return value if isinstance(value, dict) else {}
 
     def cpii_report(self, tenant: Optional[str] = None) -> Dict[str, Any]:
-        self._hello3()
         args: List[BytesLike] = ["CPII", "REPORT"]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
@@ -807,7 +1256,6 @@ class CrowkisClient:
         return value if isinstance(value, dict) else {}
 
     def cpii_erase(self, identifier: str, *, tenant: Optional[str] = None) -> Dict[str, Any]:
-        self._hello3()
         args: List[BytesLike] = ["CPII", "ERASE", identifier]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
@@ -822,7 +1270,6 @@ class CrowkisClient:
         return value in ("BGSAVE-STARTED", b"BGSAVE-STARTED")
 
     def creload(self) -> Dict[str, Any]:
-        self._hello3()
         value = self.execute("CRELOAD")
         return value if isinstance(value, dict) else {}
 
@@ -833,7 +1280,6 @@ class CrowkisClient:
         return self.execute(*args) in ("OK", b"OK")
 
     def ckeylimit_get(self, tenant: str) -> Optional[Dict[str, Any]]:
-        self._hello3()
         value = self.execute("CKEYLIMIT", "GET", tenant)
         return value if isinstance(value, dict) else None
 
@@ -877,17 +1323,11 @@ class CrowkisClient:
         )
         return response_bytes.decode("utf-8", errors="replace")
 
-    # ── High-level, model-agnostic cache API ────────────────────────────────
-    # These work with ANY model or provider. You bring the call; Crowkis caches
-    # it by meaning. Nothing here is tied to OpenAI, Anthropic, or any vendor.
 
     def lookup(self, prompt: BytesLike, **kwargs: Any) -> Optional[CacheHit]:
-        """Semantic lookup. Returns a :class:`CacheHit` (``.text``, ``.similarity``,
-        ``.confidence``) if a cached answer means the same thing, else ``None``."""
         return self.cget_hit(prompt, **kwargs)
 
     def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> None:
-        """Cache ``answer`` for ``prompt`` (optionally ``ttl=`` seconds)."""
         self.cset(prompt, answer, **kwargs)
 
     def ask(
@@ -896,8 +1336,6 @@ class CrowkisClient:
         compute: Callable[[str], Union[str, bytes]],
         **kwargs: Any,
     ) -> str:
-        """Return the cached answer for ``prompt``; otherwise call ``compute(prompt)``
-        — which may invoke **any** model — cache the result, and return it."""
         return self.get_or_compute(prompt, compute, **kwargs)
 
     def cached(
@@ -908,18 +1346,6 @@ class CrowkisClient:
         tenant: Optional[str] = None,
         model: Optional[str] = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., str]]:
-        """Decorator that adds a semantic cache to **any** function whose first
-        argument is the prompt. Model-agnostic — the wrapped call can hit any
-        provider. Works like ``functools.lru_cache``, but matches on meaning.
-
-        Example::
-
-            cache = Crowkis(tenant="my-app")
-
-            @cache.cached(ttl=3600)
-            def answer(prompt: str) -> str:
-                return any_model(prompt)   # OpenAI, Claude, a local model — anything
-        """
 
         def decorator(fn: Callable[..., Any]) -> Callable[..., str]:
             @functools.wraps(fn)
@@ -940,35 +1366,72 @@ class CrowkisClient:
         return decorator
 
     def similar(self, prompt: BytesLike, *, k: int = 10, tenant: Optional[str] = None) -> List[SimResult]:
-        """The ``k`` most semantically similar cached prompts."""
         return self.csim(prompt, k=k, tenant=tenant)
 
     def embed(self, text: str) -> List[float]:
-        """Return the raw embedding vector for ``text`` (computed server-side)."""
         return self.cembed(text)
 
     def flush(self, *, tenant: Optional[str] = None) -> int:
-        """Clear this tenant's cache; returns the number of entries removed."""
         return self.cflush(tenant=tenant)
 
 
-#: Idiomatic short name for the client — ``crowkis.Crowkis(...)`` (like ``redis.Redis``).
 Crowkis = CrowkisClient
 
 
 class AsyncCrowkisClient(CrowkisClient):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._reader: Optional[asyncio.StreamReader] = None
-        self._writer: Optional[asyncio.StreamWriter] = None
+        self._apool: List[_AsyncConn] = []
+        self._aslots: Optional[asyncio.Semaphore] = None
+
+    def _slots_async(self) -> asyncio.Semaphore:
+        if self._aslots is None:
+            self._aslots = asyncio.Semaphore(self.pool_size)
+        return self._aslots
+
+    async def _aopen(self) -> _AsyncConn:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(self.host, self.port), self.connect_timeout
+        )
+        conn = _AsyncConn(reader, writer)
+        try:
+            if self.auth_token:
+                writer.write(_encode(["AUTH", self.auth_token]))
+                await writer.drain()
+                denied = await _aread_frame(reader)
+                if isinstance(denied, CrowkisError):
+                    denied.retryable = False
+                    raise denied
+            writer.write(_encode(["HELLO", "3"]))
+            await writer.drain()
+            await _aread_frame(reader)
+        except BaseException:
+            conn.close()
+            raise
+        return conn
+
+    async def _atake(self) -> _AsyncConn:
+        while self._apool:
+            conn = self._apool.pop()
+            if not conn.reader.at_eof():
+                return conn
+            conn.close()
+        return await self._aopen()
+
+    def _agive(self, conn: _AsyncConn) -> None:
+        if len(self._apool) < self.pool_size:
+            self._apool.append(conn)
+        else:
+            conn.close()
 
     async def aclose(self) -> None:
-        if self._writer is not None:
-            self._writer.close()
-            await self._writer.wait_closed()
-        self._reader = None
-        self._writer = None
-        self._resp3 = False
+        pool, self._apool = self._apool, []
+        for conn in pool:
+            conn.close()
+            try:
+                await conn.writer.wait_closed()
+            except (OSError, ConnectionError):
+                pass
 
     async def __aenter__(self) -> "AsyncCrowkisClient":
         await self.aconnect()
@@ -978,19 +1441,121 @@ class AsyncCrowkisClient(CrowkisClient):
         await self.aclose()
 
     async def aconnect(self) -> None:
-        if self._reader is None or self._writer is None:
-            self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
-            if self.auth_token:
-                self._writer.write(_encode(["AUTH", self.auth_token]))
-                await self._writer.drain()
-                await _aread_resp(self._reader)
+        self._agive(await self._atake())
 
     async def execute_async(self, *args: BytesLike) -> Any:
-        await self.aconnect()
-        assert self._reader is not None and self._writer is not None
-        self._writer.write(_encode(args))
-        await self._writer.drain()
-        return await _aread_resp(self._reader)
+        frame = _encode(args)
+        try:
+            return await self.execute_async_strict(frame)
+        except CrowkisError as exc:
+            if not self.fail_soft:
+                raise
+            self._report(exc)
+            return None
+
+    async def execute_async_strict(self, frame: bytes) -> Any:
+        attempt = 0
+        while True:
+            delay: Optional[float] = None
+            reply: Any = None
+            async with self._slots_async():
+                try:
+                    conn = await self._atake()
+                    try:
+                        conn.writer.write(frame)
+                        await conn.writer.drain()
+                        reply = await asyncio.wait_for(
+                            _aread_frame(conn.reader), self.read_timeout
+                        )
+                    except BaseException:
+                        conn.close()
+                        raise
+                    self._agive(conn)
+                except ASYNC_TRANSPORT_FAILURES as exc:
+                    if not getattr(exc, "retryable", True) or attempt >= self.max_retries:
+                        raise _transport_error(self.host, self.port, attempt + 1, exc) from exc
+                    delay = self._backoff(attempt)
+
+            if delay is None:
+                if isinstance(reply, CrowkisError):
+                    busy = _busy_retry_seconds(reply)
+                    if busy is None or attempt >= self.max_retries:
+                        raise reply
+                    delay = busy
+                else:
+                    return reply
+            await asyncio.sleep(delay)
+            attempt += 1
+
+    async def pipeline_async(self, *commands: Iterable[BytesLike]) -> List[Any]:
+        batch = list(commands)
+        if not batch:
+            return []
+        frame = b"".join(_encode(command) for command in batch)
+        async with self._slots_async():
+            try:
+                conn = await self._atake()
+                try:
+                    conn.writer.write(frame)
+                    await conn.writer.drain()
+                    replies = [
+                        await asyncio.wait_for(_aread_frame(conn.reader), self.read_timeout)
+                        for _ in batch
+                    ]
+                except BaseException:
+                    conn.close()
+                    raise
+                self._agive(conn)
+                return replies
+            except ASYNC_TRANSPORT_FAILURES as exc:
+                failure = _transport_error(self.host, self.port, 1, exc)
+                if not self.fail_soft:
+                    raise failure from exc
+                self._report(failure)
+                return [None] * len(batch)
+
+    async def cmemset_async(self, agent: str, fact: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemset(agent, fact, **kwargs))
+
+    async def cmemget_async(self, agent: str, query: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemget(agent, query, **kwargs))
+
+    async def cmemextract_async(self, agent: str, conversation: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemextract(agent, conversation, **kwargs))
+
+    async def cmemhistory_async(self, agent: str, query: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemhistory(agent, query, **kwargs))
+
+    async def cmemasof_async(self, agent: str, query: str, unix_ms: int, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemasof(agent, query, unix_ms, **kwargs))
+
+    async def cmemforget_async(self, agent: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemforget(agent, **kwargs))
+
+    async def cmemlink_async(
+        self, agent: str, subject: str, relation: str, obj: str, **kwargs: Any
+    ) -> Any:
+        return await self.execute_async(
+            *self._args_cmemlink(agent, subject, relation, obj, **kwargs)
+        )
+
+    async def cmemgraph_async(self, agent: str, entity: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cmemgraph(agent, entity, **kwargs))
+
+    async def csession_add_async(self, session: str, role: str, text: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_csession_add(session, role, text, **kwargs))
+
+    async def csession_recent_async(self, session: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_csession_recent(session, **kwargs))
+
+    async def csession_search_async(self, session: str, query: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_csession_search(session, query, **kwargs))
+
+    async def creuse_async(self, query: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_creuse(query, **kwargs))
+
+    async def cthink_async(self, query: str, cot_trace: str, **kwargs: Any) -> Any:
+        return await self.execute_async(*self._args_cthink(query, cot_trace, **kwargs))
 
     async def cget_async(self, query: BytesLike, **kwargs: Any) -> Optional[bytes]:
         args: List[BytesLike] = ["CGET", query]
@@ -1096,7 +1661,6 @@ class AsyncCrowkisClient(CrowkisClient):
                     model_version=model_version,
                 )
 
-    # ── High-level async API (clean names, model-agnostic) ──────────────────
 
     async def ask(
         self,
@@ -1104,8 +1668,6 @@ class AsyncCrowkisClient(CrowkisClient):
         compute: Callable[[str], Awaitable[Union[str, bytes]]],
         **kwargs: Any,
     ) -> str:
-        """Async recall-or-compute: return the cached answer, or ``await compute(prompt)``
-        for any model, cache it, and return it."""
         return await self.get_or_compute_async(prompt, compute, **kwargs)
 
     def stream(
@@ -1114,16 +1676,12 @@ class AsyncCrowkisClient(CrowkisClient):
         compute: Callable[[str], Any],
         **kwargs: Any,
     ) -> AsyncIterator[Union[str, bytes]]:
-        """Stream a cached answer in chunks (feels like live model output), or stream
-        the model on a miss and cache the assembled result."""
         return self.stream_get_or_compute(prompt, compute, **kwargs)
 
     async def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> None:
-        """Async cache write."""
         await self.cset_async(prompt, answer, **kwargs)
 
 
-#: Idiomatic short name for the async client — ``crowkis.AsyncCrowkis(...)`` (like ``AsyncOpenAI``).
 AsyncCrowkis = AsyncCrowkisClient
 
 

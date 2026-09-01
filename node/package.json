@@ -32,6 +32,9 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "agent.js",
+    "voice.js",
+    "realtime.js",
     "langchain.js",
     "memory.js",
     "grpc.js",

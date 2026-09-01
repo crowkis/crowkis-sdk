@@ -13,12 +13,20 @@ from .grpc_stub import CrowkisGrpcStub, GrpcCacheHit, GrpcStreamChunk
 # Dependency-free integration — safe to export at top level.
 from .integrations.memory import CrowkisMemory
 from ._help import help, render as help_text
+from .agent import Agent
+from .realtime import RealtimeAdapter, RealtimeGate
+from .voice import TurnDecision, VoiceSession
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
 # model. A thin OpenAI-SDK drop-in still lives at `crowkis.openai_wrapper.CachedOpenAI`
 # for that specific convenience, but it is intentionally not a headline export.
 
 __all__ = [
+    "Agent",
+    "VoiceSession",
+    "TurnDecision",
+    "RealtimeAdapter",
+    "RealtimeGate",
     # clients (idiomatic short names first)
     "Crowkis",
     "AsyncCrowkis",

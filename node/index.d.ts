@@ -15,6 +15,7 @@ export interface CacheSetOptions {
   modelVersion?: string;
   model_version?: string;
   image?: string | Buffer | Uint8Array;
+  template?: boolean;
 }
 
 export interface CacheGetOptions {
@@ -26,6 +27,7 @@ export interface CacheGetOptions {
   migrationMode?: "miss" | "refresh" | "recompute" | "force_miss" | "force-miss" | string;
   migration_mode?: "miss" | "refresh" | "recompute" | "force_miss" | "force-miss" | string;
   image?: string | Buffer | Uint8Array;
+  template?: boolean;
 }
 
 export interface StreamCacheOptions extends CacheGetOptions, CacheSetOptions {
@@ -140,3 +142,266 @@ export class CrowkisGrpcClient {
 }
 
 export function loadCrowkisGrpc(options?: { protoPath?: string }): unknown;
+
+export type Synthesise = (
+  text: string,
+) => Buffer | Uint8Array | Promise<Buffer | Uint8Array>;
+
+export interface AgentOptions {
+  client?: CrowkisClient;
+  host?: string;
+  port?: number;
+  tenant?: string;
+  authToken?: string;
+  sharesWith?: string[];
+}
+
+export interface AskOptions {
+  serveAbove?: number;
+  cheapAbove?: number;
+  template?: boolean;
+  threshold?: number;
+}
+
+export interface AskResult {
+  route: "cache" | "cheap" | "expensive";
+  answer: string | null;
+  context?: string;
+  confidence: number;
+  similarity: number;
+}
+
+export interface RouteStats {
+  asked: number;
+  cache: number;
+  cheap: number;
+  expensive: number;
+  servedWithoutAModelPct: number;
+}
+
+export interface ToolStats {
+  calls: number;
+  cached: number;
+  executed: number;
+  avoidedPct: number;
+}
+
+export interface AudioStats {
+  spoken: number;
+  fromCache: number;
+  synthesised: number;
+  ttsAvoidedPct: number;
+}
+
+export type CachedTool<F extends (...args: never[]) => unknown> = ((
+  ...args: Parameters<F>
+) => Promise<Awaited<ReturnType<F>>>) & { crowkisToolName: string };
+
+export class Agent {
+  constructor(agentId: string, options?: AgentOptions);
+  readonly agentId: string;
+  readonly tenant?: string;
+  readonly sharesWith: string[];
+  readonly client: CrowkisClient;
+  routeCounts: { cache: number; cheap: number; expensive: number };
+  audioHits: number;
+  audioMisses: number;
+  toolHits: number;
+  toolMisses: number;
+  remember(fact: string, options?: { ttl?: number }): Promise<unknown>;
+  recall(query: string, options?: { includeShared?: boolean }): Promise<unknown[]>;
+  history(query?: string): Promise<unknown>;
+  forget(options?: { query?: string; user?: string; threshold?: number }): Promise<unknown>;
+  link(other: Agent | string, relation: string, object?: string): Promise<unknown>;
+  graph(entity?: string): Promise<unknown>;
+  tool<F extends (...args: never[]) => unknown>(
+    fn: F,
+    options?: { ttl?: number; name?: string },
+  ): CachedTool<F>;
+  toolStats(): ToolStats;
+  ask(query: string, options?: AskOptions): Promise<AskResult>;
+  speak(
+    text: string,
+    synthesise: Synthesise,
+    options: { voice: string; ttl?: number },
+  ): Promise<Buffer>;
+  audioStats(): AudioStats;
+  learn(
+    query: string,
+    answer: string,
+    options?: { ttl?: number; template?: boolean },
+  ): Promise<void>;
+  routeStats(): RouteStats;
+  close(): Promise<void>;
+}
+
+export type TurnAction = "serve" | "filler" | "infer";
+
+export interface TurnDecisionOptions {
+  text?: string | null;
+  audio?: Buffer | null;
+  confidence?: number;
+  reason?: string;
+}
+
+export class TurnDecision {
+  constructor(action: TurnAction, options?: TurnDecisionOptions);
+  readonly action: TurnAction;
+  readonly text: string | null;
+  readonly audio: Buffer | null;
+  readonly confidence: number;
+  readonly reason: string;
+  readonly servedFromCache: boolean;
+  readonly servedFromFiller: boolean;
+  readonly needsModel: boolean;
+  toString(): string;
+}
+
+export interface TranscriptTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface VoiceValues {
+  [slot: string]: string | number | null | undefined;
+}
+
+export interface VoiceSessionOptions {
+  voice: string;
+  serveAbove?: number;
+  minWords?: number;
+  synthesise?: Synthesise;
+  ttl?: number;
+  latencyBudgetMs?: number;
+  fillers?: Record<string, string>;
+  values?: VoiceValues;
+}
+
+export interface VoiceStats {
+  turns: number;
+  servedFromCache: number;
+  answeredByFiller: number;
+  modelCalls: number;
+  refusedTooShort: number;
+  refusedToShareAPrivateAnswer: number;
+  uncacheablePersonal: number;
+  missedLatencyBudget: number;
+  bargeIns: number;
+  cacheHitPct: number;
+  fillerHitPct: number;
+  modelCallsAvoidedPct: number;
+}
+
+export class VoiceSession {
+  constructor(agent: Agent, options: VoiceSessionOptions);
+  readonly agent: Agent;
+  readonly voice: string;
+  readonly serveAbove: number;
+  readonly minWords: number;
+  readonly synthesise?: Synthesise;
+  readonly ttl?: number;
+  readonly latencyBudgetMs?: number;
+  readonly values: Record<string, string>;
+  readonly transcript: TranscriptTurn[];
+  served: number;
+  inferred: number;
+  filled: number;
+  refusedShort: number;
+  refusedPrivate: number;
+  uncacheablePersonal: number;
+  overBudget: number;
+  bargeIns: number;
+  setValues(values: VoiceValues): void;
+  registerFiller(trigger: string, response: string): void;
+  registerFillers(pairs: Record<string, string>): void;
+  decide(callerSaid: string): Promise<TurnDecision>;
+  cancel(): boolean;
+  recordModelTurn(callerSaid: string, modelSaid: string): Promise<void>;
+  injections(): TranscriptTurn[];
+  stats(): VoiceStats;
+}
+
+/**
+ * Names of the three events this realtime provider uses. They are data, not
+ * constants: a wrong name means the gate never fires and every turn is billed.
+ */
+export interface RealtimeAdapterOptions {
+  /** Server event announcing a finished transcript of the caller's speech. */
+  transcriptEvent: string;
+  /** Field holding the transcript text; a dotted path walks nested objects. */
+  transcriptField: string;
+  /** Client event that appends a conversation item without running inference. */
+  injectEvent: string;
+  /** Client event that asks the provider to answer. Never sent on a hit. */
+  respondEvent: string;
+  /** Field naming the speaker on an injected item. Defaults to "role". */
+  roleField?: string;
+  /** Field carrying the text on an injected item. Defaults to "text". */
+  textField?: string;
+}
+
+export interface RealtimeInjectEvent {
+  type: string;
+  [field: string]: string;
+}
+
+export interface RealtimeRespondEvent {
+  type: string;
+}
+
+export type RealtimeClientEvent = RealtimeInjectEvent | RealtimeRespondEvent;
+
+export class RealtimeAdapter {
+  constructor(options: RealtimeAdapterOptions);
+  readonly transcriptEvent: string;
+  readonly transcriptField: string;
+  readonly injectEvent: string;
+  readonly respondEvent: string;
+  readonly roleField: string;
+  readonly textField: string;
+  readonly transcriptPath: string[];
+  isTranscript(event: unknown): boolean;
+  transcriptOf(event: unknown): string | null;
+  inject(role: string, text: string): RealtimeInjectEvent;
+  respond(): RealtimeRespondEvent;
+  toString(): string;
+}
+
+export interface RealtimeStats {
+  /** Every event handed to the gate, transcript or not. */
+  events: number;
+  /** Events that carried a non-blank transcript and reached the cache. */
+  transcripts: number;
+  /** Turns answered from cache or by a filler. */
+  served: number;
+  /** Turns sent on to the provider with a respond event. */
+  forwarded: number;
+  /** Inferences avoided. One suppressed respond event is one turn not billed. */
+  suppressed: number;
+}
+
+export interface RealtimeTurnSource {
+  decide(callerSaid: string): TurnDecision | Promise<TurnDecision>;
+}
+
+export class RealtimeGate {
+  constructor(session: VoiceSession | RealtimeTurnSource, adapter: RealtimeAdapter);
+  readonly session: VoiceSession | RealtimeTurnSource;
+  readonly adapter: RealtimeAdapter;
+  eventsSeen: number;
+  transcripts: number;
+  served: number;
+  forwarded: number;
+  suppressed: number;
+  /** The decision for the turn just handled, or null. Reset by every handle(). */
+  pendingDecision: TurnDecision | null;
+  /** Cached audio for the turn just handled, or null. Reset by every handle(). */
+  readonly pendingAudio: Buffer | null;
+  /**
+   * Never throws and never rejects: a malformed event, or a session that
+   * raises, forwards the turn instead of killing the call.
+   */
+  handle(event: unknown): Promise<RealtimeClientEvent[]>;
+  stats(): RealtimeStats;
+  toString(): string;
+}

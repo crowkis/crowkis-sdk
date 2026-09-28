@@ -54,18 +54,21 @@ class RespReader {
     const parsed = this._parseValue(0);
     if (parsed) {
       this.buffer = this.buffer.subarray(parsed.offset);
-      return Promise.resolve(parsed.value);
+      return parsed.error ? Promise.reject(parsed.error) : Promise.resolve(parsed.value);
     }
     return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
   }
 
+  // Runs inside the socket's "data" listener, so nothing here may throw: an
+  // exception there is uncaught and takes down every call on the process.
   _drain() {
     while (this.waiters.length > 0) {
       const parsed = this._parseValue(0);
       if (!parsed) return;
       this.buffer = this.buffer.subarray(parsed.offset);
       const waiter = this.waiters.shift();
-      waiter.resolve(parsed.value);
+      if (parsed.error) waiter.reject(parsed.error);
+      else waiter.resolve(parsed.value);
     }
   }
 
@@ -96,7 +99,7 @@ class RespReader {
       case "+":
         return { value: text, offset: line.offset };
       case "-":
-        throw new CrowkisError(text);
+        return { error: new CrowkisError(text), offset: line.offset };
       case ":":
         return { value: Number.parseInt(text, 10), offset: line.offset };
       case ",":
@@ -198,7 +201,12 @@ class CrowkisClient {
     this.port = options.port || 6383;
     this.tenant = options.tenant;
     this.model = options.model;
-    this.authToken = options.authToken || options.auth_token;
+    // Not enumerable: logging or JSON.stringify of a client must not print it.
+    Object.defineProperty(this, "authToken", {
+      value: options.authToken || options.auth_token,
+      enumerable: false,
+      writable: true,
+    });
     this.timeoutMs = options.timeoutMs || 5000;
     this.maxRetries = Math.max(0, options.maxRetries ?? 2);
     this.backoffBaseMs = Math.max(0, options.backoffBaseMs ?? 100);
@@ -224,13 +232,32 @@ class CrowkisClient {
           return;
         }
         socket.write(encode(["AUTH", this.authToken]));
-        this.reader.read().then(resolve, reject);
+        // A refused AUTH must not leave an unauthenticated socket behind for
+        // the next command to use.
+        this.reader.read().then(resolve, (error) => {
+          this.close();
+          reject(error);
+        });
       });
       socket.once("error", (error) => {
         clearTimeout(timer);
         reject(error);
       });
     });
+  }
+
+  // A server that accepts and never answers must not hold a caller forever.
+  // The socket is dropped on timeout so a late reply cannot be read as the
+  // answer to the next command.
+  _readWithin(ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        this.close();
+        reject(new CrowkisError("read timeout"));
+      }, ms);
+    });
+    return Promise.race([this.reader.read(), timeout]).finally(() => clearTimeout(timer));
   }
 
   close() {
@@ -252,7 +279,7 @@ class CrowkisClient {
       try {
         await this.connect();
         this.socket.write(encode(args));
-        return await this.reader.read();
+        return await this._readWithin(this.timeoutMs);
       } catch (error) {
         const connectionLevel =
           error.code === "ECONNREFUSED" ||
@@ -680,11 +707,15 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
-  async cpiiErase(identifier, tenant) {
+  // A preview unless `commit` is set: the reply counts what would go and
+  // nothing is deleted. The scope is explicit — a tenant, or `allTenants`.
+  async cpiiErase(identifier, tenant, { commit = false, allTenants = false } = {}) {
     await this._hello3();
     const args = ["CPII", "ERASE", identifier];
-    const t = tenant || this.tenant;
+    const t = allTenants ? null : tenant || this.tenant;
     if (t) args.push("TENANT", t);
+    else args.push("ALL");
+    if (commit) args.push("COMMIT");
     return this.execute(...args);
   }
 

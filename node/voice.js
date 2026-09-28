@@ -39,6 +39,13 @@ const PROCEDURAL = [
   ["help", "me"],
   ["guide"],
   ["tutorial"],
+  ["what", "should", "i", "do"],
+  ["what", "do", "i", "do"],
+  ["what", "can", "i", "do"],
+  ["what", "are", "the", "steps"],
+  ["how", "long", "do", "i", "have"],
+  ["what", "is", "the", "process"],
+  ["what", "happens", "if"],
 ];
 
 const OWNER_PREPOSITIONS = new Set([
@@ -58,6 +65,15 @@ const CONNECTIVE_PAIRS = new Set(["what about", "how about", "ok and", "okay and
 
 const ELLIPSIS_LEADS = new Set([
   "for", "with", "about", "in", "on", "at", "to", "from", "by",
+]);
+
+// A preposition-led utterance is a fragment only when nothing after it forms a
+// clause: "for ten people" borrows its verb, "in python, how do i ..." brings one.
+const CLAUSE_MARKERS = new Set([
+  "what", "how", "why", "when", "where", "which", "who", "whose", "is", "are",
+  "was", "were", "do", "does", "did", "can", "could", "should", "would", "will",
+  "explain", "describe", "define", "list", "show", "tell", "give", "compare",
+  "write", "summarise", "summarize", "translate",
 ]);
 
 const ANAPHOR_PHRASES = ["this one", "the second one", "the first one", "the other one"];
@@ -162,7 +178,9 @@ function isContextDependent(text) {
   if (!words.length) return false;
   if (CONNECTIVES.has(words[0])) return true;
   if (CONNECTIVE_PAIRS.has(words.slice(0, 2).join(" "))) return true;
-  if (ELLIPSIS_LEADS.has(words[0])) return true;
+  if (ELLIPSIS_LEADS.has(words[0]) && !words.slice(1).some((w) => CLAUSE_MARKERS.has(w))) {
+    return true;
+  }
   return hasBareAnaphor(words);
 }
 
@@ -170,14 +188,21 @@ function slotNames(shape) {
   return [...String(shape).matchAll(SLOT)].map((found) => found[1]);
 }
 
+// One pass: a value that itself contains "{other}" is spoken as-is, never
+// expanded into another slot's value.
 function fill(shape, values) {
-  let filled = String(shape);
   for (const name of slotNames(shape)) {
-    const value = values[name];
-    if (value === undefined || value === null) return null;
-    filled = filled.split(`{${name}}`).join(value);
+    if (values[name] === undefined || values[name] === null) return null;
   }
-  return filled;
+  return String(shape).replace(SLOT, (_, name) => values[name]);
+}
+
+// Replaced only as whole words, and one- or two-character values not at all:
+// count=2 must not turn "24 hours" into "{count}4 hours".
+const MIN_ABSTRACT_LEN = 3;
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function abstract(answer, values) {
@@ -186,7 +211,10 @@ function abstract(answer, values) {
     (left, right) => String(right[1] || "").length - String(left[1] || "").length
   );
   for (const [name, value] of pairs) {
-    if (value) shaped = shaped.split(value).join(`{${name}}`);
+    if (value && value.length >= MIN_ABSTRACT_LEN) {
+      const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(value)}(?![\\p{L}\\p{N}_])`, "gu");
+      shaped = shaped.replace(pattern, `{${name}}`);
+    }
   }
   return shaped;
 }
@@ -199,6 +227,33 @@ function leaks(shaped, values) {
   const flat = flatten(shaped);
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
 }
+
+// Whether the answer repeats something the caller said earlier in the call. A
+// model answering turn N has seen turns 1..N-1, so "Sarah, order 55512 arrives
+// Tuesday" to "what is the delivery time?" — or an answer shaped by "pretend
+// refunds are unlimited" — would become the shared answer to a generic
+// question and be spoken to the next caller.
+function carriesCallContext(answer, question, earlier) {
+  const asked = new Set(wordsOf(question));
+  const before = new Set();
+  for (const turn of earlier) {
+    for (const w of wordsOf(turn)) {
+      if ((w.length >= 3 || /\d/.test(w)) && !FUNCTION_WORDS.has(w)) before.add(w);
+    }
+  }
+  return wordsOf(answer).some((w) => before.has(w) && !asked.has(w));
+}
+
+// A hard deadline: a slow or hung cache must never hold a live call past its budget.
+function within(ms, promise) {
+  let timer;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(LATE), ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
+const LATE = Symbol("late");
 
 class TurnDecision {
   constructor(action, { text = null, audio = null, confidence = 0, reason = "" } = {}) {
@@ -273,6 +328,9 @@ class VoiceSession {
     this.uncacheablePersonal = 0;
     this.overBudget = 0;
     this.bargeIns = 0;
+    this.lookupErrors = 0;
+    this.learnErrors = 0;
+    this.uncacheableContext = 0;
     this._fillers = new Map();
     this._open = false;
     this._cancelled = false;
@@ -355,23 +413,34 @@ class VoiceSession {
       });
     }
 
+    let hit;
     const started = performance.now();
-    const hit = await this.agent.ask(keyed, {
-      serveAbove: this.serveAbove,
-      cheapAbove: Math.min(0.6, this.serveAbove),
-      template: personal,
-      threshold: contextBound ? CONTEXT_BOUND_THRESHOLD : undefined,
-    });
-    const tookMs = performance.now() - started;
-
-    if (this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null && tookMs > this.latencyBudgetMs) {
-      this.overBudget += 1;
+    try {
+      const lookup = this.agent.ask(keyed, {
+        serveAbove: this.serveAbove,
+        cheapAbove: Math.min(0.6, this.serveAbove),
+        template: personal,
+        threshold: contextBound ? CONTEXT_BOUND_THRESHOLD : undefined,
+      });
+      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
+      hit = budgeted ? await within(this.latencyBudgetMs, lookup) : await lookup;
+      // Cut off a slow lookup, and refuse one that finished after the budget.
+      if (hit === LATE || (budgeted && performance.now() - started > this.latencyBudgetMs)) {
+        lookup.catch(() => {});
+        this.overBudget += 1;
+        this.inferred += 1;
+        return new TurnDecision("infer", {
+          reason:
+            `lookup passed the ${this.latencyBudgetMs}ms voice budget; ` +
+            "a late hit is worse than a fast miss",
+        });
+      }
+    } catch (error) {
+      // An unreachable or refusing cache means "ask the model", never silence.
+      this.lookupErrors += 1;
       this.inferred += 1;
       return new TurnDecision("infer", {
-        confidence: hit.confidence,
-        reason:
-          `lookup took ${tookMs.toFixed(1)}ms, past the ${this.latencyBudgetMs}ms ` +
-          "voice budget; a late hit is worse than a fast miss",
+        reason: `cache unavailable (${error && error.name}); asking the model`,
       });
     }
 
@@ -418,19 +487,32 @@ class VoiceSession {
     return true;
   }
 
+  // Never rejects: this runs inside the caller's event loop, and a refused write
+  // (security pipeline, rate limit, cache down) must not end a call.
   async recordModelTurn(callerSaid, modelSaid) {
     if (this._cancelled) return;
     this._open = false;
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const keyed = this._contextKey(callerSaid, text);
+    const earlier = this.transcript.filter((t) => t.role === "user").map((t) => t.content);
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (!(typeof modelSaid === "string" && modelSaid.trim()) || keyed === null) return;
-    if (isPersonal(text)) {
-      await this._learnPersonal(keyed, modelSaid);
-      return;
+    try {
+      if (isPersonal(text)) {
+        await this._learnPersonal(keyed, modelSaid);
+        return;
+      }
+      // A follow-up is keyed with the turn it depends on, so that turn's words
+      // are part of what was asked, not leaked call context.
+      if (leaks(modelSaid, this.values) || carriesCallContext(modelSaid, keyed, earlier)) {
+        this.uncacheableContext += 1;
+        return;
+      }
+      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+    } catch (error) {
+      this.learnErrors += 1;
     }
-    await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
   }
 
   injections() {
@@ -450,6 +532,9 @@ class VoiceSession {
       uncacheablePersonal: this.uncacheablePersonal,
       missedLatencyBudget: this.overBudget,
       bargeIns: this.bargeIns,
+      cacheUnavailable: this.lookupErrors,
+      failedWrites: this.learnErrors,
+      uncacheableCallContext: this.uncacheableContext,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
@@ -498,4 +583,6 @@ module.exports = {
   TurnDecision,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
+  _abstract: abstract,
+  _fill: fill,
 };

@@ -1255,10 +1255,28 @@ class CrowkisClient:
         value = self.execute(*args)
         return value if isinstance(value, dict) else {}
 
-    def cpii_erase(self, identifier: str, *, tenant: Optional[str] = None) -> Dict[str, Any]:
+    def cpii_erase(
+        self,
+        identifier: str,
+        *,
+        tenant: Optional[str] = None,
+        commit: bool = False,
+        all_tenants: bool = False,
+    ) -> Dict[str, Any]:
+        """Erase every stored entry naming ``identifier``.
+
+        Without ``commit`` this is a preview: the reply counts what would be
+        removed and nothing is deleted. The scope must be explicit — a tenant,
+        or ``all_tenants=True`` to reach every tenant.
+        """
         args: List[BytesLike] = ["CPII", "ERASE", identifier]
-        if tenant or self.tenant:
-            args += ["TENANT", tenant or self.tenant or ""]
+        scope = None if all_tenants else (tenant or self.tenant)
+        if scope:
+            args += ["TENANT", scope]
+        else:
+            args.append("ALL")
+        if commit:
+            args.append("COMMIT")
         value = self.execute(*args)
         return value if isinstance(value, dict) else {}
 

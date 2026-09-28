@@ -496,3 +496,98 @@ test("a run of pure misses forwards every single turn", async () => {
   assert.strictEqual(gate.stats().forwarded, 20);
   assert.strictEqual(gate.stats().suppressed, 0);
 });
+
+// Messages checked against the providers' documented schemas.
+// OpenAI Realtime: developers.openai.com/api/reference/resources/realtime/client-events
+// Gemini Live:     ai.google.dev/api/live
+function openaiAdapter() {
+  // The session must set turn_detection.create_response = false, or the
+  // provider answers (and bills) every turn before the gate decides.
+  return new RealtimeAdapter({
+    transcriptEvent: "conversation.item.input_audio_transcription.completed",
+    transcriptField: "transcript",
+    injectEvent: "conversation.item.create",
+    respondEvent: "response.create",
+    injectTemplate: {
+      type: "conversation.item.create",
+      item: { type: "message", role: "{role}", content: [{ type: "output_text", text: "{text}" }] },
+    },
+    injectUser: false,
+  });
+}
+
+function geminiSttFirstAdapter() {
+  return new RealtimeAdapter({
+    transcriptEvent: "appTranscript",
+    transcriptField: "appTranscript.text",
+    injectEvent: "clientContent",
+    respondEvent: "clientContent",
+    injectTemplate: { clientContent: { turns: [{ role: "{role}", parts: [{ text: "{text}" }] }], turnComplete: false } },
+    respondTemplate: { clientContent: { turns: [{ role: "user", parts: [{ text: "{text}" }] }], turnComplete: true } },
+    assistantRole: "model",
+  });
+}
+
+test("openai hit injects one nested assistant item and no response", async () => {
+  const client = new FakeClient();
+  client.shared.set("where is my nearest branch", "Two streets over.");
+  const gate = new RealtimeGate(session(client), openaiAdapter());
+  const out = await gate.handle({
+    type: "conversation.item.input_audio_transcription.completed",
+    item_id: "item_1",
+    content_index: 0,
+    transcript: "where is my nearest branch",
+  });
+  assert.deepStrictEqual(out, [{
+    type: "conversation.item.create",
+    item: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Two streets over." }] },
+  }]);
+});
+
+test("openai miss sends response.create", async () => {
+  const gate = new RealtimeGate(session(new FakeClient()), openaiAdapter());
+  const out = await gate.handle({
+    type: "conversation.item.input_audio_transcription.completed",
+    transcript: "what are your opening hours on bank holidays",
+  });
+  assert.deepStrictEqual(out, [{ type: "response.create" }]);
+});
+
+test("gemini stt-first hit injects user and model turns; miss sends the words", async () => {
+  const client = new FakeClient();
+  client.shared.set("where is my nearest branch", "Two streets over.");
+  const gate = new RealtimeGate(session(client), geminiSttFirstAdapter());
+  const hitOut = await gate.handle({ appTranscript: { text: "where is my nearest branch" } });
+  assert.deepStrictEqual(hitOut.map((m) => m.clientContent.turns[0].role), ["user", "model"]);
+  const missOut = await gate.handle({ appTranscript: { text: "what are your opening hours on bank holidays" } });
+  assert.deepStrictEqual(missOut, [{ clientContent: { turns: [{ role: "user", parts: [
+    { text: "what are your opening hours on bank holidays" }] }], turnComplete: true } }]);
+});
+
+test("messages that are not transcripts never start a response", async () => {
+  const gate = new RealtimeGate(session(new FakeClient()), new RealtimeAdapter({
+    transcriptEvent: "serverContent",
+    transcriptField: "serverContent.inputTranscription.text",
+    injectEvent: "clientContent",
+    respondEvent: "clientContent",
+  }));
+  for (const message of [
+    { serverContent: { modelTurn: { parts: [{ inlineData: { data: "AAAA" } }] } } },
+    { serverContent: { turnComplete: true } },
+    { serverContent: { outputTranscription: { text: "hello" } } },
+  ]) {
+    assert.deepStrictEqual(await gate.handle(message), []);
+  }
+  assert.strictEqual(gate.forwarded, 0);
+});
+
+test("cached audio survives later events until taken", async () => {
+  const client = new FakeClient();
+  client.shared.set("where is my nearest branch", "Two streets over.");
+  const spoken = session(client, { synthesise: async () => Buffer.from("PCM") });
+  const gate = new RealtimeGate(spoken, openaiAdapter());
+  await gate.handle({ type: "conversation.item.input_audio_transcription.completed", transcript: "where is my nearest branch" });
+  await gate.handle({ type: "input_audio_buffer.speech_stopped" });
+  assert.ok(gate.takePendingAudio());
+  assert.strictEqual(gate.takePendingAudio(), null);
+});

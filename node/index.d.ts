@@ -287,6 +287,12 @@ export interface VoiceStats {
   uncacheablePersonal: number;
   missedLatencyBudget: number;
   bargeIns: number;
+  /** Lookups that failed (cache down or refusing); each went to the model. */
+  cacheUnavailable: number;
+  /** Model answers that could not be cached (refused write); the call went on. */
+  failedWrites: number;
+  /** Model answers not shared because they repeat what this caller said earlier. */
+  uncacheableCallContext: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -338,15 +344,28 @@ export interface RealtimeAdapterOptions {
   roleField?: string;
   /** Field carrying the text on an injected item. Defaults to "text". */
   textField?: string;
+  /**
+   * Full inject message with "{role}" and "{text}" placeholders at any depth,
+   * for providers that nest the text (e.g. item.content[] or turns[].parts[]).
+   */
+  injectTemplate?: Record<string, unknown> | null;
+  /** Full respond message; "{text}" receives the caller's words. */
+  respondTemplate?: Record<string, unknown> | null;
+  /** The provider's name for the model's turns. Defaults to "assistant". */
+  assistantRole?: string;
+  /**
+   * false when the provider already holds the caller's turn (server-side voice
+   * activity detection commits the audio as an item). Defaults to true.
+   */
+  injectUser?: boolean;
 }
 
 export interface RealtimeInjectEvent {
-  type: string;
-  [field: string]: string;
+  [field: string]: unknown;
 }
 
 export interface RealtimeRespondEvent {
-  type: string;
+  [field: string]: unknown;
 }
 
 export type RealtimeClientEvent = RealtimeInjectEvent | RealtimeRespondEvent;
@@ -393,10 +412,16 @@ export class RealtimeGate {
   served: number;
   forwarded: number;
   suppressed: number;
-  /** The decision for the turn just handled, or null. Reset by every handle(). */
+  /** The decision for the last served turn, or null. Cleared by the next turn or takePendingAudio(). */
   pendingDecision: TurnDecision | null;
-  /** Cached audio for the turn just handled, or null. Reset by every handle(). */
+  /** Cached audio for the last served turn, or null. Kept until taken or the next turn. */
   readonly pendingAudio: Buffer | null;
+  /**
+   * The cached answer's audio for the app to play, handed over once. The
+   * provider is never asked to speak it (that would be a billed inference);
+   * stop playback yourself on barge-in.
+   */
+  takePendingAudio(): Buffer | null;
   /**
    * Never throws and never rejects: a malformed event, or a session that
    * raises, forwards the turn instead of killing the call.

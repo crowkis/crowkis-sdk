@@ -1,11 +1,14 @@
 {
   "name": "@crowkis/client",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "Official Node.js and TypeScript SDK for Crowkis — intelligent, Redis-compatible cache & memory for LLM apps and agents",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
     ".": "./index.js",
+    "./agent": "./agent.js",
+    "./voice": "./voice.js",
+    "./realtime": "./realtime.js",
     "./langchain": "./langchain.js",
     "./memory": "./memory.js"
   },

@@ -14,6 +14,23 @@ function own(node, key) {
   return Object.prototype.hasOwnProperty.call(node, key) ? node[key] : undefined;
 }
 
+// Copy a message template, putting values into "{role}"/"{text}" strings.
+// Whole-string placeholders only, so a caller's words can never inject JSON
+// structure or another placeholder into the message sent to the provider.
+function render(template, values) {
+  if (Array.isArray(template)) return template.map((v) => render(v, values));
+  if (isPlainObject(template)) {
+    const out = {};
+    for (const [k, v] of Object.entries(template)) out[k] = render(v, values);
+    return out;
+  }
+  if (typeof template === "string" && template.startsWith("{") && template.endsWith("}")) {
+    const name = template.slice(1, -1);
+    return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : template;
+  }
+  return template;
+}
+
 function named(value, label) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(
@@ -33,6 +50,15 @@ class RealtimeAdapter {
     respondEvent,
     roleField = "role",
     textField = "text",
+    // Full messages with "{role}"/"{text}" placeholders at any depth, for
+    // providers that nest the text (item.content[], turns[].parts[]).
+    injectTemplate = null,
+    respondTemplate = null,
+    // The provider's name for the model's turns.
+    assistantRole = ASSISTANT,
+    // false when the provider already holds the caller's turn (server-side
+    // voice activity detection commits the audio as an item).
+    injectUser = true,
   } = {}) {
     this.transcriptEvent = named(transcriptEvent, "transcriptEvent");
     this.transcriptField = named(transcriptField, "transcriptField");
@@ -48,6 +74,10 @@ class RealtimeAdapter {
       );
     }
     this.transcriptPath = path;
+    this.injectTemplate = injectTemplate;
+    this.respondTemplate = respondTemplate;
+    this.assistantRole = named(assistantRole, "assistantRole");
+    this.injectUser = Boolean(injectUser);
   }
 
   isTranscript(event) {
@@ -69,6 +99,7 @@ class RealtimeAdapter {
   }
 
   inject(role, text) {
+    if (this.injectTemplate !== null) return render(this.injectTemplate, { role, text });
     return {
       type: this.injectEvent,
       [this.roleField]: role,
@@ -76,7 +107,8 @@ class RealtimeAdapter {
     };
   }
 
-  respond() {
+  respond(text = "") {
+    if (this.respondTemplate !== null) return render(this.respondTemplate, { text });
     return { type: this.respondEvent };
   }
 
@@ -117,14 +149,29 @@ class RealtimeGate {
     return audio === undefined ? null : audio;
   }
 
+  // The cached answer's audio for the app to play, handed over once. The
+  // provider is never asked to speak it (that is a billed inference), so the
+  // app plays it — and stops it on barge-in.
+  takePendingAudio() {
+    const audio = this.pendingAudio;
+    this.pendingDecision = null;
+    return audio;
+  }
+
   async handle(event) {
     this.eventsSeen += 1;
-    this.pendingDecision = null;
 
-    if (!this.adapter.isTranscript(event)) return [];
-
+    // Only an event carrying a transcript string is a turn. A provider that
+    // nests transcription inside a general message type also sends audio and
+    // turn markers under it; answering those with a respond started a new,
+    // billed, self-interrupting response each.
     const transcript = this.adapter.transcriptOf(event);
-    if (!transcript || !transcript.trim()) return this._forward();
+    if (transcript === null) {
+      const typed = isPlainObject(event) && own(event, "type") === this.adapter.transcriptEvent;
+      return typed ? this._forward() : [];
+    }
+    this.pendingDecision = null;
+    if (!transcript.trim()) return this._forward();
 
     this.transcripts += 1;
     let decision;
@@ -133,14 +180,12 @@ class RealtimeGate {
       decision = await this.session.decide(transcript);
       const action = decision === null || decision === undefined ? undefined : decision.action;
       const spoken = decision === null || decision === undefined ? undefined : decision.text;
-      if (!SERVED_ACTIONS.has(action)) return this._forward();
-      if (typeof spoken !== "string" || !spoken.trim()) return this._forward();
-      events = [
-        this.adapter.inject(USER, transcript),
-        this.adapter.inject(ASSISTANT, spoken),
-      ];
+      if (!SERVED_ACTIONS.has(action)) return this._forward(transcript);
+      if (typeof spoken !== "string" || !spoken.trim()) return this._forward(transcript);
+      events = this.adapter.injectUser ? [this.adapter.inject(USER, transcript)] : [];
+      events.push(this.adapter.inject(this.adapter.assistantRole, spoken));
     } catch (e) {
-      return this._forward();
+      return this._forward(transcript);
     }
 
     this.pendingDecision = decision;
@@ -159,9 +204,9 @@ class RealtimeGate {
     };
   }
 
-  _forward() {
+  _forward(transcript = "") {
     this.forwarded += 1;
-    return [this.adapter.respond()];
+    return [this.adapter.respond(transcript)];
   }
 
   toString() {

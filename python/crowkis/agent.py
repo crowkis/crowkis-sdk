@@ -63,16 +63,18 @@ class Agent:
                 found.extend(result if isinstance(result, list) else [result])
         return found
 
-    def history(self) -> Any:
-        return self._client.cmemhistory(self.agent_id, tenant=self.tenant)
+    def history(self, query: str, *, k: int = 5) -> Any:
+        return self._client.cmemhistory(
+            self.agent_id, query, k=k, tenant=self.tenant
+        )
 
     def forget(self) -> Any:
         return self._client.cmemforget(self.agent_id, tenant=self.tenant)
 
-    def link(self, other: "Agent | str", relation: str) -> Any:
+    def link(self, other: "Agent | str", relation: str, obj: Optional[str] = None) -> Any:
         target = other.agent_id if isinstance(other, Agent) else other
         return self._client.cmemlink(
-            self.agent_id, target, relation, tenant=self.tenant
+            self.agent_id, self.agent_id, relation, obj or target, tenant=self.tenant
         )
 
     def graph(self, entity: Optional[str] = None) -> Any:

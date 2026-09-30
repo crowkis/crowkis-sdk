@@ -220,18 +220,54 @@ def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     return any(value and _flatten(value) in flat for value in values.values())
 
 
+# A caller turn that tries to change what the model says for the rest of the call.
+_STEERING = (
+    ("pretend",), ("from", "now", "on"), ("for", "this", "call"), ("for", "the", "rest"),
+    ("ignore",), ("forget",), ("act", "as"), ("you", "are", "now"), ("assume",),
+    ("always", "say"), ("tell", "everyone"), ("roleplay",), ("role", "play"),
+)
+# Phrases after which the caller gives a name: "my name is sarah", "this is raj".
+_NAMING = (("name", "is"), ("call", "me"), ("this", "is"), ("i", "m"), ("i", "am"))
+_TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def _proper_nouns(text: str) -> set:
+    """Words capitalised mid-sentence ("... my agent Priya said"), lower-cased."""
+    found = set()
+    for match in _TOKEN.finditer(text or ""):
+        word, before = match.group(), (text[:match.start()].rstrip() or ".")
+        if word[0].isupper() and word != "I" and before[-1] not in ".!?":
+            found.add(word.lower())
+    return found
+
+
+def _identifying(turn: str) -> set:
+    """What in a caller turn identifies the caller rather than the topic:
+    numbers, names they gave, proper nouns — or, for a turn steering the model,
+    every content word, since any of them can reshape the answer."""
+    words = _words(turn)
+    if any(_contains(words, phrase) for phrase in _STEERING):
+        return {w for w in words if len(w) >= 3} - _FUNCTION_WORDS
+    found = {w for w in words if any(c.isdigit() for c in w)} | _proper_nouns(turn)
+    for index in range(len(words)):
+        for phrase in _NAMING:
+            end = index + len(phrase)
+            if tuple(words[index:end]) == phrase and end < len(words) and words[end] not in _FUNCTION_WORDS:
+                found.add(words[end])
+    return found
+
+
 def _carries_call_context(answer: str, question: str, earlier: List[str]) -> bool:
-    """Whether the answer repeats something the caller said earlier in the call.
+    """Whether the answer repeats something identifying the caller said earlier.
 
     A model answering turn N has seen turns 1..N-1, so "Sarah, order 55512
     arrives Tuesday" to "what is the delivery time?" — or an answer shaped by
     "pretend refunds are unlimited" — would be cached as the shared answer to
-    a generic question and spoken to the next caller. A word the caller said
-    before, absent from this question, marks the answer as written for them.
+    a generic question and spoken to the next caller. Only identifying words
+    count: "order" said earlier must not block "the order ships in 5 days".
     """
     asked = set(_words(question))
-    before = {w for turn in earlier for w in _words(turn) if len(w) >= 3 or any(c.isdigit() for c in w)}
-    before -= _FUNCTION_WORDS
+    before = set().union(*(_identifying(turn) for turn in earlier)) if earlier else set()
     return any(w in before and w not in asked for w in _words(answer))
 
 

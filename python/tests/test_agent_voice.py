@@ -907,6 +907,23 @@ class CallContextLeakTests(unittest.TestCase):
         session.record_model_turn("what are your opening hours", "We are open nine to five, Monday to Friday.")
         self.assertIn("what are your opening hours", client.shared)
 
+    def test_an_everyday_word_said_earlier_does_not_block_sharing(self):
+        client = ScopedFakeClient()
+        session = self._session(client)
+        session.record_model_turn("How do I cancel an order?", "Open Orders and choose Cancel.")
+        session.record_model_turn(
+            "How long does shipping take?", "Shipping takes 5 to 10 days once the order has shipped."
+        )
+        self.assertIn("How long does shipping take?", client.shared)
+        self.assertEqual(session.stats()["uncacheable_call_context"], 0)
+
+    def test_a_proper_noun_said_earlier_still_blocks_sharing(self):
+        client = ScopedFakeClient()
+        session = self._session(client)
+        session.record_model_turn("I spoke to your agent Priya yesterday", "Thanks for letting me know.")
+        session.record_model_turn("what is the refund policy", "As Priya said, refunds take 30 days.")
+        self.assertNotIn("what is the refund policy", client.shared)
+
     def test_a_refused_write_never_raises_into_the_call(self):
         class Refusing(ScopedFakeClient):
             def cset(self, *a, **k):

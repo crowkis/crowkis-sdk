@@ -232,16 +232,58 @@ function leaks(shaped, values) {
 // model answering turn N has seen turns 1..N-1, so "Sarah, order 55512 arrives
 // Tuesday" to "what is the delivery time?" — or an answer shaped by "pretend
 // refunds are unlimited" — would become the shared answer to a generic
-// question and be spoken to the next caller.
+// question and be spoken to the next caller. Only identifying words count:
+// "order" said earlier must not block "the order ships in 5 days".
 function carriesCallContext(answer, question, earlier) {
   const asked = new Set(wordsOf(question));
   const before = new Set();
   for (const turn of earlier) {
-    for (const w of wordsOf(turn)) {
-      if ((w.length >= 3 || /\d/.test(w)) && !FUNCTION_WORDS.has(w)) before.add(w);
-    }
+    for (const w of identifying(turn)) before.add(w);
   }
   return wordsOf(answer).some((w) => before.has(w) && !asked.has(w));
+}
+
+// A caller turn that tries to change what the model says for the rest of the call.
+const STEERING = [
+  ["pretend"], ["from", "now", "on"], ["for", "this", "call"], ["for", "the", "rest"],
+  ["ignore"], ["forget"], ["act", "as"], ["you", "are", "now"], ["assume"],
+  ["always", "say"], ["tell", "everyone"], ["roleplay"], ["role", "play"],
+];
+// Phrases after which the caller gives a name: "my name is sarah", "this is raj".
+const NAMING = [["name", "is"], ["call", "me"], ["this", "is"], ["i", "m"], ["i", "am"]];
+
+// Words capitalised mid-sentence ("... my agent Priya said"), lower-cased.
+function properNouns(text) {
+  const found = new Set();
+  const source = String(text || "");
+  for (const match of source.matchAll(WORDS)) {
+    const word = match[0];
+    const before = source.slice(0, match.index).trimEnd() || ".";
+    if (word[0] !== word[0].toLowerCase() && word !== "I" && !".!?".includes(before[before.length - 1])) {
+      found.add(word.toLowerCase());
+    }
+  }
+  return found;
+}
+
+// What in a caller turn identifies the caller rather than the topic: numbers,
+// names they gave, proper nouns — or, for a turn steering the model, every
+// content word, since any of them can reshape the answer.
+function identifying(turn) {
+  const words = wordsOf(turn);
+  if (STEERING.some((phrase) => contains(words, phrase))) {
+    return new Set(words.filter((w) => w.length >= 3 && !FUNCTION_WORDS.has(w)));
+  }
+  const found = new Set([...words.filter((w) => /\d/.test(w)), ...properNouns(turn)]);
+  for (let index = 0; index < words.length; index += 1) {
+    for (const phrase of NAMING) {
+      const end = index + phrase.length;
+      if (end < words.length && phrase.every((p, k) => words[index + k] === p) && !FUNCTION_WORDS.has(words[end])) {
+        found.add(words[end]);
+      }
+    }
+  }
+  return found;
 }
 
 // A hard deadline: a slow or hung cache must never hold a live call past its budget.

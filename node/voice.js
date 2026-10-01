@@ -21,7 +21,10 @@ const HELD_RECORDS = new Set([
   "benefits", "package", "parcel", "return", "returns", "profile",
   "password", "address", "phone", "email", "number", "contract",
   "renewal", "bill", "billing", "charge", "charges", "deposit",
-  "withdrawal", "transfer", "case", "complaint",
+  "withdrawal", "transfer", "case", "complaint", "name", "details",
+  "detail", "info", "information", "points", "rewards", "cart", "basket",
+  "wallet", "credit", "credits", "history", "purchase", "purchases",
+  "username", "warranty", "coupon", "voucher", "code", "otp", "pin", "emi",
 ]);
 
 const PROCEDURAL = [
@@ -76,11 +79,18 @@ const CLAUSE_MARKERS = new Set([
   "write", "summarise", "summarize", "translate",
 ]);
 
+// Shapes that borrow their subject from the previous turn.
+const FOLLOW_UP_PHRASES = [
+  ["same", "for"], ["the", "same"], ["what", "else"], ["anything", "else"], ["tell", "me", "more"],
+  ["which", "one"], ["instead"],
+];
+const FOLLOW_UP_ENDINGS = new Set(["too", "also", "instead"]);
+
 const ANAPHOR_PHRASES = ["this one", "the second one", "the first one", "the other one"];
 
-const ANAPHORS = new Set(["that", "those", "it", "them"]);
+const ANAPHORS = new Set(["that", "those", "it", "them", "they", "these", "this"]);
 
-const DEMONSTRATIVES = new Set(["that", "those"]);
+const DEMONSTRATIVES = new Set(["that", "those", "these", "this"]);
 
 const FUNCTION_WORDS = new Set([
   "a", "about", "am", "an", "and", "any", "are", "as", "at", "be", "been",
@@ -91,6 +101,53 @@ const FUNCTION_WORDS = new Set([
   "this", "those", "to", "us", "was", "were", "what", "whats", "when",
   "where", "which", "who", "why", "will", "with", "would", "you", "your",
 ]);
+
+// Question words in front of a pronoun that are not what it refers to: "how long
+// does it take" still needs the previous turn to say what "it" is.
+const NON_REFERENTS = new Set([
+  "long", "often", "far", "soon", "fast", "quickly", "early", "late",
+  "exactly", "usually", "still", "also", "really", "actually",
+]);
+
+// After "that" or "those", these make it a pronoun rather than a determiner:
+// "what does that cost", "is that refundable", as opposed to "that plan".
+const PRONOUN_FOLLOWERS = new Set([
+  "cost", "costs", "mean", "means", "take", "takes", "include", "includes",
+  "cover", "covers", "work", "works", "apply", "applies", "last", "lasts",
+  "come", "comes", "ship", "ships", "free", "available", "included",
+  "possible", "refundable", "returnable", "right", "correct", "true", "safe",
+  "worth", "enough", "extra", "cheaper", "better",
+]);
+
+// Who the caller is changes the answer ("as a premium member", "i'm a student",
+// "i live in canada", "what plan am i on"), so such a turn is about this caller.
+const CALLER_KINDS = new Set([
+  "premium", "gold", "silver", "platinum", "diamond", "vip", "prime", "elite",
+  "business", "businesses", "corporate", "enterprise", "wholesale", "student",
+  "students", "senior", "seniors", "veteran", "veterans", "military", "teacher",
+  "teachers", "employee", "employees", "member", "members", "subscriber",
+  "subscribers", "partner", "partners", "reseller", "resellers", "pensioner",
+  "pensioners", "retiree", "retirees", "nri",
+]);
+const CALLER_LEADS = [["as", "a"], ["as", "an"], ["i", "am"], ["i", "m"], ["for"]];
+const SELF_PHRASES = [
+  ["am", "i"], ["do", "i", "qualify"], ["i", "live", "in"], ["i", "am", "from"],
+  ["i", "m", "from"], ["i", "am", "based"], ["i", "m", "based"], ["i", "am", "on"],
+  ["i", "m", "on"],
+];
+
+function describesCaller(words) {
+  if (SELF_PHRASES.some((phrase) => contains(words, phrase))) return true;
+  for (let index = 0; index < words.length; index += 1) {
+    for (const lead of CALLER_LEADS) {
+      const end = index + lead.length;
+      if (lead.every((w, k) => words[index + k] === w) && words.slice(end, end + 3).some((w) => CALLER_KINDS.has(w))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 function normalise(text) {
   return String(text === null || text === undefined ? "" : text)
@@ -138,8 +195,166 @@ function isStateInterrogative(words) {
   return STATE_LEADS.has(words[0]) || words.includes("status");
 }
 
+// --- Turns whose answer must never be shared ------------------------------------------
+// Kept word for word with the Python SDK (voice.py) and the server (cache/mod.rs
+// `never_share`). Each group fails closed: a match means "answer fresh, never cache".
+
+// Things a caller owns; with a state word after them, a statement about their own item.
+const OWNED_THINGS = new Set([
+  "phone", "laptop", "headphones", "earphones", "charger", "shoes", "case", "tv",
+  "television", "watch", "smartwatch", "device", "product", "item", "bag", "jacket",
+  "shirt", "fridge", "refrigerator", "machine", "tablet", "camera", "speaker",
+]);
+const STATE_WORDS = new Set([
+  "is", "are", "was", "were", "arrived", "came", "stopped", "broke", "broken", "not",
+  "isn", "doesn", "won", "has", "got", "cracked", "damaged", "defective", "wrong",
+  "missing", "stuck", "keeps",
+]);
+const GREETINGS = new Set(["hi", "hello", "hey", "namaste", "good", "morning", "afternoon", "evening"]);
+const INTRO_AFTER_GREETING = [["i", "am"], ["i", "m"], ["this", "is"], ["it", "s"], ["my", "name"]];
+const SPOKEN_DIGITS = new Set(["zero", "oh", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]);
+const EMAIL_ENDINGS = new Set(["com", "in", "org", "net", "co", "io"]);
+const ACTION_VERBS = new Set([
+  "cancel", "book", "reschedule", "change", "update", "delete", "remove", "send", "text",
+  "email", "call", "connect", "transfer", "escalate", "refund", "replace", "exchange",
+  "return", "speak", "talk", "process", "block", "unblock", "check", "track", "add",
+  "apply", "upgrade", "downgrade", "activate", "deactivate", "close", "open", "resend",
+]);
+// A verb first is a request only when it acts on something the caller points at
+// ("cancel my order", "send me the invoice"). A bare verb is search-style phrasing:
+// "refund status for john", "send events to an endpoint".
+const ACTION_OBJECTS = new Set(["me", "my", "it", "this", "that", "us", "our", "the", "them"]);
+// After these leads, an action verb is a request for the agent to do something.
+const ACTION_LEADS = [
+  ["please"], ["can", "you"], ["could", "you"], ["will", "you"], ["would", "you"],
+  ["i", "want", "to"], ["i", "d", "like", "to"], ["i", "would", "like", "to"],
+  ["i", "need", "to"], ["let", "me"], ["i", "wanna"],
+];
+// Replies to the agent, not questions: a reply word first (or "okay" + a reply word),
+// and no wh-question word anywhere.
+const REPLY_LEADS = new Set(["yes", "yeah", "yep", "yup", "no", "nope", "nah", "correct", "exactly", "sure"]);
+const SOFT_REPLY_LEADS = new Set(["okay", "ok", "alright", "fine", "right"]);
+const REPLY_FOLLOWERS = new Set(["go", "please", "thanks", "thank", "that"]);
+const WH_WORDS = new Set(["how", "what", "when", "where", "which", "who", "why"]);
+const SINGLE_WORDS = new Set([
+  // live data
+  "today", "tonight", "currently", "outage", "queue",
+  // memory of this call
+  "remember",
+  // dialogue and complaints
+  "pardon", "louder", "slower", "slowly", "ridiculous", "frustrated", "frustrating",
+  "angry", "upset", "worst", "terrible", "unacceptable", "disappointed",
+  // steering
+  "pretend", "ignore", "roleplay",
+  // sensitive advice
+  "pregnancy", "pregnant", "breastfeeding", "allergic", "allergy", "allergies",
+  "medicine", "medication", "dosage", "doctor", "symptoms", "sue", "lawsuit",
+  "lawyer", "legal", "invest", "investment",
+  // abuse
+  "stupid", "idiot", "useless", "dumb", "shit", "damn", "hell", "crap", "fuck",
+  "fucking", "bullshit", "bloody",
+  // identity checks
+  "otp", "cvv",
+  // Hinglish possessives and first person
+  "mera", "meri", "mere", "maine", "mujhe", "hamara", "hamari",
+  // handing over to a person, Hinglish "I am"
+  "supervisor", "hoon", "hun",
+]);
+const NEVER_PHRASES = [
+  // self-introduction
+  ["my", "name"], ["name", "s"], ["call", "me"], ["i", "m", "called"],
+  // memory of this call
+  ["did", "i", "tell"], ["did", "i", "say"], ["did", "i", "just"], ["i", "told", "you"],
+  ["as", "i", "said"], ["i", "mentioned"], ["who", "i", "am"], ["have", "i"],
+  // things the caller did
+  ["i", "ordered"], ["i", "bought"], ["i", "paid"], ["i", "placed"], ["i", "received"],
+  ["i", "purchased"], ["i", "returned"], ["i", "booked"], ["i", "cancelled"], ["i", "canceled"],
+  ["i", "was", "charged"], ["i", "got", "charged"], ["i", "haven", "t"], ["i", "didn", "t"],
+  ["charged", "twice"], ["double", "charged"],
+  // personalised advice or prices
+  ["should", "i", "order"], ["should", "i", "buy"], ["should", "i", "get"], ["should", "i", "choose"],
+  ["should", "i", "pick"], ["best", "for", "me"], ["good", "for", "me"], ["right", "for", "me"],
+  ["suitable", "for", "me"], ["recommend", "for", "me"], ["recommend", "me"], ["will", "i", "pay"],
+  ["would", "i", "pay"], ["do", "i", "owe"],
+  // live data
+  ["in", "stock"], ["out", "of", "stock"], ["right", "now"], ["at", "the", "moment"], ["still", "on"],
+  ["open", "now"], ["available", "now"], ["working", "now"], ["down", "now"],
+  ["app", "down"], ["site", "down"], ["website", "down"], ["server", "down"], ["system", "down"],
+  ["app", "working"], ["site", "working"], ["website", "working"], ["the", "wait"], ["wait", "time"],
+  // dialogue
+  ["i", "meant"], ["say", "that", "again"], ["repeat", "that"], ["come", "again"], ["slow", "down"],
+  ["speak", "in"], ["talk", "in"], ["in", "hindi"], ["in", "english"], ["third", "time"],
+  ["nobody", "is", "helping"], ["no", "one", "is", "helping"], ["not", "helping"], ["fed", "up"],
+  // steering
+  ["from", "now", "on"], ["act", "as"], ["you", "are", "now"], ["role", "play"], ["always", "say"],
+  ["forget", "everything"], ["forget", "what"], ["forget", "your"], ["forget", "all"],
+  ["for", "this", "call"], ["for", "the", "rest"], ["tell", "everyone"], ["your", "rules"],
+  ["your", "instructions"], ["previous", "instructions"], ["system", "prompt"],
+  // sensitive advice
+  ["safe", "during"], ["safe", "for", "kids"],
+  // Indian-English and Hinglish introductions, personal fit, hand-over, steering
+  ["this", "side"], ["bol", "raha"], ["bol", "rahi"], ["name", "you", "have"], ["have", "for", "me"], ["suit", "me"], ["suits", "me"], ["me", "best"], ["put", "me", "through"], ["transfer", "me"], ["connect", "me"], ["from", "here", "on"], ["call", "yourself"],
+];
+const DIGITS = /[0-9]{5,}/;
+const EMAIL = /[A-Za-z0-9._%+-]@[A-Za-z0-9-]/;
+
+function startsWith(words, at, phrase) {
+  return phrase.every((w, k) => words[at + k] === w);
+}
+
+// Whether a turn's answer must never be shared, whatever the rest of the rules say.
+function neverShare(text, words) {
+  if (/[ऀ-ॿ]/.test(text)) return true; // Devanagari: not supported yet, fail closed
+  if (DIGITS.test(text) || EMAIL.test(text)) return true;
+  if (words.includes("at") && words.includes("dot") && words.some((w) => EMAIL_ENDINGS.has(w))) return true;
+  let run = 0;
+  for (const word of words) {
+    run = SPOKEN_DIGITS.has(word) ? run + 1 : 0;
+    if (run >= 4) return true;
+  }
+  if (words.some((w) => SINGLE_WORDS.has(w)) || NEVER_PHRASES.some((p) => contains(words, p))) return true;
+  if (words.length && GREETINGS.has(words[0])) {
+    const rest = words.filter((w) => !GREETINGS.has(w));
+    if (INTRO_AFTER_GREETING.some((p) => startsWith(rest, 0, p))) return true;
+  }
+  if (words.length > 1 && words.length <= 5 && (words[words.length - 1] === "here" || words[words.length - 1] === "speaking")) {
+    return true;
+  }
+  if (words.length && words[0] === "myself") return true; // "Myself Anjali, I need help."
+  for (let index = 0; index < words.length; index += 1) {
+    if (!POSSESSIVES.has(words[index])) continue;
+    for (const at of [index + 1, index + 2]) {
+      // "my phone", "my washing machine"
+      if (at < words.length && OWNED_THINGS.has(words[at]) && words.slice(at + 1, at + 5).some((w) => STATE_WORDS.has(w))) {
+        return true;
+      }
+    }
+  }
+  if (words.length > 1 && ACTION_VERBS.has(words[0]) && ACTION_OBJECTS.has(words[1])) return true;
+  for (let index = 0; index < words.length; index += 1) {
+    for (const lead of ACTION_LEADS) {
+      const end = index + lead.length;
+      if (startsWith(words, index, lead) && end < words.length && ACTION_VERBS.has(words[end])) return true;
+    }
+  }
+  if (words.length && !words.some((w) => WH_WORDS.has(w))) {
+    if (REPLY_LEADS.has(words[0])) return true;
+    if (SOFT_REPLY_LEADS.has(words[0]) && words.length > 1 && (REPLY_LEADS.has(words[1]) || REPLY_FOLLOWERS.has(words[1]))) {
+      return true;
+    }
+  }
+  for (let index = 0; index + 2 < words.length; index += 1) {
+    // "how many points do i have", not "do i have to pay for returns"
+    if (startsWith(words, index, ["do", "i", "have"]) && (index + 3 >= words.length || words[index + 3] !== "to")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isPersonal(text) {
   const words = wordsOf(text);
+  if (neverShare(String(text === null || text === undefined ? "" : text), words) || describesCaller(words)) return true;
   const index = ownedRecordAt(words);
   if (index < 0) return false;
   for (const phrase of PROCEDURAL) {
@@ -152,7 +367,7 @@ function isPersonal(text) {
 }
 
 function hasAntecedent(before) {
-  return before.some((word) => !FUNCTION_WORDS.has(word));
+  return before.some((word) => !FUNCTION_WORDS.has(word) && !NON_REFERENTS.has(word));
 }
 
 function hasBareAnaphor(words) {
@@ -165,7 +380,12 @@ function hasBareAnaphor(words) {
     const word = words[index];
     if (!ANAPHORS.has(word)) continue;
     const follows = index + 1 < words.length ? words[index + 1] : null;
-    if (DEMONSTRATIVES.has(word) && follows !== null && !FUNCTION_WORDS.has(follows)) {
+    if (
+      DEMONSTRATIVES.has(word) &&
+      follows !== null &&
+      !FUNCTION_WORDS.has(follows) &&
+      !PRONOUN_FOLLOWERS.has(follows)
+    ) {
       continue;
     }
     if (!hasAntecedent(words.slice(0, index))) return true;
@@ -179,6 +399,9 @@ function isContextDependent(text) {
   if (CONNECTIVES.has(words[0])) return true;
   if (CONNECTIVE_PAIRS.has(words.slice(0, 2).join(" "))) return true;
   if (ELLIPSIS_LEADS.has(words[0]) && !words.slice(1).some((w) => CLAUSE_MARKERS.has(w))) {
+    return true;
+  }
+  if (FOLLOW_UP_PHRASES.some((p) => contains(words, p)) || FOLLOW_UP_ENDINGS.has(words[words.length - 1])) {
     return true;
   }
   return hasBareAnaphor(words);
@@ -228,64 +451,6 @@ function leaks(shaped, values) {
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
 }
 
-// Whether the answer repeats something the caller said earlier in the call. A
-// model answering turn N has seen turns 1..N-1, so "Sarah, order 55512 arrives
-// Tuesday" to "what is the delivery time?" — or an answer shaped by "pretend
-// refunds are unlimited" — would become the shared answer to a generic
-// question and be spoken to the next caller. Only identifying words count:
-// "order" said earlier must not block "the order ships in 5 days".
-function carriesCallContext(answer, question, earlier) {
-  const asked = new Set(wordsOf(question));
-  const before = new Set();
-  for (const turn of earlier) {
-    for (const w of identifying(turn)) before.add(w);
-  }
-  return wordsOf(answer).some((w) => before.has(w) && !asked.has(w));
-}
-
-// A caller turn that tries to change what the model says for the rest of the call.
-const STEERING = [
-  ["pretend"], ["from", "now", "on"], ["for", "this", "call"], ["for", "the", "rest"],
-  ["ignore"], ["forget"], ["act", "as"], ["you", "are", "now"], ["assume"],
-  ["always", "say"], ["tell", "everyone"], ["roleplay"], ["role", "play"],
-];
-// Phrases after which the caller gives a name: "my name is sarah", "this is raj".
-const NAMING = [["name", "is"], ["call", "me"], ["this", "is"], ["i", "m"], ["i", "am"]];
-
-// Words capitalised mid-sentence ("... my agent Priya said"), lower-cased.
-function properNouns(text) {
-  const found = new Set();
-  const source = String(text || "");
-  for (const match of source.matchAll(WORDS)) {
-    const word = match[0];
-    const before = source.slice(0, match.index).trimEnd() || ".";
-    if (word[0] !== word[0].toLowerCase() && word !== "I" && !".!?".includes(before[before.length - 1])) {
-      found.add(word.toLowerCase());
-    }
-  }
-  return found;
-}
-
-// What in a caller turn identifies the caller rather than the topic: numbers,
-// names they gave, proper nouns — or, for a turn steering the model, every
-// content word, since any of them can reshape the answer.
-function identifying(turn) {
-  const words = wordsOf(turn);
-  if (STEERING.some((phrase) => contains(words, phrase))) {
-    return new Set(words.filter((w) => w.length >= 3 && !FUNCTION_WORDS.has(w)));
-  }
-  const found = new Set([...words.filter((w) => /\d/.test(w)), ...properNouns(turn)]);
-  for (let index = 0; index < words.length; index += 1) {
-    for (const phrase of NAMING) {
-      const end = index + phrase.length;
-      if (end < words.length && phrase.every((p, k) => words[index + k] === p) && !FUNCTION_WORDS.has(words[end])) {
-        found.add(words[end]);
-      }
-    }
-  }
-  return found;
-}
-
 // A hard deadline: a slow or hung cache must never hold a live call past its budget.
 function within(ms, promise) {
   let timer;
@@ -304,6 +469,10 @@ class TurnDecision {
     this.audio = audio;
     this.confidence = confidence;
     this.reason = reason;
+    // For a model turn: what the model must read, and whether its answer is shared.
+    // null means "the whole call", and then the answer is never shared.
+    this.messages = null;
+    this.cacheable = false;
   }
 
   get servedFromCache() {
@@ -372,11 +541,12 @@ class VoiceSession {
     this.bargeIns = 0;
     this.lookupErrors = 0;
     this.learnErrors = 0;
-    this.uncacheableContext = 0;
+    this.notShareable = 0;
     this._fillers = new Map();
     this._open = false;
     this._cancelled = false;
     this._turnMark = 0;
+    this._cacheable = false;
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
   }
@@ -404,6 +574,29 @@ class VoiceSession {
   }
 
   async decide(callerSaid) {
+    const decision = await this._decide(callerSaid);
+    this._cacheable = false;
+    if (decision.needsModel) {
+      [decision.messages, decision.cacheable] = this._modelMessages(callerSaid);
+      this._cacheable = decision.cacheable;
+    }
+    return decision;
+  }
+
+  // What the model should read to answer this turn, and whether that answer may
+  // be cached. A shared answer is only safe when the model saw nothing but the
+  // cache key: the question, and for a follow-up the question before it.
+  // Personal turns get the whole call and are never shared.
+  _modelMessages(callerSaid) {
+    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
+    if (text.split(/\s+/).filter(Boolean).length < this.minWords || isPersonal(text)) return [null, false];
+    if (!isContextDependent(text)) return [[{ role: "user", content: callerSaid }], true];
+    const prior = this._priorUser();
+    if (prior === null || isPersonal(prior)) return [null, false];
+    return [[{ role: "user", content: prior }, { role: "user", content: callerSaid }], true];
+  }
+
+  async _decide(callerSaid) {
     this._turnMark = this.transcript.length;
     this._open = true;
     this._cancelled = false;
@@ -529,29 +722,56 @@ class VoiceSession {
     return true;
   }
 
-  // Never rejects: this runs inside the caller's event loop, and a refused write
+  // Run one caller turn end to end: cache, or the model, then remember the answer.
+  // `llm` is called with exactly the messages Crowkis chose for this turn: the
+  // question alone (or with the question before it) when the answer may be shared,
+  // the whole call when it may not. `system` is the app's own instructions, the
+  // same for every caller, and is put first. The returned decision carries the
+  // text to speak, from the cache or from the model.
+  async answer(callerSaid, llm, { system = null } = {}) {
+    const decision = await this.decide(callerSaid);
+    if (!decision.needsModel) return decision;
+    let messages = decision.messages || [...this.injections(), { role: "user", content: callerSaid }];
+    if (system) messages = [{ role: "system", content: system }, ...messages];
+    decision.text = await llm(messages);
+    await this._recordModelTurn(callerSaid, decision.text);
+    return decision;
+  }
+
+  // Keep a turn in this call's transcript and never cache it. For a model that
+  // holds the whole conversation itself (a realtime speech model): it cannot be
+  // given decision.messages, so nothing it says is shared.
+  recordPrivateTurn(callerSaid, modelSaid) {
+    if (this._cancelled) return;
+    this._open = false;
+    this.transcript.push({ role: "user", content: callerSaid });
+    this.transcript.push({ role: "assistant", content: modelSaid });
+    if (this._cacheable) this.notShareable += 1;
+    this._cacheable = false;
+  }
+
+  // Record the model's answer to the turn decide() last handled, and cache it if
+  // allowed. Only an answer written from decision.messages reaches this, so it is
+  // shared exactly when decide() said it may be. Never rejects: a refused write
   // (security pipeline, rate limit, cache down) must not end a call.
-  async recordModelTurn(callerSaid, modelSaid) {
+  async _recordModelTurn(callerSaid, modelSaid) {
     if (this._cancelled) return;
     this._open = false;
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const keyed = this._contextKey(callerSaid, text);
-    const earlier = this.transcript.filter((t) => t.role === "user").map((t) => t.content);
+    const cacheable = this._cacheable;
+    this._cacheable = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (!(typeof modelSaid === "string" && modelSaid.trim()) || keyed === null) return;
     try {
       if (isPersonal(text)) {
         await this._learnPersonal(keyed, modelSaid);
-        return;
+      } else if (!cacheable || leaks(modelSaid, this.values)) {
+        this.notShareable += 1;
+      } else {
+        await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
       }
-      // A follow-up is keyed with the turn it depends on, so that turn's words
-      // are part of what was asked, not leaked call context.
-      if (leaks(modelSaid, this.values) || carriesCallContext(modelSaid, keyed, earlier)) {
-        this.uncacheableContext += 1;
-        return;
-      }
-      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
     } catch (error) {
       this.learnErrors += 1;
     }
@@ -576,7 +796,7 @@ class VoiceSession {
       bargeIns: this.bargeIns,
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
-      uncacheableCallContext: this.uncacheableContext,
+      notShareable: this.notShareable,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),

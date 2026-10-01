@@ -125,6 +125,56 @@ mem.remember("Alice prefers email over phone")
 mem.recall("how should I contact Alice?")   # semantic recall
 ```
 
+## Conversations: chat and voice agents
+
+A model that reads the whole conversation writes answers that can carry what one person
+said ("Thanks Rahul, premium members get it tomorrow"). Cached as the answer to "how long
+does shipping take?", that reaches the next person. A `Conversation` decides, per turn,
+what the model may read and whether its answer is shared, so that cannot happen:
+
+| Turn | The model reads | Answer |
+| --- | --- | --- |
+| General ("How long does shipping take?") | the question alone | shared |
+| Follow-up ("How long does it take?") | the previous question + this one | shared, keyed by both |
+| Personal ("Where is my order?", "I'm a farmer, what suits me?") | the whole conversation | never shared |
+| A non-answer ("Could you tell me the destination?") | | never saved |
+
+It does no I/O, so any pipeline can use it with its own client and storage:
+
+```python
+from crowkis import Conversation
+
+conv = Conversation(max_turns=20)          # one per chat thread or call
+plan = conv.plan(user_message)
+if plan.action == "lookup":
+    hit = my_cache_lookup(plan.key, threshold=plan.threshold)
+    if hit:
+        reply = conv.served(plan, hit)
+answer = my_model(conv.model_messages(plan, system=SYSTEM_PROMPT))   # on a miss
+saving = conv.settle(plan, answer)
+if saving.write:
+    my_cache_store(saving.key, saving.text)    # saving.outcome says why when it is not
+```
+
+`crowkis.is_personal()`, `is_context_dependent()` and `is_non_answer()` expose the rules
+underneath. They are identical in the Node SDK and mirrored in the Crowkis server.
+
+**Voice agents.** `VoiceSession` is that policy plus a voice pipeline: lookups under a
+hard latency budget, cached audio per voice, fillers and barge-in.
+
+```python
+from crowkis import Agent, VoiceSession
+
+session = VoiceSession(Agent("support", tenant="my-app"), voice="sarvam/bulbul:v3/priya",
+                       latency_budget_ms=300)
+decision = session.answer(transcript, my_llm, system=SYSTEM_PROMPT)   # cache, or the model
+speak(decision.text, decision.audio)
+```
+
+For Pipecat, `crowkis.integrations.pipecat.crowkis_processors()` puts the cache in front of
+the LLM and the TTS (`pip install "crowkis[pipecat]"`). A speech-to-speech model that holds
+the whole call itself records with `session.record_private_turn()`: never shared.
+
 ## Authentication
 
 If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —

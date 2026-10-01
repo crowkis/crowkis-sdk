@@ -8,6 +8,8 @@
     ".": "./index.js",
     "./agent": "./agent.js",
     "./voice": "./voice.js",
+    "./conversation": "./conversation.js",
+    "./rules": "./rules.js",
     "./realtime": "./realtime.js",
     "./langchain": "./langchain.js",
     "./memory": "./memory.js"
@@ -37,6 +39,8 @@
     "index.d.ts",
     "agent.js",
     "voice.js",
+    "conversation.js",
+    "rules.js",
     "realtime.js",
     "langchain.js",
     "memory.js",

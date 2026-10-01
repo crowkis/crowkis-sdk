@@ -15,6 +15,8 @@ from .integrations.memory import CrowkisMemory
 from ._help import help, render as help_text
 from .agent import Agent
 from .realtime import RealtimeAdapter, RealtimeGate
+from .conversation import Conversation, Saving, TurnPlan
+from .rules import is_context_dependent, is_non_answer, is_personal
 from .voice import TurnDecision, VoiceSession
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
@@ -23,6 +25,13 @@ from .voice import TurnDecision, VoiceSession
 
 __all__ = [
     "Agent",
+    # one conversation's cache decisions (chat or voice), and the rules under them
+    "Conversation",
+    "TurnPlan",
+    "Saving",
+    "is_personal",
+    "is_context_dependent",
+    "is_non_answer",
     "VoiceSession",
     "TurnDecision",
     "RealtimeAdapter",

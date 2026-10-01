@@ -306,6 +306,8 @@ export interface VoiceStats {
   failedWrites: number;
   /** Shareable-looking model answers that were kept to this call (a declared value in them, or a private turn). */
   notShareable: number;
+  /** Model answers that did not answer (a question back, "I'm not sure", a refusal): spoken, never saved. */
+  nonAnswersNotSaved: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;

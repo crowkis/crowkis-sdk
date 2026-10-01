@@ -1041,6 +1041,48 @@ class SingleFlowTests(unittest.TestCase):
         self.assertEqual(session.stats()["failed_writes"], 1)
 
 
+class NonAnswerTests(unittest.TestCase):
+    """An answer that does not answer is spoken but never saved."""
+
+    def _turn(self, answer):
+        client = ScopedFakeClient()
+        session = VoiceSession(Agent("caller", client=client), voice="v")
+        decision = session.answer("How much does shipping cost?", lambda messages: answer)
+        return client, session, decision
+
+    def test_a_question_back_or_a_non_answer_is_never_saved(self):
+        for answer in ["I'm not sure what shipping option you're looking at; could you let me know the destination?", "Which destination are you shipping to? And how heavy is the parcel?", "I don't know the answer to that.", "Could you clarify which plan you mean?", "I'm unable to help with that request.", "I do not have access to that information."]:
+            with self.subTest(answer=answer):
+                client, session, decision = self._turn(answer)
+                self.assertEqual(decision.text, answer)
+                self.assertEqual(client.shared, {})
+                self.assertEqual(session.stats()["non_answers_not_saved"], 1)
+
+    def test_an_answer_that_leads_with_facts_and_then_asks_for_details_is_saved(self):
+        for answer in ("Shipping costs vary depending on the destination and weight. For an exact quote, please provide the address.",
+                       "The shipping cost depends on your location and the size of the item. Please provide your address for an estimate."):
+            with self.subTest(answer=answer):
+                client, _, _ = self._turn(answer)
+                self.assertIn("How much does shipping cost?", client.shared)
+
+    def test_record_reports_what_happened_to_the_answer(self):
+        client = ScopedFakeClient()
+        session = VoiceSession(Agent("caller", client=client), voice="v")
+        session.decide("How much does shipping cost?")
+        self.assertEqual(session._record_model_turn("How much does shipping cost?", "Shipping costs 5 dollars."), "saved")
+        session.decide("How long do refunds take?")
+        self.assertEqual(session._record_model_turn("How long do refunds take?", "Could you tell me which order?"), "non_answer")
+        session.decide("Where is my order?")
+        self.assertEqual(session._record_model_turn("Where is my order?", "It ships today."), "private")
+
+    def test_a_real_answer_with_a_courtesy_line_is_still_saved(self):
+        for answer in ["Shipping takes 3 to 5 business days. Anything else?", "Returns are free within 30 days. Please let me know if you need anything else.", "Standard shipping costs between 5 and 15 dollars depending on the destination."]:
+            with self.subTest(answer=answer):
+                client, session, _ = self._turn(answer)
+                self.assertEqual(client.shared, {"How much does shipping cost?": answer})
+                self.assertEqual(session.stats()["non_answers_not_saved"], 0)
+
+
 class CallerDescriptionTests(unittest.TestCase):
     def test_turns_that_say_who_the_caller_is_are_personal(self):
         for said in (
@@ -1062,6 +1104,40 @@ class CallerDescriptionTests(unittest.TestCase):
             "what do premium members get",
             "as a customer, what are your support hours",
             "i am looking for a refund",
+        ):
+            with self.subTest(said=said):
+                self.assertFalse(_is_personal(said))
+
+    def test_callers_describing_themselves_are_personal(self):
+        for said in (
+            'I am a poor farmer. Tell me about some schemes for me.',
+            "I'm 65, which plan suits seniors?",
+            'I am pregnant, what can I eat?',
+            'As a farmer, what schemes exist?',
+            'I have a small business, what loans are there?',
+            'My income is low, are there any schemes?',
+            'We are a family of four, which plan should we take?',
+            'Which scheme is best for someone like me?',
+            'I work as a driver, is there any insurance?',
+            "I'm new to investing, where do I start?",
+            "I'm diabetic, what should I avoid?",
+            'Being a single mother, what support can I get?',
+            'Tell me some government schemes for me.',
+        ):
+            with self.subTest(said=said):
+                self.assertTrue(_is_personal(said))
+
+    def test_actions_fillers_generic_roles_and_services_stay_general(self):
+        for said in (
+            "I'm looking for the return policy.",
+            'I am not sure how returns work.',
+            'I have a question about shipping.',
+            'What happens if I am late with a payment?',
+            'Can I send it as a gift?',
+            "I'm a bit confused about the refund policy.",
+            'How do farmers apply for crop insurance?',
+            'Can you explain the refund policy for me?',
+            "I'm a customer, what are your hours?",
         ):
             with self.subTest(said=said):
                 self.assertFalse(_is_personal(said))

@@ -18,6 +18,7 @@ audio      stores the TTS audio of each new answer, so the next hit skips the TT
 
 ``on_turn`` and ``on_answer`` are optional async callbacks for the app's own reporting
 (metrics, a UI). Each gets a dict; a Pipecat frame it returns is pushed downstream.
+``on_answer`` runs after the answer is recorded, so its ``saved`` says what really happened.
 
 Needs ``pipecat-ai``. The Crowkis SDK is synchronous, so its calls run in a thread to
 keep the event loop free.
@@ -173,10 +174,11 @@ class CrowkisWriteBack(FrameProcessor):
             answer, self._parts = "".join(self._parts).strip(), None
             self._audio.expect(answer)
             await self.push_frame(frame, direction)
+            saved = await asyncio.to_thread(self._session._record_model_turn, self._gate.question, answer)
             await _report(self, self._on_answer, {
                 "question": self._gate.question, "answer": answer, "messages": self._gate.messages,
+                "saved": saved,  # what happened to it: saved, template, kept, non_answer, private, refused...
             })
-            await asyncio.to_thread(self._session._record_model_turn, self._gate.question, answer)
             return
         await self.push_frame(frame, direction)
 

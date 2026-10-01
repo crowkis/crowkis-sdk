@@ -136,8 +136,48 @@ const SELF_PHRASES = [
   ["i", "m", "on"],
 ];
 
+// A caller describing themself makes the right answer theirs alone: "I'm a farmer", "I am 65", "I have a small business", "my income is low", "which scheme suits someone like me".
+// Not an action or a feeling ("I'm looking for", "I'm not sure"), a filler ("I'm a bit"), a generic
+// role ("as a customer"), a hypothetical ("if I am late"), or a service ("explain this for me").
+const NOT_DESCRIPTION = new Set(["not", "so", "just", "sure", "unsure", "curious", "interested", "wondering", "confused", "able", "unable", "about", "going", "also", "still", "really", "very", "glad", "happy", "sorry", "ready", "done", "back", "here", "speaking"]);
+const ARTICLE_FILLERS = new Set(["bit", "little", "lot", "few", "couple"]);
+const GENERIC_ROLES = new Set(["customer", "customers", "user", "users", "buyer", "client", "guest", "visitor", "shopper"]);
+const HAVE_NOT = new Set(["question", "questions", "query", "doubt", "quick", "general", "problem"]);
+const HYPOTHETICAL = new Set(["if", "when", "whether", "unless", "once"]);
+const SERVICE_VERBS = new Set(["explain", "describe", "list", "repeat", "check", "clarify", "define", "translate", "summarise", "summarize", "write", "read", "spell"]);
+const LIFE_WORDS = new Set(["income", "salary", "age", "family", "wife", "husband", "son", "daughter", "kids", "children", "child", "parents", "mother", "father", "farm", "business", "company", "shop", "health", "condition", "disability", "pension", "loan", "debt", "religion", "caste"]);
+const CIRCUMSTANCES = [["i", "have", "been"], ["i", "work", "as"], ["i", "work", "at"], ["i", "work", "in"], ["i", "work", "for"], ["i", "run", "a"], ["i", "own", "a"], ["i", "earn"], ["i", "was", "born"], ["i", "belong", "to"], ["i", "come", "from"], ["i", "stay", "in"], ["lost", "my", "job"], ["i", "got", "married"], ["we", "are", "a"], ["we", "re", "a"], ["we", "have", "a"], ["being", "a"], ["being", "an"], ["someone", "like", "me"], ["people", "like", "me"], ["in", "my", "case"], ["in", "my", "situation"], ["my", "situation"], ["my", "circumstances"], ["for", "my", "family"], ["for", "my", "age"]];
+
+function describesSelf(words) {
+  if (CIRCUMSTANCES.some((phrase) => contains(words, phrase))) return true;
+  if (words.length > 2 && words[0] === "as" && (words[1] === "a" || words[1] === "an") && !GENERIC_ROLES.has(words[2])) {
+    return true;
+  }
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i];
+    const after = words.slice(i + 1);
+    if (word === "my" && after.length && LIFE_WORDS.has(after[0])) return true;
+    if (word === "me" && i > 0 && words[i - 1] === "for") {
+      if (!words.slice(Math.max(0, i - 6), i - 1).some((w) => SERVICE_VERBS.has(w))) return true;
+    }
+    if (i > 0 && HYPOTHETICAL.has(words[i - 1])) continue;
+    if (word === "i" && after.length >= 3 && after[0] === "have" && (after[1] === "a" || after[1] === "an") && !HAVE_NOT.has(after[2])) {
+      return true;
+    }
+    if (word === "i" && after.length >= 2 && (after[0] === "am" || after[0] === "m")) {
+      const x = after[1];
+      if (x === "a" || x === "an" || x === "the") {
+        if (after.length >= 3 && !ARTICLE_FILLERS.has(after[2]) && !GENERIC_ROLES.has(after[2])) return true;
+      } else if (/^[0-9]+$/.test(x) || (!x.endsWith("ing") && !NOT_DESCRIPTION.has(x))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function describesCaller(words) {
-  if (SELF_PHRASES.some((phrase) => contains(words, phrase))) return true;
+  if (describesSelf(words) || SELF_PHRASES.some((phrase) => contains(words, phrase))) return true;
   for (let index = 0; index < words.length; index += 1) {
     for (const lead of CALLER_LEADS) {
       const end = index + lead.length;
@@ -446,6 +486,53 @@ function flatten(text) {
   return wordsOf(text).join("");
 }
 
+// An answer that does not answer (a question back, "I'm not sure", a refusal) is spoken but never saved: cached, it becomes every later caller's answer, and it keeps rephrasings of the question from matching a real answer.
+const NON_ANSWER_PHRASES = [
+  "could you let me know",
+  "could you tell me",
+  "can you tell me",
+  "could you clarify",
+  "can you clarify",
+  "could you specify",
+  "can you specify",
+  "could you provide",
+  "can you provide",
+  "please clarify",
+  "please specify",
+  "please provide",
+  "let me know the ",
+  "let me know which",
+  "let me know what",
+  "let me know your",
+  "what do you mean",
+  "which one do you mean",
+  "i'm not sure",
+  "i am not sure",
+  "i don't know",
+  "i do not know",
+  "i can't help",
+  "i cannot help",
+  "i can't answer",
+  "i cannot answer",
+  "i'm unable",
+  "i am unable",
+  "i don't have access",
+  "i do not have access",
+  "i don't have information",
+  "i do not have information",
+  "need more information",
+  "need more details",
+];
+
+function isNonAnswer(answer) {
+  const text = String(answer || "").toLowerCase().replace(/\u2019/g, "'").split(/\s+/).filter(Boolean).join(" ");
+  const sentences = (text.match(/[^.!?]+[.!?]*/g) || []).map((s) => s.trim()).filter((s) => s.replace(/[ .!?]/g, ""));
+  if (!sentences.length) return false;
+  if (sentences.every((s) => s.endsWith("?"))) return true;
+  // Only when it leads: "Costs vary by destination. Please provide the address." still answers.
+  return NON_ANSWER_PHRASES.some((phrase) => sentences[0].includes(phrase));
+}
+
 function leaks(shaped, values) {
   const flat = flatten(shaped);
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
@@ -542,6 +629,7 @@ class VoiceSession {
     this.lookupErrors = 0;
     this.learnErrors = 0;
     this.notShareable = 0;
+    this.nonAnswers = 0;
     this._fillers = new Map();
     this._open = false;
     this._cancelled = false;
@@ -754,8 +842,9 @@ class VoiceSession {
   // allowed. Only an answer written from decision.messages reaches this, so it is
   // shared exactly when decide() said it may be. Never rejects: a refused write
   // (security pipeline, rate limit, cache down) must not end a call.
+  // Returns what happened to the answer: saved | template | kept (not shareable) | non_answer | private | refused (write failed) | interrupted | not_saved (empty answer, or a follow-up with nothing before it).
   async _recordModelTurn(callerSaid, modelSaid) {
-    if (this._cancelled) return;
+    if (this._cancelled) return "interrupted";
     this._open = false;
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const keyed = this._contextKey(callerSaid, text);
@@ -763,17 +852,22 @@ class VoiceSession {
     this._cacheable = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (!(typeof modelSaid === "string" && modelSaid.trim()) || keyed === null) return;
+    if (!(typeof modelSaid === "string" && modelSaid.trim()) || keyed === null) return "not_saved";
     try {
-      if (isPersonal(text)) {
-        await this._learnPersonal(keyed, modelSaid);
-      } else if (!cacheable || leaks(modelSaid, this.values)) {
-        this.notShareable += 1;
-      } else {
-        await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      if (isNonAnswer(modelSaid)) {
+        this.nonAnswers += 1;
+        return "non_answer";
       }
+      if (isPersonal(text)) return (await this._learnPersonal(keyed, modelSaid)) ? "template" : "private";
+      if (!cacheable || leaks(modelSaid, this.values)) {
+        this.notShareable += 1;
+        return "kept";
+      }
+      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      return "saved";
     } catch (error) {
       this.learnErrors += 1;
+      return "refused";
     }
   }
 
@@ -797,6 +891,7 @@ class VoiceSession {
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
       notShareable: this.notShareable,
+      nonAnswersNotSaved: this.nonAnswers,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
@@ -825,9 +920,10 @@ class VoiceSession {
     const shaped = abstract(modelSaid, this.values);
     if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values)) {
       await this.agent.learn(keyed, shaped, { ttl: this.ttl, template: true });
-      return;
+      return true;
     }
     this.uncacheablePersonal += 1;
+    return false;
   }
 
   async _voiced(answer, { cacheable = true } = {}) {

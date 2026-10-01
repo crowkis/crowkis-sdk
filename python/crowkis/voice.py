@@ -168,9 +168,47 @@ _SELF_PHRASES = (
     ("i", "m", "on"),
 )
 
+# A caller describing themself makes the right answer theirs alone: "I'm a farmer", "I am 65", "I have a small business", "my income is low", "which scheme suits someone like me".
+# Not an action or a feeling ("I'm looking for", "I'm not sure"), a filler ("I'm a bit"), a generic
+# role ("as a customer"), a hypothetical ("if I am late"), or a service ("explain this for me").
+_NOT_DESCRIPTION = frozenset({"not", "so", "just", "sure", "unsure", "curious", "interested", "wondering", "confused", "able", "unable", "about", "going", "also", "still", "really", "very", "glad", "happy", "sorry", "ready", "done", "back", "here", "speaking"})
+_ARTICLE_FILLERS = frozenset({"bit", "little", "lot", "few", "couple"})
+_GENERIC_ROLES = frozenset({"customer", "customers", "user", "users", "buyer", "client", "guest", "visitor", "shopper"})
+_HAVE_NOT = frozenset({"question", "questions", "query", "doubt", "quick", "general", "problem"})
+_HYPOTHETICAL = frozenset({"if", "when", "whether", "unless", "once"})
+_SERVICE_VERBS = frozenset({"explain", "describe", "list", "repeat", "check", "clarify", "define", "translate", "summarise", "summarize", "write", "read", "spell"})
+_LIFE_WORDS = frozenset({"income", "salary", "age", "family", "wife", "husband", "son", "daughter", "kids", "children", "child", "parents", "mother", "father", "farm", "business", "company", "shop", "health", "condition", "disability", "pension", "loan", "debt", "religion", "caste"})
+_CIRCUMSTANCES = (("i", "have", "been"), ("i", "work", "as"), ("i", "work", "at"), ("i", "work", "in"), ("i", "work", "for"), ("i", "run", "a"), ("i", "own", "a"), ("i", "earn"), ("i", "was", "born"), ("i", "belong", "to"), ("i", "come", "from"), ("i", "stay", "in"), ("lost", "my", "job"), ("i", "got", "married"), ("we", "are", "a"), ("we", "re", "a"), ("we", "have", "a"), ("being", "a"), ("being", "an"), ("someone", "like", "me"), ("people", "like", "me"), ("in", "my", "case"), ("in", "my", "situation"), ("my", "situation"), ("my", "circumstances"), ("for", "my", "family"), ("for", "my", "age"))
+
+
+def _describes_self(words: List[str]) -> bool:
+    if any(_contains(words, phrase) for phrase in _CIRCUMSTANCES):
+        return True
+    if len(words) > 2 and words[0] == "as" and words[1] in ("a", "an") and words[2] not in _GENERIC_ROLES:
+        return True
+    for i, word in enumerate(words):
+        after = words[i + 1:]
+        if word == "my" and after and after[0] in _LIFE_WORDS:
+            return True
+        if word == "me" and i > 0 and words[i - 1] == "for":
+            if not any(w in _SERVICE_VERBS for w in words[max(0, i - 6):i - 1]):
+                return True
+        if i > 0 and words[i - 1] in _HYPOTHETICAL:
+            continue
+        if word == "i" and len(after) >= 3 and after[0] == "have" and after[1] in ("a", "an") and after[2] not in _HAVE_NOT:
+            return True
+        if word == "i" and len(after) >= 2 and after[0] in ("am", "m"):
+            x = after[1]
+            if x in ("a", "an", "the"):
+                if len(after) >= 3 and after[2] not in _ARTICLE_FILLERS and after[2] not in _GENERIC_ROLES:
+                    return True
+            elif x.isdigit() or (not x.endswith("ing") and x not in _NOT_DESCRIPTION):
+                return True
+    return False
+
 
 def _describes_caller(words: List[str]) -> bool:
-    if any(_contains(words, phrase) for phrase in _SELF_PHRASES):
+    if _describes_self(words) or any(_contains(words, phrase) for phrase in _SELF_PHRASES):
         return True
     for index in range(len(words)):
         for lead in _CALLER_LEADS:
@@ -449,6 +487,58 @@ def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     return any(value and _flatten(value) in flat for value in values.values())
 
 
+
+# An answer that does not answer (a question back, "I'm not sure", a refusal) is spoken but never saved: cached, it becomes every later caller's answer, and it keeps rephrasings of the question from matching a real answer.
+_NON_ANSWER_PHRASES = (
+    "could you let me know",
+    "could you tell me",
+    "can you tell me",
+    "could you clarify",
+    "can you clarify",
+    "could you specify",
+    "can you specify",
+    "could you provide",
+    "can you provide",
+    "please clarify",
+    "please specify",
+    "please provide",
+    "let me know the ",
+    "let me know which",
+    "let me know what",
+    "let me know your",
+    "what do you mean",
+    "which one do you mean",
+    "i'm not sure",
+    "i am not sure",
+    "i don't know",
+    "i do not know",
+    "i can't help",
+    "i cannot help",
+    "i can't answer",
+    "i cannot answer",
+    "i'm unable",
+    "i am unable",
+    "i don't have access",
+    "i do not have access",
+    "i don't have information",
+    "i do not have information",
+    "need more information",
+    "need more details",
+)
+_SENTENCE = re.compile(r"[^.!?]+[.!?]*")
+
+
+def _is_non_answer(answer: str) -> bool:
+    text = " ".join((answer or "").lower().replace("\u2019", "'").split())
+    sentences = [s.strip() for s in _SENTENCE.findall(text) if s.strip(" .!?")]
+    if not sentences:
+        return False
+    if all(s.endswith("?") for s in sentences):
+        return True
+    # Only when it leads: "Costs vary by destination. Please provide the address." still answers.
+    return any(phrase in sentences[0] for phrase in _NON_ANSWER_PHRASES)
+
+
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
 
 
@@ -539,6 +629,7 @@ class VoiceSession:
         self.lookup_errors = 0
         self.learn_errors = 0
         self.not_shareable = 0
+        self.non_answers = 0
         self._fillers: Dict[str, str] = {}
         self._open = False
         self._cancelled = False
@@ -772,15 +863,16 @@ class VoiceSession:
             self.not_shareable += 1
         self._cacheable = False
 
-    def _record_model_turn(self, caller_said: str, model_said: str) -> None:
+    def _record_model_turn(self, caller_said: str, model_said: str) -> str:
         """Record the model's answer to the turn decide() last handled, and cache it if allowed.
 
         Only an answer written from ``decision.messages`` reaches this, so it is shared
         exactly when decide() said it may be. Never raises: a refused write (security
-        pipeline, rate limit, cache down) must not end a call.
+        pipeline, rate limit, cache down) must not end a call. Returns what happened:
+        saved | template | kept (not shareable) | non_answer | private | refused (write failed) | interrupted | not_saved (empty answer, or a follow-up with nothing before it).
         """
         if self._cancelled:
-            return
+            return "interrupted"
         self._open = False
         text = (caller_said or "").strip()
         keyed = self._context_key(caller_said, text)
@@ -788,16 +880,21 @@ class VoiceSession:
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
         if not (model_said and model_said.strip()) or keyed is None:
-            return
+            return "not_saved"
         try:
+            if _is_non_answer(model_said):
+                self.non_answers += 1
+                return "non_answer"
             if _is_personal(text):
-                self._learn_personal(keyed, model_said)
-            elif not cacheable or _leaks(model_said, self.values):
+                return "template" if self._learn_personal(keyed, model_said) else "private"
+            if not cacheable or _leaks(model_said, self.values):
                 self.not_shareable += 1
-            else:
-                self.agent.learn(keyed, model_said, ttl=self.ttl)
+                return "kept"
+            self.agent.learn(keyed, model_said, ttl=self.ttl)
+            return "saved"
         except Exception:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
+            return "refused"
 
     def injections(self) -> List[Dict[str, str]]:
         return list(self.transcript)
@@ -820,6 +917,7 @@ class VoiceSession:
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
             "not_shareable": self.not_shareable,
+            "non_answers_not_saved": self.non_answers,
             "cache_hit_pct": pct(self.served),
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),
@@ -839,7 +937,7 @@ class VoiceSession:
             return None
         return f"{prior} || {caller_said}"
 
-    def _learn_personal(self, keyed: str, model_said: str) -> None:
+    def _learn_personal(self, keyed: str, model_said: str) -> bool:
         shaped = _abstract(model_said, self.values)
         if (
             self.values
@@ -847,8 +945,9 @@ class VoiceSession:
             and not _leaks(shaped, self.values)
         ):
             self.agent.learn(keyed, shaped, ttl=self.ttl, template=True)
-            return
+            return True
         self.uncacheable_personal += 1
+        return False
 
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         if self.synthesise is None:

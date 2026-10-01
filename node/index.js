@@ -1003,6 +1003,24 @@ module.exports = {
   get Agent() {
     return require("./agent.js").Agent;
   },
+  get Conversation() {
+    return require("./conversation.js").Conversation;
+  },
+  get TurnPlan() {
+    return require("./conversation.js").TurnPlan;
+  },
+  get Saving() {
+    return require("./conversation.js").Saving;
+  },
+  get isPersonal() {
+    return require("./rules.js").isPersonal;
+  },
+  get isContextDependent() {
+    return require("./rules.js").isContextDependent;
+  },
+  get isNonAnswer() {
+    return require("./rules.js").isNonAnswer;
+  },
   get VoiceSession() {
     return require("./voice.js").VoiceSession;
   },

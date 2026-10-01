@@ -279,6 +279,86 @@ export interface VoiceValues {
   [slot: string]: string | number | null | undefined;
 }
 
+/** What a Conversation decided to do with one turn. */
+export type TurnPlanAction = "filler" | "lookup" | "model";
+
+export interface TurnPlan {
+  readonly said: string;
+  readonly action: TurnPlanAction;
+  /** filler | lookup | empty | short | personal_no_values | no_prior_turn | unplanned */
+  readonly reason: string;
+  /** Cache key for both the lookup and the save; null when none can be built. */
+  readonly key: string | null;
+  readonly personal: boolean;
+  /** Look up / save an answer shape filled with this conversation's values. */
+  readonly template: boolean;
+  /** Near-exact bar for a turn that only means something after the previous one. */
+  readonly threshold: number | null;
+  /** What the model reads on a miss; null means the whole conversation. */
+  readonly messages: TranscriptTurn[] | null;
+  /** Whether the model's answer may be shared with later callers. */
+  readonly shareable: boolean;
+  readonly filler: string | null;
+  readonly modelSees: "question" | "question + previous" | "whole conversation";
+}
+
+export type SavingOutcome =
+  | "saved" | "template" | "kept" | "private" | "non_answer" | "interrupted" | "not_saved";
+
+export interface Saving {
+  readonly outcome: SavingOutcome;
+  readonly key: string | null;
+  readonly text: string | null;
+  readonly template: boolean;
+  /** Whether the app should write `text` under `key` now. */
+  readonly write: boolean;
+}
+
+export interface ConversationOptions {
+  minWords?: number;
+  values?: VoiceValues;
+  fillers?: Record<string, string>;
+  /** Caller turns of history a whole-conversation model call carries; null keeps all. */
+  maxTurns?: number | null;
+}
+
+/**
+ * One call's or chat thread's cache decisions, with no I/O: what to look up, what the
+ * model reads, what may be saved. VoiceSession uses it; a chat backend can drive it
+ * with its own client and storage format.
+ */
+export class Conversation {
+  constructor(options?: ConversationOptions);
+  readonly minWords: number;
+  readonly maxTurns: number | null;
+  readonly values: Record<string, string>;
+  readonly transcript: TranscriptTurn[];
+  setValues(values: VoiceValues): void;
+  registerFiller(trigger: string, response: string): void;
+  registerFillers(pairs: Record<string, string>): void;
+  /** Decide what to do with what the caller just said. Opens the turn. */
+  plan(said: string): TurnPlan;
+  /** A plan for an answer with no decision behind it: never shared. */
+  unplanned(said: string): TurnPlan;
+  /** The cache answered: what to say, or null when a shape has an unfillable slot. */
+  served(plan: TurnPlan, cached: string): string | null;
+  /** Exactly what the model must read for this turn, `system` first. */
+  modelMessages(plan: TurnPlan, system?: string | null): ModelMessage[];
+  /** The model answered: remember the turn, decide what may be saved. */
+  settle(plan: TurnPlan, answer: string): Saving;
+  /** Remember a turn that is never cached; false when the turn was cancelled. */
+  keepPrivate(said: string, answer: string): boolean;
+  /** Abandon the open turn (barge-in): no trace, nothing saved. */
+  cancel(): boolean;
+}
+
+/** Whether a turn is about the caller (records, who they are, what suits them): never shared. */
+export function isPersonal(text: string): boolean;
+/** Whether a turn only means something after the previous one ("how long does it take?"). */
+export function isContextDependent(text: string): boolean;
+/** Whether a model answer does not answer (only questions, or leads with "I'm not sure"). */
+export function isNonAnswer(answer: string): boolean;
+
 export interface VoiceSessionOptions {
   voice: string;
   serveAbove?: number;
@@ -288,6 +368,8 @@ export interface VoiceSessionOptions {
   latencyBudgetMs?: number;
   fillers?: Record<string, string>;
   values?: VoiceValues;
+  /** Caller turns of history a whole-call model turn carries; null keeps all. */
+  maxTurns?: number | null;
 }
 
 export interface VoiceStats {
@@ -306,6 +388,8 @@ export interface VoiceStats {
   failedWrites: number;
   /** Shareable-looking model answers that were kept to this call (a declared value in them, or a private turn). */
   notShareable: number;
+  /** Model answers that did not answer (a question back, "I'm not sure", a refusal): spoken, never saved. */
+  nonAnswersNotSaved: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -322,6 +406,8 @@ export class VoiceSession {
   readonly latencyBudgetMs?: number;
   readonly values: Record<string, string>;
   readonly transcript: TranscriptTurn[];
+  /** The decisions behind every turn of this call. */
+  readonly conversation: Conversation;
   served: number;
   inferred: number;
   filled: number;

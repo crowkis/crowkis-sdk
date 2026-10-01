@@ -110,6 +110,33 @@ await mem.remember("Alice prefers email over phone");
 await mem.recall("how should I contact Alice?");   // semantic recall
 ```
 
+## Conversations: chat and voice agents
+
+A `Conversation` decides, per turn, what the model may read and whether its answer is
+shared: a general question is read alone and shared; a follow-up is read with the
+previous question and keyed by both; a personal turn ("Where is my order?", "I'm a farmer,
+what suits me?") reads the whole conversation and is never shared; a non-answer is never
+saved. It does no I/O, so any pipeline can drive it:
+
+```js
+const { Conversation } = require("@crowkis/client");
+
+const conv = new Conversation({ maxTurns: 20 });   // one per chat thread or call
+const plan = conv.plan(userMessage);
+const hit = plan.action === "lookup" ? await myLookup(plan.key, plan.threshold) : null;
+if (hit) reply = conv.served(plan, hit);
+else {
+  const answer = await myModel(conv.modelMessages(plan, SYSTEM_PROMPT));
+  const saving = conv.settle(plan, answer);
+  if (saving.write) await myStore(saving.key, saving.text);
+}
+```
+
+`isPersonal`, `isContextDependent` and `isNonAnswer` expose the rules underneath, identical
+to the Python SDK. `VoiceSession` (`@crowkis/client/voice`) is the same policy plus a voice
+pipeline: `await session.answer(transcript, myLlm, { system })` runs cache or model end to
+end, with a latency budget, cached audio per voice, fillers and barge-in.
+
 ## Authentication
 
 If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —

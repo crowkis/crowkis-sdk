@@ -64,7 +64,9 @@ await answer("How do refunds work?");
 await answer("What's the refund process?");   // semantic hit
 ```
 
-Both SDKs also ship a LangChain semantic-cache adapter and durable agent memory. Full
+Both SDKs also ship a LangChain semantic-cache adapter, durable agent memory, and a
+`Conversation` policy for chat and voice agents (what the model may read, what may be
+shared), with a `VoiceSession` and a Pipecat integration on top. Full
 docs: **[www.crowkis.com/docs](https://www.crowkis.com/docs)**.
 
 ## Run a server

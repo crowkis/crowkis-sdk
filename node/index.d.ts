@@ -251,6 +251,10 @@ export class TurnDecision {
   readonly audio: Buffer | null;
   readonly confidence: number;
   readonly reason: string;
+  /** For a model turn: the messages the model must read. null means the whole call. */
+  messages: TranscriptTurn[] | null;
+  /** Whether the model's answer to this turn is shared with later callers. */
+  cacheable: boolean;
   readonly servedFromCache: boolean;
   readonly servedFromFiller: boolean;
   readonly needsModel: boolean;
@@ -261,6 +265,15 @@ export interface TranscriptTurn {
   role: "user" | "assistant";
   content: string;
 }
+
+/** A message handed to the model by `VoiceSession.answer`. */
+export interface ModelMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** The app's model: reads exactly the messages Crowkis chose, returns its answer. */
+export type ModelCall = (messages: ModelMessage[]) => string | Promise<string>;
 
 export interface VoiceValues {
   [slot: string]: string | number | null | undefined;
@@ -291,8 +304,8 @@ export interface VoiceStats {
   cacheUnavailable: number;
   /** Model answers that could not be cached (refused write); the call went on. */
   failedWrites: number;
-  /** Model answers not shared because they repeat what this caller said earlier. */
-  uncacheableCallContext: number;
+  /** Shareable-looking model answers that were kept to this call (a declared value in them, or a private turn). */
+  notShareable: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -322,7 +335,13 @@ export class VoiceSession {
   registerFillers(pairs: Record<string, string>): void;
   decide(callerSaid: string): Promise<TurnDecision>;
   cancel(): boolean;
-  recordModelTurn(callerSaid: string, modelSaid: string): Promise<void>;
+  /**
+   * One caller turn end to end: answered from the cache, or by `llm` reading exactly
+   * the messages Crowkis chose, then remembered. `text` on the result is what to speak.
+   */
+  answer(callerSaid: string, llm: ModelCall, options?: { system?: string }): Promise<TurnDecision>;
+  /** Keep a turn in the transcript, never cached: for a model that holds the whole call itself. */
+  recordPrivateTurn(callerSaid: string, modelSaid: string): void;
   injections(): TranscriptTurn[];
   stats(): VoiceStats;
 }

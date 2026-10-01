@@ -29,7 +29,10 @@ _HELD_RECORDS = frozenset(
         "benefits", "package", "parcel", "return", "returns", "profile",
         "password", "address", "phone", "email", "number", "contract",
         "renewal", "bill", "billing", "charge", "charges", "deposit",
-        "withdrawal", "transfer", "case", "complaint",
+        "withdrawal", "transfer", "case", "complaint", "name", "details",
+        "detail", "info", "information", "points", "rewards", "cart", "basket",
+        "wallet", "credit", "credits", "history", "purchase", "purchases",
+        "username", "warranty", "coupon", "voucher", "code", "otp", "pin", "emi",
     }
 )
 
@@ -91,11 +94,18 @@ _CLAUSE_MARKERS = frozenset(
     }
 )
 
+# Shapes that borrow their subject from the previous turn.
+_FOLLOW_UP_PHRASES = (
+    ("same", "for"), ("the", "same"), ("what", "else"), ("anything", "else"), ("tell", "me", "more"),
+    ("which", "one"), ("instead",),
+)
+_FOLLOW_UP_ENDINGS = frozenset({"too", "also", "instead"})
+
 _ANAPHOR_PHRASES = ("this one", "the second one", "the first one", "the other one")
 
-_ANAPHORS = frozenset({"that", "those", "it", "them"})
+_ANAPHORS = frozenset({"that", "those", "it", "them", "they", "these", "this"})
 
-_DEMONSTRATIVES = frozenset({"that", "those"})
+_DEMONSTRATIVES = frozenset({"that", "those", "these", "this"})
 
 _FUNCTION_WORDS = frozenset(
     {
@@ -116,6 +126,58 @@ def _normalise(text: str) -> str:
 
 def _words(text: str) -> List[str]:
     return _WORDS.findall((text or "").lower())
+
+
+# Question words in front of a pronoun that are not what it refers to: "how long
+# does it take" still needs the previous turn to say what "it" is.
+_NON_REFERENTS = frozenset(
+    {
+        "long", "often", "far", "soon", "fast", "quickly", "early", "late",
+        "exactly", "usually", "still", "also", "really", "actually",
+    }
+)
+
+# After "that" or "those", these make it a pronoun rather than a determiner:
+# "what does that cost", "is that refundable", as opposed to "that plan".
+_PRONOUN_FOLLOWERS = frozenset(
+    {
+        "cost", "costs", "mean", "means", "take", "takes", "include", "includes",
+        "cover", "covers", "work", "works", "apply", "applies", "last", "lasts",
+        "come", "comes", "ship", "ships", "free", "available", "included",
+        "possible", "refundable", "returnable", "right", "correct", "true", "safe",
+        "worth", "enough", "extra", "cheaper", "better",
+    }
+)
+
+# Who the caller is changes the answer ("as a premium member", "i'm a student",
+# "i live in canada", "what plan am i on"), so such a turn is about this caller.
+_CALLER_KINDS = frozenset(
+    {
+        "premium", "gold", "silver", "platinum", "diamond", "vip", "prime", "elite",
+        "business", "businesses", "corporate", "enterprise", "wholesale", "student",
+        "students", "senior", "seniors", "veteran", "veterans", "military", "teacher",
+        "teachers", "employee", "employees", "member", "members", "subscriber",
+        "subscribers", "partner", "partners", "reseller", "resellers", "pensioner",
+        "pensioners", "retiree", "retirees", "nri",
+    }
+)
+_CALLER_LEADS = (("as", "a"), ("as", "an"), ("i", "am"), ("i", "m"), ("for",))
+_SELF_PHRASES = (
+    ("am", "i"), ("do", "i", "qualify"), ("i", "live", "in"), ("i", "am", "from"),
+    ("i", "m", "from"), ("i", "am", "based"), ("i", "m", "based"), ("i", "am", "on"),
+    ("i", "m", "on"),
+)
+
+
+def _describes_caller(words: List[str]) -> bool:
+    if any(_contains(words, phrase) for phrase in _SELF_PHRASES):
+        return True
+    for index in range(len(words)):
+        for lead in _CALLER_LEADS:
+            end = index + len(lead)
+            if tuple(words[index:end]) == lead and any(w in _CALLER_KINDS for w in words[end:end + 3]):
+                return True
+    return False
 
 
 def _contains(words: List[str], phrase: tuple) -> bool:
@@ -139,8 +201,172 @@ def _is_state_interrogative(words: List[str]) -> bool:
     return words[0] in _STATE_LEADS or "status" in words
 
 
+# --- Turns whose answer must never be shared ------------------------------------------
+# Kept word for word with the Node SDK (voice.js) and the server (cache/mod.rs
+# `never_share`). Each group fails closed: a match means "answer fresh, never cache".
+
+# Things a caller owns; with a state word after them, a statement about their own item.
+_OWNED_THINGS = frozenset(
+    {
+        "phone", "laptop", "headphones", "earphones", "charger", "shoes", "case", "tv",
+        "television", "watch", "smartwatch", "device", "product", "item", "bag", "jacket",
+        "shirt", "fridge", "refrigerator", "machine", "tablet", "camera", "speaker",
+    }
+)
+_STATE_WORDS = frozenset(
+    {
+        "is", "are", "was", "were", "arrived", "came", "stopped", "broke", "broken", "not",
+        "isn", "doesn", "won", "has", "got", "cracked", "damaged", "defective", "wrong",
+        "missing", "stuck", "keeps",
+    }
+)
+_GREETINGS = frozenset({"hi", "hello", "hey", "namaste", "good", "morning", "afternoon", "evening"})
+_INTRO_AFTER_GREETING = (("i", "am"), ("i", "m"), ("this", "is"), ("it", "s"), ("my", "name"))
+_SPOKEN_DIGITS = frozenset({"zero", "oh", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"})
+_EMAIL_ENDINGS = frozenset({"com", "in", "org", "net", "co", "io"})
+_ACTION_VERBS = frozenset(
+    {
+        "cancel", "book", "reschedule", "change", "update", "delete", "remove", "send", "text",
+        "email", "call", "connect", "transfer", "escalate", "refund", "replace", "exchange",
+        "return", "speak", "talk", "process", "block", "unblock", "check", "track", "add",
+        "apply", "upgrade", "downgrade", "activate", "deactivate", "close", "open", "resend",
+    }
+)
+# A verb first is a request only when it acts on something the caller points at
+# ("cancel my order", "send me the invoice"). A bare verb is search-style phrasing:
+# "refund status for john", "send events to an endpoint".
+_ACTION_OBJECTS = frozenset({"me", "my", "it", "this", "that", "us", "our", "the", "them"})
+# After these leads, an action verb is a request for the agent to do something.
+_ACTION_LEADS = (
+    ("please",), ("can", "you"), ("could", "you"), ("will", "you"), ("would", "you"),
+    ("i", "want", "to"), ("i", "d", "like", "to"), ("i", "would", "like", "to"),
+    ("i", "need", "to"), ("let", "me"), ("i", "wanna"),
+)
+# Replies to the agent, not questions: a reply word first (or "okay" + a reply word),
+# and no wh-question word anywhere.
+_REPLY_LEADS = frozenset({"yes", "yeah", "yep", "yup", "no", "nope", "nah", "correct", "exactly", "sure"})
+_SOFT_REPLY_LEADS = frozenset({"okay", "ok", "alright", "fine", "right"})
+_REPLY_FOLLOWERS = frozenset({"go", "please", "thanks", "thank", "that"})
+_WH_WORDS = frozenset({"how", "what", "when", "where", "which", "who", "why"})
+_SINGLE_WORDS = frozenset(
+    {
+        # live data
+        "today", "tonight", "currently", "outage", "queue",
+        # memory of this call
+        "remember",
+        # dialogue and complaints
+        "pardon", "louder", "slower", "slowly", "ridiculous", "frustrated", "frustrating",
+        "angry", "upset", "worst", "terrible", "unacceptable", "disappointed",
+        # steering
+        "pretend", "ignore", "roleplay",
+        # sensitive advice
+        "pregnancy", "pregnant", "breastfeeding", "allergic", "allergy", "allergies",
+        "medicine", "medication", "dosage", "doctor", "symptoms", "sue", "lawsuit",
+        "lawyer", "legal", "invest", "investment",
+        # abuse
+        "stupid", "idiot", "useless", "dumb", "shit", "damn", "hell", "crap", "fuck",
+        "fucking", "bullshit", "bloody",
+        # identity checks
+        "otp", "cvv",
+        # Hinglish possessives and first person
+        "mera", "meri", "mere", "maine", "mujhe", "hamara", "hamari",
+        # handing over to a person, Hinglish "I am"
+        "supervisor", "hoon", "hun",
+    }
+)
+_PHRASES = (
+    # self-introduction
+    ("my", "name"), ("name", "s"), ("call", "me"), ("i", "m", "called"),
+    # memory of this call
+    ("did", "i", "tell"), ("did", "i", "say"), ("did", "i", "just"), ("i", "told", "you"),
+    ("as", "i", "said"), ("i", "mentioned"), ("who", "i", "am"), ("have", "i"),
+    # things the caller did
+    ("i", "ordered"), ("i", "bought"), ("i", "paid"), ("i", "placed"), ("i", "received"),
+    ("i", "purchased"), ("i", "returned"), ("i", "booked"), ("i", "cancelled"), ("i", "canceled"),
+    ("i", "was", "charged"), ("i", "got", "charged"), ("i", "haven", "t"), ("i", "didn", "t"),
+    ("charged", "twice"), ("double", "charged"),
+    # personalised advice or prices
+    ("should", "i", "order"), ("should", "i", "buy"), ("should", "i", "get"), ("should", "i", "choose"),
+    ("should", "i", "pick"), ("best", "for", "me"), ("good", "for", "me"), ("right", "for", "me"),
+    ("suitable", "for", "me"), ("recommend", "for", "me"), ("recommend", "me"), ("will", "i", "pay"),
+    ("would", "i", "pay"), ("do", "i", "owe"),
+    # live data
+    ("in", "stock"), ("out", "of", "stock"), ("right", "now"), ("at", "the", "moment"), ("still", "on"),
+    ("open", "now"), ("available", "now"), ("working", "now"), ("down", "now"),
+    ("app", "down"), ("site", "down"), ("website", "down"), ("server", "down"), ("system", "down"),
+    ("app", "working"), ("site", "working"), ("website", "working"), ("the", "wait"), ("wait", "time"),
+    # dialogue
+    ("i", "meant"), ("say", "that", "again"), ("repeat", "that"), ("come", "again"), ("slow", "down"),
+    ("speak", "in"), ("talk", "in"), ("in", "hindi"), ("in", "english"), ("third", "time"),
+    ("nobody", "is", "helping"), ("no", "one", "is", "helping"), ("not", "helping"), ("fed", "up"),
+    # steering
+    ("from", "now", "on"), ("act", "as"), ("you", "are", "now"), ("role", "play"), ("always", "say"),
+    ("forget", "everything"), ("forget", "what"), ("forget", "your"), ("forget", "all"),
+    ("for", "this", "call"), ("for", "the", "rest"), ("tell", "everyone"), ("your", "rules"),
+    ("your", "instructions"), ("previous", "instructions"), ("system", "prompt"),
+    # sensitive advice
+    ("safe", "during"), ("safe", "for", "kids"),
+    # Indian-English and Hinglish introductions, personal fit, hand-over, steering
+    ("this", "side"), ("bol", "raha"), ("bol", "rahi"), ("name", "you", "have"), ("have", "for", "me"), ("suit", "me"), ("suits", "me"), ("me", "best"), ("put", "me", "through"), ("transfer", "me"), ("connect", "me"), ("from", "here", "on"), ("call", "yourself"),
+)
+_DIGITS = re.compile(r"[0-9]{5,}")
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]@[A-Za-z0-9-]")
+
+
+def _never_share(text: str, words: List[str]) -> bool:
+    """Whether a turn's answer must never be shared, whatever the rest of the rules say."""
+    if any("ऀ" <= ch <= "ॿ" for ch in text):  # Devanagari: not supported yet, fail closed
+        return True
+    if _DIGITS.search(text) or _EMAIL.search(text):
+        return True
+    if "at" in words and "dot" in words and any(w in _EMAIL_ENDINGS for w in words):
+        return True
+    run = 0
+    for word in words:
+        run = run + 1 if word in _SPOKEN_DIGITS else 0
+        if run >= 4:
+            return True
+    if any(w in _SINGLE_WORDS for w in words) or any(_contains(words, p) for p in _PHRASES):
+        return True
+    if words and words[0] in _GREETINGS:
+        rest = [w for w in words if w not in _GREETINGS]
+        if any(tuple(rest[:len(p)]) == p for p in _INTRO_AFTER_GREETING):
+            return True
+    if 1 < len(words) <= 5 and words[-1] in ("here", "speaking"):
+        return True
+    if words and words[0] == "myself":  # "Myself Anjali, I need help."
+        return True
+    for index, word in enumerate(words):
+        if word not in _POSSESSIVES:
+            continue
+        for at in (index + 1, index + 2):  # "my phone", "my washing machine"
+            if at < len(words) and words[at] in _OWNED_THINGS and any(w in _STATE_WORDS for w in words[at + 1:at + 5]):
+                return True
+    if len(words) > 1 and words[0] in _ACTION_VERBS and words[1] in _ACTION_OBJECTS:
+        return True
+    for index in range(len(words)):
+        for lead in _ACTION_LEADS:
+            end = index + len(lead)
+            if tuple(words[index:end]) == lead and end < len(words) and words[end] in _ACTION_VERBS:
+                return True
+    if words and not any(w in _WH_WORDS for w in words):
+        if words[0] in _REPLY_LEADS:
+            return True
+        if words[0] in _SOFT_REPLY_LEADS and len(words) > 1 and (
+            words[1] in _REPLY_LEADS or words[1] in _REPLY_FOLLOWERS
+        ):
+            return True
+    for index in range(len(words) - 2):
+        # "how many points do i have", not "do i have to pay for returns"
+        if tuple(words[index:index + 3]) == ("do", "i", "have") and (index + 3 >= len(words) or words[index + 3] != "to"):
+            return True
+    return False
+
+
 def _is_personal(text: str) -> bool:
     words = _words(text)
+    if _never_share(text, words) or _describes_caller(words):
+        return True
     index = _owned_record_at(words)
     if index is None:
         return False
@@ -152,7 +378,7 @@ def _is_personal(text: str) -> bool:
 
 
 def _has_antecedent(before: List[str]) -> bool:
-    return any(word not in _FUNCTION_WORDS for word in before)
+    return any(word not in _FUNCTION_WORDS and word not in _NON_REFERENTS for word in before)
 
 
 def _has_bare_anaphor(words: List[str]) -> bool:
@@ -169,6 +395,7 @@ def _has_bare_anaphor(words: List[str]) -> bool:
             word in _DEMONSTRATIVES
             and follows is not None
             and follows not in _FUNCTION_WORDS
+            and follows not in _PRONOUN_FOLLOWERS
         ):
             continue
         if not _has_antecedent(words[:index]):
@@ -185,6 +412,8 @@ def _is_context_dependent(text: str) -> bool:
     if " ".join(words[:2]) in _CONNECTIVE_PAIRS:
         return True
     if words[0] in _ELLIPSIS_LEADS and not any(w in _CLAUSE_MARKERS for w in words[1:]):
+        return True
+    if any(_contains(words, phrase) for phrase in _FOLLOW_UP_PHRASES) or words[-1] in _FOLLOW_UP_ENDINGS:
         return True
     return _has_bare_anaphor(words)
 
@@ -220,57 +449,6 @@ def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     return any(value and _flatten(value) in flat for value in values.values())
 
 
-# A caller turn that tries to change what the model says for the rest of the call.
-_STEERING = (
-    ("pretend",), ("from", "now", "on"), ("for", "this", "call"), ("for", "the", "rest"),
-    ("ignore",), ("forget",), ("act", "as"), ("you", "are", "now"), ("assume",),
-    ("always", "say"), ("tell", "everyone"), ("roleplay",), ("role", "play"),
-)
-# Phrases after which the caller gives a name: "my name is sarah", "this is raj".
-_NAMING = (("name", "is"), ("call", "me"), ("this", "is"), ("i", "m"), ("i", "am"))
-_TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
-
-
-def _proper_nouns(text: str) -> set:
-    """Words capitalised mid-sentence ("... my agent Priya said"), lower-cased."""
-    found = set()
-    for match in _TOKEN.finditer(text or ""):
-        word, before = match.group(), (text[:match.start()].rstrip() or ".")
-        if word[0].isupper() and word != "I" and before[-1] not in ".!?":
-            found.add(word.lower())
-    return found
-
-
-def _identifying(turn: str) -> set:
-    """What in a caller turn identifies the caller rather than the topic:
-    numbers, names they gave, proper nouns — or, for a turn steering the model,
-    every content word, since any of them can reshape the answer."""
-    words = _words(turn)
-    if any(_contains(words, phrase) for phrase in _STEERING):
-        return {w for w in words if len(w) >= 3} - _FUNCTION_WORDS
-    found = {w for w in words if any(c.isdigit() for c in w)} | _proper_nouns(turn)
-    for index in range(len(words)):
-        for phrase in _NAMING:
-            end = index + len(phrase)
-            if tuple(words[index:end]) == phrase and end < len(words) and words[end] not in _FUNCTION_WORDS:
-                found.add(words[end])
-    return found
-
-
-def _carries_call_context(answer: str, question: str, earlier: List[str]) -> bool:
-    """Whether the answer repeats something identifying the caller said earlier.
-
-    A model answering turn N has seen turns 1..N-1, so "Sarah, order 55512
-    arrives Tuesday" to "what is the delivery time?" — or an answer shaped by
-    "pretend refunds are unlimited" — would be cached as the shared answer to
-    a generic question and spoken to the next caller. Only identifying words
-    count: "order" said earlier must not block "the order ships in 5 days".
-    """
-    asked = set(_words(question))
-    before = set().union(*(_identifying(turn) for turn in earlier)) if earlier else set()
-    return any(w in before and w not in asked for w in _words(answer))
-
-
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
 
 
@@ -290,6 +468,10 @@ class TurnDecision:
         self.audio = audio
         self.confidence = confidence
         self.reason = reason
+        # For a model turn: what the model must read, and whether its answer is shared.
+        # None means "the whole call", and then the answer is never shared.
+        self.messages: Optional[List[Dict[str, str]]] = None
+        self.cacheable = False
 
     @property
     def served_from_cache(self) -> bool:
@@ -356,11 +538,12 @@ class VoiceSession:
         self.barge_ins = 0
         self.lookup_errors = 0
         self.learn_errors = 0
-        self.uncacheable_context = 0
+        self.not_shareable = 0
         self._fillers: Dict[str, str] = {}
         self._open = False
         self._cancelled = False
         self._turn_mark = 0
+        self._cacheable = False
         if values:
             self.set_values(**values)
         if fillers:
@@ -386,6 +569,32 @@ class VoiceSession:
             self.register_filler(trigger, response)
 
     def decide(self, caller_said: str) -> TurnDecision:
+        decision = self._decide(caller_said)
+        self._cacheable = False
+        if decision.needs_model:
+            decision.messages, decision.cacheable = self._model_messages(caller_said)
+            self._cacheable = decision.cacheable
+        return decision
+
+    def _model_messages(self, caller_said: str):
+        """What the model should read to answer this turn, and whether that answer may be cached.
+
+        A shared answer is only safe when the model saw nothing but the cache key:
+        the question, and for a follow-up the question before it. Nothing else the
+        caller said (a name, a plan, "pretend refunds are unlimited") can then end
+        up inside it. Personal turns get the whole call and are never shared.
+        """
+        text = (caller_said or "").strip()
+        if len(text.split()) < self.min_words or _is_personal(text):
+            return None, False
+        if not _is_context_dependent(text):
+            return [{"role": "user", "content": caller_said}], True
+        prior = self._prior_user()
+        if prior is None or _is_personal(prior):
+            return None, False
+        return [{"role": "user", "content": prior}, {"role": "user", "content": caller_said}], True
+
+    def _decide(self, caller_said: str) -> TurnDecision:
         self._turn_mark = len(self.transcript)
         self._open = True
         self._cancelled = False
@@ -521,18 +730,61 @@ class VoiceSession:
         del self.transcript[self._turn_mark:]
         return True
 
-    def record_model_turn(self, caller_said: str, model_said: str) -> None:
-        """Record the model's answer and, when it is safe to share, cache it.
+    def answer(
+        self,
+        caller_said: str,
+        llm: Callable[[List[Dict[str, str]]], str],
+        *,
+        system: Optional[str] = None,
+    ) -> TurnDecision:
+        """Run one caller turn end to end: cache, or the model, then remember the answer.
 
-        Never raises: this runs inside the caller's event loop, and a refused
-        write (security pipeline, rate limit, cache down) must not end a call.
+        ``llm`` is called with exactly the messages Crowkis chose for this turn: the
+        question alone (or with the question before it) when the answer may be shared,
+        the whole call when it may not. ``system`` is the app's own instructions, the
+        same for every caller, and is put first. The returned decision carries the
+        text to speak, from the cache or from the model.
+        """
+        decision = self.decide(caller_said)
+        if not decision.needs_model:
+            return decision
+        messages = decision.messages
+        if messages is None:
+            messages = self.injections() + [{"role": "user", "content": caller_said}]
+        if system:
+            messages = [{"role": "system", "content": system}] + messages
+        decision.text = llm(messages)
+        self._record_model_turn(caller_said, decision.text)
+        return decision
+
+    def record_private_turn(self, caller_said: str, model_said: str) -> None:
+        """Keep a turn in this call's transcript and never cache it.
+
+        For a model that holds the whole conversation itself (a realtime speech
+        model): it cannot be given ``decision.messages``, so nothing it says is shared.
+        """
+        if self._cancelled:
+            return
+        self._open = False
+        self.transcript.append({"role": "user", "content": caller_said})
+        self.transcript.append({"role": "assistant", "content": model_said})
+        if self._cacheable:
+            self.not_shareable += 1
+        self._cacheable = False
+
+    def _record_model_turn(self, caller_said: str, model_said: str) -> None:
+        """Record the model's answer to the turn decide() last handled, and cache it if allowed.
+
+        Only an answer written from ``decision.messages`` reaches this, so it is shared
+        exactly when decide() said it may be. Never raises: a refused write (security
+        pipeline, rate limit, cache down) must not end a call.
         """
         if self._cancelled:
             return
         self._open = False
         text = (caller_said or "").strip()
         keyed = self._context_key(caller_said, text)
-        earlier = [t["content"] for t in self.transcript if t["role"] == "user"]
+        cacheable, self._cacheable = self._cacheable, False
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
         if not (model_said and model_said.strip()) or keyed is None:
@@ -540,13 +792,10 @@ class VoiceSession:
         try:
             if _is_personal(text):
                 self._learn_personal(keyed, model_said)
-                return
-            # A follow-up is keyed with the turn it depends on, so that turn's
-            # words are part of what was asked, not leaked call context.
-            if _leaks(model_said, self.values) or _carries_call_context(model_said, keyed, earlier):
-                self.uncacheable_context += 1
-                return
-            self.agent.learn(keyed, model_said, ttl=self.ttl)
+            elif not cacheable or _leaks(model_said, self.values):
+                self.not_shareable += 1
+            else:
+                self.agent.learn(keyed, model_said, ttl=self.ttl)
         except Exception:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
 
@@ -570,7 +819,7 @@ class VoiceSession:
             "barge_ins": self.barge_ins,
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
-            "uncacheable_call_context": self.uncacheable_context,
+            "not_shareable": self.not_shareable,
             "cache_hit_pct": pct(self.served),
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),

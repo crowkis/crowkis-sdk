@@ -121,7 +121,9 @@ async function run(label, adapter, asEvent, agent) {
     console.log(`  caller: ${JSON.stringify(said).padEnd(45)} -> ${verdict}`);
     if (kinds.includes(adapter.respondEvent)) {
       const answer = KNOWN_ANSWERS[said];
-      if (answer) await session.recordModelTurn(said, answer);
+      // A realtime model holds the whole call, so what it says is kept to this
+      // call and never cached. Shared answers come from the seeded cache.
+      if (answer) session.recordPrivateTurn(said, answer);
     }
   }
 

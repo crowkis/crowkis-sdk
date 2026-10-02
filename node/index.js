@@ -1033,4 +1033,35 @@ module.exports = {
   get RealtimeGate() {
     return require("./realtime.js").RealtimeGate;
   },
+  // Turn understanding v2.2: understand once, check with fixed rules, route by contract.
+  get CallSession() {
+    return require("./session.js").CallSession;
+  },
+  get TurnResult() {
+    return require("./session.js").TurnResult;
+  },
+  get CallState() {
+    return require("./callstate.js").CallState;
+  },
+  get TurnFrame() {
+    return require("./turn.js").TurnFrame;
+  },
+  get RuleChecker() {
+    return require("./verify.js").RuleChecker;
+  },
+  get Verdict() {
+    return require("./verify.js").Verdict;
+  },
+  get LLMUnderstander() {
+    return require("./understand.js").LLMUnderstander;
+  },
+  get ReplayUnderstander() {
+    return require("./understand.js").ReplayUnderstander;
+  },
+  get WithFallback() {
+    return require("./understand.js").WithFallback;
+  },
+  get CallBridge() {
+    return require("./callbridge.js").CallBridge;
+  },
 };

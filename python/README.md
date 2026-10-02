@@ -146,18 +146,21 @@ from crowkis import Conversation
 
 conv = Conversation(max_turns=20)          # one per chat thread or call
 plan = conv.plan(user_message)
+reply = None
 if plan.action == "lookup":
     hit = my_cache_lookup(plan.key, threshold=plan.threshold)
     if hit:
-        reply = conv.served(plan, hit)
-answer = my_model(conv.model_messages(plan, system=SYSTEM_PROMPT))   # on a miss
-saving = conv.settle(plan, answer)
-if saving.write:
-    my_cache_store(saving.key, saving.text)    # saving.outcome says why when it is not
+        reply = conv.served(plan, hit)         # None when a template slot cannot be filled
+if reply is None:                              # a miss: ask the model, then settle
+    reply = my_model(conv.model_messages(plan, system=SYSTEM_PROMPT))
+    saving = conv.settle(plan, reply)
+    if saving.write:
+        my_cache_store(saving.key, saving.text)    # saving.outcome says why when it is not
 ```
 
 `crowkis.is_personal()`, `is_context_dependent()` and `is_non_answer()` expose the rules
-underneath. They are identical in the Node SDK and mirrored in the Crowkis server.
+underneath. They are identical in the Node SDK. The Crowkis server applies its own,
+narrower personal-query check as a safety net; it is not a copy of these rules.
 
 **Voice agents.** `VoiceSession` is that policy plus a voice pipeline: lookups under a
 hard latency budget, cached audio per voice, fillers and barge-in.
@@ -174,6 +177,67 @@ speak(decision.text, decision.audio)
 For Pipecat, `crowkis.integrations.pipecat.crowkis_processors()` puts the cache in front of
 the LLM and the TTS (`pip install "crowkis[pipecat]"`). A speech-to-speech model that holds
 the whole call itself records with `session.record_private_turn()`: never shared.
+
+## Turn understanding: `CallSession` (new)
+
+`Conversation` and `VoiceSession` decide from word rules. `CallSession` decides from
+**meaning**: a model describes each caller turn as a structured *turn frame* (what kind of
+turn, who it is about, which details identify someone, which details change the answer), and
+fixed rules check that structure before anything is shared. A weak or missing model costs
+cache hits, never privacy.
+
+| The caller says | What happens |
+| --- | --- |
+| "What time is check-in? Sarah here." | shared as `What time is check-in?`; the name never reaches the key or the model |
+| "And for ten people?" after "What does the Pro plan cost?" | resolved from the call state and shared as `What does the Pro plan cost for 10 people?` |
+| "Does The Press Bistro have steak?" (call is about Laguna Beach) | shared, with the city in the key |
+| "Where is my order?" | your agent answers with its tools; never cached |
+| "Under $100 for two." while booking | a step of the booking; never cached |
+| "I smell gas in my kitchen." | your `on_urgent` hook runs first; never cached |
+| "Could you tell me which item?" (model's answer) | spoken, never saved |
+
+```python
+from crowkis import Agent, CallSession, LLMUnderstander, ReplayUnderstander, WithFallback
+
+replay = ReplayUnderstander({"What is your return policy?": "policy"})     # safe fallback
+understander = WithFallback(LLMUnderstander(my_complete, business=BUSINESS), replay)
+
+session = CallSession(
+    Agent("support", tenant="my-app"), understander,
+    replay=replay,                    # used when the model is slow or down
+    on_urgent=alert_a_human,          # (turn, frame) -> None
+    on_event=send_to_dashboard,       # routes, reasons, de-identified keys
+    understand_budget_ms=250, latency_budget_ms=300,
+)
+
+result = session.handle(caller_text)
+if result.text:                                   # cache hit or filler
+    say(result.text)
+else:
+    messages = result.messages or whole_conversation   # a shared miss reads ONLY the question
+    answer = my_llm(system_prompt + messages)
+    say(answer)
+    session.record_answer(result, answer,
+                          mentions=["The Corner Room", "Paciarino"],   # places/options you named
+                          task="booking" if collecting_booking_details else None)
+```
+
+- **Understanding.** Anything with `understand(turn, state) -> TurnFrame` plugs in: your own
+  model, the Crowkis server (later), or `LLMUnderstander(complete)` over any LLM provider
+  (adds one model call per turn: fine for chat and demos, too slow for production voice).
+  `ReplayUnderstander` recognises only exact repeats of verified questions.
+- **Personal answers** come from your own tools after their own checks. A registered shape may
+  phrase a verified value; it never fetches or decides it:
+  `session.register_shape("eta", "Your order arrives on {eta}.", requires="identified")`, then
+  `session.state.set_identity("identified")` after your check and `session.phrase("eta", eta)`.
+- **Production controls.** `session.set_mode("off")` stops all sharing at once;
+  `"replay_only"` runs without a model. `session.stats()` counts routes, hits, saves, refusals,
+  timeouts and fallbacks. Tune `RuleChecker(confidence_floor=..., ttl=..., knowledge_version=...)`
+  per business; bump `knowledge_version` when policies or prices change.
+- **Pipecat.** `crowkis.integrations.pipecat_call.call_processors(session, voice=..., sample_rate=...)`
+  returns `(gate, writeback, audio)` for
+  `stt -> user aggregator -> gate -> llm -> writeback -> tts -> audio -> output`. Audio is cached
+  only for shared answers, whole, keyed by voice, sample rate and format.
 
 ## Authentication
 

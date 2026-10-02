@@ -19,6 +19,13 @@ from .conversation import Conversation, Saving, TurnPlan
 from .rules import is_context_dependent, is_non_answer, is_personal
 from .voice import TurnDecision, VoiceSession
 
+# Turn understanding v2.2: understand once, check with fixed rules, route by contract.
+from .turn import TurnFrame
+from .callstate import CallState
+from .verify import RuleChecker, Verdict
+from .understand import LLMUnderstander, ReplayUnderstander, WithFallback
+from .session import CallSession, TurnResult
+
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
 # model. A thin OpenAI-SDK drop-in still lives at `crowkis.openai_wrapper.CachedOpenAI`
 # for that specific convenience, but it is intentionally not a headline export.
@@ -36,6 +43,16 @@ __all__ = [
     "TurnDecision",
     "RealtimeAdapter",
     "RealtimeGate",
+    # turn understanding v2.2
+    "CallSession",
+    "TurnResult",
+    "CallState",
+    "TurnFrame",
+    "RuleChecker",
+    "Verdict",
+    "LLMUnderstander",
+    "ReplayUnderstander",
+    "WithFallback",
     # clients (idiomatic short names first)
     "Crowkis",
     "AsyncCrowkis",

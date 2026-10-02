@@ -12,13 +12,31 @@
     "./rules": "./rules.js",
     "./realtime": "./realtime.js",
     "./langchain": "./langchain.js",
-    "./memory": "./memory.js"
+    "./memory": "./memory.js",
+    "./session": "./session.js",
+    "./callstate": "./callstate.js",
+    "./turn": "./turn.js",
+    "./verify": "./verify.js",
+    "./understand": "./understand.js",
+    "./callbridge": "./callbridge.js"
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",
-  "keywords": ["crowkis", "llm", "cache", "semantic-cache", "agent-memory", "langchain", "langgraph", "redis"],
+  "keywords": [
+    "crowkis",
+    "llm",
+    "cache",
+    "semantic-cache",
+    "agent-memory",
+    "langchain",
+    "langgraph",
+    "redis"
+  ],
   "homepage": "https://www.crowkis.com",
-  "repository": { "type": "git", "url": "https://github.com/crowkis/crowkis-sdk.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crowkis/crowkis-sdk.git"
+  },
   "peerDependencies": {
     "@grpc/grpc-js": ">=1.9.0",
     "@grpc/proto-loader": ">=0.7.0"
@@ -46,9 +64,16 @@
     "memory.js",
     "grpc.js",
     "crowkis.proto",
+    "session.js",
+    "callstate.js",
+    "turn.js",
+    "verify.js",
+    "understand.js",
+    "callbridge.js",
     "README.md"
   ],
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js",
+    "test": "node --test test-call-session.js test-conversation.js test-realtime.js test-client.js test-voice.js"
   }
 }

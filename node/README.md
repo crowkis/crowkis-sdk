@@ -137,6 +137,47 @@ to the Python SDK. `VoiceSession` (`@crowkis/client/voice`) is the same policy p
 pipeline: `await session.answer(transcript, myLlm, { system })` runs cache or model end to
 end, with a latency budget, cached audio per voice, fillers and barge-in.
 
+## Turn understanding: `CallSession` (new)
+
+`CallSession` decides from **meaning** instead of word rules: a model describes each caller
+turn as a structured *turn frame* (kind, who it is about, which details identify someone,
+which details change the answer), and fixed rules check that structure before anything is
+shared. A weak or missing model costs cache hits, never privacy. Same design as the Python SDK.
+
+```js
+const { Agent, CallSession, LLMUnderstander, ReplayUnderstander, WithFallback } = require("@crowkis/client");
+
+const replay = new ReplayUnderstander({ "What is your return policy?": "policy" });   // safe fallback
+const session = new CallSession(new Agent("support", { tenant: "my-app" }),
+  new WithFallback(new LLMUnderstander(myComplete, { business: BUSINESS }), replay), {
+    replay,                                   // used when the model is slow or down
+    onUrgent: (turn, frame) => alertAHuman(turn),
+    onEvent: (event) => dashboard.send(event),  // routes, reasons, de-identified keys
+    understandBudgetMs: 250, latencyBudgetMs: 300,
+  });
+
+const result = await session.handle(callerText);
+if (result.text) say(result.text);                        // cache hit or filler
+else {
+  const messages = result.messages ?? wholeConversation;  // a shared miss reads ONLY the question
+  const answer = await myLlm([SYSTEM, ...messages]);
+  say(answer);
+  await session.recordAnswer(result, answer, {
+    mentions: ["The Corner Room", "Paciarino"],          // places/options you named
+    task: collectingBookingDetails ? "booking" : null,
+  });
+}
+```
+
+- Routes: `urgent` (your hook first), `task` (booking/order steps), `shared`, `personal`
+  (your tools; `registerShape` + `phrase` only phrase verified values), `tools`, `agent`.
+  Only `shared` is ever cached.
+- Production controls: `session.setMode("off" | "replay_only" | "full")`, `session.stats()`,
+  `new RuleChecker({ confidenceFloor, ttl, knowledgeVersion })`.
+- Voice pipelines: `new CallBridge(session, { voice, sampleRate })` gives framework-free
+  `onContext / onAnswer / onTtsAudio / onBotStopped / onInterruption`; audio is cached only for
+  shared answers, whole, keyed by voice, sample rate and format.
+
 ## Authentication
 
 If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —

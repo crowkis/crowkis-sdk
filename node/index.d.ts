@@ -535,3 +535,181 @@ export class RealtimeGate {
   stats(): RealtimeStats;
   toString(): string;
 }
+
+// --- Turn understanding v2.2 (CallSession) ---------------------------------------------
+
+export type TurnKind = "general" | "personal" | "live" | "action" | "dialogue" | "chitchat" | "sensitive" | "unclear";
+export type Route = "urgent" | "task" | "shared" | "personal" | "tools" | "agent" | "filler";
+export type QuestionType = "policy" | "how_to" | "product_fact" | "place_fact" | "search" | "other";
+
+export class Entity {
+  text: string;
+  type: string;
+  identifying: boolean;
+  answerRelevant: boolean;
+  static fromDict(data: Record<string, unknown>): Entity;
+}
+
+export class Attribute {
+  value: string;
+  normalised: string;
+  changesAnswer: boolean;
+  static fromDict(data: unknown): Attribute | null;
+}
+
+/** What turn understanding says about one caller turn. Parsing is fail-closed. */
+export class TurnFrame {
+  kind: TurnKind;
+  urgent: boolean;
+  subject: "none" | "self" | "other";
+  taskStep: boolean;
+  confidence: number;
+  abstain: boolean;
+  entities: Entity[];
+  attributes: Record<string, Attribute>;
+  usesState: boolean;
+  question: string | null;
+  questionType: QuestionType;
+  static fromDict(data: unknown): TurnFrame;
+  readonly identifyingTexts: string[];
+  readonly details: Entity[];
+  readonly memorable: Entity[];
+  readonly isPureAcknowledgement: boolean;
+}
+
+/** Per-call memory as structure, not transcript. */
+export class CallState {
+  activeQuestion: string | null;
+  activeKind: string | null;
+  facts: string[];
+  agentMentions: string[];
+  task: "none" | "searching" | "booking" | "ordering" | "account_action";
+  attributes: Record<string, Attribute>;
+  subjectFocus: string;
+  identity: "anonymous" | "identified" | "verified";
+  lastReply: string;
+  noteAgentReply(text: string, mentions?: string[], task?: string | null): void;
+  startTask(task: string): void;
+  endTask(): void;
+  setIdentity(identity: "anonymous" | "identified" | "verified"): void;
+  apply(frame: TurnFrame, options: { shared: boolean }): void;
+  snapshot(): Record<string, unknown>;
+  groundingSources(): string[];
+  clone(): CallState;
+}
+
+export class Verdict {
+  shared: boolean;
+  route: Route;
+  reasons: string[];
+  question: string | null;
+  attributes: Record<string, string>;
+  key: string | null;
+  ttl: number | null;
+}
+
+export interface RuleCheckerOptions {
+  /** Calibrate per business on real calls. Default 0.6. */
+  confidenceFloor?: number;
+  /** Expiry per question type in seconds; null = until the knowledge version changes. */
+  ttl?: Partial<Record<QuestionType, number | null>>;
+  /** Bump when policies or prices change: every old key retires at once. */
+  knowledgeVersion?: string;
+}
+
+/** The fixed sharing rules (V1-V9) and the key builder. */
+export class RuleChecker {
+  constructor(options?: RuleCheckerOptions);
+  check(frame: TurnFrame, turn: string, state: CallState): Verdict;
+  buildKey(question: string, attrs: Record<string, string>): string;
+}
+
+export interface Understander {
+  understand(turn: string, state: CallState): TurnFrame | Promise<TurnFrame>;
+}
+
+/** Exact repeats of already-verified questions only: the safe fallback with no model. */
+export class ReplayUnderstander implements Understander {
+  constructor(known?: Record<string, QuestionType | string>);
+  remember(turn: string, question: string, questionType?: string): void;
+  understand(turn: string, state?: CallState): TurnFrame;
+  readonly size: number;
+}
+
+export type ChatMessage = { role: string; content: string };
+
+/** Interim understander over the app's own LLM (adds one model call per turn). */
+export class LLMUnderstander implements Understander {
+  constructor(complete: (messages: ChatMessage[]) => string | Promise<string>, options?: { business?: string });
+  messages(turn: string, state: CallState): ChatMessage[];
+  understand(turn: string, state: CallState): Promise<TurnFrame>;
+}
+
+export class WithFallback implements Understander {
+  constructor(primary: Understander, fallback: Understander);
+  primaryFailures: number;
+  understand(turn: string, state: CallState): Promise<TurnFrame>;
+}
+
+export class TurnResult {
+  turnId: number;
+  route: Route;
+  /** What to say now (cache hit or filler), else null. */
+  text: string | null;
+  needsModel: boolean;
+  /** Exactly what the model reads; null = the whole call. */
+  messages: ChatMessage[] | null;
+  frame: TurnFrame | null;
+  verdict: Verdict | null;
+  reason: string;
+  readonly servedFromCache: boolean;
+}
+
+export interface CallSessionOptions {
+  checker?: RuleChecker;
+  onUrgent?: (turn: string, frame: TurnFrame) => void | Promise<void>;
+  replay?: ReplayUnderstander;
+  serveAbove?: number;
+  /** Hard limit on the cache lookup (ms). Default 300. */
+  latencyBudgetMs?: number | null;
+  /** Hard limit on understanding (ms); past it the safe fallback or the agent decides. Default 250. */
+  understandBudgetMs?: number | null;
+  fillers?: Record<string, string>;
+  /** "full" (default), "replay_only" (no model) or "off" (share nothing). */
+  mode?: "full" | "replay_only" | "off";
+  /** Monitoring: routes, reasons, de-identified keys; never the caller's raw words. */
+  onEvent?: (event: Record<string, unknown>) => void;
+}
+
+/** One call or chat thread on turn understanding v2.2. */
+export class CallSession {
+  constructor(agent: Agent, understander: Understander, options?: CallSessionOptions);
+  state: CallState;
+  handle(turn: string): Promise<TurnResult>;
+  recordAnswer(result: TurnResult, answer: string, options?: { mentions?: string[]; task?: string | null }): Promise<string>;
+  cancel(): boolean;
+  setMode(mode: "full" | "replay_only" | "off"): void;
+  registerShape(field: string, template: string, options?: { requires?: "anonymous" | "identified" | "verified" }): void;
+  phrase(field: string, value: unknown, options?: { subject?: string }): string | null;
+  saveCheck(answer: string, verdict: Verdict, frame?: TurnFrame | null): string | null;
+  stats(): Record<string, number>;
+}
+
+export interface BridgeDecision {
+  action: "play_audio" | "speak_text" | "model";
+  text?: string;
+  audio?: Buffer;
+  messages?: Array<Record<string, unknown>>;
+  tools?: unknown;
+  result?: TurnResult;
+}
+
+/** Framework-free voice-pipeline logic for CallSession (audio cached only for shared answers). */
+export class CallBridge {
+  constructor(session: CallSession, options: { voice: string; sampleRate: number; audioFormat?: string; audioBudgetMs?: number; audioTtl?: number });
+  onContext(messages: Array<Record<string, unknown>>, tools?: unknown): Promise<BridgeDecision>;
+  onAnswer(text: string, options?: { mentions?: string[]; task?: string | null }): Promise<string>;
+  onTtsAudio(pcm: Buffer | Uint8Array): void;
+  onBotStopped(): Promise<boolean>;
+  onInterruption(): void;
+}

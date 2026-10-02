@@ -22,6 +22,18 @@ _GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
         ],
     ),
     (
+        "Turn understanding — chat & voice agents  (see CallSession)",
+        [
+            ("CallSession(agent, understander, on_urgent=..., replay=...)", "one call: understand, check, route, cache safely"),
+            ("session.handle(turn)", "TurnResult: cached text, or exactly what the model may read"),
+            ("session.record_answer(result, answer, mentions=..., task=...)", "save if allowed; update the call state"),
+            ("session.cancel()", "barge-in: nothing from this turn is saved"),
+            ("session.set_mode('off' | 'replay_only' | 'full')", "kill switch / run without a model"),
+            ("LLMUnderstander(complete) / ReplayUnderstander(known)", "interim model over any LLM / exact repeats only"),
+            ("RuleChecker(confidence_floor=, ttl=, knowledge_version=)", "the fixed sharing rules and key builder"),
+        ],
+    ),
+    (
         "Agent memory — durable, semantic, per-user  (see CrowkisMemory)",
         [
             ("CrowkisMemory(agent, user=...)", "one object for an agent's long-term memory"),

@@ -66,7 +66,9 @@ await answer("What's the refund process?");   // semantic hit
 
 Both SDKs also ship a LangChain semantic-cache adapter, durable agent memory, and a
 `Conversation` policy for chat and voice agents (what the model may read, what may be
-shared), with a `VoiceSession` and a Pipecat integration on top. Full
+shared), with a `VoiceSession` and a Pipecat integration on top. The Python SDK adds
+`CallSession`: turn understanding by meaning, fixed sharing rules, emergency and task routing,
+and production controls (see `python/README.md`); the Node equivalent is planned. Full
 docs: **[www.crowkis.com/docs](https://www.crowkis.com/docs)**.
 
 ## Run a server

@@ -4,6 +4,7 @@ import base64
 import binascii
 import functools
 import json
+import time
 from typing import Any, Callable, Iterable, List, Optional
 
 from .client import CrowkisClient, CrowkisError
@@ -44,6 +45,10 @@ class Agent:
         self.audio_misses = 0
         self.tool_hits = 0
         self.tool_misses = 0
+        self._decides: Optional[bool] = None
+        self._decides_asked = 0.0
+        # The engine holds an answer back until it has judged it.
+        self._holds = False
         self._owns_client = client is None
         self._client = client or CrowkisClient(
             host=host, port=port, tenant=tenant, auth_token=auth_token
@@ -141,6 +146,10 @@ class Agent:
                 "answer": None,
                 "confidence": 0.0,
                 "similarity": 0.0,
+                "exact": False,
+                "vouched": False,
+                "lifetime": None,
+                "commitment": False,
             }
         confidence = float(hit.confidence)
         if confidence >= serve_above:
@@ -156,7 +165,48 @@ class Agent:
             "context": hit.response.decode("utf8", "replace"),
             "confidence": confidence,
             "similarity": float(hit.similarity),
+            # The same question, not a similar one. Two different questions
+            # can score a similarity of exactly 1.
+            "exact": hit.hit_type.endswith("exact"),
+            # What the server's decision engine recorded; defaults without one.
+            "vouched": hit.vouched,
+            "lifetime": hit.lifetime,
+            "commitment": hit.commitment,
         }
+
+    def decides(self) -> bool:
+        """Whether the server judges what it caches. The answer is remembered
+        for a few minutes and then asked again, so an engine switched on or off
+        is noticed; a server that could not be reached reads as no for now."""
+        if self._decides is not None and time.monotonic() - self._decides_asked < 300:
+            return self._decides
+        try:
+            view = self._client.cdecision("ping", tenant=self.tenant)
+        except Exception as error:  # noqa: BLE001 — no engine is the safe reading of any failure
+            # An older server does not know the question: that is an answer.
+            if "unknown command" in str(error).lower():
+                self._decides, self._decides_asked = False, time.monotonic()
+            self._holds = False
+            return False
+        # A client set to fail softly answers None for a server it cannot reach.
+        if not isinstance(view, dict):
+            self._holds = False
+            return False
+        self._decides, self._decides_asked = bool(view.get("engine")), time.monotonic()
+        self._holds = self._decides and bool(view.get("holds"))
+        return self._decides
+
+    def explain(self, query: str) -> dict:
+        """What the cache decided about a question: is an answer cached, how long
+        it was judged to stay correct, or why its answer was removed."""
+        return self._client.cdecision(query, tenant=self.tenant)
+
+    def announce(self, notice: str, *, lasts: Optional[int] = None, preview: bool = False) -> dict:
+        """Tell the cache something changed, in one sentence ("we close at 3pm
+        today"). Cached answers near it stop being served at once; the ones it
+        makes wrong are removed and the rest come back within seconds. With
+        `lasts` (seconds), answers given meanwhile expire when the notice does."""
+        return self._client.cnotice_add(notice, lasts=lasts, preview=preview, tenant=self.tenant)
 
     def speak(
         self,

@@ -125,6 +125,78 @@ mem.remember("Alice prefers email over phone")
 mem.recall("how should I contact Alice?")   # semantic recall
 ```
 
+## Voice agents
+
+`VoiceSession` decides, turn by turn, whether a caller can be answered from cache or needs
+the model. An answer about one caller's own records is never spoken to another caller.
+
+```python
+from crowkis import Agent, VoiceSession
+
+agent = Agent("support-line", tenant="my-app")
+session = VoiceSession(agent, voice="my-voice")
+
+decision = session.decide(caller_said)
+if decision.needs_model:
+    answer = my_model(caller_said)
+    session.record_model_turn(caller_said, answer)   # cached when it is safe to share
+else:
+    speak(decision.text)
+```
+
+### With the decision engine
+
+These need the server's decision engine to be configured (`CROWKIS_DECIDE_UPSTREAM`). Without
+it calls behave as before: the options below change nothing, a notice removes answers by
+similarity alone and cannot be kept active, and loading past calls refuses to run. With the
+engine on, by default the server does not serve an answer until its model has judged it safe
+to share.
+
+Tell the cache something changed. Answers near the notice stop being served before the call
+returns; the engine then removes the ones it makes wrong and puts the rest back:
+
+```python
+agent.announce("we close at 3pm today", lasts=3600)   # stays active for an hour
+```
+
+Ask what the cache decided about a question — whether an answer is cached, how long it was
+judged to stay correct, or why it was removed:
+
+```python
+agent.explain("what time do you close")
+```
+
+Choose how a cached answer that commits the business (a price, a refund, a policy) may be
+spoken: `"exact"` only when the caller asked the same question (the default), `"serve"`
+always, `"never"` always asks the model.
+
+```python
+session = VoiceSession(agent, voice="my-voice", commitments="never")
+```
+
+Answer short turns ("thank you", "hello") from cache. Off by default; when on, a short turn
+is served only on an exact match the engine has vouched for:
+
+```python
+session = VoiceSession(agent, voice="my-voice", short_turns=True)
+```
+
+Fill the cache from past calls. It refuses to run unless the engine is on and holding answers
+until it has judged them (the default), so every past answer is read before anyone is served
+it. It stops early, with `stalled` set, if the engine is not keeping up:
+
+```python
+from crowkis import warm_from_calls
+
+warm_from_calls(agent, [
+    [("What are your opening hours?", "We are open eight until eight.")],
+])
+# {'calls': 1, 'turns': 1, 'kept_private': 0, 'failed_writes': 0, 'stalled': False}
+```
+
+One check needs no engine: a cached answer written for a screen (a link, code, markup) goes
+to the model instead of being read out.
+
 ## Authentication
 
 If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —

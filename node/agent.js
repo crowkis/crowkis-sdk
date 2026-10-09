@@ -159,7 +159,16 @@ class Agent {
     });
     if (!hit) {
       this.routeCounts.expensive += 1;
-      return { route: "expensive", answer: null, confidence: 0, similarity: 0 };
+      return {
+        route: "expensive",
+        answer: null,
+        confidence: 0,
+        similarity: 0,
+        exact: false,
+        vouched: false,
+        lifetime: null,
+        commitment: false,
+      };
     }
     const confidence = Number(hit.confidence);
     const route =
@@ -174,7 +183,71 @@ class Agent {
       context: text,
       confidence,
       similarity: Number(hit.similarity),
+      // The same question, not a similar one. Two different questions can
+      // score a similarity of exactly 1.
+      exact: String(hit.hitType || "").endsWith("exact"),
+      // What the server's decision engine recorded; defaults without one.
+      vouched: Boolean(hit.vouched),
+      lifetime: hit.lifetime || null,
+      commitment: Boolean(hit.commitment),
     };
+  }
+
+  /**
+   * Whether the server judges what it caches. A yes is remembered. A no is
+   * asked again after a few minutes, so an engine switched on later is
+   * noticed; a server that could not be reached reads as no for now.
+   */
+  async decides() {
+    if (typeof this._decides === "boolean" && Date.now() - this._decidesAsked < 300000) return this._decides;
+    if (!this._decidesPending) {
+      // The pending question is kept, so turns that arrive together ask once.
+      this._decidesPending = (async () => {
+        try {
+          const view = await this.client.cdecision("ping", { tenant: this.tenant });
+          // A client set to fail softly answers nothing for a server it cannot reach.
+          if (!view || typeof view !== "object") {
+            this._holds = false;
+            return false;
+          }
+          this._decides = Boolean(view.engine);
+          this._decidesAsked = Date.now();
+          // The engine holds an answer back until it has judged it.
+          this._holds = this._decides && Boolean(view.holds);
+          return this._decides;
+        } catch (error) {
+          // No engine is the safe reading of any failure. An older server
+          // does not know the question: that is an answer.
+          if (/unknown command/i.test(String(error && error.message))) {
+            this._decides = false;
+            this._decidesAsked = Date.now();
+          }
+          this._holds = false;
+          return false;
+        } finally {
+          this._decidesPending = undefined;
+        }
+      })();
+    }
+    return this._decidesPending;
+  }
+
+  /**
+   * What the cache decided about a question: is an answer cached, how long it
+   * was judged to stay correct, or why its answer was removed.
+   */
+  async explain(query) {
+    return this.client.cdecision(query, { tenant: this.tenant });
+  }
+
+  /**
+   * Tell the cache something changed, in one sentence ("we close at 3pm
+   * today"). Cached answers near it stop being served at once; the ones it
+   * makes wrong are removed and the rest come back within seconds. With
+   * `lasts` (seconds), answers given meanwhile expire when the notice does.
+   */
+  async announce(notice, { lasts, preview = false } = {}) {
+    return this.client.cnoticeAdd(notice, { lasts, preview, tenant: this.tenant });
   }
 
   async speak(text, synthesise, { voice, ttl } = {}) {

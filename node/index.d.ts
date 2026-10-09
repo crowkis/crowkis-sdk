@@ -48,6 +48,68 @@ export interface CacheHit {
   migrationTargetModelVersion: string | null;
   migrationCanaryId: string | null;
   migrationPlannedAt: number | null;
+  /** True when the server's decision engine judged this answer. */
+  judged: boolean;
+  /** The engine was sure the answer is not personal and stands on its own. */
+  vouched: boolean;
+  /** How long the answer was judged to stay correct; null when it was not judged. */
+  lifetime: string | null;
+  /** The answer commits the business (a price, a refund, a policy). */
+  commitment: boolean;
+}
+
+/** What the server's decision engine concluded about a question. */
+export interface DecisionView {
+  /** False when the server has no decision engine configured. */
+  engine: boolean;
+  cached: boolean;
+  judged: boolean;
+  /** Stored but not served yet: it is waiting to be judged. */
+  pending: boolean;
+  /** The engine was sure the stored answer may be shared. */
+  vouched: boolean;
+  commitment: boolean;
+  lifetime?: string;
+  ttl?: number;
+  /**
+   * Why an answer to this question was removed, while that is remembered:
+   * "never", "personal", "context", "unsure" or "unrelated".
+   */
+  removed?: string;
+  removed_at?: number;
+}
+
+/** What a notice had done to the cache by the time the server replied. */
+export interface NoticeOutcome {
+  id: string;
+  /** Cached answers near enough to the notice to be looked at. */
+  checked: number;
+  /** Of those, the ones a server with no decision engine removes. */
+  matched: number;
+  /** Removed before the reply: only on a server with no decision engine. */
+  removed: number;
+  /**
+   * Not served from the reply on. The engine's model removes the ones the
+   * notice makes wrong and puts the rest back, usually within seconds.
+   */
+  checking: number;
+  /** More answers were near the notice than are looked at in one go. */
+  truncated: boolean;
+  preview: boolean;
+  until?: number;
+}
+
+export interface Notice {
+  id: string;
+  text: string;
+  until: number;
+}
+
+export interface NoticeOptions {
+  /** Seconds the notice stays active. */
+  lasts?: number;
+  /** Report what would be removed without removing it. */
+  preview?: boolean;
 }
 
 export interface SimResult {
@@ -70,6 +132,10 @@ export class CrowkisClient {
   csim(query: string | Buffer | Uint8Array, options?: { k?: number; tenant?: string }): Promise<SimResult[]>;
   cflush(options?: { tenant?: string }): Promise<number>;
   cvecCount(): Promise<number>;
+  cdecision(query: string | Buffer | Uint8Array, options?: { tenant?: string }): Promise<DecisionView>;
+  cnoticeAdd(text: string, options?: NoticeOptions & { tenant?: string }): Promise<NoticeOutcome>;
+  cnoticeList(options?: { tenant?: string }): Promise<Notice[]>;
+  cnoticeClear(noticeId: string, options?: { tenant?: string }): Promise<boolean>;
   getOrCompute(
     query: string,
     fn: (query: string) => Promise<string | Buffer | Uint8Array> | string | Buffer | Uint8Array,
@@ -92,7 +158,8 @@ export class CrowkisClient {
 
 export interface CrowkisAdminOptions {
   baseUrl?: string;
-  adminKey?: string;
+  /** A user's API key. Reading needs none on a node with no users. */
+  apiKey?: string;
   timeoutMs?: number;
 }
 
@@ -169,6 +236,12 @@ export interface AskResult {
   context?: string;
   confidence: number;
   similarity: number;
+  /** The same question, not merely a similar one. */
+  exact: boolean;
+  /** What the server's decision engine recorded; null / false without one. */
+  vouched: boolean;
+  lifetime: string | null;
+  commitment: boolean;
 }
 
 export interface RouteStats {
@@ -220,6 +293,12 @@ export class Agent {
   ): CachedTool<F>;
   toolStats(): ToolStats;
   ask(query: string, options?: AskOptions): Promise<AskResult>;
+  /** Whether the server judges what it caches. Remembered for a few minutes; any failure is false. */
+  decides(): Promise<boolean>;
+  /** What the cache decided about a question. */
+  explain(query: string): Promise<DecisionView>;
+  /** Tell the cache something changed; cached answers it makes wrong are removed. */
+  announce(notice: string, options?: NoticeOptions): Promise<NoticeOutcome>;
   speak(
     text: string,
     synthesise: Synthesise,
@@ -266,6 +345,12 @@ export interface VoiceValues {
   [slot: string]: string | number | null | undefined;
 }
 
+/**
+ * How a cached answer that commits the business may be spoken: always, only
+ * when the caller asked the same question, or never.
+ */
+export type Commitments = "serve" | "exact" | "never";
+
 export interface VoiceSessionOptions {
   voice: string;
   serveAbove?: number;
@@ -275,6 +360,13 @@ export interface VoiceSessionOptions {
   latencyBudgetMs?: number;
   fillers?: Record<string, string>;
   values?: VoiceValues;
+  /** Defaults to "exact". Only matters when the server's decision engine flags a commitment. */
+  commitments?: Commitments;
+  /**
+   * Answer turns shorter than `minWords` ("thank you") from cache when the
+   * server's decision engine has vouched for the exact answer. Off by default.
+   */
+  shortTurns?: boolean;
 }
 
 export interface VoiceStats {
@@ -293,6 +385,10 @@ export interface VoiceStats {
   failedWrites: number;
   /** Model answers not shared because they repeat what this caller said earlier. */
   uncacheableCallContext: number;
+  /** Cached commitments the `commitments` option did not allow speaking. */
+  commitmentsSentToModel: number;
+  /** Cached answers written for a screen (a link, code or markup), not spoken. */
+  unspeakableAnswers: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -307,6 +403,7 @@ export class VoiceSession {
   readonly synthesise?: Synthesise;
   readonly ttl?: number;
   readonly latencyBudgetMs?: number;
+  readonly commitments: Commitments;
   readonly values: Record<string, string>;
   readonly transcript: TranscriptTurn[];
   served: number;
@@ -326,6 +423,31 @@ export class VoiceSession {
   injections(): TranscriptTurn[];
   stats(): VoiceStats;
 }
+
+/** One past turn: what the caller said, then what the agent answered. */
+export type PastTurn = readonly [callerSaid: string, agentSaid: string];
+
+export interface WarmStartTotals {
+  calls: number;
+  turns: number;
+  /** Answers not shared: personal, or repeating what that caller said. */
+  keptPrivate: number;
+  failedWrites: number;
+  /** Stopped early: three calls in a row were not judged in time. */
+  stalled: boolean;
+}
+
+/**
+ * Fill the cache from past calls under the same rules as a live call. Nothing
+ * is spoken or synthesised. Throws unless the server's decision engine is on
+ * and holds answers until it has judged them. `wait` is the seconds the engine
+ * is given to catch up after each call (default 30).
+ */
+export function warmFromCalls(
+  agent: Agent,
+  calls: Iterable<Iterable<PastTurn>>,
+  options?: { wait?: number },
+): Promise<WarmStartTotals>;
 
 /**
  * Names of the three events this realtime provider uses. They are data, not

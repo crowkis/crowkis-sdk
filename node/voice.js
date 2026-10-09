@@ -10,6 +10,21 @@ const SLOT = /\{([^{}\s]+)\}/g;
 
 const CONTEXT_BOUND_THRESHOLD = 0.995;
 
+// Text written for a screen: a link, code, or markup a voice would read out.
+const UNSPEAKABLE = /https?:\/\/|www\.|`|\]\(|\*\*|^\s*(?:#{1,6}\s|\|)/im;
+
+// How a cached answer that commits the business (a price, a refund, a policy)
+// may be spoken. Only matters when the server's decision engine flags one.
+const COMMITMENTS = {
+  serve: () => true,
+  exact: (hit) => Boolean(hit.exact),
+  never: () => false,
+};
+
+function speakable(text) {
+  return !UNSPEAKABLE.test(text || "");
+}
+
 const POSSESSIVES = new Set(["my", "our", "mine", "ours"]);
 
 const HELD_RECORDS = new Set([
@@ -338,10 +353,17 @@ class VoiceSession {
       latencyBudgetMs,
       fillers,
       values,
+      commitments = "exact",
+      shortTurns = false,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
       throw new Error(`serveAbove must be in 0..1, got ${serveAbove}`);
+    }
+    if (!Object.prototype.hasOwnProperty.call(COMMITMENTS, commitments)) {
+      throw new Error(
+        `commitments must be one of ${Object.keys(COMMITMENTS).sort().join(", ")}, got ${commitments}`
+      );
     }
     if (latencyBudgetMs !== undefined && latencyBudgetMs !== null && !(latencyBudgetMs > 0)) {
       throw new Error(`latencyBudgetMs must be positive, got ${latencyBudgetMs}`);
@@ -360,6 +382,8 @@ class VoiceSession {
     this.synthesise = synthesise;
     this.ttl = ttl;
     this.latencyBudgetMs = latencyBudgetMs;
+    this.commitments = commitments;
+    this.shortTurns = Boolean(shortTurns);
     this.values = Object.create(null);
     this.transcript = [];
     this.served = 0;
@@ -373,6 +397,8 @@ class VoiceSession {
     this.lookupErrors = 0;
     this.learnErrors = 0;
     this.uncacheableContext = 0;
+    this.heldCommitments = 0;
+    this.unspeakable = 0;
     this._fillers = new Map();
     this._open = false;
     this._cancelled = false;
@@ -425,7 +451,12 @@ class VoiceSession {
       });
     }
 
-    if (text.split(/\s+/).length < this.minWords) {
+    // "Thank you" or "hello" is too short to match on meaning. With shortTurns
+    // on it is served on an exact match the server's decision engine has
+    // vouched for; otherwise, and with no engine, it goes to the model as it
+    // always did.
+    const short = text.split(/\s+/).length < this.minWords;
+    if (short && !(this.shortTurns && (await this._engineVouches()))) {
       this.refusedShort += 1;
       return new TurnDecision("infer", {
         reason: "transcript too short to match safely",
@@ -462,7 +493,7 @@ class VoiceSession {
         serveAbove: this.serveAbove,
         cheapAbove: Math.min(0.6, this.serveAbove),
         template: personal,
-        threshold: contextBound ? CONTEXT_BOUND_THRESHOLD : undefined,
+        threshold: contextBound || short ? CONTEXT_BOUND_THRESHOLD : undefined,
       });
       const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
       hit = budgeted ? await within(this.latencyBudgetMs, lookup) : await lookup;
@@ -509,6 +540,12 @@ class VoiceSession {
       }
     }
 
+    const held = this._held(hit, answer, short);
+    if (held) {
+      this.inferred += 1;
+      return new TurnDecision("infer", { confidence: hit.confidence, reason: held });
+    }
+
     this.served += 1;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: answer });
@@ -518,6 +555,39 @@ class VoiceSession {
       confidence: hit.confidence,
       reason: "confident cache hit",
     });
+  }
+
+  /**
+   * Whether the server judges what it caches, asked inside this call's budget:
+   * a slow answer is a no for this turn, and is there for the next.
+   */
+  async _engineVouches() {
+    const asked = this.agent.decides();
+    if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) return asked;
+    const answer = await within(this.latencyBudgetMs, asked);
+    return answer === LATE ? false : answer;
+  }
+
+  /** Why a confident hit still goes to the model, if it does. */
+  _held(hit, answer, short) {
+    if (short && !(hit.vouched && hit.exact)) {
+      return (
+        "a short turn is only answered from cache once the answer has been " +
+        "judged to stand on its own, and this one has not"
+      );
+    }
+    if (hit.commitment && !COMMITMENTS[this.commitments](hit)) {
+      this.heldCommitments += 1;
+      return (
+        "the cached answer is a commitment (a price, a refund, a policy) and " +
+        `commitments="${this.commitments}" does not allow speaking this match`
+      );
+    }
+    if (!speakable(answer)) {
+      this.unspeakable += 1;
+      return "the cached answer was written for a screen (a link, code or markup)";
+    }
+    return null;
   }
 
   cancel() {
@@ -552,6 +622,7 @@ class VoiceSession {
         return;
       }
       await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      this._lastStored = keyed;
     } catch (error) {
       this.learnErrors += 1;
     }
@@ -577,6 +648,8 @@ class VoiceSession {
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
       uncacheableCallContext: this.uncacheableContext,
+      commitmentsSentToModel: this.heldCommitments,
+      unspeakableAnswers: this.unspeakable,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
@@ -620,9 +693,75 @@ class VoiceSession {
   }
 }
 
+/**
+ * Fill the cache from past calls, so it is useful on the first day.
+ *
+ * `calls` is an iterable of calls, each an array of `[callerSaid, agentSaid]`
+ * turns in order. A follow-up is kept with the turn it depends on, and nothing
+ * is spoken or synthesised.
+ *
+ * It needs the server's decision engine, holding answers until it has judged
+ * them (the default), and throws otherwise. A past agent turn can hold
+ * details the caller never said aloud (an address looked up, a balance),
+ * which the live rules cannot see in a transcript; the engine reads every
+ * answer before anyone is served it.
+ *
+ * Resolves to totals. After each call it gives the engine up to `wait`
+ * seconds to catch up; `stalled` is true when it stopped early because three
+ * calls in a row were not judged in that time.
+ */
+async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
+  if (!((await agent.decides()) && agent._holds)) {
+    throw new Error(
+      "warmFromCalls needs the server's decision engine, holding answers until it has judged " +
+        "them (CROWKIS_DECIDE_UPSTREAM set, CROWKIS_DECIDE_SERVE_UNJUDGED not set): otherwise a " +
+        "past answer holding one caller's details could be shared before it is checked"
+    );
+  }
+  const totals = { calls: 0, turns: 0, keptPrivate: 0, failedWrites: 0, stalled: false };
+  let stalls = 0;
+  for (const call of calls) {
+    const session = new VoiceSession(agent, { voice: "warm-start" });
+    for (const [callerSaid, agentSaid] of call) {
+      await session.recordModelTurn(callerSaid, agentSaid);
+      totals.turns += 1;
+    }
+    totals.calls += 1;
+    totals.keptPrivate += session.uncacheableContext + session.uncacheablePersonal;
+    totals.failedWrites += session.learnErrors;
+    // Let the engine catch up before the next call: it judges a bounded
+    // number of answers at a time and refuses what does not fit.
+    stalls = (await judgedInTime(agent, session._lastStored, wait * 1000)) ? 0 : stalls + 1;
+    if (stalls >= 3) {
+      totals.stalled = true;
+      break;
+    }
+  }
+  return totals;
+}
+
+/** False when the engine was still working on `query` after `ms`. */
+async function judgedInTime(agent, query, ms) {
+  const deadline = Date.now() + ms;
+  while (query && Date.now() < deadline) {
+    let view;
+    try {
+      view = await agent.explain(query);
+    } catch (_error) {
+      // Cannot ask, so there is nothing to wait for.
+      return true;
+    }
+    if (!(view && view.pending)) return true;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(200, ms)));
+  }
+  return !query;
+}
+
 module.exports = {
   VoiceSession,
   TurnDecision,
+  warmFromCalls,
+  _speakable: speakable,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
   _abstract: abstract,

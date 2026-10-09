@@ -110,6 +110,79 @@ await mem.remember("Alice prefers email over phone");
 await mem.recall("how should I contact Alice?");   // semantic recall
 ```
 
+## Voice agents
+
+`VoiceSession` decides, turn by turn, whether a caller can be answered from cache or needs
+the model. An answer about one caller's own records is never spoken to another caller.
+
+```ts
+import { Agent, VoiceSession } from "@crowkis/client";
+
+const agent = new Agent("support-line", { tenant: "my-app" });
+const session = new VoiceSession(agent, { voice: "my-voice" });
+
+const decision = await session.decide(callerSaid);
+if (decision.needsModel) {
+  const answer = await myModel(callerSaid);
+  await session.recordModelTurn(callerSaid, answer);   // cached when it is safe to share
+} else {
+  speak(decision.text);
+}
+```
+
+### With the decision engine
+
+These need the server's decision engine to be configured (`CROWKIS_DECIDE_UPSTREAM`). Without
+it calls behave as before: the options below change nothing, a notice removes answers by
+similarity alone and cannot be kept active, and loading past calls refuses to run. With the
+engine on, by default the server does not serve an answer until its model has judged it safe
+to share.
+
+Tell the cache something changed. Answers near the notice stop being served before the call
+returns; the engine then removes the ones it makes wrong and puts the rest back:
+
+```ts
+await agent.announce("we close at 3pm today", { lasts: 3600 });   // stays active for an hour
+```
+
+Ask what the cache decided about a question — whether an answer is cached, how long it was
+judged to stay correct, or why it was removed:
+
+```ts
+await agent.explain("what time do you close");
+```
+
+Choose how a cached answer that commits the business (a price, a refund, a policy) may be
+spoken: `"exact"` only when the caller asked the same question (the default), `"serve"`
+always, `"never"` always asks the model.
+
+```ts
+const session = new VoiceSession(agent, { voice: "my-voice", commitments: "never" });
+```
+
+Answer short turns ("thank you", "hello") from cache. Off by default; when on, a short turn
+is served only on an exact match the engine has vouched for:
+
+```ts
+const session = new VoiceSession(agent, { voice: "my-voice", shortTurns: true });
+```
+
+Fill the cache from past calls. It throws unless the engine is on and holding answers until
+it has judged them (the default), so every past answer is read before anyone is served it.
+It stops early, with `stalled` set, if the engine is not keeping up:
+
+```ts
+import { warmFromCalls } from "@crowkis/client";
+
+await warmFromCalls(agent, [
+  [["What are your opening hours?", "We are open eight until eight."]],
+]);
+// { calls: 1, turns: 1, keptPrivate: 0, failedWrites: 0, stalled: false }
+```
+
+One check needs no engine: a cached answer written for a screen (a link, code, markup) goes
+to the model instead of being read out.
+
 ## Authentication
 
 If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —

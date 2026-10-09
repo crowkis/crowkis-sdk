@@ -25,6 +25,16 @@ function bufferToString(value) {
   return Buffer.isBuffer(value) ? value.toString() : String(value);
 }
 
+/** A server reply with its buffers decoded, so it can be printed or compared. */
+function plain(value) {
+  if (Buffer.isBuffer(value)) return value.toString();
+  if (Array.isArray(value)) return value.map(plain);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, plain(item)]));
+  }
+  return value;
+}
+
 function encode(args) {
   const parts = [Buffer.from(`*${args.length}\r\n`)];
   for (const arg of args.map(toBuffer)) {
@@ -393,6 +403,12 @@ class CrowkisClient {
       migrationTargetModelVersion: bufferToString(value.migration_target_model_version),
       migrationCanaryId: bufferToString(value.migration_canary_id),
       migrationPlannedAt: value.migration_planned_at === undefined ? null : Number(value.migration_planned_at),
+      // Set when the server's decision engine judged this answer. Without an
+      // engine these stay at their defaults and nothing changes.
+      judged: Boolean(value.judged),
+      vouched: Boolean(value.vouched),
+      lifetime: bufferToString(value.lifetime),
+      commitment: Boolean(value.commitment),
     };
   }
 
@@ -468,6 +484,45 @@ class CrowkisClient {
     if (limit !== undefined) args.push("LIMIT", String(limit));
     if (commit) args.push("COMMIT");
     return this.execute(...args);
+  }
+
+  /** What the server's decision engine concluded about a question. */
+  async cdecision(query, { tenant } = {}) {
+    await this._hello3();
+    const args = ["CDECISION", query];
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return plain(await this.execute(...args));
+  }
+
+  /**
+   * Tell the cache something changed. Removes the cached answers the notice
+   * makes wrong; with `lasts` (seconds) it stays active until then.
+   */
+  async cnoticeAdd(text, { lasts, preview, tenant } = {}) {
+    await this._hello3();
+    const args = ["CNOTICE", "ADD", text];
+    if (lasts !== undefined && lasts !== null) args.push("EX", String(lasts));
+    if (preview) args.push("PREVIEW");
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return plain(await this.execute(...args));
+  }
+
+  async cnoticeList({ tenant } = {}) {
+    await this._hello3();
+    const args = ["CNOTICE", "LIST"];
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return plain(await this.execute(...args)) || [];
+  }
+
+  async cnoticeClear(noticeId, { tenant } = {}) {
+    await this._hello3();
+    const args = ["CNOTICE", "CLEAR", noticeId];
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return Boolean(await this.execute(...args));
   }
 
   async cmemset(agent, fact, { user, ex, tenant } = {}) {
@@ -893,7 +948,8 @@ class CrowkisClient {
 class CrowkisAdmin {
   constructor(options = {}) {
     this.baseUrl = options.baseUrl || "http://127.0.0.1:6380";
-    this.adminKey = options.adminKey;
+    // A user's API key. Reading needs none on a node with no users.
+    this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs || 5000;
   }
 
@@ -901,7 +957,7 @@ class CrowkisAdmin {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers = { "content-type": "application/json" };
-    if (this.adminKey) headers["x-crowkis-admin-key"] = this.adminKey;
+    if (this.apiKey) headers["x-crowkis-api-key"] = this.apiKey;
     try {
       const response = await fetch(new URL(path, this.baseUrl), {
         method,
@@ -1008,6 +1064,9 @@ module.exports = {
   },
   get TurnDecision() {
     return require("./voice.js").TurnDecision;
+  },
+  get warmFromCalls() {
+    return require("./voice.js").warmFromCalls;
   },
   get RealtimeAdapter() {
     return require("./realtime.js").RealtimeAdapter;

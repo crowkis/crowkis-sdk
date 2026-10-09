@@ -17,6 +17,23 @@ _SLOT = re.compile(r"\{([^{}\s]+)\}")
 
 _CONTEXT_BOUND_THRESHOLD = 0.995
 
+# Text written for a screen: a link, code, or markup a voice would read out.
+_UNSPEAKABLE = re.compile(
+    r"https?://|www\.|`|\]\(|\*\*|^\s*(?:#{1,6}\s|\|)", re.MULTILINE | re.IGNORECASE
+)
+
+# How a cached answer that commits the business (a price, a refund, a policy)
+# may be spoken. Only matters when the server's decision engine flags one.
+_COMMITMENTS = {
+    "serve": lambda hit: True,
+    "exact": lambda hit: bool(hit.get("exact")),
+    "never": lambda hit: False,
+}
+
+
+def _speakable(text: str) -> bool:
+    return not _UNSPEAKABLE.search(text or "")
+
 _POSSESSIVES = frozenset({"my", "our", "mine", "ours"})
 
 _HELD_RECORDS = frozenset(
@@ -324,9 +341,15 @@ class VoiceSession:
         latency_budget_ms: Optional[float] = None,
         fillers: Optional[Dict[str, str]] = None,
         values: Optional[Dict[str, str]] = None,
+        commitments: str = "exact",
+        short_turns: bool = False,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
+        if commitments not in _COMMITMENTS:
+            raise ValueError(
+                f"commitments must be one of {sorted(_COMMITMENTS)}, got {commitments!r}"
+            )
         if latency_budget_ms is not None and latency_budget_ms <= 0:
             raise ValueError(
                 f"latency_budget_ms must be positive, got {latency_budget_ms}"
@@ -344,6 +367,8 @@ class VoiceSession:
         self.synthesise = synthesise
         self.ttl = ttl
         self.latency_budget_ms = latency_budget_ms
+        self.commitments = commitments
+        self.short_turns = short_turns
         self.values: Dict[str, str] = {}
         self.transcript: List[Dict[str, str]] = []
         self.served = 0
@@ -356,7 +381,11 @@ class VoiceSession:
         self.barge_ins = 0
         self.lookup_errors = 0
         self.learn_errors = 0
+        # The question the latest stored answer was stored under.
+        self._last_stored: Optional[str] = None
         self.uncacheable_context = 0
+        self.held_commitments = 0
+        self.unspeakable = 0
         self._fillers: Dict[str, str] = {}
         self._open = False
         self._cancelled = False
@@ -406,7 +435,12 @@ class VoiceSession:
                 reason="registered filler, answered without a lookup or a model",
             )
 
-        if len(text.split()) < self.min_words:
+        # "Thank you" or "hello" is too short to match on meaning. With
+        # short_turns on it is served on an exact match the server's decision
+        # engine has vouched for; otherwise, and with no engine, it goes to
+        # the model as it always did.
+        short = len(text.split()) < self.min_words
+        if short and not (self.short_turns and self._engine_vouches()):
             self.refused_short += 1
             return TurnDecision("infer", reason="transcript too short to match safely")
 
@@ -441,7 +475,7 @@ class VoiceSession:
             serve_above=self.serve_above,
             cheap_above=min(0.60, self.serve_above),
             template=personal,
-            threshold=_CONTEXT_BOUND_THRESHOLD if context_bound else None,
+            threshold=_CONTEXT_BOUND_THRESHOLD if context_bound or short else None,
         )
         try:
             if self.latency_budget_ms is None:
@@ -501,6 +535,11 @@ class VoiceSession:
                     ),
                 )
 
+        held = self._held(hit, answer, short)
+        if held:
+            self.inferred += 1
+            return TurnDecision("infer", confidence=hit["confidence"], reason=held)
+
         self.served += 1
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": answer})
@@ -511,6 +550,34 @@ class VoiceSession:
             confidence=hit["confidence"],
             reason="confident cache hit",
         )
+
+    def _engine_vouches(self) -> bool:
+        """Whether the server judges what it caches, asked inside this call's
+        budget: a slow answer is a no for this turn, and is there for the next."""
+        if self.latency_budget_ms is None:
+            return self.agent.decides()
+        try:
+            return _LOOKUPS.submit(self.agent.decides).result(timeout=self.latency_budget_ms / 1000.0)
+        except concurrent.futures.TimeoutError:
+            return False
+
+    def _held(self, hit: dict, answer: str, short: bool) -> Optional[str]:
+        """Why a confident hit still goes to the model, if it does."""
+        if short and not (hit.get("vouched") and hit.get("exact")):
+            return (
+                "a short turn is only answered from cache once the answer has been "
+                "judged to stand on its own, and this one has not"
+            )
+        if hit.get("commitment") and not _COMMITMENTS[self.commitments](hit):
+            self.held_commitments += 1
+            return (
+                "the cached answer is a commitment (a price, a refund, a policy) and "
+                f"commitments={self.commitments!r} does not allow speaking this match"
+            )
+        if not _speakable(answer):
+            self.unspeakable += 1
+            return "the cached answer was written for a screen (a link, code or markup)"
+        return None
 
     def cancel(self) -> bool:
         if not self._open:
@@ -547,6 +614,7 @@ class VoiceSession:
                 self.uncacheable_context += 1
                 return
             self.agent.learn(keyed, model_said, ttl=self.ttl)
+            self._last_stored = keyed
         except Exception:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
 
@@ -571,6 +639,8 @@ class VoiceSession:
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
             "uncacheable_call_context": self.uncacheable_context,
+            "commitments_sent_to_model": self.held_commitments,
+            "unspeakable_answers": self.unspeakable,
             "cache_hit_pct": pct(self.served),
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),
@@ -609,4 +679,60 @@ class VoiceSession:
         return self.agent.speak(answer, self.synthesise, voice=self.voice, ttl=self.ttl)
 
 
-__all__ = ["VoiceSession", "TurnDecision"]
+def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
+    """Fill the cache from past calls, so it is useful on the first day.
+
+    `calls` is an iterable of calls, each a list of `(caller_said, agent_said)`
+    turns in order. A follow-up is kept with the turn it depends on, and
+    nothing is spoken or synthesised.
+
+    It needs the server's decision engine, holding answers until it has judged
+    them (the default), and refuses to run otherwise. A past agent turn can
+    hold details the caller never said aloud (an address looked up, a
+    balance), which the live rules cannot see in a transcript; the engine
+    reads every answer before anyone is served it.
+
+    Returns totals. After each call it gives the engine up to `wait` seconds
+    to catch up; `stalled` is true when it stopped early because three calls
+    in a row were not judged in that time.
+    """
+    if not (agent.decides() and agent._holds):
+        raise RuntimeError(
+            "warm_from_calls needs the server's decision engine, holding answers until it has "
+            "judged them (CROWKIS_DECIDE_UPSTREAM set, CROWKIS_DECIDE_SERVE_UNJUDGED not set): "
+            "otherwise a past answer holding one caller's details could be shared before it is checked"
+        )
+    totals = {"calls": 0, "turns": 0, "kept_private": 0, "failed_writes": 0, "stalled": False}
+    stalls = 0
+    for call in calls:
+        session = VoiceSession(agent, voice="warm-start")
+        for caller_said, agent_said in call:
+            session.record_model_turn(caller_said, agent_said)
+            totals["turns"] += 1
+        totals["calls"] += 1
+        totals["kept_private"] += session.uncacheable_context + session.uncacheable_personal
+        totals["failed_writes"] += session.learn_errors
+        # Let the engine catch up before the next call: it judges a bounded
+        # number of answers at a time and refuses what does not fit.
+        stalls = 0 if _judged_in_time(agent, session._last_stored, wait) else stalls + 1
+        if stalls >= 3:
+            totals["stalled"] = True
+            break
+    return totals
+
+
+def _judged_in_time(agent: Agent, query: Optional[str], seconds: float) -> bool:
+    """False when the engine was still working on `query` after `seconds`."""
+    deadline = time.monotonic() + seconds
+    while query is not None and time.monotonic() < deadline:
+        try:
+            view = agent.explain(query)
+        except Exception:  # noqa: BLE001 — cannot ask, so there is nothing to wait for
+            return True
+        if not isinstance(view, dict) or not view.get("pending"):
+            return True
+        time.sleep(min(0.2, seconds))
+    return query is None
+
+
+__all__ = ["VoiceSession", "TurnDecision", "warm_from_calls"]

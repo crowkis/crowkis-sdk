@@ -971,3 +971,330 @@ class DeadlineTests(unittest.TestCase):
         decision = VoiceSession(Agent("caller", client=Down()), voice="v", latency_budget_ms=200).decide(
             "what are your opening hours today")
         self.assertEqual(decision.action, "infer")
+
+
+class EngineClient(FakeClient):
+    """A server whose decision engine is on (or off), recording what is asked of it."""
+
+    def __init__(self, hit=None, engine=True, holds=True, pending=False):
+        super().__init__(hit=hit)
+        self.engine = engine
+        self.holds = holds
+        self.pending = pending
+
+    def cget_hit(self, query, **kwargs):
+        self.calls.append(("cget_hit", query, kwargs.get("threshold")))
+        return self.hit
+
+    def cdecision(self, query, *, tenant=None):
+        self.calls.append(("cdecision", query, tenant))
+        if self.engine is None:
+            raise ConnectionError("unknown command 'CDECISION'")
+        return {
+            "engine": self.engine,
+            "holds": bool(self.engine and self.holds),
+            "cached": self.pending,
+            "judged": False,
+            "pending": self.pending,
+        }
+
+    def cnotice_add(self, text, *, lasts=None, preview=False, tenant=None):
+        self.calls.append(("cnotice_add", text, lasts, preview, tenant))
+        return {"id": "abc", "removed": 2}
+
+
+def _judged(similarity=0.99, response=b"You are welcome.", **flags):
+    return CacheHit(
+        response=response,
+        similarity=similarity,
+        ttl_remaining=600,
+        matched_key=b"k",
+        confidence=0.99,
+        hit_type="exact" if similarity >= 1.0 else "semantic",
+        judged=True,
+        **flags,
+    )
+
+
+class ShortTurnTests(unittest.TestCase):
+    def _session(self, hit, engine=True, short_turns=True):
+        client = EngineClient(hit=hit, engine=engine)
+        return client, VoiceSession(Agent("caller", client=client), voice="alloy", short_turns=short_turns)
+
+    def test_short_turns_are_off_unless_asked_for(self):
+        client, session = self._session(_judged(similarity=1.0, vouched=True), short_turns=False)
+        self.assertEqual(session.decide("thank you").action, "infer")
+        self.assertEqual(client.calls, [], "neither looked up nor asked about")
+        self.assertEqual(session.refused_short, 1)
+
+    def test_a_short_turn_the_engine_vouched_for_is_served_on_an_exact_match_only(self):
+        client, session = self._session(_judged(similarity=1.0, vouched=True))
+        decision = session.decide("thank you")
+        self.assertEqual((decision.action, decision.text), ("serve", "You are welcome."))
+        lookups = [call for call in client.calls if call[0] == "cget_hit"]
+        self.assertEqual(lookups, [("cget_hit", "thank you", 0.995)], "a short turn never matches on meaning")
+        self.assertEqual((session.served, session.refused_short), (1, 0))
+
+    def test_a_short_turn_nobody_vouched_for_goes_to_the_model(self):
+        # Cached and confident, but not vouched for, or not the same question.
+        for hit in (_hit(0.99, similarity=1.0), _judged(similarity=1.0), _judged(similarity=0.999, vouched=True)):
+            with self.subTest(judged=hit.judged, similarity=hit.similarity):
+                _, session = self._session(hit)
+                decision = session.decide("yes please")
+                self.assertEqual(decision.action, "infer")
+                self.assertIn("stand on its own", decision.reason)
+                self.assertEqual(session.served, 0)
+
+    def test_without_an_engine_a_short_turn_is_not_even_looked_up(self):
+        for engine in (False, None):
+            with self.subTest(engine=engine):
+                client, session = self._session(_judged(similarity=1.0, vouched=True), engine=engine)
+                self.assertEqual(session.decide("thank you").action, "infer")
+                self.assertNotIn("cget_hit", client.kinds())
+                self.assertEqual(session.refused_short, 1)
+
+    def test_the_server_is_asked_once_whether_it_judges_answers(self):
+        client, session = self._session(_judged(similarity=1.0, vouched=True))
+        for _ in range(5):
+            session.decide("thank you")
+        again = VoiceSession(session.agent, voice="alloy", short_turns=True)
+        again.decide("hello there")
+        self.assertEqual(client.kinds().count("cdecision"), 1)
+
+    def test_a_long_turn_never_asks(self):
+        client, session = self._session(_hit(0.99))
+        session.decide("what is the refund policy")
+        self.assertNotIn("cdecision", client.kinds())
+
+
+class CommitmentTests(unittest.TestCase):
+    QUESTION = "how much is the pro plan"
+
+    def _decide(self, hit, **kwargs):
+        client = EngineClient(hit=hit)
+        session = VoiceSession(Agent("caller", client=client), voice="alloy", **kwargs)
+        return session, session.decide(self.QUESTION)
+
+    def test_by_default_a_commitment_is_spoken_only_on_an_exact_match(self):
+        near = _judged(similarity=0.97, lifetime="operational", commitment=True)
+        exact = _judged(similarity=1.0, lifetime="operational", commitment=True)
+        session, decision = self._decide(near)
+        self.assertEqual(decision.action, "infer")
+        self.assertIn("commitment", decision.reason)
+        self.assertEqual(session.stats()["commitments_sent_to_model"], 1)
+        self.assertEqual(self._decide(exact)[1].action, "serve")
+
+    def test_an_ordinary_answer_is_unaffected(self):
+        ordinary = _judged(similarity=0.97, lifetime="slow")
+        for mode in ("serve", "exact", "never"):
+            with self.subTest(mode=mode):
+                self.assertEqual(self._decide(ordinary, commitments=mode)[1].action, "serve")
+
+    def test_each_mode_does_what_it_says(self):
+        same_score = CacheHit(
+            response=b"x", similarity=1.0, ttl_remaining=600, matched_key=b"k", confidence=0.99,
+            hit_type="vector", judged=True, commitment=True,
+        )
+        hits = {
+            "near": _judged(similarity=0.97, commitment=True),
+            "exact": _judged(similarity=1.0, commitment=True),
+            # Another question can score a similarity of exactly 1; it is still another question.
+            "same-score": same_score,
+        }
+        served = {
+            "serve": {"near", "exact", "same-score"},
+            "exact": {"exact"},
+            "never": set(),
+        }
+        for mode, expected in served.items():
+            for name, hit in hits.items():
+                with self.subTest(mode=mode, hit=name):
+                    action = self._decide(hit, commitments=mode)[1].action
+                    self.assertEqual(action == "serve", name in expected)
+
+    def test_an_unknown_mode_is_refused(self):
+        with self.assertRaises(ValueError):
+            VoiceSession(Agent("caller", client=EngineClient()), voice="alloy", commitments="maybe")
+
+
+class SpeakableTests(unittest.TestCase):
+    def test_text_written_for_a_screen_is_not_spoken(self):
+        from crowkis.voice import _speakable
+
+        for text in (
+            "See https://example.com/refunds for details.",
+            "Visit www.example.com.",
+            "Run `pip install crowkis` first.",
+            "Read the [refund policy](/refunds).",
+            "Refunds take **three days**.",
+            "# Refunds\nThree days.",
+            "| plan | price |\n| pro | 20 |",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(_speakable(text))
+        for text in (
+            "Refunds take three days.",
+            "It costs 20 dollars, or 15 if you pay yearly.",
+            "Press 1 for sales - or stay on the line.",
+            "Our number-one plan is Pro.",
+        ):
+            with self.subTest(text=text):
+                self.assertTrue(_speakable(text))
+
+    def test_an_unspeakable_hit_goes_to_the_model(self):
+        client = EngineClient(hit=_hit(0.99, response=b"See https://example.com/refunds"))
+        session = VoiceSession(Agent("caller", client=client), voice="alloy")
+        decision = session.decide("what is the refund policy")
+        self.assertEqual(decision.action, "infer")
+        self.assertEqual(session.stats()["unspeakable_answers"], 1)
+
+
+class WarmStartTests(unittest.TestCase):
+    def test_past_calls_fill_the_cache_under_the_live_rules(self):
+        from crowkis.voice import warm_from_calls
+
+        with self.assertRaises(RuntimeError, msg="nothing checks a transcript without the engine"):
+            warm_from_calls(Agent("caller", client=FakeClient()), [[("Do you deliver?", "Yes.")]])
+        with self.assertRaises(RuntimeError):
+            warm_from_calls(Agent("caller", client=EngineClient(engine=False)), [[("Do you deliver?", "Yes.")]])
+        with self.assertRaises(RuntimeError, msg="an engine that serves before it judges checks nothing in time"):
+            warm_from_calls(Agent("caller", client=EngineClient(holds=False)), [[("Do you deliver?", "Yes.")]])
+
+        client = EngineClient()
+        calls = [
+            [
+                ("What are your opening hours?", "We are open eight until eight."),
+                ("Hi, my name is Sarah and my order is 55512.", "Thanks Sarah, I can see order 55512."),
+                ("What is the delivery time?", "Sarah, your order arrives on Tuesday."),
+            ],
+            [("Do you deliver on Sundays?", "Yes, between ten and four.")],
+        ]
+        totals = warm_from_calls(Agent("caller", client=client), calls)
+        stored = {call[1]: call[2] for call in client.calls if call[0] == "cset"}
+        self.assertIn("What are your opening hours?", stored)
+        self.assertIn("Do you deliver on Sundays?", stored)
+        self.assertNotIn("What is the delivery time?", stored, "an answer naming the caller is never shared")
+        self.assertEqual((totals["calls"], totals["turns"]), (2, 4))
+        self.assertGreaterEqual(totals["kept_private"], 1)
+        self.assertFalse(totals["stalled"])
+        self.assertNotIn("ctoolset", client.kinds(), "nothing is synthesised")
+        # It waits on the question each answer was stored under.
+        asked = [call[1] for call in client.calls if call[0] == "cdecision"]
+        self.assertIn("Do you deliver on Sundays?", asked)
+
+    def test_an_engine_that_is_not_keeping_up_stops_the_load_instead_of_spinning(self):
+        from crowkis.voice import warm_from_calls
+
+        client = EngineClient(pending=True)
+        calls = [[(f"Do you deliver on day {n}?", "Yes, between ten and four.")] for n in range(6)]
+        totals = warm_from_calls(Agent("caller", client=client), calls, wait=0.05)
+        self.assertTrue(totals["stalled"])
+        self.assertEqual(totals["calls"], 3, "three calls in a row were not judged in time")
+
+    def test_a_lookup_that_fails_does_not_end_the_load(self):
+        from crowkis.voice import warm_from_calls
+
+        class Flaky(EngineClient):
+            def cdecision(self, query, *, tenant=None):
+                if query != "ping":
+                    return None if "Sundays" in query else (_ for _ in ()).throw(ConnectionError("down"))
+                return super().cdecision(query, tenant=tenant)
+
+        calls = [[("Do you deliver on Sundays?", "Yes, between ten and four.")], [("Do you gift wrap?", "Yes, for free.")]]
+        totals = warm_from_calls(Agent("caller", client=Flaky()), calls, wait=0.05)
+        self.assertEqual((totals["calls"], totals["stalled"]), (2, False))
+
+
+class ExplainAndAnnounceTests(unittest.TestCase):
+    def test_both_are_one_call_scoped_to_the_agents_tenant(self):
+        client = EngineClient()
+        agent = Agent("caller", client=client, tenant="acme")
+        self.assertEqual(agent.announce("we close at 3pm today", lasts=3600)["removed"], 2)
+        self.assertTrue(agent.explain("what time do you close")["engine"])
+        self.assertIn(("cnotice_add", "we close at 3pm today", 3600, False, "acme"), client.calls)
+        self.assertIn(("cdecision", "what time do you close", "acme"), client.calls)
+
+    def test_ask_reports_what_the_engine_recorded(self):
+        hit = _judged(similarity=1.0, lifetime="operational", commitment=True, vouched=True)
+        answer = Agent("caller", client=EngineClient(hit=hit)).ask("how much is the pro plan")
+        self.assertEqual(
+            (answer["lifetime"], answer["commitment"], answer["vouched"], answer["exact"]),
+            ("operational", True, True, True),
+        )
+        miss = Agent("caller", client=EngineClient()).ask("how much is the pro plan")
+        self.assertEqual((miss["lifetime"], miss["commitment"], miss["vouched"], miss["exact"]), (None, False, False, False))
+
+    def test_a_hit_from_a_server_without_an_engine_parses_as_not_judged(self):
+        from crowkis.client import _cache_hit, _plain
+
+        old = _cache_hit({"response": b"a", "similarity": 1.0, "ttl": 5, "key": b"k", "confidence": 0.9, "hit_type": b"exact"})
+        self.assertEqual((old.judged, old.lifetime, old.commitment, old.vouched), (False, None, False, False))
+        new = _cache_hit({"response": b"a", "judged": True, "lifetime": b"slow", "commitment": True, "vouched": True})
+        self.assertEqual((new.judged, new.lifetime, new.commitment, new.vouched), (True, "slow", True, True))
+        self.assertEqual(_plain({b"id": b"abc", "n": 2, "all": [b"x", {"k": b"v"}]}), {"id": "abc", "n": 2, "all": ["x", {"k": "v"}]})
+
+
+class EngineCheckTests(unittest.TestCase):
+    def test_a_server_that_could_not_be_reached_is_asked_again(self):
+        class Flaky(EngineClient):
+            def cdecision(self, query, *, tenant=None):
+                self.calls.append(("cdecision", query, tenant))
+                if self.kinds().count("cdecision") == 1:
+                    raise ConnectionError("connection closed")
+                return {"engine": True}
+
+        client = Flaky(hit=_judged(similarity=1.0, vouched=True))
+        session = VoiceSession(Agent("caller", client=client), voice="alloy", short_turns=True)
+        self.assertEqual(session.decide("thank you").action, "infer", "no engine is the safe reading of a failure")
+        self.assertEqual(session.decide("thank you").action, "serve", "one failure must not switch short turns off for good")
+        session.decide("thank you")
+        self.assertEqual(client.kinds().count("cdecision"), 2, "a real answer is remembered")
+
+    def test_an_older_server_is_asked_once(self):
+        client = EngineClient(hit=_judged(similarity=1.0, vouched=True), engine=None)
+        session = VoiceSession(Agent("caller", client=client), voice="alloy", short_turns=True)
+        for _ in range(3):
+            self.assertEqual(session.decide("thank you").action, "infer")
+        self.assertEqual(client.kinds().count("cdecision"), 1)
+
+    def test_the_engine_check_never_holds_a_call_past_its_budget(self):
+        import time as _t
+
+        class Slow(EngineClient):
+            def cdecision(self, query, *, tenant=None):
+                _t.sleep(0.6)
+                return {"engine": True}
+
+        client = Slow(hit=_judged(similarity=1.0, vouched=True))
+        session = VoiceSession(Agent("caller", client=client), voice="alloy", latency_budget_ms=50, short_turns=True)
+        started = _t.monotonic()
+        decision = session.decide("thank you")
+        self.assertLess((_t.monotonic() - started) * 1000, 400)
+        self.assertEqual(decision.action, "infer")
+        _t.sleep(0.8)
+        self.assertEqual(session.decide("thank you").action, "serve", "the late answer is there for the next turn")
+
+    def test_a_link_in_capitals_is_still_a_link(self):
+        from crowkis.voice import _speakable
+
+        self.assertFalse(_speakable("See HTTPS://EXAMPLE.COM/refunds"))
+        self.assertFalse(_speakable("Visit WWW.EXAMPLE.COM"))
+
+    def test_a_client_that_fails_softly_reads_as_no_engine_and_is_asked_again(self):
+        class Soft(EngineClient):
+            def cdecision(self, query, *, tenant=None):
+                self.calls.append(("cdecision", query, tenant))
+                return None if self.kinds().count("cdecision") == 1 else {"engine": True}
+
+        agent = Agent("caller", client=Soft())
+        self.assertFalse(agent.decides())
+        self.assertTrue(agent.decides(), "a soft failure is not an answer")
+
+    def test_a_no_is_asked_again_after_a_while_so_an_engine_switched_on_later_is_noticed(self):
+        client = EngineClient(engine=False)
+        agent = Agent("caller", client=client)
+        self.assertFalse(agent.decides())
+        client.engine = True
+        self.assertFalse(agent.decides(), "not on every turn")
+        agent._decides_asked -= 301
+        self.assertTrue(agent.decides())

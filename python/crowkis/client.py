@@ -54,6 +54,12 @@ class CacheHit:
     migration_target_model_version: Optional[str] = None
     migration_canary_id: Optional[str] = None
     migration_planned_at: Optional[int] = None
+    # Set when the server's decision engine judged this answer. Without an
+    # engine these stay at their defaults and nothing changes.
+    judged: bool = False
+    vouched: bool = False
+    lifetime: Optional[str] = None
+    commitment: bool = False
 
     @property
     def text(self) -> str:
@@ -248,7 +254,22 @@ def _cache_hit(payload: Dict[str, Any]) -> CacheHit:
         migration_planned_at=int(payload["migration_planned_at"])
         if payload.get("migration_planned_at") is not None
         else None,
+        judged=bool(payload.get("judged") or False),
+        vouched=bool(payload.get("vouched") or False),
+        lifetime=optional_text(payload.get("lifetime")),
+        commitment=bool(payload.get("commitment") or False),
     )
+
+
+def _plain(value: Any) -> Any:
+    """A server reply with its byte strings decoded, so it can be printed or compared."""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, dict):
+        return {_plain(key): _plain(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_plain(item) for item in value]
+    return value
 
 
 def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
@@ -760,6 +781,44 @@ class CrowkisClient:
         if commit:
             args.append("COMMIT")
         return self.execute(*args)
+
+    def cdecision(self, query: BytesLike, *, tenant: Optional[str] = None) -> Dict[str, Any]:
+        """What the server's decision engine concluded about a question."""
+        args: List[BytesLike] = ["CDECISION", query]
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
+        return _plain(self.execute(*args))
+
+    def cnotice_add(
+        self,
+        text: str,
+        *,
+        lasts: Optional[int] = None,
+        preview: bool = False,
+        tenant: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Tell the cache something changed. Removes the cached answers the notice
+        makes wrong; with `lasts` (seconds) it stays active until then."""
+        args: List[BytesLike] = ["CNOTICE", "ADD", text]
+        if lasts is not None:
+            args += ["EX", str(lasts)]
+        if preview:
+            args.append("PREVIEW")
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
+        return _plain(self.execute(*args))
+
+    def cnotice_list(self, *, tenant: Optional[str] = None) -> List[Dict[str, Any]]:
+        args: List[BytesLike] = ["CNOTICE", "LIST"]
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
+        return _plain(self.execute(*args)) or []
+
+    def cnotice_clear(self, notice_id: str, *, tenant: Optional[str] = None) -> bool:
+        args: List[BytesLike] = ["CNOTICE", "CLEAR", notice_id]
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
+        return bool(self.execute(*args))
 
 
     def _args_cmemset(
@@ -1704,24 +1763,27 @@ AsyncCrowkis = AsyncCrowkisClient
 
 
 class CrowkisAdmin:
+    """The management HTTP API. Reading needs no key on a node with no users;
+    `api_key` is a user's API key, for a node that has them."""
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:6380",
         *,
-        admin_key: Optional[str] = None,
+        api_key: Optional[str] = None,
         timeout: float = 5.0,
     ) -> None:
         parsed = urlparse(base_url)
         self.host = parsed.hostname or "127.0.0.1"
         self.port = parsed.port or 6380
-        self.admin_key = admin_key
+        self.api_key = api_key
         self.timeout = timeout
 
     def _request(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Any:
         payload = None if body is None else json.dumps(body).encode()
         headers = {"content-type": "application/json"}
-        if self.admin_key:
-            headers["x-crowkis-admin-key"] = self.admin_key
+        if self.api_key:
+            headers["x-crowkis-api-key"] = self.api_key
         conn = HTTPConnection(self.host, self.port, timeout=self.timeout)
         try:
             conn.request(method, path, body=payload, headers=headers)

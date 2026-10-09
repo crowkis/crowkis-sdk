@@ -15,7 +15,7 @@ from .integrations.memory import CrowkisMemory
 from ._help import help, render as help_text
 from .agent import Agent
 from .realtime import RealtimeAdapter, RealtimeGate
-from .voice import TurnDecision, VoiceSession
+from .voice import TurnDecision, VoiceSession, warm_from_calls
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
 # model. A thin OpenAI-SDK drop-in still lives at `crowkis.openai_wrapper.CachedOpenAI`
@@ -25,6 +25,7 @@ __all__ = [
     "Agent",
     "VoiceSession",
     "TurnDecision",
+    "warm_from_calls",
     "RealtimeAdapter",
     "RealtimeGate",
     # clients (idiomatic short names first)

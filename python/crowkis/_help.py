@@ -45,6 +45,8 @@ _GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
             ("client.cpin(query, answer)", "pin a curated answer that always wins"),
             ("client.cflag(query, bad_answer)", "mark a bad answer so it stops being served"),
             ("client.cguard(text) / client.coutcheck(text)", "input / output safety checks"),
+            ("client.cnotice_add(text, lasts=...)", "tell the cache something changed; answers it makes wrong are removed"),
+            ("client.cdecision(query)", "what the decision engine concluded about a question"),
         ],
     ),
     (

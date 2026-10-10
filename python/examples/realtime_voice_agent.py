@@ -122,7 +122,9 @@ def run(label: str, adapter: RealtimeAdapter, as_event, agent: Agent) -> None:
         if adapter.respond_event in kinds:
             answer = KNOWN_ANSWERS.get(said)
             if answer:
-                session.record_model_turn(said, answer)
+                # A realtime model holds the whole call, so what it says is kept to this
+                # call and never cached. Shared answers come from the seeded cache above.
+                session.record_private_turn(said, answer)
 
     stats = gate.stats()
     print(f"  {stats}")

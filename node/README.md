@@ -121,13 +121,11 @@ import { Agent, VoiceSession } from "@crowkis/client";
 const agent = new Agent("support-line", { tenant: "my-app" });
 const session = new VoiceSession(agent, { voice: "my-voice" });
 
-const decision = await session.decide(callerSaid);
-if (decision.needsModel) {
-  const answer = await myModel(callerSaid);
-  await session.recordModelTurn(callerSaid, answer);   // cached when it is safe to share
-} else {
-  speak(decision.text);
-}
+// myModel(messages) resolves to a string. It is called only when the cache cannot
+// answer, with exactly the messages Crowkis chose, and its answer is cached when
+// it is safe to share.
+const decision = await session.answer(callerSaid, myModel);
+speak(decision.text);
 ```
 
 ### With the decision engine

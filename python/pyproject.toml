@@ -26,6 +26,7 @@ classifiers = [
 langchain = ["langchain-core>=0.2"]
 openai = ["openai>=1.0"]
 grpc = ["grpcio>=1.60", "protobuf>=4.0"]
+pipecat = ["pipecat-ai>=1.12"]
 all = ["langchain-core>=0.2", "openai>=1.0"]
 
 [project.urls]

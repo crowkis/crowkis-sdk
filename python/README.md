@@ -136,12 +136,10 @@ from crowkis import Agent, VoiceSession
 agent = Agent("support-line", tenant="my-app")
 session = VoiceSession(agent, voice="my-voice")
 
-decision = session.decide(caller_said)
-if decision.needs_model:
-    answer = my_model(caller_said)
-    session.record_model_turn(caller_said, answer)   # cached when it is safe to share
-else:
-    speak(decision.text)
+# my_model(messages) -> str. It is called only when the cache cannot answer, with
+# exactly the messages Crowkis chose, and its answer is cached when it is safe to share.
+decision = session.answer(caller_said, my_model)
+speak(decision.text)
 ```
 
 ### With the decision engine

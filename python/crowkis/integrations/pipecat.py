@@ -41,6 +41,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     TTSAudioRawFrame,
     TTSSpeakFrame,
+    TTSStartedFrame,
     TTSStoppedFrame,
 )
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -78,6 +79,11 @@ class CrowkisAudioCache(FrameProcessor):
         await super().process_frame(frame, direction)
         if isinstance(frame, InterruptionFrame):
             self._text, self._pcm = None, bytearray()
+        elif isinstance(frame, TTSStartedFrame):
+            # A new answer starts a new clip. A cached clip the gate replayed has no
+            # TTSStartedFrame/TTSStoppedFrame around it, so without this it would be
+            # stored as the start of the next answer. One per answer, not per sentence.
+            self._pcm = bytearray()
         elif isinstance(frame, TTSAudioRawFrame):
             self._pcm += frame.audio
         elif isinstance(frame, TTSStoppedFrame) and self._text and self._pcm:
@@ -173,10 +179,12 @@ class CrowkisWriteBack(FrameProcessor):
             answer, self._parts = "".join(self._parts).strip(), None
             self._audio.expect(answer)
             await self.push_frame(frame, direction)
+            # Record first, so the report can say what happened to the answer.
+            saved = await asyncio.to_thread(self._session._record_model_turn, self._gate.question, answer)
             await _report(self, self._on_answer, {
                 "question": self._gate.question, "answer": answer, "messages": self._gate.messages,
+                "saved": saved,
             })
-            await asyncio.to_thread(self._session._record_model_turn, self._gate.question, answer)
             return
         await self.push_frame(frame, direction)
 

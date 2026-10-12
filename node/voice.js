@@ -887,8 +887,14 @@ class VoiceSession {
   // allowed. Only an answer written from decision.messages reaches this, so it is
   // shared exactly when decide() said it may be. Never rejects: a refused write
   // (security pipeline, rate limit, cache down) must not end a call.
+  //
+  // Resolves to what happened to the answer: "saved" (shared), "template" (shared
+  // as a shape, this caller's values removed), "kept" (the model read the whole
+  // call, so it stays in this call), "private" (personal, or repeats this caller's
+  // details), "non_answer", "not_saved" (a follow-up with nothing to key it to),
+  // "refused" (the write failed) or "interrupted".
   async _recordModelTurn(callerSaid, modelSaid) {
-    if (this._cancelled) return;
+    if (this._cancelled) return "interrupted";
     this._open = false;
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const keyed = this._contextKey(callerSaid, text);
@@ -896,18 +902,26 @@ class VoiceSession {
     this._cacheable = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (!(typeof modelSaid === "string" && modelSaid.trim()) || keyed === null) return;
+    if (!(typeof modelSaid === "string" && modelSaid.trim())) return "non_answer";
+    if (keyed === null) return "not_saved";
     try {
       if (isPersonal(text)) {
-        await this._learnPersonal(keyed, modelSaid);
-      } else if (!cacheable || leaks(modelSaid, this.values)) {
-        this.notShareable += 1;
-      } else {
-        await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
-        this._lastStored = keyed;
+        return (await this._learnPersonal(keyed, modelSaid)) ? "template" : "private";
       }
+      if (!cacheable) {
+        this.notShareable += 1;
+        return "kept";
+      }
+      if (leaks(modelSaid, this.values)) {
+        this.notShareable += 1;
+        return "private";
+      }
+      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      this._lastStored = keyed;
+      return "saved";
     } catch (error) {
       this.learnErrors += 1;
+      return "refused";
     }
   }
 
@@ -957,13 +971,15 @@ class VoiceSession {
     return `${prior} || ${callerSaid}`;
   }
 
+  // Store a personal answer as a shape. False when it cannot be made generic.
   async _learnPersonal(keyed, modelSaid) {
     const shaped = abstract(modelSaid, this.values);
     if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values)) {
       await this.agent.learn(keyed, shaped, { ttl: this.ttl, template: true });
-      return;
+      return true;
     }
     this.uncacheablePersonal += 1;
+    return false;
   }
 
   async _voiced(answer, { cacheable = true } = {}) {

@@ -1427,3 +1427,59 @@ class EngineCheckTests(unittest.TestCase):
         self.assertFalse(agent.decides(), "not on every turn")
         agent._decides_asked -= 301
         self.assertTrue(agent.decides())
+
+
+class RecordOutcomeTests(unittest.TestCase):
+    """_record_model_turn says what happened to the answer, so an app can show it."""
+
+    def _session(self, client=None, **kwargs):
+        kwargs.setdefault("voice", "alloy")
+        return VoiceSession(Agent("caller", client=client or ScopedFakeClient()), **kwargs)
+
+    def test_a_shareable_answer_is_saved(self):
+        session = self._session()
+        session.decide("what is the refund policy")
+        self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "saved")
+
+    def test_an_answer_written_from_the_whole_call_is_kept(self):
+        # No decide() said the answer may be shared, as when the model read the whole call.
+        session = self._session()
+        self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "kept")
+
+    def test_a_blank_answer_is_a_non_answer(self):
+        session = self._session()
+        session.decide("what is the refund policy")
+        self.assertEqual(session._record_model_turn("what is the refund policy", "   "), "non_answer")
+
+    def test_a_cancelled_turn_is_interrupted(self):
+        session = self._session()
+        session.decide("what is the refund policy")
+        session.cancel()
+        self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "interrupted")
+
+    def test_a_personal_answer_with_values_is_saved_as_a_template(self):
+        session = self._session(values={"order_id": "A-1001", "eta": "Tuesday"})
+        session.decide("when will i get my order")
+        outcome = session._record_model_turn("when will i get my order", "Your order A-1001 arrives on Tuesday.")
+        self.assertEqual(outcome, "template")
+
+    def test_a_personal_answer_that_cannot_be_made_generic_is_private(self):
+        session = self._session()
+        session.decide("when will i get my order")
+        self.assertEqual(session._record_model_turn("when will i get my order", "It arrives on Tuesday."), "private")
+
+    def test_an_answer_repeating_this_callers_details_is_private(self):
+        session = self._session(values={"name": "Sarah"})
+        session.decide("what is the refund policy")
+        outcome = session._record_model_turn("what is the refund policy", "Sarah, we refund in 3 days.")
+        self.assertEqual(outcome, "private")
+
+    def test_a_failed_write_is_refused(self):
+        class Refusing(ScopedFakeClient):
+            def cset(self, *args, **kwargs):
+                raise RuntimeError("rejected by security pipeline")
+
+        session = self._session(Refusing())
+        session.decide("what is the refund policy")
+        self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "refused")
+        self.assertEqual(session.learn_errors, 1)

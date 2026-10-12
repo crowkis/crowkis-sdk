@@ -893,33 +893,46 @@ class VoiceSession:
             self.not_shareable += 1
         self._cacheable = False
 
-    def _record_model_turn(self, caller_said: str, model_said: str) -> None:
+    def _record_model_turn(self, caller_said: str, model_said: str) -> str:
         """Record the model's answer to the turn decide() last handled, and cache it if allowed.
 
         Only an answer written from ``decision.messages`` reaches this, so it is shared
         exactly when decide() said it may be. Never raises: a refused write (security
         pipeline, rate limit, cache down) must not end a call.
+
+        Returns what happened to the answer: ``saved`` (shared), ``template`` (shared
+        as a shape, this caller's values removed), ``kept`` (the model read the whole
+        call, so it stays in this call), ``private`` (personal, or repeats this caller's
+        details), ``non_answer``, ``not_saved`` (a follow-up with nothing to key it to),
+        ``refused`` (the write failed) or ``interrupted``.
         """
         if self._cancelled:
-            return
+            return "interrupted"
         self._open = False
         text = (caller_said or "").strip()
         keyed = self._context_key(caller_said, text)
         cacheable, self._cacheable = self._cacheable, False
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
-        if not (model_said and model_said.strip()) or keyed is None:
-            return
+        if not (model_said and model_said.strip()):
+            return "non_answer"
+        if keyed is None:
+            return "not_saved"
         try:
             if _is_personal(text):
-                self._learn_personal(keyed, model_said)
-            elif not cacheable or _leaks(model_said, self.values):
+                return "template" if self._learn_personal(keyed, model_said) else "private"
+            if not cacheable:
                 self.not_shareable += 1
-            else:
-                self.agent.learn(keyed, model_said, ttl=self.ttl)
-                self._last_stored = keyed
+                return "kept"
+            if _leaks(model_said, self.values):
+                self.not_shareable += 1
+                return "private"
+            self.agent.learn(keyed, model_said, ttl=self.ttl)
+            self._last_stored = keyed
+            return "saved"
         except Exception:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
+            return "refused"
 
     def injections(self) -> List[Dict[str, str]]:
         return list(self.transcript)
@@ -963,7 +976,8 @@ class VoiceSession:
             return None
         return f"{prior} || {caller_said}"
 
-    def _learn_personal(self, keyed: str, model_said: str) -> None:
+    def _learn_personal(self, keyed: str, model_said: str) -> bool:
+        """Store a personal answer as a shape. False when it cannot be made generic."""
         shaped = _abstract(model_said, self.values)
         if (
             self.values
@@ -971,8 +985,9 @@ class VoiceSession:
             and not _leaks(shaped, self.values)
         ):
             self.agent.learn(keyed, shaped, ttl=self.ttl, template=True)
-            return
+            return True
         self.uncacheable_personal += 1
+        return False
 
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         if self.synthesise is None:

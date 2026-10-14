@@ -229,25 +229,25 @@ test("an empty transcript is forwarded rather than matched", async () => {
 
 test("a dotted field resolves a nested transcript", async () => {
   const client = new FakeClient();
-  client.shared.set("where is my nearest branch", "Two streets over.");
+  client.shared.set("where is the nearest branch", "Two streets over.");
   const built = adapter("content.input.transcript");
   const gate = new RealtimeGate(session(client), built);
 
   const event = {
     type: TRANSCRIPT_EVENT,
-    content: { input: { transcript: "where is my nearest branch" } },
+    content: { input: { transcript: "where is the nearest branch" } },
   };
-  assert.strictEqual(built.transcriptOf(event), "where is my nearest branch");
+  assert.strictEqual(built.transcriptOf(event), "where is the nearest branch");
   assert.deepStrictEqual(types(await gate.handle(event)), [INJECT_EVENT, INJECT_EVENT]);
 });
 
 test("the same text at the wrong depth is not found", async () => {
   const built = adapter("content.input.transcript");
-  const flat = { type: TRANSCRIPT_EVENT, transcript: "where is my nearest branch" };
+  const flat = { type: TRANSCRIPT_EVENT, transcript: "where is the nearest branch" };
   assert.strictEqual(built.transcriptOf(flat), null);
 
   const client = new FakeClient();
-  client.shared.set("where is my nearest branch", "Two streets over.");
+  client.shared.set("where is the nearest branch", "Two streets over.");
   const gate = new RealtimeGate(session(client), built);
   assert.deepStrictEqual(types(await gate.handle(flat)), [RESPOND_EVENT]);
   assert.deepStrictEqual(client.reads, []);
@@ -530,13 +530,13 @@ function geminiSttFirstAdapter() {
 
 test("openai hit injects one nested assistant item and no response", async () => {
   const client = new FakeClient();
-  client.shared.set("where is my nearest branch", "Two streets over.");
+  client.shared.set("where is the nearest branch", "Two streets over.");
   const gate = new RealtimeGate(session(client), openaiAdapter());
   const out = await gate.handle({
     type: "conversation.item.input_audio_transcription.completed",
     item_id: "item_1",
     content_index: 0,
-    transcript: "where is my nearest branch",
+    transcript: "where is the nearest branch",
   });
   assert.deepStrictEqual(out, [{
     type: "conversation.item.create",
@@ -555,9 +555,9 @@ test("openai miss sends response.create", async () => {
 
 test("gemini stt-first hit injects user and model turns; miss sends the words", async () => {
   const client = new FakeClient();
-  client.shared.set("where is my nearest branch", "Two streets over.");
+  client.shared.set("where is the nearest branch", "Two streets over.");
   const gate = new RealtimeGate(session(client), geminiSttFirstAdapter());
-  const hitOut = await gate.handle({ appTranscript: { text: "where is my nearest branch" } });
+  const hitOut = await gate.handle({ appTranscript: { text: "where is the nearest branch" } });
   assert.deepStrictEqual(hitOut.map((m) => m.clientContent.turns[0].role), ["user", "model"]);
   const missOut = await gate.handle({ appTranscript: { text: "what are your opening hours on bank holidays" } });
   assert.deepStrictEqual(missOut, [{ clientContent: { turns: [{ role: "user", parts: [
@@ -583,10 +583,10 @@ test("messages that are not transcripts never start a response", async () => {
 
 test("cached audio survives later events until taken", async () => {
   const client = new FakeClient();
-  client.shared.set("where is my nearest branch", "Two streets over.");
+  client.shared.set("where is the nearest branch", "Two streets over.");
   const spoken = session(client, { synthesise: async () => Buffer.from("PCM") });
   const gate = new RealtimeGate(spoken, openaiAdapter());
-  await gate.handle({ type: "conversation.item.input_audio_transcription.completed", transcript: "where is my nearest branch" });
+  await gate.handle({ type: "conversation.item.input_audio_transcription.completed", transcript: "where is the nearest branch" });
   await gate.handle({ type: "input_audio_buffer.speech_stopped" });
   assert.ok(gate.takePendingAudio());
   assert.strictEqual(gate.takePendingAudio(), null);

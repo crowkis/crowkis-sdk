@@ -1,0 +1,11 @@
+# What the Crowkis SDK knowledge graph (Graphify) leaves out. .gitignore is honoured as well.
+graphify-out/
+.env
+.env.*
+assets/
+**/node_modules/
+**/__pycache__/
+*.png
+*.jpg
+*.svg
+*.pdf

@@ -136,6 +136,22 @@ export class CrowkisClient {
   cnoticeAdd(text: string, options?: NoticeOptions & { tenant?: string }): Promise<NoticeOutcome>;
   cnoticeList(options?: { tenant?: string }): Promise<Notice[]>;
   cnoticeClear(noticeId: string, options?: { tenant?: string }): Promise<boolean>;
+  /** Zero a tenant's spend counters (limits stay); replies with the budget snapshot. */
+  cbudgetReset(tenant?: string): Promise<Record<string, unknown>>;
+  /** Storage-engine counters; `{}` if the reply is not a map. */
+  stats(): Promise<Record<string, number>>;
+  /** Remove expired keys now; the number removed. */
+  sweep(): Promise<number>;
+  /** TENANT is sent only when passed, as cpromptSet/cpromptGet send none. */
+  cpromptDel(name: string, options?: { tenant?: string }): Promise<boolean>;
+  cpromptRollback(name: string, version: number, options?: { tenant?: string }): Promise<number>;
+  cpromptRender(
+    name: string,
+    options?: { version?: number; vars?: Record<string, string | number>; tenant?: string },
+  ): Promise<Buffer | null>;
+  cpromptAb(name: string, options?: { subject?: string; tenant?: string }): Promise<{ version: number; template: Buffer } | null>;
+  /** `{ version: weight }`; null or `{}` clears the split. */
+  cpromptAbset(name: string, weights?: Record<number, number> | null, options?: { tenant?: string }): Promise<boolean>;
   getOrCompute(
     query: string,
     fn: (query: string) => Promise<string | Buffer | Uint8Array> | string | Buffer | Uint8Array,
@@ -334,9 +350,17 @@ export class TurnDecision {
   messages: TranscriptTurn[] | null;
   /** Whether the model's answer to this turn is shared with later callers. */
   cacheable: boolean;
+  /** Which turn of the call this is; an answer recorded for an older turn is dropped. */
+  turn: number;
+  /** After `answer()`: whether the model's answer was stored. */
+  stored: boolean;
+  /** After `answer()`: why the answer was not stored ("" when it was), e.g. the server's reason for refusing the write. */
+  notStored: string;
   readonly servedFromCache: boolean;
   readonly servedFromFiller: boolean;
   readonly needsModel: boolean;
+  /** After `answer()`: the model was asked and said nothing (action stays "infer"); retry, or speak a fallback. */
+  readonly empty: boolean;
   toString(): string;
 }
 
@@ -402,6 +426,8 @@ export interface VoiceStats {
   commitmentsSentToModel: number;
   /** Cached answers written for a screen (a link, code or markup), not spoken. */
   unspeakableAnswers: number;
+  /** Model answers that were empty: never stored, reported as `decision.empty`. */
+  emptyAnswers: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -427,6 +453,7 @@ export class VoiceSession {
   uncacheablePersonal: number;
   overBudget: number;
   bargeIns: number;
+  emptyAnswers: number;
   setValues(values: VoiceValues): void;
   registerFiller(trigger: string, response: string): void;
   registerFillers(pairs: Record<string, string>): void;

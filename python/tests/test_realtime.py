@@ -193,24 +193,24 @@ class RoutingTests(unittest.TestCase):
 class NestedTranscriptTests(unittest.TestCase):
     def test_a_dotted_field_resolves_a_nested_transcript(self):
         client = FakeClient()
-        client.shared["where is my nearest branch"] = "Two streets over."
+        client.shared["where is the nearest branch"] = "Two streets over."
         built = adapter(transcript_field="content.input.transcript")
         gate = RealtimeGate(session(client), built)
 
         event = {
             "type": TRANSCRIPT_EVENT,
-            "content": {"input": {"transcript": "where is my nearest branch"}},
+            "content": {"input": {"transcript": "where is the nearest branch"}},
         }
-        self.assertEqual(built.transcript_of(event), "where is my nearest branch")
+        self.assertEqual(built.transcript_of(event), "where is the nearest branch")
         self.assertEqual(types(gate.handle(event)), [INJECT_EVENT, INJECT_EVENT])
 
     def test_the_same_text_at_the_wrong_depth_is_not_found(self):
         built = adapter(transcript_field="content.input.transcript")
-        flat = {"type": TRANSCRIPT_EVENT, "transcript": "where is my nearest branch"}
+        flat = {"type": TRANSCRIPT_EVENT, "transcript": "where is the nearest branch"}
         self.assertIsNone(built.transcript_of(flat))
 
         client = FakeClient()
-        client.shared["where is my nearest branch"] = "Two streets over."
+        client.shared["where is the nearest branch"] = "Two streets over."
         gate = RealtimeGate(session(client), built)
         self.assertEqual(types(gate.handle(flat)), [RESPOND_EVENT])
 
@@ -464,11 +464,11 @@ class ProviderShapeTests(unittest.TestCase):
 
     def test_openai_hit_injects_one_nested_assistant_item_and_no_response(self):
         client = FakeClient()
-        client.shared["where is my nearest branch"] = "Two streets over."
+        client.shared["where is the nearest branch"] = "Two streets over."
         gate = RealtimeGate(session(client), self._openai())
         out = gate.handle({"type": "conversation.item.input_audio_transcription.completed",
                            "item_id": "item_1", "content_index": 0,
-                           "transcript": "where is my nearest branch"})
+                           "transcript": "where is the nearest branch"})
         self.assertEqual(out, [{"type": "conversation.item.create",
                                 "item": {"type": "message", "role": "assistant",
                                          "content": [{"type": "output_text", "text": "Two streets over."}]}}])
@@ -481,9 +481,9 @@ class ProviderShapeTests(unittest.TestCase):
 
     def test_gemini_hit_injects_user_and_model_turns(self):
         client = FakeClient()
-        client.shared["where is my nearest branch"] = "Two streets over."
+        client.shared["where is the nearest branch"] = "Two streets over."
         gate = RealtimeGate(session(client), self._gemini_stt_first())
-        out = gate.handle({"appTranscript": {"text": "where is my nearest branch"}})
+        out = gate.handle({"appTranscript": {"text": "where is the nearest branch"}})
         self.assertEqual([t["clientContent"]["turns"][0]["role"] for t in out], ["user", "model"])
         self.assertFalse(any(t["clientContent"]["turnComplete"] for t in out))
 
@@ -511,11 +511,11 @@ class ProviderShapeTests(unittest.TestCase):
 
     def test_cached_audio_survives_later_events_until_taken(self):
         client = FakeClient()
-        client.shared["where is my nearest branch"] = "Two streets over."
+        client.shared["where is the nearest branch"] = "Two streets over."
         spoken = VoiceSession(Agent("caller", client=client), voice="v", synthesise=lambda t: b"PCM")
         gate = RealtimeGate(spoken, self._openai())
         gate.handle({"type": "conversation.item.input_audio_transcription.completed",
-                     "transcript": "where is my nearest branch"})
+                     "transcript": "where is the nearest branch"})
         gate.handle({"type": "input_audio_buffer.speech_stopped"})
         self.assertIsNotNone(gate.take_pending_audio())
         self.assertIsNone(gate.take_pending_audio())

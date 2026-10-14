@@ -202,5 +202,159 @@ class HighLevelApiTests(unittest.TestCase):
         self.assertIs(crowkis.AsyncCrowkis, crowkis.AsyncCrowkisClient)
 
 
+def _scripted(replies, **kwargs):
+    """A client whose execute records each frame and answers with the next reply
+    (an exception instance is raised, as an error reply is)."""
+    from crowkis import CrowkisClient
+
+    client = CrowkisClient(**kwargs)
+    sent = []
+    queue = list(replies)
+
+    def execute(*args):
+        sent.append([a.decode() if isinstance(a, bytes) else a for a in args])
+        reply = queue.pop(0)
+        if isinstance(reply, BaseException):
+            raise reply
+        return reply
+
+    client.execute = execute  # type: ignore[assignment]
+    return client, sent
+
+
+class NodeParityControlTests(unittest.TestCase):
+    """The behaviour the Node client was fixed to match (B1-B3) still holds here."""
+
+    def test_cmemforget_with_tenant_and_no_query_sends_empty_query(self):
+        client, sent = _scripted([3], tenant="acme")
+        self.assertEqual(client.cmemforget("bot"), 3)
+        self.assertEqual(sent, [["CMEMFORGET", "bot", "", "TENANT", "acme"]])
+
+    def test_busy_retry_seconds(self):
+        from crowkis.client import _busy_retry_seconds
+
+        self.assertEqual(_busy_retry_seconds(CrowkisError("BUSY queue full; retry-after-ms 60")), 0.06)
+        self.assertEqual(_busy_retry_seconds(CrowkisError("BUSY try later")), 0.05)
+        self.assertEqual(_busy_retry_seconds(CrowkisError("BUSY retry-after-ms=999999")), 2.0)
+        self.assertIsNone(_busy_retry_seconds(CrowkisError("ERR boom")))
+
+    def test_unknown_reply_type_is_a_client_error(self):
+        with self.assertRaisesRegex(CrowkisError, "unexpected RESP frame"):
+            _read_resp(BytesIO(b"?what\r\n"))
+
+
+class NewOperatorCommandTests(unittest.TestCase):
+    """CBUDGET RESET, STATS, SWEEP: exact frames and reply shaping."""
+
+    def test_frames_and_replies(self):
+        budget = {"tenant": "acme", "status": "ok", "used_pct": 0.0}
+        engine = {"memtable_bytes": 10, "memtable_keys": 2, "l0": 1}
+        client, sent = _scripted([budget, budget, budget, engine, None, 7, None], tenant="acme")
+        self.assertEqual(client.cbudget_reset(), budget)
+        client.cbudget_reset("other")
+        client.tenant = None
+        self.assertEqual(client.cbudget_reset(), budget)
+        self.assertEqual(client.stats(), engine)
+        self.assertEqual(client.stats(), {})
+        self.assertEqual(client.sweep(), 7)
+        self.assertEqual(client.sweep(), 0)
+        self.assertEqual(sent, [
+            ["CBUDGET", "RESET", "acme"],
+            ["CBUDGET", "RESET", "other"],
+            ["CBUDGET", "RESET", "default"],
+            ["STATS"], ["STATS"], ["SWEEP"], ["SWEEP"],
+        ])
+
+    def test_null_and_error_replies(self):
+        client, _ = _scripted([None, CrowkisError("ERR CBUDGET RESET requires tenant"), [1]])
+        self.assertEqual(client.cbudget_reset("acme"), {})
+        with self.assertRaisesRegex(CrowkisError, "requires tenant"):
+            client.cbudget_reset("acme")
+        self.assertEqual(client.stats(), {})
+
+
+class NewPromptCommandTests(unittest.TestCase):
+    """CPROMPT DEL / ROLLBACK / RENDER / AB / ABSET: exact frames and reply shaping."""
+
+    def test_frames_minimal_and_every_option(self):
+        client, sent = _scripted([
+            1, 0, 3, 4, b"hi Ana", None, b"x",
+            [2, b"v2 text"], None, [1, b"v1"], "OK", "OK", "OK",
+        ], tenant="client-wide")
+        self.assertIs(client.cprompt_del("greet"), True)
+        self.assertIs(client.cprompt_del("greet", tenant="acme"), False)
+        self.assertEqual(client.cprompt_rollback("greet", 1), 3)
+        self.assertEqual(client.cprompt_rollback("greet", 2, tenant="acme"), 4)
+        self.assertEqual(client.cprompt_render("greet"), b"hi Ana")
+        self.assertIsNone(client.cprompt_render(
+            "greet", version=2, tenant="acme", vars={"name": "Ana", "n": 1, "q": "a=b c", "नाम": "अना"}))
+        client.cprompt_render("greet", version=0, vars={})
+        self.assertEqual(client.cprompt_ab("greet"), (2, b"v2 text"))
+        self.assertIsNone(client.cprompt_ab("greet", subject="user-9", tenant="acme"))
+        client.cprompt_ab("greet", subject="TENANT")
+        self.assertIs(client.cprompt_abset("greet", {1: 70, 2: 30}), True)
+        self.assertIs(client.cprompt_abset("greet", {1: 100}, tenant="acme"), True)
+        self.assertIs(client.cprompt_abset("greet"), True)
+        self.assertEqual(sent, [
+            ["CPROMPT", "DEL", "greet"],
+            ["CPROMPT", "DEL", "greet", "TENANT", "acme"],
+            ["CPROMPT", "ROLLBACK", "greet", "1"],
+            ["CPROMPT", "ROLLBACK", "greet", "2", "TENANT", "acme"],
+            ["CPROMPT", "RENDER", "greet"],
+            ["CPROMPT", "RENDER", "greet", "2", "TENANT", "acme", "VARS", "name=Ana", "n=1", "q=a=b c", "नाम=अना"],
+            ["CPROMPT", "RENDER", "greet", "0"],
+            ["CPROMPT", "AB", "greet"],
+            ["CPROMPT", "AB", "greet", "TENANT", "acme", "SUBJECT", "user-9"],
+            ["CPROMPT", "AB", "greet", "SUBJECT", "TENANT"],
+            ["CPROMPT", "ABSET", "greet", "1", "70", "2", "30"],
+            ["CPROMPT", "ABSET", "greet", "1", "100", "TENANT", "acme"],
+            ["CPROMPT", "ABSET", "greet"],
+        ])
+
+    def test_null_error_and_misreadable_arguments(self):
+        client, sent = _scripted([
+            None, None,
+            CrowkisError("ERR no such prompt 'nope'"),
+            CrowkisError("ERR no version 9 for 'greet'"),
+            CrowkisError("ERR A/B weights must be > 0"),
+            CrowkisError("ERR CPROMPT: unexpected reply"),
+        ])
+        self.assertIs(client.cprompt_del("nope"), False)
+        self.assertEqual(client.cprompt_rollback("nope", 1), 0)
+        with self.assertRaisesRegex(CrowkisError, "no such prompt"):
+            client.cprompt_render("nope")
+        with self.assertRaisesRegex(CrowkisError, "no version 9"):
+            client.cprompt_rollback("greet", 9)
+        with self.assertRaisesRegex(CrowkisError, "must be > 0"):
+            client.cprompt_abset("greet", {1: 0})
+        with self.assertRaisesRegex(CrowkisError, "unexpected reply"):
+            client.cprompt_ab("greet")
+        for bad in ({"a=b": 1}, {"": 1}):
+            with self.assertRaisesRegex(ValueError, 'no "="'):
+                client.cprompt_render("greet", vars=bad)
+        for bad in ({1: 0.5}, {"v1": 50}, {1: -5}, {1: True}):
+            with self.assertRaisesRegex(ValueError, "whole numbers"):
+                client.cprompt_abset("greet", bad)
+        self.assertEqual(len(sent), 6, "a rejected argument must not reach the server")
+
+    def test_a_numeric_subject_is_sent_as_its_digits_and_weights_stay_in_range(self):
+        client, sent = _scripted([None, None, "OK"])
+        client.cprompt_ab("greet", subject=5)
+        client.cprompt_ab("greet", subject=123456789)
+        # The largest weight the server keeps (u32); one above it is refused here.
+        self.assertIs(client.cprompt_abset("greet", {1: 4294967295}), True)
+        with self.assertRaisesRegex(ValueError, "whole numbers"):
+            client.cprompt_abset("greet", {1: 10, 2: 5_000_000_000})
+        self.assertEqual(sent, [
+            ["CPROMPT", "AB", "greet", "SUBJECT", "5"],
+            ["CPROMPT", "AB", "greet", "SUBJECT", "123456789"],
+            ["CPROMPT", "ABSET", "greet", "1", "4294967295"],
+        ])
+
+    def test_help_lists_the_new_operator_commands(self):
+        self.assertIn("cbudget_reset", help_text("cost"))
+        self.assertIn("client.stats() / client.sweep()", help_text("operations"))
+
+
 if __name__ == "__main__":
     unittest.main()

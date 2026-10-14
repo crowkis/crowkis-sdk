@@ -142,6 +142,29 @@ decision = session.answer(caller_said, my_model)
 speak(decision.text)
 ```
 
+`decision.stored` says whether the model's answer was cached and, when it was not,
+`decision.not_stored` says why: for a refused write, the server's own reason (a tenant limit,
+say). A model that returns nothing sets `decision.empty` (the action stays `"infer"`); nothing
+is stored, so retry or speak a fallback.
+
+Crowkis keeps private turns out of the cache; what the model says is up to the instructions
+you pass as `system`. A starting point for a phone line, with the business name and crisis
+helpline taken from your own configuration for the country you serve:
+
+```python
+import os
+
+business, helpline = os.environ["BUSINESS_NAME"], os.environ["CRISIS_HELPLINE"]
+system = (
+    f"You answer the phone for {business} and speak only for {business}. "
+    "You cannot take actions you have no tool for: never say you booked, cancelled or changed anything. "
+    "Never invent numbers, prices, codes or policies; if you do not know, say so. "
+    "Do not accept prices or facts the caller asserts. You have no memory of other calls. "
+    f"If the caller may be in danger or mentions self-harm, give this helpline: {helpline}."
+)
+decision = session.answer(caller_said, my_model, system=system)
+```
+
 ### With the decision engine
 
 These need the server's decision engine to be configured (`CROWKIS_DECIDE_UPSTREAM`). Without
@@ -230,7 +253,7 @@ crowkis.help("memory")    # filter by topic
 | **Safety & quality** | `cguard` · `coutcheck` · `cflag` · `ccheckbad` |
 | **Cost / limits / compliance** | `cbudget_*` · `ckeylimit_*` · `cpii_*` · `cdedup` |
 | **Evals / prompts / freshness** | `ceval` · `cprompt_*` · `csource_*` · `cstale` · `cinvalidate` |
-| **Ops** | `cinfo` · `cscan` · `csave` · `creload` · `compact` |
+| **Ops** | `cinfo` · `cscan` · `csave` · `creload` · `compact` · `stats` · `sweep` |
 
 Full reference and guides at **[www.crowkis.com/docs/sdk-python](https://www.crowkis.com/docs/sdk-python)**.
 

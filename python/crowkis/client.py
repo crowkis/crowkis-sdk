@@ -1242,6 +1242,77 @@ class CrowkisClient:
     def cprompt_versions(self, name: str) -> Any:
         return self.execute("CPROMPT", "VERSIONS", name)
 
+    # The prompt commands below send TENANT only when it is passed: cprompt_set
+    # and cprompt_get send none, so a client-wide tenant would point a delete or
+    # render at a different prompt from the one they wrote.
+    def cprompt_del(self, name: str, *, tenant: Optional[str] = None) -> bool:
+        args: List[BytesLike] = ["CPROMPT", "DEL", name]
+        if tenant:
+            args += ["TENANT", tenant]
+        return self.execute(*args) == 1
+
+    def cprompt_rollback(self, name: str, version: int, *, tenant: Optional[str] = None) -> int:
+        """Make ``version`` the active one; returns it."""
+        args: List[BytesLike] = ["CPROMPT", "ROLLBACK", name, str(version)]
+        if tenant:
+            args += ["TENANT", tenant]
+        return int(self.execute(*args) or 0)
+
+    def cprompt_render(
+        self,
+        name: str,
+        *,
+        version: Optional[int] = None,
+        vars: Optional[Dict[str, Any]] = None,
+        tenant: Optional[str] = None,
+    ) -> Optional[bytes]:
+        """The template with each ``{{key}}`` replaced from ``vars``; None if there is none."""
+        args: List[BytesLike] = ["CPROMPT", "RENDER", name]
+        if version is not None:
+            args.append(str(version))
+        if tenant:
+            args += ["TENANT", tenant]
+        if vars:
+            args.append("VARS")
+            for key, value in vars.items():
+                # The server splits each token at its first "=" and stops at the first bad one.
+                if not key or "=" in key:
+                    raise ValueError(f'prompt var name must be non-empty and contain no "=": {key!r}')
+                args.append(f"{key}={value}")
+        value = self.execute(*args)
+        return value if isinstance(value, bytes) else None
+
+    def cprompt_ab(
+        self, name: str, *, subject: Optional[str] = None, tenant: Optional[str] = None
+    ) -> Optional[Tuple[int, bytes]]:
+        """The A/B pick for ``subject`` (sticky per subject): ``(version, template)`` or None."""
+        args: List[BytesLike] = ["CPROMPT", "AB", name]
+        if tenant:
+            args += ["TENANT", tenant]
+        if subject is not None:
+            # str(): an int would be encoded as that many zero bytes.
+            args += ["SUBJECT", str(subject)]
+        value = self.execute(*args)
+        if isinstance(value, list) and len(value) == 2 and isinstance(value[1], bytes):
+            return int(value[0]), value[1]
+        return None
+
+    def cprompt_abset(
+        self, name: str, weights: Optional[Dict[int, int]] = None, *, tenant: Optional[str] = None
+    ) -> bool:
+        """Set the A/B split as ``{version: weight}``; no weights clears it."""
+        args: List[BytesLike] = ["CPROMPT", "ABSET", name]
+        for version, weight in (weights or {}).items():
+            # The server stops reading pairs at the first value that is not a u32,
+            # which would silently drop the rest of the split.
+            for n in (version, weight):
+                if isinstance(n, bool) or not isinstance(n, int) or not 0 <= n <= 0xFFFFFFFF:
+                    raise ValueError(f"A/B versions and weights must be whole numbers: {n!r}")
+            args += [str(version), str(weight)]
+        if tenant:
+            args += ["TENANT", tenant]
+        return self.execute(*args) in ("OK", b"OK")
+
     def csource_link(self, source_id: str, query: BytesLike, *, tenant: Optional[str] = None) -> bool:
         args: List[BytesLike] = ["CSOURCE", "LINK", source_id, query]
         if tenant or self.tenant:
@@ -1257,6 +1328,15 @@ class CrowkisClient:
 
     def compact(self) -> Any:
         return self.execute("COMPACT")
+
+    def stats(self) -> Dict[str, Any]:
+        """Storage-engine counters (memtable, levels, block cache, refused embeddings)."""
+        value = self.execute("STATS")
+        return value if isinstance(value, dict) else {}
+
+    def sweep(self) -> int:
+        """Remove expired keys now; returns how many went."""
+        return int(self.execute("SWEEP") or 0)
 
 
     def cinfo(self, section: Optional[str] = None) -> str:
@@ -1298,6 +1378,11 @@ class CrowkisClient:
         if circuit_pct is not None:
             args += ["CIRCUIT", str(circuit_pct)]
         value = self.execute(*args)
+        return value if isinstance(value, dict) else {}
+
+    def cbudget_reset(self, tenant: Optional[str] = None) -> Dict[str, Any]:
+        """Zero a tenant's spend counters (limits stay); returns the budget snapshot."""
+        value = self.execute("CBUDGET", "RESET", tenant or self.tenant or "default")
         return value if isinstance(value, dict) else {}
 
     def cdedup(self, tenant: Optional[str] = None) -> Dict[str, Any]:

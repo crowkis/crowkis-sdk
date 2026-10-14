@@ -487,7 +487,7 @@ class ReReviewPrivacyTests(unittest.TestCase):
                 self.assertKeptPrivate(said)
                 self.assertTrue(_is_personal(said))
         for said in (
-            "Pregnant women, is coffee safe?",
+            "Is coffee safe for pregnant women?",
             "What should I do if a doctor is late?",
             "How do I find a good lawyer?",
             "Can I book a tennis court for Sunday?",

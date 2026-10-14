@@ -185,6 +185,15 @@ is served only on an exact match the engine has vouched for:
 const session = new VoiceSession(agent, { voice: "my-voice", shortTurns: true });
 ```
 
+Share answers about a caller's own records as templates, with that caller's declared `values`
+taken out and filled back in for the next caller. Off by default. A template is cut from an
+answer the model wrote, so it can carry details the caller said that were not declared as
+values; turn it on only when your model is given just the question and the slot names:
+
+```ts
+const session = new VoiceSession(agent, { voice: "my-voice", values: { order_id: orderId }, shareTemplates: true });
+```
+
 Fill the cache from past calls. It throws unless the engine is on and holding answers until
 it has judged them (the default), so every past answer is read before anyone is served it.
 It stops early, with `stalled` set, if the engine is not keeping up:

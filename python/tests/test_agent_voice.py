@@ -674,7 +674,7 @@ class PrivateAnswerTests(unittest.TestCase):
         client = ScopedFakeClient()
         question = "when will i get my order"
 
-        first = self._session(client, values={"order_id": "A-1001", "eta": "Tuesday"})
+        first = self._session(client, values={"order_id": "A-1001", "eta": "Tuesday"}, share_templates=True)
         self.assertEqual(first.decide(question).action, "infer")
         _model_turn(first, 
             question, "Your order A-1001 is due to arrive on Tuesday."
@@ -775,7 +775,7 @@ class PrivateAnswerTests(unittest.TestCase):
         self.assertEqual(client.shared, {})
         self.assertEqual(leaky.stats()["uncacheable_personal"], 1)
 
-        clean = self._session(client, values=dict(values), ttl=86400)
+        clean = self._session(client, values=dict(values), ttl=86400, share_templates=True)
         _model_turn(clean, question, "Your order A-1001 is due on Tuesday.")
         shaped = client.writes[-1]
         self.assertTrue(shaped["template"])
@@ -797,7 +797,7 @@ class PrivateAnswerTests(unittest.TestCase):
     def test_values_filled_mid_call_unlock_the_template_path(self):
         client = ScopedFakeClient()
         question = "when will i get my order"
-        session = self._session(client)
+        session = self._session(client, share_templates=True)
         self.assertEqual(session.decide(question).action, "infer")
 
         session.set_values(order_id="D-4004", eta="Thursday")
@@ -1458,7 +1458,7 @@ class RecordOutcomeTests(unittest.TestCase):
         self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "interrupted")
 
     def test_a_personal_answer_with_values_is_saved_as_a_template(self):
-        session = self._session(values={"order_id": "A-1001", "eta": "Tuesday"})
+        session = self._session(values={"order_id": "A-1001", "eta": "Tuesday"}, share_templates=True)
         session.decide("when will i get my order")
         outcome = session._record_model_turn("when will i get my order", "Your order A-1001 arrives on Tuesday.")
         self.assertEqual(outcome, "template")

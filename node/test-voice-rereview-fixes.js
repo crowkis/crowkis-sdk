@@ -81,7 +81,7 @@ test("rr 03: a sensitive state with any first-person word stays private", async 
     assert.strictEqual(_isPersonal(said), true, said);
   }
   for (const said of [
-    "Pregnant women, is coffee safe?",
+    "Is coffee safe for pregnant women?",
     "What should I do if a doctor is late?",
     "How do I find a good lawyer?",
     "Can I book a tennis court for Sunday?",

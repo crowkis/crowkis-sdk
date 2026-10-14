@@ -361,6 +361,8 @@ export class TurnDecision {
   readonly needsModel: boolean;
   /** After `answer()`: the model was asked and said nothing (action stays "infer"); retry, or speak a fallback. */
   readonly empty: boolean;
+  /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
+  readonly audioShareable: boolean;
   toString(): string;
 }
 
@@ -404,6 +406,13 @@ export interface VoiceSessionOptions {
    * server's decision engine has vouched for the exact answer. Off by default.
    */
   shortTurns?: boolean;
+  /**
+   * Share answers about a caller's own records as templates (their declared `values`
+   * taken out). Off by default. A template can carry details the caller said that were
+   * not declared as values: enable it only when the model is given just the question
+   * and the slot names.
+   */
+  shareTemplates?: boolean;
 }
 
 export interface VoiceStats {

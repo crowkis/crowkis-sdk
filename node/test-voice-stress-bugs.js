@@ -414,7 +414,7 @@ test("bug 26: a refused write carries the server's reason", async () => {
   ]) {
     const store = new Store(refusal);
     const reply = values ? "Order A-1001 arrives Tuesday." : ANSWER;
-    const { session, decisions } = await call([said], { store, reply, ...(values ? { values } : {}) });
+    const { session, decisions } = await call([said], { store, reply, ...(values ? { values, shareTemplates: true } : {}) });
     const decision = last(decisions);
     assert.strictEqual(decision.stored, false, said);
     assert.ok(decision.notStored.includes(refusal.message), decision.notStored);

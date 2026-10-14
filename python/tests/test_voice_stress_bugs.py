@@ -411,7 +411,7 @@ class StressBugTests(unittest.TestCase):
                 store = Store(refuse=refusal)
                 reply = "Order A-1001 arrives Tuesday." if values else ANSWER
                 with self.assertLogs("crowkis", level="WARNING") as logged:
-                    _, session, decisions, _ = call(said, store=store, reply=reply, values=values)
+                    _, session, decisions, _ = call(said, store=store, reply=reply, values=values, share_templates=True)
                 decision = decisions[-1]
                 self.assertFalse(decision.stored)
                 self.assertIn(str(refusal), decision.not_stored)

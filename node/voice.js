@@ -1144,6 +1144,28 @@ function sensitiveSelf(words) {
   return words.some((w) => STATES.has(w)) && words.some((w) => SELF_MARKERS.has(w));
 }
 
+const ASKING_WORDS = new Set([...WH_WORDS, "kya", "kab", "kahan", "kaise", "kitna", "kitne", "kaun", "kyun", "kyon"]);
+const ASKING_LEADS = new Set([...QUESTION_LEADS, ...CLAUSE_MARKERS, ...ACTION_VERBS]);
+
+const FIRST_CLAUSE = /[,.\-–—]/;
+// Clauses that say nothing either way: "hi", "okay", "thanks".
+const NEUTRAL = new Set([...CLAUSE_OPENERS, ...SOFT_REPLY_LEADS, ...REPLY_LEADS, "thanks", "thank", "you"]);
+
+// Shaped as a question or a request from its first clause on: "Bipolar, can you
+// help?" is not, "Hi, what are your hours?" is. A greeting or acknowledgement first is
+// skipped.
+function asks(text) {
+  for (const clause of String(text).split(FIRST_CLAUSE)) {
+    const said = wordsOf(clause);
+    if (!said.length || said.every((w) => NEUTRAL.has(w))) continue;
+    return (
+      clause.includes("?") || said.some((w) => ASKING_WORDS.has(w)) || ASKING_LEADS.has(said[0]) ||
+      hasPhrase(said, ACTION_LEADS_BY_FIRST) || procedural(said)
+    );
+  }
+  return false;
+}
+
 function isPersonal(text) {
   const source = String(text === null || text === undefined ? "" : text);
   if (tooLong(source)) return true;
@@ -1291,7 +1313,11 @@ const LATE = Symbol("late");
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.
 const CHAIN_LIMIT = 6;
 
-function privateChain(chain) {
+// A chain is private when any turn of it is, or when its root ("Priya Sharma.",
+// "Bipolar.") is too short to stand alone or neither asks nor requests anything.
+function privateChain(chain, minWords = 0) {
+  const root = chain.length ? String(chain[0] || "").trim() : "";
+  if (chain.length && (root.split(/\s+/).filter(Boolean).length < minWords || !asks(root))) return true;
   return chain.some((turn) => isPersonal(turn) || lookupOnly(turn));
 }
 
@@ -1378,6 +1404,12 @@ class TurnDecision {
     this.notStored = "";
     // Not enumerable: read through `empty`, never set by callers or copied out with the decision.
     Object.defineProperty(this, "_empty", { value: false, writable: true, enumerable: false });
+    Object.defineProperty(this, "_audioShareable", { value: false, writable: true, enumerable: false });
+  }
+
+  /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
+  get audioShareable() {
+    return this._audioShareable;
   }
 
   get servedFromCache() {
@@ -1419,6 +1451,7 @@ class VoiceSession {
       values,
       commitments = "exact",
       shortTurns = false,
+      shareTemplates = false,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -1448,6 +1481,9 @@ class VoiceSession {
     this.latencyBudgetMs = latencyBudgetMs;
     this.commitments = commitments;
     this.shortTurns = Boolean(shortTurns);
+    // Off by default: a template is cut from an answer the model wrote with the whole
+    // call in view, so what is left outside its slots can hold what the caller said.
+    this.shareTemplates = Boolean(shareTemplates);
     this.values = Object.create(null);
     this.transcript = [];
     this.served = 0;
@@ -1523,9 +1559,14 @@ class VoiceSession {
     ) {
       return [null, false];
     }
-    if (!isContextDependent(text)) return [[{ role: "user", content: callerSaid }], true];
+    if (!isContextDependent(text)) {
+      // "Twelve years old.": a turn that neither asks nor requests anything is an
+      // answer about the caller, never stored on its own.
+      if (!asks(text)) return [null, false];
+      return [[{ role: "user", content: callerSaid }], true];
+    }
     const chain = this._chain();
-    if (chain === null || privateChain(chain)) return [null, false];
+    if (chain === null || privateChain(chain, this.minWords)) return [null, false];
     return [[...chain, callerSaid].map((turn) => ({ role: "user", content: turn })), true];
   }
 
@@ -1543,12 +1584,14 @@ class VoiceSession {
     const filler = this._fillers.get(normalise(text));
     if (filler !== undefined) {
       this.filled += 1;
-      return new TurnDecision("filler", {
+      const decision = new TurnDecision("filler", {
         text: filler,
         audio: await this._voiced(filler),
         confidence: 1,
         reason: "registered filler, answered without a lookup or a model",
       });
+      decision._audioShareable = true;
+      return decision;
     }
 
     // "Thank you" or "hello" is too short to match on meaning. With shortTurns
@@ -1585,7 +1628,7 @@ class VoiceSession {
           "has none, so no cache key can be built for it",
       });
     }
-    if ((contextBound && privateChain(this._chain() || [])) || this._afterUrgent(text)) {
+    if ((contextBound && privateChain(this._chain() || [], this.minWords)) || this._afterUrgent(text)) {
       this.refusedPrivate += 1;
       this.inferred += 1;
       return new TurnDecision("infer", {
@@ -1658,12 +1701,14 @@ class VoiceSession {
     this.served += 1;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: answer });
-    return new TurnDecision("serve", {
+    const decision = new TurnDecision("serve", {
       text: answer,
       audio: await this._voiced(answer, { cacheable: !personal }),
       confidence: hit.confidence,
       reason: "confident cache hit",
     });
+    decision._audioShareable = !personal;
+    return decision;
   }
 
   /**
@@ -1874,10 +1919,24 @@ class VoiceSession {
     return [...chain, callerSaid].join(" || ");
   }
 
-  // Store a personal answer as a shape. False when it cannot be made generic.
+  // Store a personal answer as a shape. False when it cannot be made generic, or when
+  // this session does not share templates.
   async _learnPersonal(keyed, modelSaid) {
+    if (!this.shareTemplates) {
+      this.uncacheablePersonal += 1;
+      return false;
+    }
     const shaped = abstract(modelSaid, this.values);
-    if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values)) {
+    // The model read the whole call: what is left outside the slots must say nothing
+    // of this caller that was not declared (a name, an address, a number, a matter).
+    const outside = shaped.replace(SLOT, " ");
+    const words = wordsOf(outside);
+    const earlier = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content || "");
+    const undeclared =
+      words.some((w) => hasDigit(w) || AMOUNT_WORDS.has(w) || MATTERS.has(w)) ||
+      readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
+      carriesCallContext(outside, keyed, earlier);
+    if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values) && !undeclared) {
       await this.agent.learn(keyed, shaped, { ttl: this.ttl, template: true });
       return true;
     }

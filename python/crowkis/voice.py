@@ -1196,6 +1196,30 @@ def _sensitive_self(words: List[str]) -> bool:
     return any(w in _STATES for w in words) and any(w in _SELF_MARKERS for w in words)
 
 
+_ASKING_WORDS = _WH_WORDS | {"kya", "kab", "kahan", "kaise", "kitna", "kitne", "kaun", "kyun", "kyon"}
+_ASKING_LEADS = _QUESTION_LEADS | _CLAUSE_MARKERS | _ACTION_VERBS
+
+
+_FIRST_CLAUSE = re.compile(r"[,.\-–—]")
+# Clauses that say nothing either way: "hi", "okay", "thanks".
+_NEUTRAL = _CLAUSE_OPENERS | _SOFT_REPLY_LEADS | _REPLY_LEADS | {"thanks", "thank", "you"}
+
+
+def _asks(text: str) -> bool:
+    """Shaped as a question or a request from its first clause on: "Bipolar, can you
+    help?" is not, "Hi, what are your hours?" is. A greeting or acknowledgement first is
+    skipped."""
+    for clause in _FIRST_CLAUSE.split(text):
+        said = _words(clause)
+        if not said or all(w in _NEUTRAL for w in said):
+            continue
+        return (
+            "?" in clause or any(w in _ASKING_WORDS for w in said) or said[0] in _ASKING_LEADS
+            or _has_phrase(said, _ACTION_LEADS_BY_FIRST) or _procedural(said)
+        )
+    return False
+
+
 def _is_personal(text: str) -> bool:
     if len(text or "") > _MAX_TURN_CHARS:
         return True
@@ -1421,6 +1445,13 @@ class TurnDecision:
         self.stored = False
         self.not_stored = ""
         self._empty = False
+        self._audio_shareable = False
+
+    @property
+    def audio_shareable(self) -> bool:
+        """Whether the spoken audio of this answer may go to the shared audio cache:
+        not for an answer filled with this caller's values."""
+        return self._audio_shareable
 
     @property
     def served_from_cache(self) -> bool:
@@ -1463,6 +1494,7 @@ class VoiceSession:
         values: Optional[Dict[str, str]] = None,
         commitments: str = "exact",
         short_turns: bool = False,
+        share_templates: bool = False,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -1489,6 +1521,9 @@ class VoiceSession:
         self.latency_budget_ms = latency_budget_ms
         self.commitments = commitments
         self.short_turns = short_turns
+        # Off by default: a template is cut from an answer the model wrote with the whole
+        # call in view, so what is left outside its slots can hold what the caller said.
+        self.share_templates = share_templates
         self.values: Dict[str, str] = {}
         self.transcript: List[Dict[str, str]] = []
         self.served = 0
@@ -1570,9 +1605,13 @@ class VoiceSession:
         ):
             return None, False
         if not _is_context_dependent(text):
+            # "Twelve years old.": a turn that neither asks nor requests anything is an
+            # answer about the caller, never stored on its own.
+            if not _asks(text):
+                return None, False
             return [{"role": "user", "content": caller_said}], True
         chain = self._chain()
-        if chain is None or _private_chain(chain):
+        if chain is None or _private_chain(chain, self.min_words):
             return None, False
         return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
 
@@ -1589,13 +1628,15 @@ class VoiceSession:
         filler = self._fillers.get(_normalise(text))
         if filler is not None:
             self.filled += 1
-            return TurnDecision(
+            decision = TurnDecision(
                 "filler",
                 text=filler,
                 audio=self._voiced(filler),
                 confidence=1.0,
                 reason="registered filler, answered without a lookup or a model",
             )
+            decision._audio_shareable = True
+            return decision
 
         # "Thank you" or "hello" is too short to match on meaning. With
         # short_turns on it is served on an exact match the server's decision
@@ -1630,7 +1671,7 @@ class VoiceSession:
                     "call has none, so no cache key can be built for it"
                 ),
             )
-        if (context_bound and _private_chain(self._chain() or [])) or self._after_urgent(text):
+        if (context_bound and _private_chain(self._chain() or [], self.min_words)) or self._after_urgent(text):
             self.refused_private += 1
             self.inferred += 1
             return TurnDecision(
@@ -1715,13 +1756,15 @@ class VoiceSession:
         self.served += 1
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": answer})
-        return TurnDecision(
+        decision = TurnDecision(
             "serve",
             text=answer,
             audio=self._voiced(answer, cacheable=not personal),
             confidence=hit["confidence"],
             reason="confident cache hit",
         )
+        decision._audio_shareable = not personal
+        return decision
 
     def _engine_vouches(self) -> bool:
         """Whether the server judges what it caches, asked inside this call's
@@ -1938,12 +1981,27 @@ class VoiceSession:
         return " || ".join(chain + [caller_said])
 
     def _learn_personal(self, keyed: str, model_said: str) -> bool:
-        """Store a personal answer as a shape. False when it cannot be made generic."""
+        """Store a personal answer as a shape. False when it cannot be made generic,
+        or when this session does not share templates."""
+        if not self.share_templates:
+            self.uncacheable_personal += 1
+            return False
         shaped = _abstract(model_said, self.values)
+        # The model read the whole call: what is left outside the slots must say nothing
+        # of this caller that was not declared (a name, an address, a number, a matter).
+        outside = _SLOT.sub(" ", shaped)
+        words = _words(outside)
+        earlier = [turn["content"] or "" for turn in self.transcript if turn["role"] == "user"]
+        undeclared = (
+            any(_has_digit(w) or w in _AMOUNT_WORDS or w in _MATTERS for w in words)
+            or _reads_out_digits(outside, words) or bool(_EMAIL.search(outside)) or _identifies(outside, words)
+            or _carries_call_context(outside, keyed, earlier)
+        )
         if (
             self.values
             and _SLOT.search(shaped)
             and not _leaks(shaped, self.values)
+            and not undeclared
         ):
             self.agent.learn(keyed, shaped, ttl=self.ttl, template=True)
             return True
@@ -1958,7 +2016,12 @@ class VoiceSession:
         return self.agent.speak(answer, self.synthesise, voice=self.voice, ttl=self.ttl)
 
 
-def _private_chain(chain: List[str]) -> bool:
+def _private_chain(chain: List[str], min_words: int = 0) -> bool:
+    """A chain is private when any turn of it is, or when its root ("Priya Sharma.",
+    "Bipolar.") is too short to stand alone or neither asks nor requests anything."""
+    root = (chain[0] or "").strip() if chain else ""
+    if chain and (len(root.split()) < min_words or not _asks(root)):
+        return True
     return any(_is_personal(turn) or _lookup_only(turn) for turn in chain)
 
 

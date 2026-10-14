@@ -307,7 +307,9 @@ class CrowkisGate(FrameProcessor):
         started = time.perf_counter()
         decision = await asyncio.to_thread(self._session.decide, self.question)
         gate_ms = (time.perf_counter() - started) * 1000
-        audio = None if decision.needs_model else await self._audio.get(decision.text)
+        # A served answer filled with this caller's values never uses the shared audio cache.
+        shared_audio = decision.audio_shareable
+        audio = None if decision.needs_model or not shared_audio else await self._audio.get(decision.text)
         if decision.needs_model and decision.messages is not None:
             # The full call stays in the Pipecat context; the model just doesn't read it.
             frame = LLMContextFrame(context=LLMContext(messages=decision.messages))
@@ -334,7 +336,8 @@ class CrowkisGate(FrameProcessor):
             # Served from the cache, so already shared (and vouched for, on a server
             # that holds answers): its clip may be kept. Its run is reserved in stream
             # order when the frame passes the write-back.
-            self._audio.vouch(decision.text)
+            if shared_audio:
+                self._audio.vouch(decision.text)
             await self.push_frame(TTSSpeakFrame(decision.text))
 
 

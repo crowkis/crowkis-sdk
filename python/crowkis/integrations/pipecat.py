@@ -14,7 +14,12 @@ gate       answers a turn from the cache (text, and audio when it has it). On a 
            is not. Nothing else this caller said can end up inside a shared answer.
 writeback  hands each complete model answer to the session. An answer cut off by a
            barge-in is never stored.
-audio      stores the TTS audio of each new answer, so the next hit skips the TTS too.
+audio      stores the spoken audio of an answer the cache shares, so the next hit skips
+           the TTS too. A new answer's clip waits for the write-back's ruling: it is
+           stored only when the answer itself was saved word for word, and, on a server
+           whose decision engine holds answers until it vouches for them, not until the
+           answer is first served from the cache. A clip is never kept for an answer
+           that is not shared.
 
 ``on_turn`` and ``on_answer`` are optional async callbacks for the app's own reporting
 (metrics, a UI). Each gets a dict; a Pipecat frame it returns is pushed downstream.
@@ -55,6 +60,18 @@ TTS_TOOL = "crowkis.tts"
 Report = Optional[Callable[[dict], Awaitable[Optional[Frame]]]]
 
 
+# Answers whose clip or ruling is still waiting for the other. One turn is in flight at
+# a time; a few cover a barge-in that leaves one behind.
+_WAITING = 4
+
+
+def _remember(waiting: dict, key: str, value: Any) -> None:
+    waiting.pop(key, None)
+    waiting[key] = value
+    while len(waiting) > _WAITING:
+        waiting.pop(next(iter(waiting)))
+
+
 class CrowkisAudioCache(FrameProcessor):
     def __init__(self, session: VoiceSession, sample_rate: int):
         super().__init__()
@@ -62,6 +79,10 @@ class CrowkisAudioCache(FrameProcessor):
         self.sample_rate = sample_rate
         self._text: Optional[str] = None
         self._pcm = bytearray()
+        # By answer text: finished clips waiting for a ruling, and rulings waiting for
+        # their clip. The TTS can finish before or after the write-back has ruled.
+        self._clips: dict = {}
+        self._rulings: dict = {}
 
     def _key(self, text: str) -> str:
         return json.dumps({"voice": self._session.voice, "text": text}, sort_keys=True)
@@ -71,9 +92,41 @@ class CrowkisAudioCache(FrameProcessor):
         raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
         return base64.b64decode(raw) if raw else None
 
-    def expect(self, text: str) -> None:
-        """Name the answer that the TTS audio about to arrive belongs to."""
+    def expect(self, text: str, *, shareable: Optional[bool] = None) -> None:
+        """Name the answer that the TTS audio about to arrive belongs to.
+
+        ``shareable=True`` for an answer the cache just served: its clip may be stored.
+        Left out for a new answer: its clip waits for ``settle``."""
         self._text = text
+        if shareable is not None:
+            _remember(self._rulings, text, shareable)
+
+    async def settle(self, text: str, shareable: bool) -> None:
+        """The write-back's ruling on a new answer: store its clip, or drop it."""
+        clip = self._clips.pop(text, None)
+        if clip is None:
+            _remember(self._rulings, text, shareable)
+        elif shareable:
+            await self._store(text, clip)
+
+    async def _finish_clip(self) -> None:
+        """The audio of the expected answer is complete."""
+        if not (self._text and self._pcm):
+            return
+        text, clip = self._text, bytes(self._pcm)
+        self._text, self._pcm = None, bytearray()
+        ruling = self._rulings.pop(text, None)
+        if ruling is None:
+            _remember(self._clips, text, clip)
+        elif ruling:
+            await self._store(text, clip)
+
+    async def _store(self, text: str, clip: bytes) -> None:
+        agent = self._session.agent
+        await asyncio.to_thread(
+            agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
+            ex=self._session.ttl, tenant=agent.tenant,
+        )
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -86,14 +139,8 @@ class CrowkisAudioCache(FrameProcessor):
             self._pcm = bytearray()
         elif isinstance(frame, TTSAudioRawFrame):
             self._pcm += frame.audio
-        elif isinstance(frame, TTSStoppedFrame) and self._text and self._pcm:
-            agent = self._session.agent
-            clip = base64.b64encode(self._pcm).decode("ascii")
-            await asyncio.to_thread(
-                agent._client.ctoolset, TTS_TOOL, self._key(self._text), clip,
-                ex=self._session.ttl, tenant=agent.tenant,
-            )
-            self._text, self._pcm = None, bytearray()
+        elif isinstance(frame, TTSStoppedFrame):
+            await self._finish_clip()
         await self.push_frame(frame, direction)
 
 
@@ -152,7 +199,9 @@ class CrowkisGate(FrameProcessor):
             frame.context.add_message({"role": "assistant", "content": decision.text})
             await self.push_frame(TTSAudioRawFrame(audio, self._audio.sample_rate, 1))
         else:
-            self._audio.expect(decision.text)
+            # Served from the cache, so already shared (and vouched for, on a server
+            # that holds answers): its clip may be kept.
+            self._audio.expect(decision.text, shareable=True)
             await self.push_frame(TTSSpeakFrame(decision.text))
 
 
@@ -181,12 +230,25 @@ class CrowkisWriteBack(FrameProcessor):
             await self.push_frame(frame, direction)
             # Record first, so the report can say what happened to the answer.
             saved = await asyncio.to_thread(self._session._record_model_turn, self._gate.question, answer)
+            await self._audio.settle(answer, await asyncio.to_thread(self._clip_allowed, saved))
             await _report(self, self._on_answer, {
                 "question": self._gate.question, "answer": answer, "messages": self._gate.messages,
                 "saved": saved,
             })
             return
         await self.push_frame(frame, direction)
+
+
+    def _clip_allowed(self, saved: str) -> bool:
+        """Whether the spoken audio of a new answer may be kept, given what happened to
+        its text. Only an answer saved word for word: a template is saved with this
+        caller's values taken out, but its audio still says them. And not while the
+        server's decision engine holds answers until it vouches for them: the text is
+        not shared yet and may be removed, so the clip is made when it is first served."""
+        if saved != "saved":
+            return False
+        agent = self._session.agent
+        return not (agent.decides() and agent._holds)
 
 
 async def _report(processor: FrameProcessor, callback: Report, info: dict) -> None:

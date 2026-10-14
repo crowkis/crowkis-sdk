@@ -54,6 +54,7 @@ _GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
         [
             ("client.cbudget_set(tenant, daily_usd=...)", "set a spend budget the gateway enforces"),
             ("client.cbudget_get(tenant)", "current spend vs budget"),
+            ("client.cbudget_reset(tenant)", "zero a tenant's spend counters; limits stay"),
             ("client.ckeylimit_set(tenant, rpm=...)", "per-tenant rate limits"),
         ],
     ),
@@ -63,6 +64,7 @@ _GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
             ("CrowkisAdmin(base_url).get_stats()", "cache stats & hit rate"),
             ("admin.register_webhook({...})", "source-linked cache invalidation"),
             ("client.csave(dest) / client.creload()", "snapshot / reload persistence"),
+            ("client.stats() / client.sweep()", "storage-engine counters / remove expired keys now"),
         ],
     ),
     (

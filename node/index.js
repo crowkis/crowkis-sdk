@@ -61,7 +61,7 @@ class RespReader {
   }
 
   _parseOrWait() {
-    const parsed = this._parseValue(0);
+    const parsed = this._parse();
     if (parsed) {
       this.buffer = this.buffer.subarray(parsed.offset);
       return parsed.error ? Promise.reject(parsed.error) : Promise.resolve(parsed.value);
@@ -73,12 +73,25 @@ class RespReader {
   // exception there is uncaught and takes down every call on the process.
   _drain() {
     while (this.waiters.length > 0) {
-      const parsed = this._parseValue(0);
+      const parsed = this._parse();
       if (!parsed) return;
       this.buffer = this.buffer.subarray(parsed.offset);
       const waiter = this.waiters.shift();
       if (parsed.error) waiter.reject(parsed.error);
       else waiter.resolve(parsed.value);
+    }
+  }
+
+  // A frame of an unknown type cannot be skipped, so nothing after it on this
+  // socket can be read: that call gets the error and the socket is dropped
+  // (`broken` tells the client to reconnect on the next call).
+  _parse() {
+    try {
+      return this._parseValue(0);
+    } catch (error) {
+      this.broken = true;
+      this.socket.destroy();
+      return { error, offset: this.buffer.length };
     }
   }
 
@@ -176,6 +189,17 @@ class RespReader {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(Number(ms) || 0, 0), 2000)));
+}
+
+// The Python client's rule: a BUSY reply is retried after its retry-after-ms
+// hint (50 ms without one), kept within 1 ms .. 2 s. Anything else: null.
+function busyRetryMs(error) {
+  if (!(error instanceof CrowkisError) || !/^BUSY/i.test(error.message)) return null;
+  const marker = "retry-after-ms";
+  const at = error.message.indexOf(marker);
+  const digits = at < 0 ? null : /^[ =]*(\d+)/.exec(error.message.slice(at + marker.length));
+  if (!digits) return 50;
+  return Math.min(Math.max(Number(digits[1]), 1), 2000);
 }
 
 function tokenChunks(text, chunkTokens = 4) {
@@ -283,7 +307,7 @@ class CrowkisClient {
     // Retry connection-level failures with exponential backoff +
     // jitter. RESP-level errors (CrowkisError from a live reply) are
     // NOT retried — the server answered; retrying a rejected command
-    // is wrong.
+    // is wrong. The exception is BUSY, which the server asks to be retried.
     let attempt = 0;
     for (;;) {
       try {
@@ -291,12 +315,20 @@ class CrowkisClient {
         this.socket.write(encode(args));
         return await this._readWithin(this.timeoutMs);
       } catch (error) {
+        if (this.reader && this.reader.broken) this.close();
+        const busyMs = busyRetryMs(error);
+        if (busyMs !== null && attempt < this.maxRetries) {
+          await new Promise((r) => setTimeout(r, busyMs));
+          attempt += 1;
+          continue;
+        }
         const connectionLevel =
+          busyMs === null && (
           error.code === "ECONNREFUSED" ||
           error.code === "ECONNRESET" ||
           error.code === "EPIPE" ||
           error.code === "ETIMEDOUT" ||
-          (error instanceof CrowkisError && /timeout|closed/i.test(error.message));
+          (error instanceof CrowkisError && /timeout|closed/i.test(error.message)));
         if (!connectionLevel || attempt >= this.maxRetries) {
           throw error;
         }
@@ -572,8 +604,9 @@ class CrowkisClient {
 
   async cmemforget(agent, { query, user, threshold, tenant } = {}) {
     await this._hello3();
-    const args = ["CMEMFORGET", agent];
-    if (query) args.push(query);
+    // The query slot is always sent ("" = everything), as Python does, so an
+    // option keyword can never land in it.
+    const args = ["CMEMFORGET", agent, query || ""];
     if (user) args.push("USER", user);
     if (threshold !== undefined) args.push("THRESHOLD", String(threshold));
     if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
@@ -746,6 +779,12 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
+  // Zero a tenant's spend counters; the limits stay. Replies with the budget.
+  async cbudgetReset(tenant) {
+    await this._hello3();
+    return this.execute("CBUDGET", "RESET", tenant || this.tenant || "default");
+  }
+
   async cdedup(tenant) {
     await this._hello3();
     const args = ["CDEDUP"];
@@ -843,6 +882,68 @@ class CrowkisClient {
     return this.execute("CPROMPT", "VERSIONS", name);
   }
 
+  // The prompt commands below send TENANT only when it is passed: cpromptSet
+  // and cpromptGet send none, so a client-wide tenant would point a delete or
+  // render at a different prompt from the one they wrote.
+  async cpromptDel(name, { tenant } = {}) {
+    const args = ["CPROMPT", "DEL", name];
+    if (tenant) args.push("TENANT", tenant);
+    return Number(await this.execute(...args)) === 1;
+  }
+
+  // Makes `version` the active one; replies with it.
+  async cpromptRollback(name, version, { tenant } = {}) {
+    const args = ["CPROMPT", "ROLLBACK", name, String(version)];
+    if (tenant) args.push("TENANT", tenant);
+    return Number(await this.execute(...args));
+  }
+
+  // The template with each {{key}} replaced from `vars`; null if there is none.
+  async cpromptRender(name, { version, vars, tenant } = {}) {
+    const args = ["CPROMPT", "RENDER", name];
+    if (version != null) args.push(String(version));
+    if (tenant) args.push("TENANT", tenant);
+    const pairs = Object.entries(vars || {});
+    if (pairs.length > 0) {
+      args.push("VARS");
+      for (const [key, value] of pairs) {
+        // The server splits each token at its first "=" and stops at the first bad one.
+        if (!key || key.includes("=")) throw new Error(`prompt var name must be non-empty and contain no "=": ${JSON.stringify(key)}`);
+        args.push(`${key}=${value}`);
+      }
+    }
+    const value = await this.execute(...args);
+    return Buffer.isBuffer(value) ? value : null;
+  }
+
+  // The A/B pick for `subject` (sticky per subject): { version, template } or null.
+  async cpromptAb(name, { subject, tenant } = {}) {
+    const args = ["CPROMPT", "AB", name];
+    if (tenant) args.push("TENANT", tenant);
+    if (subject != null) args.push("SUBJECT", String(subject));
+    const value = await this.execute(...args);
+    if (!Array.isArray(value) || value.length !== 2 || !Buffer.isBuffer(value[1])) return null;
+    return { version: Number(value[0]), template: value[1] };
+  }
+
+  // Set the A/B split as { version: weight }; no weights clears it.
+  async cpromptAbset(name, weights, { tenant } = {}) {
+    const args = ["CPROMPT", "ABSET", name];
+    const pairs = weights instanceof Map ? [...weights] : Object.entries(weights || {});
+    for (const [version, weight] of pairs) {
+      // The server stops reading pairs at the first value that is not a u32,
+      // which would silently drop the rest of the split.
+      for (const n of [version, weight]) {
+        if (!/^\d+$/.test(String(n)) || Number(n) > 0xFFFFFFFF) {
+          throw new Error(`A/B versions and weights must be whole numbers: ${JSON.stringify(n)}`);
+        }
+      }
+      args.push(String(version), String(weight));
+    }
+    if (tenant) args.push("TENANT", tenant);
+    return (await this.execute(...args)) === "OK";
+  }
+
   async csourceLink(sourceId, query, options = {}) {
     const args = ["CSOURCE", "LINK", sourceId, query];
     const tenant = options.tenant || this.tenant;
@@ -860,6 +961,18 @@ class CrowkisClient {
 
   async compact() {
     return this.execute("COMPACT");
+  }
+
+  // Storage-engine counters (memtable, levels, block cache, refused embeddings).
+  async stats() {
+    await this._hello3();
+    const value = await this.execute("STATS");
+    return value && typeof value === "object" && !Buffer.isBuffer(value) && !Array.isArray(value) ? value : {};
+  }
+
+  // Remove expired keys now; replies with how many went.
+  async sweep() {
+    return Number(await this.execute("SWEEP"));
   }
 
   async getOrCompute(query, fn, options = {}) {

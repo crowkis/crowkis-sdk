@@ -237,7 +237,7 @@ class CrowkisClient {
     this.model = options.model;
     // Not enumerable: logging or JSON.stringify of a client must not print it.
     Object.defineProperty(this, "authToken", {
-      value: options.authToken || options.auth_token,
+      value: options.authToken || options.auth_token || options.token,
       enumerable: false,
       writable: true,
     });
@@ -1058,19 +1058,36 @@ class CrowkisClient {
   }
 }
 
+let apiKeyWarned = false;
+
 class CrowkisAdmin {
   constructor(options = {}) {
     this.baseUrl = options.baseUrl || "http://127.0.0.1:6380";
-    // A user's API key. Reading needs none on a node with no users.
-    this.apiKey = options.apiKey;
+    // The server's CROWKIS_AUTH_TOKEN; reading needs none. `apiKey` is its old name.
+    // Not enumerable: logging or JSON.stringify of a client must not print them.
+    for (const name of ["token", "apiKey"]) {
+      Object.defineProperty(this, name, { value: options[name], enumerable: false, writable: true });
+    }
+    if (options.apiKey && !apiKeyWarned) {
+      apiKeyWarned = true;
+      process.emitWarning(
+        "CrowkisAdmin({ apiKey }) is deprecated: users and API keys were removed in Crowkis 0.5.2. "
+          + "Pass the server's CROWKIS_AUTH_TOKEN as { token } instead.",
+        "DeprecationWarning",
+      );
+    }
     this.timeoutMs = options.timeoutMs || 5000;
   }
 
   async _request(method, path, body) {
+    const token = this.token || this.apiKey;
+    // fetch's own error for a bad header value quotes the value.
+    if (token && /[\r\n]/.test(token)) throw new CrowkisError("token must be a single line");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers = { "content-type": "application/json" };
-    if (this.apiKey) headers["x-crowkis-api-key"] = this.apiKey;
+    if (this.token) headers.authorization = `Bearer ${token}`;
+    else if (token) headers["x-crowkis-api-key"] = token;
     try {
       const response = await fetch(new URL(path, this.baseUrl), {
         method,

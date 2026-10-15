@@ -10,6 +10,7 @@ import random
 import socket
 import threading
 import time
+import warnings
 from dataclasses import dataclass
 from http.client import HTTPConnection
 from typing import (
@@ -389,6 +390,7 @@ class CrowkisClient:
         model: Optional[str] = None,
         user: Optional[str] = None,
         auth_token: Optional[str] = None,
+        token: Optional[str] = None,
         timeout: float = 5.0,
         connect_timeout: Optional[float] = None,
         read_timeout: Optional[float] = None,
@@ -403,7 +405,7 @@ class CrowkisClient:
         self.tenant = tenant
         self.model = model
         self.user = user
-        self.auth_token = auth_token
+        self.auth_token = auth_token or token
         self.timeout = timeout
         self.connect_timeout = float(timeout if connect_timeout is None else connect_timeout)
         self.read_timeout = float(timeout if read_timeout is None else read_timeout)
@@ -1847,28 +1849,49 @@ class AsyncCrowkisClient(CrowkisClient):
 AsyncCrowkis = AsyncCrowkisClient
 
 
+_API_KEY_WARNED = False
+
+
 class CrowkisAdmin:
-    """The management HTTP API. Reading needs no key on a node with no users;
-    `api_key` is a user's API key, for a node that has them."""
+    """The management HTTP API. Reading needs no key; writes need the server's
+    CROWKIS_AUTH_TOKEN as `token`. `api_key` is a deprecated name for it."""
 
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:6380",
         *,
+        token: Optional[str] = None,
         api_key: Optional[str] = None,
         timeout: float = 5.0,
     ) -> None:
+        global _API_KEY_WARNED
+        if api_key and not _API_KEY_WARNED:
+            _API_KEY_WARNED = True
+            warnings.warn(
+                "CrowkisAdmin(api_key=...) is deprecated: users and API keys were removed in "
+                "Crowkis 0.5.2. Pass the server's CROWKIS_AUTH_TOKEN as token=... instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         parsed = urlparse(base_url)
         self.host = parsed.hostname or "127.0.0.1"
         self.port = parsed.port or 6380
+        self.token = token
         self.api_key = api_key
         self.timeout = timeout
 
     def _request(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Any:
         payload = None if body is None else json.dumps(body).encode()
         headers = {"content-type": "application/json"}
-        if self.api_key:
-            headers["x-crowkis-api-key"] = self.api_key
+        token = self.token or self.api_key
+        if token:
+            # http.client's own error for a bad header value quotes the value.
+            if "\r" in token or "\n" in token:
+                raise CrowkisError("token must be a single line")
+            if self.token:
+                headers["authorization"] = f"Bearer {token}"
+            else:
+                headers["x-crowkis-api-key"] = token
         conn = HTTPConnection(self.host, self.port, timeout=self.timeout)
         try:
             conn.request(method, path, body=payload, headers=headers)

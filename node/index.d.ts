@@ -5,6 +5,8 @@ export interface CrowkisClientOptions {
   model?: string;
   authToken?: string;
   auth_token?: string;
+  /** The server's CROWKIS_AUTH_TOKEN, sent as RESP AUTH. Same as `authToken`. */
+  token?: string;
   timeoutMs?: number;
 }
 
@@ -174,7 +176,9 @@ export class CrowkisClient {
 
 export interface CrowkisAdminOptions {
   baseUrl?: string;
-  /** A user's API key. Reading needs none on a node with no users. */
+  /** The server's CROWKIS_AUTH_TOKEN, sent as `Authorization: Bearer`. Reading needs none. */
+  token?: string;
+  /** @deprecated Users and API keys were removed in Crowkis 0.5.2: use the server's CROWKIS_AUTH_TOKEN (token=...). */
   apiKey?: string;
   timeoutMs?: number;
 }

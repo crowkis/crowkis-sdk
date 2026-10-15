@@ -229,20 +229,33 @@ to the model instead of being read out.
 
 ## Authentication
 
-If your server sets an auth token (`CROWKIS_AUTH_TOKEN`), pass it from your environment —
-never hard-code it. Keep it in a gitignored `.env`.
+A Crowkis server has one secret, `CROWKIS_AUTH_TOKEN`. It protects cache commands (sent as
+RESP `AUTH`) and management writes (sent as `Authorization: Bearer`); the dashboard and reads
+need nothing. There are no users or per-user API keys (removed in 0.5.2). Keep the token in a
+gitignored `.env` and pass it from your environment — never hard-code it.
+
+```bash
+# .env
+CROWKIS_AUTH_TOKEN=change-me
+```
 
 ```python
 import os
-from crowkis import Crowkis
+from crowkis import Crowkis, CrowkisAdmin
+
+token = os.getenv("CROWKIS_AUTH_TOKEN")   # from .env, not the code
 
 cache = Crowkis(
     host=os.getenv("CROWKIS_HOST", "127.0.0.1"),
     port=int(os.getenv("CROWKIS_PORT", "6383")),
     tenant="my-app",
-    auth_token=os.getenv("CROWKIS_TOKEN"),   # from .env, not the code
+    token=token,                          # auth_token= still works
 )
+admin = CrowkisAdmin("http://127.0.0.1:6380", token=token)
 ```
+
+`CrowkisAdmin(api_key=...)` still works exactly as before (sent as `X-Crowkis-Api-Key`, which
+0.5.1 servers need) and warns once that it is deprecated. If both are given, `token` wins.
 
 ## Discover every command
 

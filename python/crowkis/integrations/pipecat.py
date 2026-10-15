@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import collections
 import json
 import time
@@ -163,7 +164,13 @@ class CrowkisAudioCache(FrameProcessor):
     async def get(self, text: str) -> Optional[bytes]:
         agent = self._session.agent
         raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
-        return base64.b64decode(raw) if raw else None
+        if not raw:
+            return None
+        # Strict: a damaged clip is a miss, never noise played to the caller.
+        try:
+            return base64.b64decode(raw, validate=True) or None
+        except (ValueError, binascii.Error):
+            return None
 
     def expect(self, text: str, *, shareable: Optional[bool] = None) -> None:
         """Name the answer that the next TTS run speaks.

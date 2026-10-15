@@ -32,6 +32,9 @@ class FakeClient:
     def ctoolset(self, tool, args_str, value, *, ex=None, tenant=None):
         self.stored[(tool, args_str)] = value
 
+    def ctoolget(self, tool, args_str, *, tenant=None):
+        return self.stored.get((tool, args_str))
+
 
 class FakeAgent:
     tenant = "t"
@@ -84,6 +87,15 @@ class AudioCacheTests(unittest.TestCase):
 
     def speak(self, audio=b"BBBB"):
         self.feed(TTSStartedFrame(), TTSAudioRawFrame(audio, 24000, 1), TTSStoppedFrame())
+
+    def test_a_damaged_clip_is_a_miss_never_noise(self):
+        stored = self.session.agent._client.stored
+        stored[(TTS_TOOL, _key("ok"))] = base64.b64encode(b"\x00\x01audio").decode()
+        self.assertEqual(asyncio.run(self.cache.get("ok")), b"\x00\x01audio")
+        # A lenient decoder skips the "_" and plays what is left.
+        stored[(TTS_TOOL, _key("damaged"))] = "QUJD/pii_card_k12ab/QUJD"
+        self.assertIsNone(asyncio.run(self.cache.get("damaged")))
+        self.assertIsNone(asyncio.run(self.cache.get("never stored")))
 
     def test_a_served_answer_is_stored(self):
         self.cache.expect("Yes, we ship to Canada.", shareable=True)

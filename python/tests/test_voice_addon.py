@@ -101,6 +101,57 @@ class SpeakTests(unittest.TestCase):
         self.assertEqual(len(client.clips), 1, "and the clip is stored all the same")
 
 
+class ReviewFindingTests(unittest.TestCase):
+    def test_fail_soft_without_the_addon_still_caches_the_basic_way(self):
+        client = AudioClient(addon=False)
+        client.fail_soft = True
+        agent = Agent("bot", client=client)
+        made = []
+        synth = lambda text: made.append(text) or b"audio"
+        for _ in range(3):
+            agent.speak("Hello there.", synth, voice="aria")
+        self.assertEqual(len(made), 1, "synthesised once, replayed twice")
+        self.assertFalse(agent._audio_v2)
+
+    def test_fail_soft_turns_any_other_audio_error_into_a_miss(self):
+        class Down(AudioClient):
+            fail_soft = True
+            def caudioget(self, *args, **kwargs):
+                raise CrowkisError("connection refused")
+        client = Down()
+        agent = Agent("bot", client=client)
+        self.assertEqual(agent.speak("Hello there.", lambda text: b"audio", voice="aria"), b"audio")
+        _wait_for_audio_stores()
+        self.assertEqual(client.clips, {}, "nothing stored after a failed read")
+
+    def test_no_addon_is_asked_again_after_a_while(self):
+        client = AudioClient(addon=False)
+        agent = Agent("bot", client=client)
+        agent.speak("Hello there.", lambda text: b"audio", voice="aria")
+        client.addon = True  # a licence with the add-on is installed
+        agent.speak("Hello there.", lambda text: b"audio", voice="aria")
+        self.assertFalse(agent._audio_v2, "not asked again at once")
+        agent._audio_v2_recheck_at = time.monotonic() - 1
+        agent.speak("Something new.", lambda text: b"audio", voice="aria")
+        self.assertTrue(agent._audio_v2, "asked again once the wait is over")
+
+    def test_input_the_server_would_refuse_goes_the_basic_way_without_an_error(self):
+        client = AudioClient()
+        agent = Agent("bot", client=client)
+        for kwargs, text in [({"voice": "v" * 65}, "Hello."), ({"voice": "aria", "language": "en\nGB"}, "Hello."),
+                             ({"voice": "aria"}, "x" * (64 * 1024 + 1)), ({"voice": "aria"}, "")]:
+            agent.speak(text, lambda t: b"audio", **kwargs)
+        self.assertNotIn("caudioget", client.calls)
+        self.assertIn("ctoolset", client.calls)
+
+    def test_only_the_servers_enterprise_refusal_means_no_addon(self):
+        from crowkis.agent import _voice_addon_missing
+        self.assertTrue(_voice_addon_missing(CrowkisError("ERR ENTERPRISE Voice is an add-on")))
+        self.assertTrue(_voice_addon_missing(CrowkisError("ERR unknown command 'CAUDIOGET'")))
+        self.assertFalse(_voice_addon_missing(CrowkisError("ERR the add-on store is full")))
+        self.assertFalse(_voice_addon_missing(CrowkisError("ERR tenant ENTERPRISE-1 is paused")))
+
+
 class ReportTests(unittest.TestCase):
     def session(self, client):
         return VoiceSession(Agent("bot", client=client), voice="aria")

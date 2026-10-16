@@ -69,7 +69,7 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from ..agent import _store_later, _voice_addon_missing
+from ..agent import _store_later
 from ..client import CrowkisError
 from ..voice import VoiceSession, _words
 
@@ -170,17 +170,23 @@ class CrowkisAudioCache(FrameProcessor):
         audio_format = session.audio_format if session.audio_format != "default" else f"pcm16-{self.sample_rate}"
         return (session.voice, session.language, str(session.speed), audio_format)
 
+    def _uses_audio_cache(self, text: str) -> bool:
+        """The agent's rule for the server's audio cache (Voice add-on), the same as `speak`."""
+        usable = getattr(self._session.agent, "_audio_cache_usable", None)
+        return bool(usable and usable(text, self._labels()))
+
     async def get(self, text: str) -> Optional[bytes]:
         agent = self._session.agent
-        if getattr(agent, "_audio_v2", False) is not False and hasattr(agent._client, "caudioget"):
+        if self._uses_audio_cache(text):
             try:
                 clip = await asyncio.to_thread(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
+            except CrowkisError as err:
+                use, _ = agent._audio_cache_failed(err)
+                if use:
+                    return None  # fail_soft: a miss
+            else:
                 agent._audio_v2 = True
                 return clip or None
-            except CrowkisError as err:
-                if not _voice_addon_missing(err):
-                    raise
-                agent._audio_v2 = False
         raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
         if not raw:
             return None
@@ -251,7 +257,7 @@ class CrowkisAudioCache(FrameProcessor):
 
     async def _store(self, text: str, clip: bytes) -> None:
         agent = self._session.agent
-        if getattr(agent, "_audio_v2", False) and hasattr(agent._client, "caudioset"):
+        if getattr(agent, "_audio_v2", None) is True and self._uses_audio_cache(text):
             # In the background: the next frame is never held for a store.
             ms = len(clip) * 1000 // (self.sample_rate * 2) if self.sample_rate else None
             _store_later(

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import base64
 import binascii
-import concurrent.futures
 import functools
 import json
 import logging
+import queue
 import threading
 import time
+import unicodedata
 from typing import Any, Callable, Iterable, List, Optional
 
 from .client import CrowkisClient, CrowkisError
@@ -15,36 +16,64 @@ from .client import CrowkisClient, CrowkisError
 _log = logging.getLogger("crowkis")
 
 # Storing a new clip runs here, never in the caller's way: the caller has its
-# audio as soon as it is synthesised. At most this many wait; past that a clip
-# is not cached (the next time it is spoken it is stored instead).
-_AUDIO_STORES = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="crowkis-audio-store")
-_AUDIO_SLOTS = threading.BoundedSemaphore(64)
+# audio as soon as it is synthesised. Daemon threads, so a program never waits
+# for them at exit. At most this many wait; past that a clip is not cached
+# (it is stored the next time it is spoken).
+_AUDIO_QUEUE: "queue.Queue[tuple]" = queue.Queue(maxsize=64)
+_AUDIO_WORKERS = 4
+_audio_workers_started = False
+_audio_workers_lock = threading.Lock()
+
+# How long "no Voice add-on" stands before the server is asked again (a licence
+# may have been installed or renewed meanwhile).
+_ADDON_RECHECK_SECS = 600.0
+# What the server's audio cache takes; anything else goes the basic way.
+_AUDIO_MAX_ANSWER_BYTES = 64 * 1024
+_AUDIO_MAX_LABEL = 64
 
 
-def _store_later(store: Callable[..., Any], *args: Any, **kwargs: Any) -> bool:
-    """Run `store` in the background. False when too many are already waiting."""
-    if not _AUDIO_SLOTS.acquire(blocking=False):
-        _log.warning("crowkis: too many audio clips waiting to be stored; this one is not cached")
-        return False
-
-    def run() -> None:
+def _audio_worker() -> None:
+    while True:
+        store, args, kwargs = _AUDIO_QUEUE.get()
         try:
             store(*args, **kwargs)
         except Exception as err:  # the cache is an optimisation: never fail a call over it
             _log.warning("crowkis: an audio clip was not cached: %s", err)
         finally:
-            _AUDIO_SLOTS.release()
+            _AUDIO_QUEUE.task_done()
 
-    _AUDIO_STORES.submit(run)
+
+def _store_later(store: Callable[..., Any], *args: Any, **kwargs: Any) -> bool:
+    """Run `store` in the background. False when too many are already waiting."""
+    global _audio_workers_started
+    with _audio_workers_lock:
+        if not _audio_workers_started:
+            for n in range(_AUDIO_WORKERS):
+                threading.Thread(target=_audio_worker, name=f"crowkis-audio-store-{n}", daemon=True).start()
+            _audio_workers_started = True
+    try:
+        _AUDIO_QUEUE.put_nowait((store, args, kwargs))
+    except queue.Full:
+        _log.warning("crowkis: too many audio clips waiting to be stored; this one is not cached")
+        return False
     return True
 
 
 def _wait_for_audio_stores() -> None:
     """For tests: every clip handed to the background is stored."""
-    for _ in range(64):
-        _AUDIO_SLOTS.acquire()
-    for _ in range(64):
-        _AUDIO_SLOTS.release()
+    _AUDIO_QUEUE.join()
+
+
+def _fits_audio_cache(text: str, labels: tuple) -> bool:
+    """What the server's audio cache accepts: an answer up to 64 KB and labels of
+    1 to 64 characters of text. Anything else uses the basic path, never an error."""
+    size = len(text.encode("utf-8"))
+    return 0 < size <= _AUDIO_MAX_ANSWER_BYTES and all(
+        0 < len(label) <= _AUDIO_MAX_LABEL
+        and label.strip()
+        and not any(unicodedata.category(c) == "Cc" for c in label)
+        for label in labels
+    )
 
 
 def _stable_args(args: tuple, kwargs: dict) -> str:
@@ -83,6 +112,7 @@ class Agent:
         # The server's audio cache (Voice add-on): None until the first clip
         # asks, then whether this server has it.
         self._audio_v2: Optional[bool] = None
+        self._audio_v2_recheck_at = 0.0
         self.tool_hits = 0
         self.tool_misses = 0
         self._decides: Optional[bool] = None
@@ -272,22 +302,20 @@ class Agent:
                 "produced it; serving one voice's audio for another is audible to the caller"
             )
         labels = (voice, language or "und", str(speed or "1"), audio_format or "default")
-        if not hasattr(self._client, "caudioget"):
-            self._audio_v2 = False
-        if self._audio_v2 is not False:
+        use_v2 = self._audio_cache_usable(text, labels)
+        skip_store = False
+        if use_v2:
             try:
                 audio = self._client.caudioget(text, *labels, tenant=self.tenant)
-                self._audio_v2 = True
             except CrowkisError as err:
-                if not _voice_addon_missing(err):
-                    raise
-                self._audio_v2 = False
+                use_v2, skip_store = self._audio_cache_failed(err)
             else:
+                self._audio_v2 = True
                 if audio:
                     self.audio_hits += 1
                     return audio
         key = json.dumps({"voice": voice, "text": text}, sort_keys=True)
-        if self._audio_v2 is False:
+        if not use_v2 and not skip_store:
             cached = self._client.ctoolget("crowkis.tts", key, tenant=self.tenant)
             if cached is not None:
                 raw = cached if isinstance(cached, bytes) else str(cached).encode()
@@ -300,10 +328,10 @@ class Agent:
                     return audio
         audio = synthesise(text)
         self.audio_misses += 1
-        if audio:
-            if self._audio_v2:
+        if audio and not skip_store:
+            if use_v2:
                 ms = len(audio) * 1000 // bytes_per_second if bytes_per_second else None
-                _store_later(self._client.caudioset, text, *labels, audio, ex=ttl, ms=ms, tenant=self.tenant)
+                _store_later(self._client.caudioset, text, *labels, bytes(audio), ex=ttl, ms=ms, tenant=self.tenant)
             else:
                 self._client.ctoolset(
                     "crowkis.tts",
@@ -313,6 +341,28 @@ class Agent:
                     tenant=self.tenant,
                 )
         return audio
+
+    def _audio_cache_usable(self, text: str, labels: tuple) -> bool:
+        """Whether to ask the server's audio cache for this clip."""
+        if not hasattr(self._client, "caudioget"):
+            self._audio_v2 = False
+            return False
+        if self._audio_v2 is False and self._audio_v2_recheck_at and time.monotonic() >= self._audio_v2_recheck_at:
+            self._audio_v2 = None  # ask again: a licence may have been installed or renewed
+        return self._audio_v2 is not False and _fits_audio_cache(text, labels)
+
+    def _audio_cache_failed(self, err: CrowkisError) -> tuple:
+        """After the audio cache answered an error: (use it, skip storing).
+        No Voice add-on: the basic path, asked again later. With fail_soft any
+        other error is a miss with nothing stored; without it, it is raised."""
+        if _voice_addon_missing(err):
+            self._audio_v2 = False
+            self._audio_v2_recheck_at = time.monotonic() + _ADDON_RECHECK_SECS
+            return False, False
+        if getattr(self._client, "fail_soft", False):
+            _log.warning("crowkis: the audio cache could not be read: %s", err)
+            return True, True
+        raise err
 
     def audio_stats(self) -> dict:
         total = self.audio_hits + self.audio_misses
@@ -369,10 +419,10 @@ class Agent:
 
 
 def _voice_addon_missing(err: CrowkisError) -> bool:
-    """The server has no audio cache for this caller: no Voice add-on, or a
-    server from before it. The basic audio path is used instead."""
-    text = str(err)
-    return "ENTERPRISE" in text or "add-on" in text or "unknown command" in text.lower()
+    """The server has no audio cache for this caller: no Voice add-on (its
+    ENTERPRISE refusal), or a server from before it. Any other error is not this."""
+    text = str(err).lstrip()
+    return text.startswith(("ENTERPRISE ", "ERR ENTERPRISE ")) or "unknown command" in text.lower()
 
 
 __all__ = ["Agent", "CrowkisError"]

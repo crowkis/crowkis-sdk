@@ -1189,7 +1189,9 @@ class CrowkisClient:
             parts += ["MS", str(ms)]
         if tenant or self.tenant:
             parts += ["TENANT", tenant or self.tenant]
-        return self.execute(*parts)
+        # Always the server's real answer, even with fail_soft: "no Voice
+        # add-on" must not read as a miss. `Agent.speak` applies fail_soft.
+        return self.execute_strict(_encode(parts))
 
     def caudioget(
         self, answer: str, voice: str, language: str, speed: str, audio_format: str, *, tenant: Optional[str] = None
@@ -1199,7 +1201,7 @@ class CrowkisClient:
         parts: List[BytesLike] = ["CAUDIOGET", answer, voice, language, speed, audio_format]
         if tenant or self.tenant:
             parts += ["TENANT", tenant or self.tenant]
-        value = self.execute(*parts)
+        value = self.execute_strict(_encode(parts))
         if value is None:
             return None
         return value if isinstance(value, bytes) else str(value).encode()
@@ -1213,7 +1215,7 @@ class CrowkisClient:
             parts += [name, str(int(count))]
         if tenant or self.tenant:
             parts += ["TENANT", tenant or self.tenant]
-        return self.execute(*parts)
+        return self.execute_strict(_encode(parts))
 
     def cflag(self, query: str, bad_answer: str, *, reason: Optional[str] = None, tenant: Optional[str] = None) -> Any:
         args: List[BytesLike] = ["CFLAG", query, bad_answer]

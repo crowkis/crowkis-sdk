@@ -91,3 +91,22 @@ test("reports send what is new and lose nothing when one fails", async () => {
   without.served = 1;
   assert.strictEqual(await without.reportStats(), false);
 });
+
+test("odd input goes the basic way, the buffer is copied, no add-on is asked again later", async () => {
+  const client = new AudioClient();
+  const agent = new Agent("bot", { client });
+  await agent.speak("Hello.", async () => Buffer.from("a"), { voice: "v".repeat(65) });
+  assert.ok(!client.calls.includes("caudioget") && client.calls.includes("ctoolset"));
+  const reused = Buffer.from("original");
+  await agent.speak("Copy me.", async () => reused, { voice: "aria" });
+  reused.fill(0);
+  await waitForAudioStores();
+  assert.deepStrictEqual([...client.clips.values()].at(-1), Buffer.from("original"), "stored as synthesised");
+  const later = new AudioClient({ addon: false });
+  const a2 = new Agent("bot", { client: later });
+  await a2.speak("Hi there.", async () => Buffer.from("a"), { voice: "aria" });
+  later.addon = true;
+  a2._audioV2RecheckAt = Date.now() - 1;
+  await a2.speak("New one.", async () => Buffer.from("a"), { voice: "aria" });
+  assert.strictEqual(a2._audioV2, true);
+});

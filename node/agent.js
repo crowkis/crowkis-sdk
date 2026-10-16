@@ -2,10 +2,20 @@
 
 const { CrowkisClient } = require("./index.js");
 
-/** The server has no audio cache for this caller: no Voice add-on, or a server from before it. */
+/** The server has no audio cache for this caller: its ENTERPRISE refusal, or a server from before it. */
 function voiceAddonMissing(error) {
-  const text = String((error && error.message) || error);
-  return text.includes("ENTERPRISE") || text.includes("add-on") || text.toLowerCase().includes("unknown command");
+  const text = String((error && error.message) || error).trimStart();
+  return text.startsWith("ENTERPRISE ") || text.startsWith("ERR ENTERPRISE ") || text.toLowerCase().includes("unknown command");
+}
+
+// How long "no Voice add-on" stands before the server is asked again (a licence may be renewed).
+const ADDON_RECHECK_MS = 600000;
+
+/** What the server's audio cache takes; anything else goes the basic way, never an error. */
+function fitsAudioCache(text, labels) {
+  const size = Buffer.byteLength(text, "utf8");
+  return size > 0 && size <= 64 * 1024 &&
+    labels.every((label) => label.length > 0 && label.length <= 64 && label.trim() && !/[\u0000-\u001f\u007f-\u009f]/.test(label));
 }
 
 // Storing a new clip never holds the caller: at most this many wait, past that
@@ -61,6 +71,7 @@ class Agent {
     this.audioMisses = 0;
     // The server's audio cache (Voice add-on): null until the first clip asks.
     this._audioV2 = null;
+    this._audioV2RecheckAt = 0;
     this.toolHits = 0;
     this.toolMisses = 0;
     this._ownsClient = !options.client;
@@ -297,7 +308,9 @@ class Agent {
     }
     const labels = [voiceId, language || "und", String(speed || "1"), audioFormat || "default"];
     if (typeof this.client.caudioget !== "function") this._audioV2 = false;
-    if (this._audioV2 !== false) {
+    else if (this._audioV2 === false && this._audioV2RecheckAt && Date.now() >= this._audioV2RecheckAt) this._audioV2 = null;
+    let useV2 = this._audioV2 !== false && fitsAudioCache(text, labels);
+    if (useV2) {
       try {
         const clip = await this.client.caudioget(text, ...labels, { tenant: this.tenant });
         this._audioV2 = true;
@@ -308,10 +321,12 @@ class Agent {
       } catch (error) {
         if (!voiceAddonMissing(error)) throw error;
         this._audioV2 = false;
+        this._audioV2RecheckAt = Date.now() + ADDON_RECHECK_MS;
+        useV2 = false;
       }
     }
     const key = JSON.stringify({ text, voice: voiceId });
-    if (this._audioV2 === false) {
+    if (!useV2) {
       const cached = await this.client.ctoolget("crowkis.tts", key, {
         tenant: this.tenant,
       });
@@ -327,9 +342,11 @@ class Agent {
     const audio = await synthesise(text);
     this.audioMisses += 1;
     if (audio && audio.length) {
-      if (this._audioV2) {
+      if (useV2) {
         const ms = bytesPerSecond ? Math.floor((audio.length * 1000) / bytesPerSecond) : undefined;
-        storeLater(() => this.client.caudioset(text, ...labels, audio, { ex: ttl, ms, tenant: this.tenant }));
+        // A copy now: the caller may reuse its buffer before the store runs.
+        const clip = Buffer.from(audio);
+        storeLater(() => this.client.caudioset(text, ...labels, clip, { ex: ttl, ms, tenant: this.tenant }));
       } else {
         await this.client.ctoolset(
           "crowkis.tts",

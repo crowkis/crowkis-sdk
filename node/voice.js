@@ -1,5 +1,10 @@
 "use strict";
 
+const { voiceAddonMissing } = require("./agent.js");
+
+// The server takes at most this per count in one report.
+const REPORT_MAX = 1000000;
+
 const TRIM = "\\s!-\\/:-@\\[-`{-~";
 
 const TRIM_EDGES = new RegExp(`^[${TRIM}]+|[${TRIM}]+$`, "g");
@@ -1452,6 +1457,10 @@ class VoiceSession {
       commitments = "exact",
       shortTurns = false,
       shareTemplates = false,
+      language = "und",
+      speed = "1",
+      audioFormat = "default",
+      bytesPerSecond,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -1474,6 +1483,12 @@ class VoiceSession {
     }
     this.agent = agent;
     this.voice = voiceId;
+    // What changes the sound besides the voice: a clip is reused only when all match (Voice add-on).
+    this.language = language;
+    this.speed = speed;
+    this.audioFormat = audioFormat;
+    this.bytesPerSecond = bytesPerSecond;
+    this._reported = {};
     this.serveAbove = serveAbove;
     this.minWords = minWords;
     this.synthesise = synthesise;
@@ -1856,6 +1871,43 @@ class VoiceSession {
     return this.transcript.slice();
   }
 
+  /** The counts the Voice page shows, by the server's names. */
+  _reportable() {
+    return {
+      turns: this.served + this.inferred + this.filled,
+      served_from_cache: this.served,
+      filler_hits: this.filled,
+      model_calls_avoided: this.served + this.filled,
+      private_turns: this.refusedPrivate + this.uncacheablePersonal,
+      barge_ins: this.bargeIns,
+      latency_misses: this.overBudget,
+      empty_answers: this.emptyAnswers,
+    };
+  }
+
+  /**
+   * Send this session's counts since its last report to the Voice page (the server's Voice add-on).
+   * false when the server has no Voice add-on. Nothing is lost: what a failed report did not send
+   * goes with the next.
+   */
+  async reportStats() {
+    const now = this._reportable();
+    const sent = {};
+    for (const [name, count] of Object.entries(now)) {
+      const fresh = count - (this._reported[name] || 0);
+      if (fresh > 0) sent[name] = Math.min(fresh, REPORT_MAX);
+    }
+    if (!Object.keys(sent).length) return true;
+    try {
+      await this.agent.client.cvoicestat(sent, { tenant: this.agent.tenant });
+    } catch (error) {
+      if (voiceAddonMissing(error)) return false;
+      throw error;
+    }
+    for (const [name, count] of Object.entries(sent)) this._reported[name] = (this._reported[name] || 0) + count;
+    return true;
+  }
+
   stats() {
     const total = this.served + this.inferred + this.filled;
     const pct = (count) => (total ? Math.round((10000 * count) / total) / 100 : 0);
@@ -1950,6 +2002,10 @@ class VoiceSession {
     return this.agent.speak(answer, this.synthesise, {
       voice: this.voice,
       ttl: this.ttl,
+      language: this.language,
+      speed: this.speed,
+      audioFormat: this.audioFormat,
+      bytesPerSecond: this.bytesPerSecond,
     });
   }
 }

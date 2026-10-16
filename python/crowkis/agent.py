@@ -2,12 +2,49 @@ from __future__ import annotations
 
 import base64
 import binascii
+import concurrent.futures
 import functools
 import json
+import logging
+import threading
 import time
 from typing import Any, Callable, Iterable, List, Optional
 
 from .client import CrowkisClient, CrowkisError
+
+_log = logging.getLogger("crowkis")
+
+# Storing a new clip runs here, never in the caller's way: the caller has its
+# audio as soon as it is synthesised. At most this many wait; past that a clip
+# is not cached (the next time it is spoken it is stored instead).
+_AUDIO_STORES = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="crowkis-audio-store")
+_AUDIO_SLOTS = threading.BoundedSemaphore(64)
+
+
+def _store_later(store: Callable[..., Any], *args: Any, **kwargs: Any) -> bool:
+    """Run `store` in the background. False when too many are already waiting."""
+    if not _AUDIO_SLOTS.acquire(blocking=False):
+        _log.warning("crowkis: too many audio clips waiting to be stored; this one is not cached")
+        return False
+
+    def run() -> None:
+        try:
+            store(*args, **kwargs)
+        except Exception as err:  # the cache is an optimisation: never fail a call over it
+            _log.warning("crowkis: an audio clip was not cached: %s", err)
+        finally:
+            _AUDIO_SLOTS.release()
+
+    _AUDIO_STORES.submit(run)
+    return True
+
+
+def _wait_for_audio_stores() -> None:
+    """For tests: every clip handed to the background is stored."""
+    for _ in range(64):
+        _AUDIO_SLOTS.acquire()
+    for _ in range(64):
+        _AUDIO_SLOTS.release()
 
 
 def _stable_args(args: tuple, kwargs: dict) -> str:
@@ -43,6 +80,9 @@ class Agent:
         self.route_counts = {"cache": 0, "cheap": 0, "expensive": 0}
         self.audio_hits = 0
         self.audio_misses = 0
+        # The server's audio cache (Voice add-on): None until the first clip
+        # asks, then whether this server has it.
+        self._audio_v2: Optional[bool] = None
         self.tool_hits = 0
         self.tool_misses = 0
         self._decides: Optional[bool] = None
@@ -215,34 +255,63 @@ class Agent:
         *,
         voice: str,
         ttl: Optional[int] = None,
+        language: str = "und",
+        speed: str = "1",
+        audio_format: str = "default",
+        bytes_per_second: Optional[int] = None,
     ) -> bytes:
+        """The spoken `text`: replayed from the cache when this voice already said
+        it, otherwise `synthesise(text)` once and kept. With the server's Voice
+        add-on the clip is keyed by voice, language, speed and format and stored
+        as raw bytes; without it, by voice and text as before. `bytes_per_second`
+        lets the Voice page count the seconds of speech saved."""
         voice = (voice or "").strip()
         if not voice:
             raise ValueError(
                 "speak() requires a voice id. Audio is only reusable for the voice that "
                 "produced it; serving one voice's audio for another is audible to the caller"
             )
-        key = json.dumps({"voice": voice, "text": text}, sort_keys=True)
-        cached = self._client.ctoolget("crowkis.tts", key, tenant=self.tenant)
-        if cached is not None:
-            raw = cached if isinstance(cached, bytes) else str(cached).encode()
+        labels = (voice, language or "und", str(speed or "1"), audio_format or "default")
+        if not hasattr(self._client, "caudioget"):
+            self._audio_v2 = False
+        if self._audio_v2 is not False:
             try:
-                audio = base64.b64decode(raw, validate=True)
-            except (ValueError, binascii.Error):
-                audio = b""
-            if audio:
-                self.audio_hits += 1
-                return audio
+                audio = self._client.caudioget(text, *labels, tenant=self.tenant)
+                self._audio_v2 = True
+            except CrowkisError as err:
+                if not _voice_addon_missing(err):
+                    raise
+                self._audio_v2 = False
+            else:
+                if audio:
+                    self.audio_hits += 1
+                    return audio
+        key = json.dumps({"voice": voice, "text": text}, sort_keys=True)
+        if self._audio_v2 is False:
+            cached = self._client.ctoolget("crowkis.tts", key, tenant=self.tenant)
+            if cached is not None:
+                raw = cached if isinstance(cached, bytes) else str(cached).encode()
+                try:
+                    audio = base64.b64decode(raw, validate=True)
+                except (ValueError, binascii.Error):
+                    audio = b""
+                if audio:
+                    self.audio_hits += 1
+                    return audio
         audio = synthesise(text)
         self.audio_misses += 1
         if audio:
-            self._client.ctoolset(
-                "crowkis.tts",
-                key,
-                base64.b64encode(audio).decode("ascii"),
-                ex=ttl,
-                tenant=self.tenant,
-            )
+            if self._audio_v2:
+                ms = len(audio) * 1000 // bytes_per_second if bytes_per_second else None
+                _store_later(self._client.caudioset, text, *labels, audio, ex=ttl, ms=ms, tenant=self.tenant)
+            else:
+                self._client.ctoolset(
+                    "crowkis.tts",
+                    key,
+                    base64.b64encode(audio).decode("ascii"),
+                    ex=ttl,
+                    tenant=self.tenant,
+                )
         return audio
 
     def audio_stats(self) -> dict:
@@ -297,6 +366,13 @@ class Agent:
 
     def __repr__(self) -> str:
         return f"Agent({self.agent_id!r}, tenant={self.tenant!r})"
+
+
+def _voice_addon_missing(err: CrowkisError) -> bool:
+    """The server has no audio cache for this caller: no Voice add-on, or a
+    server from before it. The basic audio path is used instead."""
+    text = str(err)
+    return "ENTERPRISE" in text or "add-on" in text or "unknown command" in text.lower()
 
 
 __all__ = ["Agent", "CrowkisError"]

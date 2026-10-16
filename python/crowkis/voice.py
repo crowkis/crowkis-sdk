@@ -8,7 +8,11 @@ import threading
 import time
 from typing import Callable, Dict, List, Optional
 
-from .agent import Agent
+from .agent import Agent, _voice_addon_missing
+from .client import CrowkisError
+
+# The server takes at most this per count in one report.
+_REPORT_MAX = 1_000_000
 
 _LOG = logging.getLogger("crowkis")
 
@@ -1495,6 +1499,10 @@ class VoiceSession:
         commitments: str = "exact",
         short_turns: bool = False,
         share_templates: bool = False,
+        language: str = "und",
+        speed: str = "1",
+        audio_format: str = "default",
+        bytes_per_second: Optional[int] = None,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -1514,6 +1522,13 @@ class VoiceSession:
             )
         self.agent = agent
         self.voice = voice
+        # What changes the sound besides the voice: a clip is reused only when
+        # all of these match (Voice add-on).
+        self.language = language
+        self.speed = speed
+        self.audio_format = audio_format
+        self.bytes_per_second = bytes_per_second
+        self._reported: Dict[str, int] = {}
         self.serve_above = serve_above
         self.min_words = min_words
         self.synthesise = synthesise
@@ -1944,6 +1959,41 @@ class VoiceSession:
             "model_calls_avoided_pct": pct(self.served + self.filled),
         }
 
+    def _reportable(self) -> Dict[str, int]:
+        """The counts the Voice page shows, by the server's names."""
+        return {
+            "turns": self.served + self.inferred + self.filled,
+            "served_from_cache": self.served,
+            "filler_hits": self.filled,
+            "model_calls_avoided": self.served + self.filled,
+            "private_turns": self.refused_private + self.uncacheable_personal,
+            "barge_ins": self.barge_ins,
+            "latency_misses": self.over_budget,
+            "empty_answers": self.empty_answers,
+        }
+
+    def report_stats(self) -> bool:
+        """Send this session's counts since its last report to the Voice page
+        (the server's Voice add-on). False when the server has no Voice add-on.
+        Nothing is lost: what a failed report did not send goes with the next."""
+        now = self._reportable()
+        sent = {
+            name: min(count - self._reported.get(name, 0), _REPORT_MAX)
+            for name, count in now.items()
+            if count > self._reported.get(name, 0)
+        }
+        if not sent:
+            return True
+        try:
+            self.agent._client.cvoicestat(sent, tenant=self.agent.tenant)
+        except CrowkisError as err:
+            if _voice_addon_missing(err):
+                return False
+            raise
+        for name, count in sent.items():
+            self._reported[name] = self._reported.get(name, 0) + count
+        return True
+
     def _chain(self) -> Optional[List[str]]:
         """The earlier caller turns a follow-up leans on, oldest first: back to the
         latest one that stands on its own. None when there is no such turn."""
@@ -2013,7 +2063,16 @@ class VoiceSession:
             return None
         if not cacheable:
             return self.synthesise(answer)
-        return self.agent.speak(answer, self.synthesise, voice=self.voice, ttl=self.ttl)
+        return self.agent.speak(
+            answer,
+            self.synthesise,
+            voice=self.voice,
+            ttl=self.ttl,
+            language=self.language,
+            speed=self.speed,
+            audio_format=self.audio_format,
+            bytes_per_second=self.bytes_per_second,
+        )
 
 
 def _private_chain(chain: List[str], min_words: int = 0) -> bool:

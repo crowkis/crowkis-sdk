@@ -69,6 +69,8 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
+from ..agent import _store_later, _voice_addon_missing
+from ..client import CrowkisError
 from ..voice import VoiceSession, _words
 
 # Same tool name and key shape as Agent.speak(), so both share one audio cache.
@@ -161,8 +163,24 @@ class CrowkisAudioCache(FrameProcessor):
     def _key(self, text: str) -> str:
         return json.dumps({"voice": self._session.voice, "text": text}, sort_keys=True)
 
+    def _labels(self) -> tuple:
+        """Voice, language, speed and format: a clip is reused only when all match.
+        The format names the sample rate, so a 16 kHz bot never gets a 24 kHz clip."""
+        session = self._session
+        audio_format = session.audio_format if session.audio_format != "default" else f"pcm16-{self.sample_rate}"
+        return (session.voice, session.language, str(session.speed), audio_format)
+
     async def get(self, text: str) -> Optional[bytes]:
         agent = self._session.agent
+        if getattr(agent, "_audio_v2", False) is not False and hasattr(agent._client, "caudioget"):
+            try:
+                clip = await asyncio.to_thread(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
+                agent._audio_v2 = True
+                return clip or None
+            except CrowkisError as err:
+                if not _voice_addon_missing(err):
+                    raise
+                agent._audio_v2 = False
         raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
         if not raw:
             return None
@@ -233,6 +251,14 @@ class CrowkisAudioCache(FrameProcessor):
 
     async def _store(self, text: str, clip: bytes) -> None:
         agent = self._session.agent
+        if getattr(agent, "_audio_v2", False) and hasattr(agent._client, "caudioset"):
+            # In the background: the next frame is never held for a store.
+            ms = len(clip) * 1000 // (self.sample_rate * 2) if self.sample_rate else None
+            _store_later(
+                agent._client.caudioset, text, *self._labels(), bytes(clip),
+                ex=self._session.ttl, ms=ms, tenant=agent.tenant,
+            )
+            return
         await asyncio.to_thread(
             agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
             ex=self._session.ttl, tenant=agent.tenant,

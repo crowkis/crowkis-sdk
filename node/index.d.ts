@@ -142,6 +142,12 @@ export class CrowkisClient {
   cbudgetReset(tenant?: string): Promise<Record<string, unknown>>;
   /** Storage-engine counters; `{}` if the reply is not a map. */
   stats(): Promise<Record<string, number>>;
+  /** Voice add-on: store a spoken answer as raw audio for this voice, language, speed and format. */
+  caudioset(answer: string, voice: string, language: string, speed: string | number, audioFormat: string, audio: Buffer | Uint8Array, options?: { ex?: number; ms?: number; tenant?: string }): Promise<unknown>;
+  /** Voice add-on: the stored audio for this answer and sound, or null. */
+  caudioget(answer: string, voice: string, language: string, speed: string | number, audioFormat: string, options?: { tenant?: string }): Promise<Buffer | null>;
+  /** Voice add-on: add a voice bot's whole-number counts to the Voice page. */
+  cvoicestat(counts: Record<string, number>, options?: { tenant?: string }): Promise<unknown>;
   /** Remove expired keys now; the number removed. */
   sweep(): Promise<number>;
   /** TENANT is sent only when passed, as cpromptSet/cpromptGet send none. */
@@ -322,7 +328,16 @@ export class Agent {
   speak(
     text: string,
     synthesise: Synthesise,
-    options: { voice: string; ttl?: number },
+    options: {
+      voice: string;
+      ttl?: number;
+      /** What changes the sound besides the voice: a clip is reused only when all match (Voice add-on). */
+      language?: string;
+      speed?: string | number;
+      audioFormat?: string;
+      /** Lets the Voice page count the seconds of speech saved. */
+      bytesPerSecond?: number;
+    },
   ): Promise<Buffer>;
   audioStats(): AudioStats;
   learn(
@@ -395,6 +410,11 @@ export interface VoiceValues {
 export type Commitments = "serve" | "exact" | "never";
 
 export interface VoiceSessionOptions {
+  /** Voice add-on: what changes the sound besides the voice. */
+  language?: string;
+  speed?: string | number;
+  audioFormat?: string;
+  bytesPerSecond?: number;
   voice: string;
   serveAbove?: number;
   minWords?: number;
@@ -481,6 +501,8 @@ export class VoiceSession {
   recordPrivateTurn(callerSaid: string, modelSaid: string): void;
   injections(): TranscriptTurn[];
   stats(): VoiceStats;
+  /** Voice add-on: send the counts since the last report to the Voice page; false without the add-on. */
+  reportStats(): Promise<boolean>;
 }
 
 /** One past turn: what the caller said, then what the agent answered. */

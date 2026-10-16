@@ -2,6 +2,37 @@
 
 const { CrowkisClient } = require("./index.js");
 
+/** The server has no audio cache for this caller: no Voice add-on, or a server from before it. */
+function voiceAddonMissing(error) {
+  const text = String((error && error.message) || error);
+  return text.includes("ENTERPRISE") || text.includes("add-on") || text.toLowerCase().includes("unknown command");
+}
+
+// Storing a new clip never holds the caller: at most this many wait, past that
+// a clip is not cached (it is stored the next time it is spoken).
+const AUDIO_STORES_MAX = 64;
+let audioStoresPending = 0;
+const audioStores = new Set();
+
+function storeLater(store) {
+  if (audioStoresPending >= AUDIO_STORES_MAX) return false;
+  audioStoresPending += 1;
+  const pending = Promise.resolve()
+    .then(store)
+    .catch((error) => console.warn(`crowkis: an audio clip was not cached: ${error.message || error}`))
+    .finally(() => {
+      audioStoresPending -= 1;
+      audioStores.delete(pending);
+    });
+  audioStores.add(pending);
+  return true;
+}
+
+/** For tests: every clip handed to the background is stored. */
+async function waitForAudioStores() {
+  while (audioStores.size) await Promise.all([...audioStores]);
+}
+
 function stableArgs(args) {
   try {
     return JSON.stringify(args);
@@ -28,6 +59,8 @@ class Agent {
     this.routeCounts = { cache: 0, cheap: 0, expensive: 0 };
     this.audioHits = 0;
     this.audioMisses = 0;
+    // The server's audio cache (Voice add-on): null until the first clip asks.
+    this._audioV2 = null;
     this.toolHits = 0;
     this.toolMisses = 0;
     this._ownsClient = !options.client;
@@ -250,7 +283,11 @@ class Agent {
     return this.client.cnoticeAdd(notice, { lasts, preview, tenant: this.tenant });
   }
 
-  async speak(text, synthesise, { voice, ttl } = {}) {
+  async speak(
+    text,
+    synthesise,
+    { voice, ttl, language = "und", speed = "1", audioFormat = "default", bytesPerSecond } = {}
+  ) {
     const voiceId = typeof voice === "string" ? voice.trim() : "";
     if (!voiceId) {
       throw new Error(
@@ -258,27 +295,49 @@ class Agent {
           "produced it; serving one voice's audio for another is audible to the caller"
       );
     }
+    const labels = [voiceId, language || "und", String(speed || "1"), audioFormat || "default"];
+    if (typeof this.client.caudioget !== "function") this._audioV2 = false;
+    if (this._audioV2 !== false) {
+      try {
+        const clip = await this.client.caudioget(text, ...labels, { tenant: this.tenant });
+        this._audioV2 = true;
+        if (clip && clip.length) {
+          this.audioHits += 1;
+          return clip;
+        }
+      } catch (error) {
+        if (!voiceAddonMissing(error)) throw error;
+        this._audioV2 = false;
+      }
+    }
     const key = JSON.stringify({ text, voice: voiceId });
-    const cached = await this.client.ctoolget("crowkis.tts", key, {
-      tenant: this.tenant,
-    });
-    if (cached !== null && cached !== undefined) {
-      const raw = Buffer.isBuffer(cached) ? cached.toString("utf8") : String(cached);
-      const audio = Buffer.from(raw, "base64");
-      if (audio.length && audio.toString("base64") === raw) {
-        this.audioHits += 1;
-        return audio;
+    if (this._audioV2 === false) {
+      const cached = await this.client.ctoolget("crowkis.tts", key, {
+        tenant: this.tenant,
+      });
+      if (cached !== null && cached !== undefined) {
+        const raw = Buffer.isBuffer(cached) ? cached.toString("utf8") : String(cached);
+        const audio = Buffer.from(raw, "base64");
+        if (audio.length && audio.toString("base64") === raw) {
+          this.audioHits += 1;
+          return audio;
+        }
       }
     }
     const audio = await synthesise(text);
     this.audioMisses += 1;
     if (audio && audio.length) {
-      await this.client.ctoolset(
-        "crowkis.tts",
-        key,
-        Buffer.from(audio).toString("base64"),
-        { ex: ttl, tenant: this.tenant }
-      );
+      if (this._audioV2) {
+        const ms = bytesPerSecond ? Math.floor((audio.length * 1000) / bytesPerSecond) : undefined;
+        storeLater(() => this.client.caudioset(text, ...labels, audio, { ex: ttl, ms, tenant: this.tenant }));
+      } else {
+        await this.client.ctoolset(
+          "crowkis.tts",
+          key,
+          Buffer.from(audio).toString("base64"),
+          { ex: ttl, tenant: this.tenant }
+        );
+      }
     }
     return audio;
   }
@@ -316,4 +375,4 @@ class Agent {
   }
 }
 
-module.exports = { Agent };
+module.exports = { Agent, voiceAddonMissing, waitForAudioStores };

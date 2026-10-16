@@ -720,6 +720,38 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
+  /** Store a spoken answer (Voice add-on): raw audio for this answer in this voice, language, speed and format. */
+  async caudioset(answer, voice, language, speed, audioFormat, audio, { ex, ms, tenant } = {}) {
+    await this._hello3();
+    const args = ["CAUDIOSET", answer, voice, language, String(speed), audioFormat, Buffer.from(audio)];
+    if (ex !== undefined && ex !== null) args.push("EX", String(ex));
+    if (ms !== undefined && ms !== null) args.push("MS", String(ms));
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return this.execute(...args);
+  }
+
+  /** The stored audio for this answer, voice, language, speed and format, or null (Voice add-on). */
+  async caudioget(answer, voice, language, speed, audioFormat, { tenant } = {}) {
+    await this._hello3();
+    const args = ["CAUDIOGET", answer, voice, language, String(speed), audioFormat];
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    const value = await this.execute(...args);
+    if (value === null || value === undefined) return null;
+    return Buffer.isBuffer(value) ? value : Buffer.from(String(value));
+  }
+
+  /** Add a voice bot's counts to the Voice page (Voice add-on): whole numbers by name. */
+  async cvoicestat(counts, { tenant } = {}) {
+    await this._hello3();
+    const args = ["CVOICESTAT"];
+    for (const [name, count] of Object.entries(counts)) args.push(name, String(Math.trunc(count)));
+    const t = tenant || this.tenant;
+    if (t) args.push("TENANT", t);
+    return this.execute(...args);
+  }
+
   async cflag(query, badAnswer, { reason, tenant } = {}) {
     await this._hello3();
     const args = ["CFLAG", query, badAnswer];

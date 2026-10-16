@@ -1167,6 +1167,54 @@ class CrowkisClient:
             parts += ["TENANT", tenant or self.tenant]
         return self.execute(*parts)
 
+    def caudioset(
+        self,
+        answer: str,
+        voice: str,
+        language: str,
+        speed: str,
+        audio_format: str,
+        audio: bytes,
+        *,
+        ex: Optional[int] = None,
+        ms: Optional[int] = None,
+        tenant: Optional[str] = None,
+    ) -> Any:
+        """Store a spoken answer (Voice add-on): raw audio bytes for this answer in
+        this voice, language, speed and format. `ms` is the clip's length."""
+        parts: List[BytesLike] = ["CAUDIOSET", answer, voice, language, speed, audio_format, audio]
+        if ex is not None:
+            parts += ["EX", str(ex)]
+        if ms is not None:
+            parts += ["MS", str(ms)]
+        if tenant or self.tenant:
+            parts += ["TENANT", tenant or self.tenant]
+        return self.execute(*parts)
+
+    def caudioget(
+        self, answer: str, voice: str, language: str, speed: str, audio_format: str, *, tenant: Optional[str] = None
+    ) -> Optional[bytes]:
+        """The stored audio for this answer, voice, language, speed and format, or
+        None (Voice add-on)."""
+        parts: List[BytesLike] = ["CAUDIOGET", answer, voice, language, speed, audio_format]
+        if tenant or self.tenant:
+            parts += ["TENANT", tenant or self.tenant]
+        value = self.execute(*parts)
+        if value is None:
+            return None
+        return value if isinstance(value, bytes) else str(value).encode()
+
+    def cvoicestat(self, counts: Dict[str, int], *, tenant: Optional[str] = None) -> Any:
+        """Add a voice bot's counts to the Voice page (Voice add-on): whole numbers,
+        names turns, served_from_cache, filler_hits, model_calls_avoided,
+        private_turns, barge_ins, latency_misses, empty_answers."""
+        parts: List[BytesLike] = ["CVOICESTAT"]
+        for name, count in counts.items():
+            parts += [name, str(int(count))]
+        if tenant or self.tenant:
+            parts += ["TENANT", tenant or self.tenant]
+        return self.execute(*parts)
+
     def cflag(self, query: str, bad_answer: str, *, reason: Optional[str] = None, tenant: Optional[str] = None) -> Any:
         args: List[BytesLike] = ["CFLAG", query, bad_answer]
         if reason:

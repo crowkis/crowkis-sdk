@@ -1401,6 +1401,265 @@ def _carries_call_context(answer: str, question: str, earlier: List[str]) -> boo
     return any(w in before and w not in asked for w in _words(answer))
 
 
+# What a caller tells the call can change the right answer to a later question
+# ("I'm allergic to peanuts", then "is pad thai safe?"). The later question alone
+# does not say so, so after such a turn nothing in the call is looked up or shared.
+_BIRTH_WORDS = frozenset(
+    {"born", "birth", "dob", "birthday", "nasci", "naci", "nací", "nacido", "nacida", "nascido",
+     "nascida", "né", "née", "paida", "janam"}
+)
+# What the caller is, has or plans: "I'm vegetarian", "I am 65", "we're travelling".
+_SELF_STATES = (("i", "am"), ("i", "m"), ("we", "are"), ("we", "re"), ("soy",), ("estoy",), ("main",), ("je", "suis"))
+_HAVING = (("i", "have"), ("we", "have"), ("i", "ve", "got"), ("we", "ve", "got"), ("tengo",), ("mujhe",))
+_MY = _POSSESSIVES | _OTHER_POSSESSIVES | {"mera", "meri", "mere"}
+# Said after "I'm" or "I have", each of these is something about the caller that can change an answer.
+_SELF_ATTRIBUTES = frozenset(
+    {"vegetarian", "vegan", "pescatarian", "diabetic", "allergic", "pregnant", "lactose", "gluten",
+     "celiac", "coeliac", "intolerant", "retired", "disabled", "deaf", "blind", "married", "single",
+     "divorced", "widowed", "unemployed", "employed", "pensioner", "senior", "student", "beginner",
+     "expert", "elderly", "nursing", "breastfeeding", "shakahari", "vegetariano", "vegetariana",
+     "vegano", "vegana", "diabético", "diabética", "alérgico", "alérgica", "embarazada", "estudiante",
+     "jubilado", "jubilada", "né", "née", "nacido", "nacida", "self", "migraine", "migraines", "arthritis",
+     "hypertension", "cholesterol", "thyroid", "epilepsy", "fever", "flu", "cough", "headache", "injury",
+     "surgery", "eczema", "psoriasis", "ulcer", "bp", "sugar", "keto", "halal", "kosher", "pacemaker",
+     "implant", "stent"}
+)
+# "I'm travelling to Goa": a plan, only with where to ("I'm planning to cancel" is not one).
+_PLAN_VERBS = frozenset(
+    {"visiting", "planning", "travelling", "traveling", "moving", "relocating", "flying", "going", "hosting"}
+)
+# "I'm 5 minutes away", "we're 10 minutes late": a number that is not an age.
+_NOT_AGE_UNITS = frozenset(
+    {"minute", "minutes", "mins", "min", "hour", "hours", "hrs", "second", "seconds", "secs", "km", "kms",
+     "mile", "miles", "meters", "metres", "blocks", "day", "days", "week", "weeks", "orders", "items",
+     "steps", "times", "percent", "pm", "am"}
+)
+_AGE_WORDS = frozenset({"year", "years", "yr", "yrs", "old", "saal", "años", "ans", "anos"})
+# Doing something to the caller's own booking, order or account ("change my flight",
+# "cancel my order"): the turns after it are steps in that task. Looking at it ("check my
+# order", "track my parcel") is not.
+_CHANGE_VERBS = frozenset(
+    {"cancel", "book", "reschedule", "change", "update", "delete", "remove", "transfer", "refund", "replace",
+     "exchange", "return", "upgrade", "downgrade", "activate", "deactivate", "close", "renew", "reserve",
+     "move", "modify", "rebook", "postpone", "extend", "pause", "resume", "block", "unblock"}
+)
+# "I'm on blood thinners": a treatment the caller is on.
+_TREATMENTS = frozenset(
+    {"blood", "medication", "medicine", "medicines", "insulin", "dialysis", "chemo", "chemotherapy",
+     "antibiotics", "steroids", "thinners", "pills", "treatment", "oxygen"}
+)
+_ARTICLE_FILLERS = frozenset({"bit", "little", "lot", "few", "couple"})
+_GENERIC_ROLES = frozenset({"customer", "customers", "user", "users", "buyer", "client", "guest", "visitor", "shopper"})
+# "I have a question" asks; "I have a 3 year old daughter" tells.
+_HAVE_NOT = frozenset(
+    {"question", "questions", "query", "doubt", "quick", "general", "problem", "issue", "complaint",
+     "request", "minute", "moment", "second", "look", "few", "couple", "idea", "feeling", "bit", "more",
+     "thing", "things", "pregunta", "duda", "problema", "momento", "queja"}
+)
+_PLANS = frozenset({"trip", "vacation", "holiday", "wedding"})
+# Part of the caller's life: told about, it can change an answer.
+_LIFE_WORDS = frozenset(
+    {"income", "salary", "age", "family", "wife", "husband", "son", "daughter", "kids", "children",
+     "child", "baby", "parents", "mother", "father", "mom", "mum", "dad", "farm", "business", "company",
+     "shop", "health", "condition", "disability", "pension", "loan", "debt", "religion", "diet", "budget",
+     "partner", "grandmother", "grandfather", "sister", "brother", "kid", "dog", "cat", "pet", "beta",
+     "beti", "maa", "papa", "umar", "bachche", "bacha", "hijo", "hija", "hijos", "madre", "padre",
+     "esposa", "esposo", "edad", "newborn", "twins", "dogs", "cats", "pets", "diet"}
+) | _PLANS
+# "my loan is not showing": a problem with the thing, not a fact about the caller.
+_NOT_TOLD = frozenset(
+    {"not", "no", "still", "showing", "missing", "pending", "stuck", "blocked", "late", "delayed", "down",
+     "broken", "wrong", "gone"}
+)
+# "my son is 12", "my budget is", "mera beta 12 saal ka hai": a life word told, not asked about.
+_TELLING_VERBS = frozenset(
+    {"is", "s", "has", "was", "are", "have", "had", "needs", "takes", "lives", "works", "eats", "hai",
+     "es", "tiene"}
+)
+# How the caller wants answers from now on ("reply only in Hindi", "keep it short"), or what
+# they live by ("I don't eat meat"). Counted only where a clause starts, so "can I keep it"
+# and "is it available only in red" are not instructions.
+_INSTRUCTIONS = _STEERING + (
+    ("reply", "in"), ("reply", "only"), ("respond", "in"), ("respond", "only"), ("answer", "in"),
+    ("answer", "only"), ("speak", "in"), ("talk", "in"), ("talk", "to", "me", "in"), ("write", "in"),
+    ("keep", "it"), ("keep", "answers"), ("keep", "your"), ("explain", "like"),
+    ("speak", "slowly"), ("speak", "slower"), ("use", "metric"), ("responde", "en"), ("habla", "en"),
+    ("i", "don", "t", "eat"), ("i", "do", "not", "eat"), ("we", "don", "t", "eat"), ("i", "take"),
+    ("i", "earn"), ("we", "earn"), ("i", "only", "speak"), ("i", "don", "t", "speak"), ("i", "was", "born"),
+    ("talk", "to", "me", "like"), ("vivo", "en"), ("i", "can", "t", "have"), ("i", "cannot", "have"),
+    ("i", "keep", "halal"), ("i", "keep", "kosher"), ("i", "live", "alone"), ("i", "live", "with"),
+)
+# Said anywhere: "mujhe Hindi mein jawab do".
+_INSTRUCTIONS_ANYWHERE = (("mein", "jawab"), ("mein", "baat"), ("mein", "bolo"), ("en", "español"), ("en", "inglés"))
+_INSTRUCTIONS_ANYWHERE_BY_FIRST = _first_words(_INSTRUCTIONS_ANYWHERE)
+# "forget it", "ignore that", "I take it", "speak in a minute", "just keep it": after these
+# phrases, a word like these (or nothing) means it is not an instruction.
+_NOT_AN_OBJECT = frozenset({"it", "that", "this", "about", "the", "a", "an", "care", "you", "your", "my", "to"})
+_NEEDS_AN_OBJECT = frozenset(
+    {("forget",), ("ignore",), ("assume",), ("pretend",), ("i", "take"), ("keep", "it"), ("reply", "in"),
+     ("respond", "in"), ("answer", "in"), ("speak", "in"), ("talk", "in"), ("write", "in"), ("talk", "to", "me", "in")}
+)
+# Words a request opens with before what it asks: "please", "can you".
+_REQUEST_OPENERS = _DISCOURSE | {"can", "could", "will", "would", "you", "kindly"}
+
+
+def _clause_starts(text: str) -> List[List[str]]:
+    """Each clause's words from where its request starts: "Okay, can you answer in Spanish"
+    gives ["answer", "in", "spanish"]."""
+    starts = []
+    for clause in _CLAUSES.split(text):
+        words = _words(clause)
+        while words and words[0] in _REQUEST_OPENERS:
+            words = words[1:]
+        if words:
+            starts.append(words)
+    return starts
+
+
+def _instructs(text: str, words: List[str]) -> bool:
+    if _has_phrase(words, _INSTRUCTIONS_ANYWHERE_BY_FIRST):
+        return True
+    for start in _clause_starts(text):
+        for phrase in _INSTRUCTIONS:
+            end = len(phrase)
+            if tuple(start[:end]) != phrase:
+                continue
+            if phrase not in _NEEDS_AN_OBJECT or (end < len(start) and start[end] not in _NOT_AN_OBJECT):
+                return True
+    return False
+
+
+def _states_self(text: str, words: List[str]) -> bool:
+    places = _proper_nouns(text)
+    for index in range(len(words)):
+        for lead in _SELF_STATES:
+            end = index + len(lead)
+            if tuple(words[index:end]) != lead or end >= len(words):
+                continue
+            x, after = words[end], words[end + 1:end + 3]
+            if x in ("a", "an"):
+                if after and after[0] not in _ARTICLE_FILLERS and not any(w in _GENERIC_ROLES for w in after):
+                    return True
+            elif _has_digit(x) or x in _AMOUNT_WORDS:
+                if not (after and after[0] in _NOT_AGE_UNITS):
+                    return True  # "I'm 65", not "I'm 5 minutes away"
+            elif x in _SELF_ATTRIBUTES or x in _CALLER_KINDS:
+                return True
+            elif x in _PLAN_VERBS:
+                if any(w in _PLANS or w in places or w in _LIFE_WORDS for w in words[end + 1:end + 5]):
+                    return True  # "I'm travelling to Goa", not "I'm planning to cancel"
+            elif x in ("in", "from", "de") and after and after[0] in places:
+                return True  # "I'm in Pune"
+            elif x == "on" and any(w in _TREATMENTS or w in _SELF_ATTRIBUTES or w == "diet" for w in words[end + 1:end + 4]):
+                return True  # "I'm on blood thinners", "I'm on a keto diet"
+        for lead in _HAVING:
+            end = index + len(lead)
+            if tuple(words[index:end]) != lead or end >= len(words):
+                continue
+            told = words[end:end + 6]
+            if any(w in _HAVE_NOT for w in told):
+                continue
+            if any(w in _LIFE_WORDS or w in _MATTERS or w in _SELF_ATTRIBUTES for w in told):
+                return True  # "I have two kids", "I have a 3 year old daughter"
+            if any(_has_digit(w) or w in _AMOUNT_WORDS for w in told) and any(w in _AGE_WORDS for w in told):
+                return True  # "tengo 65 años"; "I have 2 orders pending" is not
+        if words[index] in _MY and index + 2 < len(words) and words[index + 1] in _LIFE_WORDS:
+            told = words[index + 2]
+            then = words[index + 3] if index + 3 < len(words) else ""
+            if told == "s":  # "my wife's card" is not "my wife is ..."
+                told = then if _has_digit(then) or then in _NUMBER_WORDS else ""
+            if (told in _TELLING_VERBS and then not in _NOT_TOLD) or _has_digit(told) or told in _NUMBER_WORDS:
+                return True
+    return False
+
+
+def _acts_on_own(words: List[str]) -> bool:
+    """"I want to change my flight", "cancel my order": a step in the caller's own task,
+    with "my" right after what is to be done. "Let me check my email" is the caller's."""
+    lead = next((w for w in words if w not in _DISCOURSE), None)
+    asks_for = _has_phrase(words, _ACTION_LEADS_BY_FIRST) and not _contains(words, ("let", "me"))
+    if not (asks_for or lead in _CHANGE_VERBS):
+        return False
+    return any(
+        w in _CHANGE_VERBS and any(o in _POSSESSIVES for o in words[i + 1:i + 3])
+        for i, w in enumerate(words)
+    )
+
+
+def _describes_self(words: List[str]) -> bool:
+    """The live rule's "who the caller is", less "I'm on ...": "I'm on hold" and "I'm on
+    the website" say where the call is, not who is calling ("I'm on the premium plan"
+    still counts through the plan's name)."""
+    on = _contains(words, ("i", "m", "on")) or _contains(words, ("i", "am", "on"))
+    return _describes_caller(words) and (not on or any(w in _CALLER_KINDS for w in words))
+
+
+def _sets_context(text: str) -> bool:
+    """Whether this turn tells the call something later answers may depend on, said
+    on its own or inside a question: a health, legal or money matter, an emergency,
+    a step in the caller's own task, what the caller is, has or plans ("I'm
+    vegetarian", "I have a 3 year old daughter", "I'm planning a trip to Goa"), a
+    date of birth, or how to answer from now on ("reply only in Hindi"). Each is a
+    match on what was said, never a default: small talk, "I have a question",
+    "I'm frustrated", "I have 2 orders" and a name or number change no answer, and a call that starts
+    with them keeps its shared answers."""
+    words = _words(text)
+    return bool(words) and (
+        _unreadable(text) or _discloses(words) or _sensitive_self(words) or _urgent(words)
+        or (_diagnosis(words) and not any(w in _HAVE_NOT for w in words)
+            and not any(_contains(words, (have, article)) for have in ("have", "tengo")
+                        for article in ("a", "an", "un", "una", "el", "la")))
+        or _acts_on_own(words) or _describes_self(words) or _states_self(text, words)
+        or any(w in _BIRTH_WORDS for w in words) or _instructs(text, words)
+    )
+
+
+# An answer that does not answer (a question back, "I'm not sure", a refusal) is spoken but
+# never saved: cached, it becomes every later caller's answer, and it keeps rephrasings of the
+# question from matching a real answer.
+_NON_ANSWER_PHRASES = (
+    "could you let me know", "could you tell me", "can you tell me", "could you clarify",
+    "can you clarify", "could you specify", "can you specify", "could you provide",
+    "can you provide", "please clarify", "please specify", "please provide", "let me know the ",
+    "let me know which", "let me know what", "let me know your", "what do you mean",
+    "which one do you mean", "i'm not sure", "i am not sure", "i don't know", "i do not know",
+    "i can't help", "i cannot help", "i can't answer", "i cannot answer", "i'm unable to help",
+    "i am unable to help", "i'm unable to answer", "i am unable to answer", "i'm unable to assist",
+    "i am unable to assist", "i'm unable to find", "i am unable to find", "i don't have access", "i do not have access", "i don't have information",
+    "i do not have information", "need more information", "need more details",
+    "i need more information", "i need more details", "i'm not able to help", "i am not able to help",
+    "i'm not able to answer", "i am not able to answer", "i'm not able to access", "i am not able to access",
+    "i'm afraid i don't", "i'm afraid i can't", "i'm afraid i do not", "i'm afraid i cannot",
+    "i'm not able to share", "i am not able to share", "i'm not able to provide", "i am not able to provide",
+    "i can't provide", "i cannot provide", "i can't share", "i cannot share",
+)
+# Openers that soften a non-answer without changing it: "Unfortunately I do not know".
+_SOFTENERS = ("unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but ")
+_SENTENCE = re.compile(r"[^.!?]+[.!?]*")
+
+
+def _is_non_answer(answer: str) -> bool:
+    text = " ".join((answer or "").lower().replace("\u2019", "'").split())
+    sentences = [s.strip() for s in _SENTENCE.findall(text) if s.strip(" .!?")]
+    if not sentences:
+        return False
+    if all(s.endswith("?") for s in sentences):
+        return True
+    # Only when the answer opens with it, after at most a short courtesy or softener: "Sure! Could you
+    # tell me which city?" and "Sarah, could you tell me which order?" ask back; "To get
+    # a refund, please provide your receipt." answers.
+    leads = [sentences[0]]
+    if len(sentences) > 1 and len(sentences[0].split()) <= 4:
+        if all(s.endswith("?") for s in sentences[1:]):
+            return True  # "Happy to help! Which product do you mean?"
+        leads.append(sentences[1])
+    head, _, rest = sentences[0].partition(", ")
+    if rest and len(head.split()) <= 3:
+        leads.append(rest)
+    leads = [next((lead[len(w):] for w in _SOFTENERS if lead.startswith(w)), lead) for lead in leads]
+    return any(lead.startswith(phrase) for lead in leads for phrase in _NON_ANSWER_PHRASES)
+
+
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
 _CHAIN_LIMIT = 6
 
@@ -1565,6 +1824,9 @@ class VoiceSession:
         # (turn, whether that turn's answer may be shared): read with the turn it
         # belongs to, so a turn decided meanwhile never lends its flag.
         self._shareable = (0, False)
+        # Set once the caller tells the call something a later answer may depend on;
+        # from then on nothing in this call is looked up or shared.
+        self._tainted = False
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = threading.RLock()
         if values:
@@ -1615,7 +1877,7 @@ class VoiceSession:
         """
         text = (caller_said or "").strip()
         if (
-            len(text.split()) < self.min_words or _is_personal(text) or _lookup_only(text)
+            self._tainted or len(text.split()) < self.min_words or _is_personal(text) or _lookup_only(text)
             or self._after_urgent(text)
         ):
             return None, False
@@ -1652,6 +1914,19 @@ class VoiceSession:
             )
             decision._audio_shareable = True
             return decision
+
+        if self._tainted or _sets_context(text):
+            self._tainted = True
+            self.refused_private += 1
+            self.inferred += 1
+            return TurnDecision(
+                "infer",
+                reason=(
+                    "the caller has told this call something a later answer may depend on "
+                    "(a condition, an age, a plan, an instruction, a step in their own task); "
+                    "a shared answer to the bare question could be wrong for them"
+                ),
+            )
 
         # "Thank you" or "hello" is too short to match on meaning. With
         # short_turns on it is served on an exact match the server's decision
@@ -1912,15 +2187,21 @@ class VoiceSession:
             return _Outcome("kept", "kept to this call: the answer was built from a tool's result")
         try:
             if _is_personal(text):
-                if self._learn_personal(keyed, model_said):
+                if not self._tainted and not _is_non_answer(model_said) and self._learn_personal(keyed, model_said):
                     return _Outcome("template")
                 return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from")
+            if self._tainted:
+                self.not_shareable += 1
+                return _Outcome("kept", "kept to this call: the caller told it something the answer may depend on")
             if not cacheable:
                 self.not_shareable += 1
                 return _Outcome("kept", "kept to this call: the answer depends on what this caller said")
             if _leaks(model_said, self.values):
                 self.not_shareable += 1
                 return _Outcome("private", "kept to this call: the answer contains a value declared for this call")
+            if _is_non_answer(model_said):
+                self.not_shareable += 1
+                return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
             self.agent.learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
             return _Outcome("saved")
@@ -2118,6 +2399,7 @@ def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
             # identified this caller is kept out here, and the engine reads the
             # rest before anyone is served them.
             keyed = session._context_key(caller_said, (caller_said or "").strip()) or caller_said
+            session._tainted = session._tainted or _sets_context((caller_said or "").strip())
             _, cacheable = session._model_messages(caller_said)
             session._shareable = (session._turn, cacheable and not _carries_call_context(agent_said, keyed, earlier))
             session._record_model_turn(caller_said, agent_said)

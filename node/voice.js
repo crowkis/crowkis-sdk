@@ -1388,6 +1388,255 @@ function identifying(turn) {
   return found;
 }
 
+// What a caller tells the call can change the right answer to a later question
+// ("I'm allergic to peanuts", then "is pad thai safe?"). The later question alone
+// does not say so, so after such a turn nothing in the call is looked up or shared.
+const BIRTH_WORDS = new Set([
+  "born", "birth", "dob", "birthday", "nasci", "naci", "nací", "nacido", "nacida", "nascido",
+  "nascida", "né", "née", "paida", "janam",
+]);
+// What the caller is, has or plans: "I'm vegetarian", "I am 65", "we're travelling".
+const SELF_STATES = [["i", "am"], ["i", "m"], ["we", "are"], ["we", "re"], ["soy"], ["estoy"], ["main"], ["je", "suis"]];
+const HAVING = [["i", "have"], ["we", "have"], ["i", "ve", "got"], ["we", "ve", "got"], ["tengo"], ["mujhe"]];
+const MY = new Set([...POSSESSIVES, ...OTHER_POSSESSIVES, "mera", "meri", "mere"]);
+// Said after "I'm" or "I have", each of these is something about the caller that can change an answer.
+const SELF_ATTRIBUTES = new Set([
+  "vegetarian", "vegan", "pescatarian", "diabetic", "allergic", "pregnant", "lactose", "gluten",
+  "celiac", "coeliac", "intolerant", "retired", "disabled", "deaf", "blind", "married", "single",
+  "divorced", "widowed", "unemployed", "employed", "pensioner", "senior", "student", "beginner",
+  "expert", "elderly", "nursing", "breastfeeding", "shakahari", "vegetariano", "vegetariana",
+  "vegano", "vegana", "diabético", "diabética", "alérgico", "alérgica", "embarazada", "estudiante",
+  "jubilado", "jubilada", "né", "née", "nacido", "nacida", "self", "migraine", "migraines", "arthritis",
+  "hypertension", "cholesterol", "thyroid", "epilepsy", "fever", "flu", "cough", "headache", "injury",
+  "surgery", "eczema", "psoriasis", "ulcer", "bp", "sugar", "keto", "halal", "kosher", "pacemaker",
+  "implant", "stent",
+]);
+// "I'm travelling to Goa": a plan, only with where to ("I'm planning to cancel" is not one).
+const PLAN_VERBS = new Set(["visiting", "planning", "travelling", "traveling", "moving", "relocating", "flying", "going", "hosting"]);
+// "I'm 5 minutes away", "we're 10 minutes late": a number that is not an age.
+const NOT_AGE_UNITS = new Set([
+  "minute", "minutes", "mins", "min", "hour", "hours", "hrs", "second", "seconds", "secs", "km", "kms",
+  "mile", "miles", "meters", "metres", "blocks", "day", "days", "week", "weeks", "orders", "items",
+  "steps", "times", "percent", "pm", "am",
+]);
+const AGE_WORDS = new Set(["year", "years", "yr", "yrs", "old", "saal", "años", "ans", "anos"]);
+// Doing something to the caller's own booking, order or account ("change my flight",
+// "cancel my order"): the turns after it are steps in that task. Looking at it ("check my
+// order", "track my parcel") is not.
+const CHANGE_VERBS = new Set([
+  "cancel", "book", "reschedule", "change", "update", "delete", "remove", "transfer", "refund", "replace",
+  "exchange", "return", "upgrade", "downgrade", "activate", "deactivate", "close", "renew", "reserve",
+  "move", "modify", "rebook", "postpone", "extend", "pause", "resume", "block", "unblock",
+]);
+// "I'm on blood thinners": a treatment the caller is on.
+const TREATMENTS = new Set([
+  "blood", "medication", "medicine", "medicines", "insulin", "dialysis", "chemo", "chemotherapy",
+  "antibiotics", "steroids", "thinners", "pills", "treatment", "oxygen",
+]);
+const ARTICLE_FILLERS = new Set(["bit", "little", "lot", "few", "couple"]);
+const GENERIC_ROLES = new Set(["customer", "customers", "user", "users", "buyer", "client", "guest", "visitor", "shopper"]);
+// "I have a question" asks; "I have a 3 year old daughter" tells.
+const HAVE_NOT = new Set([
+  "question", "questions", "query", "doubt", "quick", "general", "problem", "issue", "complaint",
+  "request", "minute", "moment", "second", "look", "few", "couple", "idea", "feeling", "bit", "more",
+  "thing", "things", "pregunta", "duda", "problema", "momento", "queja",
+]);
+const PLANS = new Set(["trip", "vacation", "holiday", "wedding"]);
+// Part of the caller's life: told about, it can change an answer.
+const LIFE_WORDS = new Set([
+  "income", "salary", "age", "family", "wife", "husband", "son", "daughter", "kids", "children",
+  "child", "baby", "parents", "mother", "father", "mom", "mum", "dad", "farm", "business", "company",
+  "shop", "health", "condition", "disability", "pension", "loan", "debt", "religion", "diet", "budget",
+  "partner", "grandmother", "grandfather", "sister", "brother", "kid", "dog", "cat", "pet", "beta",
+  "beti", "maa", "papa", "umar", "bachche", "bacha", "hijo", "hija", "hijos", "madre", "padre",
+  "esposa", "esposo", "edad", "newborn", "twins", "dogs", "cats", "pets", "diet", ...PLANS,
+]);
+// "my loan is not showing": a problem with the thing, not a fact about the caller.
+const NOT_TOLD = new Set([
+  "not", "no", "still", "showing", "missing", "pending", "stuck", "blocked", "late", "delayed", "down",
+  "broken", "wrong", "gone",
+]);
+// "my son is 12", "my budget is", "mera beta 12 saal ka hai": a life word told, not asked about.
+const TELLING_VERBS = new Set([
+  "is", "s", "has", "was", "are", "have", "had", "needs", "takes", "lives", "works", "eats", "hai",
+  "es", "tiene",
+]);
+// How the caller wants answers from now on ("reply only in Hindi", "keep it short"), or what
+// they live by ("I don't eat meat"). Counted only where a clause starts, so "can I keep it"
+// and "is it available only in red" are not instructions.
+const INSTRUCTIONS = [
+  ...STEERING,
+  ["reply", "in"], ["reply", "only"], ["respond", "in"], ["respond", "only"], ["answer", "in"],
+  ["answer", "only"], ["speak", "in"], ["talk", "in"], ["talk", "to", "me", "in"], ["write", "in"],
+  ["keep", "it"], ["keep", "answers"], ["keep", "your"], ["explain", "like"],
+  ["speak", "slowly"], ["speak", "slower"], ["use", "metric"], ["responde", "en"], ["habla", "en"],
+  ["i", "don", "t", "eat"], ["i", "do", "not", "eat"], ["we", "don", "t", "eat"], ["i", "take"],
+  ["i", "earn"], ["we", "earn"], ["i", "only", "speak"], ["i", "don", "t", "speak"], ["i", "was", "born"],
+  ["talk", "to", "me", "like"], ["vivo", "en"], ["i", "can", "t", "have"], ["i", "cannot", "have"],
+  ["i", "keep", "halal"], ["i", "keep", "kosher"], ["i", "live", "alone"], ["i", "live", "with"],
+];
+// Said anywhere: "mujhe Hindi mein jawab do".
+const INSTRUCTIONS_ANYWHERE_BY_FIRST = firstWords([["mein", "jawab"], ["mein", "baat"], ["mein", "bolo"], ["en", "español"], ["en", "inglés"]]);
+// "forget it", "ignore that", "I take it", "speak in a minute", "just keep it": after these
+// phrases, a word like these (or nothing) means it is not an instruction.
+const NOT_AN_OBJECT = new Set(["it", "that", "this", "about", "the", "a", "an", "care", "you", "your", "my", "to"]);
+const NEEDS_AN_OBJECT = new Set([
+  "forget", "ignore", "assume", "pretend", "i take", "keep it", "reply in", "respond in", "answer in",
+  "speak in", "talk in", "write in", "talk to me in",
+]);
+// Words a request opens with before what it asks: "please", "can you".
+const REQUEST_OPENERS = new Set([...DISCOURSE, "can", "could", "will", "would", "you", "kindly"]);
+
+// Each clause's words from where its request starts: "Okay, can you answer in Spanish"
+// gives ["answer", "in", "spanish"].
+function clauseStarts(text) {
+  const starts = [];
+  for (const clause of String(text).split(CLAUSES)) {
+    let words = wordsOf(clause);
+    while (words.length && REQUEST_OPENERS.has(words[0])) words = words.slice(1);
+    if (words.length) starts.push(words);
+  }
+  return starts;
+}
+
+function instructs(text, words) {
+  if (hasPhrase(words, INSTRUCTIONS_ANYWHERE_BY_FIRST)) return true;
+  for (const start of clauseStarts(text)) {
+    for (const phrase of INSTRUCTIONS) {
+      const end = phrase.length;
+      if (!phrase.every((w, k) => start[k] === w)) continue;
+      if (!NEEDS_AN_OBJECT.has(phrase.join(" ")) || (end < start.length && !NOT_AN_OBJECT.has(start[end]))) return true;
+    }
+  }
+  return false;
+}
+
+function leadsAt(words, index, lead) {
+  return lead.every((w, k) => words[index + k] === w);
+}
+
+function statesSelf(text, words) {
+  const places = properNouns(text);
+  for (let index = 0; index < words.length; index += 1) {
+    for (const lead of SELF_STATES) {
+      const end = index + lead.length;
+      if (!leadsAt(words, index, lead) || end >= words.length) continue;
+      const x = words[end];
+      const after = words.slice(end + 1, end + 3);
+      if (x === "a" || x === "an") {
+        if (after.length && !ARTICLE_FILLERS.has(after[0]) && !after.some((w) => GENERIC_ROLES.has(w))) return true;
+      } else if (hasDigit(x) || AMOUNT_WORDS.has(x)) {
+        if (!(after.length && NOT_AGE_UNITS.has(after[0]))) return true; // "I'm 65", not "I'm 5 minutes away"
+      } else if (SELF_ATTRIBUTES.has(x) || CALLER_KINDS.has(x)) {
+        return true;
+      } else if (PLAN_VERBS.has(x)) {
+        // "I'm travelling to Goa", not "I'm planning to cancel"
+        if (words.slice(end + 1, end + 5).some((w) => PLANS.has(w) || places.has(w) || LIFE_WORDS.has(w))) return true;
+      } else if ((x === "in" || x === "from" || x === "de") && after.length && places.has(after[0])) {
+        return true; // "I'm in Pune"
+      } else if (x === "on" && words.slice(end + 1, end + 4).some((w) => TREATMENTS.has(w) || SELF_ATTRIBUTES.has(w) || w === "diet")) {
+        return true; // "I'm on blood thinners", "I'm on a keto diet"
+      }
+    }
+    for (const lead of HAVING) {
+      const end = index + lead.length;
+      if (!leadsAt(words, index, lead) || end >= words.length) continue;
+      const told = words.slice(end, end + 6);
+      if (told.some((w) => HAVE_NOT.has(w))) continue;
+      // "I have two kids", "I have a 3 year old daughter"
+      if (told.some((w) => LIFE_WORDS.has(w) || MATTERS.has(w) || SELF_ATTRIBUTES.has(w))) return true;
+      // "tengo 65 años"; "I have 2 orders pending" is not
+      if (told.some((w) => hasDigit(w) || AMOUNT_WORDS.has(w)) && told.some((w) => AGE_WORDS.has(w))) return true;
+    }
+    if (MY.has(words[index]) && index + 2 < words.length && LIFE_WORDS.has(words[index + 1])) {
+      let told = words[index + 2];
+      const then = index + 3 < words.length ? words[index + 3] : "";
+      // "my wife's card" is not "my wife is ..."
+      if (told === "s") told = hasDigit(then) || NUMBER_WORDS.has(then) ? then : "";
+      if ((TELLING_VERBS.has(told) && !NOT_TOLD.has(then)) || hasDigit(told) || NUMBER_WORDS.has(told)) return true;
+    }
+  }
+  return false;
+}
+
+// "I want to change my flight", "cancel my order": a step in the caller's own task,
+// with "my" right after what is to be done. "Let me check my email" is the caller's.
+function actsOnOwn(words) {
+  const lead = words.find((w) => !DISCOURSE.has(w));
+  const asksFor = hasPhrase(words, ACTION_LEADS_BY_FIRST) && !contains(words, ["let", "me"]);
+  if (!(asksFor || CHANGE_VERBS.has(lead))) return false;
+  return words.some((w, i) => CHANGE_VERBS.has(w) && words.slice(i + 1, i + 3).some((o) => POSSESSIVES.has(o)));
+}
+
+// The live rule's "who the caller is", less "I'm on ...": "I'm on hold" and "I'm on the
+// website" say where the call is, not who is calling ("I'm on the premium plan" still
+// counts through the plan's name).
+function describesSelf(words) {
+  const on = contains(words, ["i", "m", "on"]) || contains(words, ["i", "am", "on"]);
+  return describesCaller(words) && (!on || words.some((w) => CALLER_KINDS.has(w)));
+}
+
+// Whether this turn tells the call something later answers may depend on, said on its
+// own or inside a question: a health, legal or money matter, an emergency, a step in the
+// caller's own task, what the caller is, has or plans ("I'm vegetarian", "I have a 3 year
+// old daughter", "I'm planning a trip to Goa"), a date of birth, or how to answer from now
+// on ("reply only in Hindi"). Each is a match on what was said, never a default: small
+// talk, "I have a question", "I'm frustrated", "I have 2 orders" and a name or number change no answer, and a
+// call that starts with them keeps its shared answers.
+function setsContext(text) {
+  const words = wordsOf(text);
+  return words.length > 0 && (
+    unreadable(text) || discloses(words) || sensitiveSelf(words) || urgent(words) ||
+    (diagnosis(words) && !words.some((w) => HAVE_NOT.has(w)) &&
+      !["have", "tengo"].some((have) => ["a", "an", "un", "una", "el", "la"].some((article) => contains(words, [have, article])))) ||
+    actsOnOwn(words) || describesSelf(words) || statesSelf(text, words) ||
+    words.some((w) => BIRTH_WORDS.has(w)) || instructs(text, words)
+  );
+}
+
+// An answer that does not answer (a question back, "I'm not sure", a refusal) is
+// spoken but never saved: cached, it becomes every later caller's answer, and it
+// keeps rephrasings of the question from matching a real answer.
+const NON_ANSWER_PHRASES = [
+  "could you let me know", "could you tell me", "can you tell me", "could you clarify",
+  "can you clarify", "could you specify", "can you specify", "could you provide",
+  "can you provide", "please clarify", "please specify", "please provide", "let me know the ",
+  "let me know which", "let me know what", "let me know your", "what do you mean",
+  "which one do you mean", "i'm not sure", "i am not sure", "i don't know", "i do not know",
+  "i can't help", "i cannot help", "i can't answer", "i cannot answer", "i'm unable to help",
+  "i am unable to help", "i'm unable to answer", "i am unable to answer", "i'm unable to assist",
+  "i am unable to assist", "i'm unable to find", "i am unable to find", "i don't have access", "i do not have access", "i don't have information",
+  "i do not have information", "need more information", "need more details",
+  "i need more information", "i need more details", "i'm not able to help", "i am not able to help",
+  "i'm not able to answer", "i am not able to answer", "i'm not able to access", "i am not able to access",
+  "i'm afraid i don't", "i'm afraid i can't", "i'm afraid i do not", "i'm afraid i cannot",
+  "i'm not able to share", "i am not able to share", "i'm not able to provide", "i am not able to provide",
+  "i can't provide", "i cannot provide", "i can't share", "i cannot share",
+];
+// Openers that soften a non-answer without changing it: "Unfortunately I do not know".
+const SOFTENERS = ["unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but "];
+const SENTENCE = /[^.!?]+[.!?]*/g;
+
+function isNonAnswer(answer) {
+  const text = String(answer || "").toLowerCase().replace(/’/g, "'").split(/\s+/).filter(Boolean).join(" ");
+  const sentences = (text.match(SENTENCE) || []).map((s) => s.trim()).filter((s) => s.replace(/[ .!?]/g, ""));
+  if (!sentences.length) return false;
+  if (sentences.every((s) => s.endsWith("?"))) return true;
+  // Only when the answer opens with it, after at most a short courtesy or softener: "Sure! Could you
+  // tell me which city?" and "Sarah, could you tell me which order?" ask back; "To get
+  // a refund, please provide your receipt." answers.
+  const leads = [sentences[0]];
+  if (sentences.length > 1 && sentences[0].split(" ").length <= 4) {
+    if (sentences.slice(1).every((s) => s.endsWith("?"))) return true; // "Happy to help! Which product do you mean?"
+    leads.push(sentences[1]);
+  }
+  const comma = sentences[0].indexOf(", ");
+  if (comma >= 0 && sentences[0].slice(0, comma).split(" ").length <= 3) leads.push(sentences[0].slice(comma + 2));
+  return leads
+    .map((lead) => { const w = SOFTENERS.find((x) => lead.startsWith(x)); return w ? lead.slice(w.length) : lead; })
+    .some((lead) => NON_ANSWER_PHRASES.some((phrase) => lead.startsWith(phrase)));
+}
+
 // What _recordModelTurn did with an answer; the two that put it in the shared cache.
 const STORED = new Set(["saved", "template"]);
 
@@ -1523,6 +1772,9 @@ class VoiceSession {
     this._turnMark = 0;
     this._turn = 0;
     this._cacheable = false;
+    // Set once the caller tells the call something a later answer may depend on;
+    // from then on nothing in this call is looked up or shared.
+    this._tainted = false;
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
   }
@@ -1569,7 +1821,7 @@ class VoiceSession {
   _modelMessages(callerSaid) {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     if (
-      text.split(/\s+/).filter(Boolean).length < this.minWords || isPersonal(text) || lookupOnly(text) ||
+      this._tainted || text.split(/\s+/).filter(Boolean).length < this.minWords || isPersonal(text) || lookupOnly(text) ||
       this._afterUrgent(text)
     ) {
       return [null, false];
@@ -1607,6 +1859,18 @@ class VoiceSession {
       });
       decision._audioShareable = true;
       return decision;
+    }
+
+    if (this._tainted || setsContext(text)) {
+      this._tainted = true;
+      this.refusedPrivate += 1;
+      this.inferred += 1;
+      return new TurnDecision("infer", {
+        reason:
+          "the caller has told this call something a later answer may depend on " +
+          "(a condition, an age, a plan, an instruction, a step in their own task); " +
+          "a shared answer to the bare question could be wrong for them",
+      });
     }
 
     // "Thank you" or "hello" is too short to match on meaning. With shortTurns
@@ -1844,8 +2108,12 @@ class VoiceSession {
     if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on");
     try {
       if (isPersonal(text)) {
-        if (await this._learnPersonal(keyed, modelSaid)) return outcome("template");
+        if (!this._tainted && !isNonAnswer(modelSaid) && (await this._learnPersonal(keyed, modelSaid))) return outcome("template");
         return outcome("private", "about this caller, with no declared value to make a shared answer shape from");
+      }
+      if (this._tainted) {
+        this.notShareable += 1;
+        return outcome("kept", "kept to this call: the caller told it something the answer may depend on");
       }
       if (!cacheable) {
         this.notShareable += 1;
@@ -1854,6 +2122,10 @@ class VoiceSession {
       if (leaks(modelSaid, this.values)) {
         this.notShareable += 1;
         return outcome("private", "kept to this call: the answer contains a value declared for this call");
+      }
+      if (isNonAnswer(modelSaid)) {
+        this.notShareable += 1;
+        return outcome("non_answer", "not saved: the answer asks back or does not answer");
       }
       await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
@@ -2047,6 +2319,7 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
       // before anyone is served them.
       const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
       const keyed = session._contextKey(callerSaid, text) || callerSaid;
+      session._tainted = session._tainted || setsContext(text);
       session._cacheable = session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier);
       await session._recordModelTurn(callerSaid, agentSaid);
       earlier.push(callerSaid);
@@ -2090,6 +2363,8 @@ module.exports = {
   _speakable: speakable,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
+  _setsContext: setsContext,
+  _isNonAnswer: isNonAnswer,
   _abstract: abstract,
   _fill: fill,
 };

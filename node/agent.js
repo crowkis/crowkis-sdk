@@ -183,7 +183,7 @@ class Agent {
     };
   }
 
-  async ask(query, { serveAbove = 0.85, cheapAbove = 0.6, template = false, threshold } = {}) {
+  async ask(query, { serveAbove = 0.85, cheapAbove = 0.6, template = false, threshold, segment } = {}) {
     if (!(cheapAbove >= 0 && cheapAbove <= serveAbove && serveAbove <= 1)) {
       throw new Error(
         `thresholds must satisfy 0 <= cheapAbove <= serveAbove <= 1; got ` +
@@ -196,10 +196,13 @@ class Agent {
     ) {
       throw new Error(`threshold must be in 0..1, got ${threshold}`);
     }
+    // Sent only when set: answers in one segment (a reply language, a region)
+    // are never served to another.
     const hit = await this.client.cgetHit(query, {
       tenant: this.tenant,
       template,
       threshold,
+      ...(segment ? { segment } : {}),
     });
     if (!hit) {
       this.routeCounts.expensive += 1;
@@ -371,8 +374,8 @@ class Agent {
     };
   }
 
-  async learn(query, answer, { ttl, template = false } = {}) {
-    return this.client.cset(query, answer, { ttl, tenant: this.tenant, template });
+  async learn(query, answer, { ttl, template = false, segment } = {}) {
+    return this.client.cset(query, answer, { ttl, tenant: this.tenant, template, ...(segment ? { segment } : {}) });
   }
 
   routeStats() {

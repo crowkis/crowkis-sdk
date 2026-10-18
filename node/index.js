@@ -383,6 +383,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     await this.execute(...args);
   }
 
@@ -400,6 +401,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     const value = await this.execute(...args);
     if (value && typeof value === "object" && !Buffer.isBuffer(value)) return value.response || null;
     return Buffer.isBuffer(value) ? value : null;
@@ -420,6 +422,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     const value = await this.execute(...args);
     if (!value || Buffer.isBuffer(value)) return null;
     return {
@@ -499,11 +502,12 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
-  async cstale(query, tenant) {
+  async cstale(query, tenant, segment) {
     await this._hello3();
     const args = ["CSTALE", query];
     const t = tenant || this.tenant;
     if (t) args.push("TENANT", t);
+    if (segment) args.push("SEGMENT", segment);
     return this.execute(...args);
   }
 

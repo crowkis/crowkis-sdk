@@ -18,6 +18,8 @@ export interface CacheSetOptions {
   model_version?: string;
   image?: string | Buffer | Uint8Array;
   template?: boolean;
+  /** What besides the question changes the answer (reply language, region, version); answers in different segments never meet. */
+  segment?: string;
 }
 
 export interface CacheGetOptions {
@@ -30,6 +32,7 @@ export interface CacheGetOptions {
   migration_mode?: "miss" | "refresh" | "recompute" | "force_miss" | "force-miss" | string;
   image?: string | Buffer | Uint8Array;
   template?: boolean;
+  segment?: string;
 }
 
 export interface StreamCacheOptions extends CacheGetOptions, CacheSetOptions {
@@ -254,6 +257,7 @@ export interface AskOptions {
   cheapAbove?: number;
   template?: boolean;
   threshold?: number;
+  segment?: string;
 }
 
 export interface AskResult {
@@ -343,7 +347,7 @@ export class Agent {
   learn(
     query: string,
     answer: string,
-    options?: { ttl?: number; template?: boolean },
+    options?: { ttl?: number; template?: boolean; segment?: string },
   ): Promise<void>;
   routeStats(): RouteStats;
   close(): Promise<void>;

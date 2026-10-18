@@ -23,6 +23,11 @@ const NAME_LEADS = [["name", "is"], ["call", "me"], ["this", "is"]];
 // "I'm Sarah" / "i am sarah, ...": the word after is a name when capitalised, or when the phrase ends with
 // it; in a turn telling a fact only when "and" or a comma follows ("I'm diabetic." is the fact).
 const SELF_INTRO = /\b[Ii](?:['\u2019]m| am|m)\s+(\p{L}+)(\s*(?:[,.!?;]|$)|\s+(?:and|from|here|calling|speaking)\b)?/gu;
+// Words a person's name follows ("my colleague JOSE", "my son Arjun", "my teacher Mr Smith"): after
+// my/our/his/her/their/your, the next capitalised word is a name whatever the model tagged it as.
+const RELATIONS = new Set("colleague coworker friend son daughter wife husband partner mother mom mum father dad brother sister boss manager kid child baby grandma grandpa grandmother grandfather uncle aunt cousin neighbour neighbor roommate girlfriend boyfriend fiance fiancee teacher doctor client customer".split(" "));
+const POSSESSIVE = new Set("my our his her their your s".split(" ")); // "s": "my wife's sister PRIYA"
+const TITLES = new Set("mr mrs ms miss dr sir madam".split(" "));
 const DAYS = "monday tuesday wednesday thursday friday saturday sunday".split(" ");
 const CALENDAR = new Set([..."january february march april may june july august september october november december".split(" "),
   ...DAYS, ...DAYS.map((d) => d + "s")]);
@@ -44,6 +49,17 @@ function names(t, frame = null, fact = true) {
     }
   });
   for (const x of frame ? frame.identifyingTexts : []) for (const w of wordsOf(x)) found.add(w);
+  const tokens = text.match(/\p{L}+/gu) || [];
+  for (let i = 1; i < tokens.length - 1; i++) {
+    if (!RELATIONS.has(tokens[i].toLowerCase()) || !POSSESSIVE.has(tokens[i - 1].toLowerCase())) continue;
+    const nxt = tokens[i + 1];
+    // "Mr Smith", "O'Brien": the name is the word after the title or the one-letter part.
+    const words = TITLES.has(nxt.toLowerCase()) || Array.from(nxt).length === 1 ? tokens.slice(i + 1, i + 3) : [nxt];
+    for (const word of words) {
+      const low = word.toLowerCase();
+      if (word !== "I" && !FUNCTION.has(low) && !CALENDAR.has(low) && /[\p{Lu}\p{Lt}]/u.test(word)) found.add(low);
+    }
+  }
   for (const m of text.matchAll(SELF_INTRO)) {
     const word = m[1];
     const closer = m[2] === undefined ? null : m[2].trim();

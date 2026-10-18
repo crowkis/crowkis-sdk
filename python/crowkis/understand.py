@@ -128,6 +128,9 @@ entities types: person_name, id_number, contact, address, payment, date_of_birth
 own_purchase, other_person, place, tier, product, plan_product, quantity, time, condition, topic.
 List every capitalised word, name or acronym of the turn as an entity with its type (a person's name is
 person_name; CSV or SSO is topic; PayPal or MacBook is product).
+A person's name is person_name however it is written (all capitals or lowercase); a word that acts like a
+person ("Can McKenzie return items?") or that something is for ("returns for PRIYA") is a person, never a
+product or place.
 attributes: tier and location from the turn or the call state; changes_answer only if it changes the answer.
 A location is where the user is (their city or country), never a place the question is about.
 A segment is the customer's tier or plan (e.g. premium), never the topic of the question.

@@ -56,9 +56,13 @@ function stem(w) {
   return w;
 }
 
+// Neutral words a stand-alone rewrite may add although the user did not say them ("how many people live
+// there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could change
+// what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
+const QUESTION_WORDS = new Set("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split(" "));
+const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
 // Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
 // penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
-const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
 const GENERIC_FACT = new Set("allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split(" ").map(stem));
 
 function looksIdentifying(question) {
@@ -131,7 +135,7 @@ class RuleChecker {
     const source = new Set(toks(turn));
     for (const t of state.groundingSources()) for (const w of toks(t)) source.add(w);
     const stems = new Set([...source].map(stem));
-    return toks(question).filter((w) => !FUNCTION.has(w) && !source.has(w) && !stems.has(stem(w)));
+    return toks(question).filter((w) => !FUNCTION.has(w) && !source.has(w) && !stems.has(stem(w)) && !QUESTION_WORDS.has(w));
   }
 
   _lostDetail(frame, question) {

@@ -84,9 +84,13 @@ def _stem(word: str) -> str:
     return word
 
 
+# Neutral words a stand-alone rewrite may add although the user did not say them ("how many people
+# live there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could
+# change what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
+_QUESTION_WORDS = frozenset("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split())
+_CLAUSE_START = frozenset("i we you he she they it my our your his her their me".split())
 # Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
 # penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
-_CLAUSE_START = frozenset("i we you he she they it my our your his her their me".split())
 _GENERIC_FACT = frozenset(_stem(w) for w in "allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split())
 
 
@@ -188,7 +192,8 @@ class RuleChecker:
         for text in state.grounding_sources():
             source.update(_toks(text))
         stems = {_stem(w) for w in source}
-        return [w for w in _toks(question) if w not in _FUNCTION and w not in source and _stem(w) not in stems]
+        return [w for w in _toks(question) if w not in _FUNCTION and w not in source and _stem(w) not in stems
+                and w not in _QUESTION_WORDS]
 
     @staticmethod
     def _lost_detail(frame: TurnFrame, question: str) -> Optional[str]:

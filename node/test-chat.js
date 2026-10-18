@@ -512,6 +512,43 @@ test("review 4: names in the question", async () => {
     "Is pad thai safe?": { ...GENERAL, question: "Is pad thai safe for someone allergic to peanuts?" } })).route, "shared");
 });
 
+test("a rewrite may add a question word, never a fact", async () => {
+  const PERSONAL = { kind: "personal", subject: "self", confidence: 0.9 };
+  const last = async (frames) => { const { replies } = await run(frames, Object.keys(frames)); return replies[replies.length - 1]; };
+  // A word that could change what is asked ("avoid" for "good with", "cheapest", "safe") is never added.
+  assert.strictEqual((await last({ "Which foods are good with gout?": { ...GENERAL, question: "Which foods should someone with gout avoid?" } })).route, "agent");
+  assert.strictEqual((await last({ "What hotels are in Paris?": { ...GENERAL, question: "What are the cheapest hotels in Paris?",
+    entities: [{ text: "Paris", type: "place" }] } })).route, "agent");
+  // Exact words only: "tim" is not "time".
+  assert.strictEqual((await last({ "Order 4 for tim, status?": { kind: "personal", subject: "other", confidence: 0.9 },
+    "How long do refunds take?": { ...GENERAL, question: "How long do refunds take for tim?" } })).route, "agent");
+  assert.strictEqual((await last({ "How many people live in Paris?": { ...GENERAL, question: "What is the population of Paris?",
+    entities: [{ text: "Paris", type: "place" }] } })).route, "shared");
+  // Must still work: a word that would tailor the answer, never said, keeps it private.
+  assert.strictEqual((await last({ "What should I cook tonight?": { ...GENERAL, question: "What should a vegan cook tonight?" } })).route, "agent");
+});
+
+test("a name after a relation is a name whatever the model says", async () => {
+  const frames = { "My colleague JOSE needs a refund.": { kind: "personal", subject: "other", confidence: 0.9,
+    entities: [{ text: "JOSE", type: "product" }] },
+  "How long do refunds take?": { ...GENERAL, question: "How long do refunds take for JOSE?", entities: [{ text: "JOSE", type: "product" }] } };
+  const { replies } = await run(frames, Object.keys(frames));
+  assert.strictEqual(replies[replies.length - 1].route, "agent");
+  for (const [said, name] of [["My teacher Mr Smith asked about refunds.", "Smith"], ["My friend O'Brien wants a refund.", "Brien"],
+    ["My wife's sister PRIYA needs a refund.", "PRIYA"], ["My son's teacher Ms RAO needs a refund.", "RAO"]]) {
+    const wrongTag = [{ text: name, type: "product" }]; // the model mis-tags the name; fixed code must not
+    const f = { [said]: { kind: "personal", subject: "other", confidence: 0.9, entities: wrongTag },
+      "How long do refunds take?": { ...GENERAL, question: `How long do refunds take for ${name}?`, entities: wrongTag } };
+    const r = await run(f, Object.keys(f));
+    assert.strictEqual(r.replies[r.replies.length - 1].route, "agent", said);
+  }
+  // Must still work: a product or team name after a relation-like word is not a person.
+  const support = { "Is Customer Support open on Sunday?": { ...GENERAL, question: "Is Customer Support open on Sunday?",
+    entities: [{ text: "Customer Support", type: "topic" }] } };
+  const s = await run(support, Object.keys(support));
+  assert.strictEqual(s.replies[s.replies.length - 1].route, "shared");
+});
+
 test("memory keeps no email", async () => {
   const said = "I'm allergic to peanuts, email me at sarah@example.com";
   const store = new MemoryStore();

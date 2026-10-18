@@ -42,6 +42,11 @@ _NAME_LEADS = (("name", "is"), ("call", "me"), ("this", "is"))
 # with it; in a turn telling a fact only when "and" or a comma follows ("I'm diabetic." is the fact).
 _SELF_INTRO = re.compile(r"\b[Ii](?:['’]m| am|m)\s+([^\W\d_]+)(\s*(?:[,.!?;]|$)|\s+(?:and|from|here|calling|speaking)\b)?")
 _DAYS = "monday tuesday wednesday thursday friday saturday sunday".split()
+# Words a person's name follows ("my colleague JOSE", "my son Arjun", "my teacher Mr Smith"): after
+# my/our/his/her/their/your, the next capitalised word is a name whatever the model tagged it as.
+_RELATIONS = frozenset("colleague coworker friend son daughter wife husband partner mother mom mum father dad brother sister boss manager kid child baby grandma grandpa grandmother grandfather uncle aunt cousin neighbour neighbor roommate girlfriend boyfriend fiance fiancee teacher doctor client customer".split())
+_POSSESSIVE = frozenset("my our his her their your s".split())  # "s": "my wife's sister PRIYA"
+_TITLES = frozenset("mr mrs ms miss dr sir madam".split())
 _CALENDAR = frozenset("january february march april may june july august september october november december".split()
                       + _DAYS + [d + "s" for d in _DAYS])
 
@@ -61,6 +66,16 @@ def _names(text: str, frame: Optional[TurnFrame] = None, fact: bool = True) -> L
                 found.add(words[end])
     for t in frame.identifying_texts if frame else ():
         found.update(_words(t))
+    tokens = re.findall(r"[^\W\d_]+", text)
+    for i in range(1, len(tokens) - 1):
+        if tokens[i].lower() in _RELATIONS and tokens[i - 1].lower() in _POSSESSIVE:
+            nxt = tokens[i + 1]
+            # "Mr Smith", "O'Brien": the name is the word after the title or the one-letter part.
+            for word in tokens[i + 1:i + 3] if nxt.lower() in _TITLES or len(nxt) == 1 else [nxt]:
+                low = word.lower()
+                if word != "I" and low not in _FUNCTION and low not in _CALENDAR and \
+                        any(unicodedata.category(c) in ("Lu", "Lt") for c in word):
+                    found.add(low)
     for m in _SELF_INTRO.finditer(text):
         word = m.group(1)
         closer = None if m.group(2) is None else m.group(2).strip()

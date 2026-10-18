@@ -556,6 +556,43 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(last({"I'm allergic to peanuts and I live alone.": PERSONAL,
                                "Is pad thai safe?": dict(GENERAL, question="Is pad thai safe for someone allergic to peanuts?")}).route, "shared")
 
+    def test_a_rewrite_may_add_a_question_word_never_a_fact(self):
+        PERSONAL = {"kind": "personal", "subject": "self", "confidence": 0.9}
+        def last(frames):
+            _, _, replies = run(frames, list(frames))
+            return replies[-1]
+        # A word that could change what is asked ("avoid" for "good with", "cheapest", "safe") is never added.
+        self.assertEqual(last({"Which foods are good with gout?": dict(GENERAL, question="Which foods should someone with gout avoid?")}).route, "agent")
+        self.assertEqual(last({"What hotels are in Paris?": dict(GENERAL, question="What are the cheapest hotels in Paris?",
+                                                                 entities=[{"text": "Paris", "type": "place"}])}).route, "agent")
+        # Exact words only: "tim" is not "time".
+        self.assertEqual(last({"Order 4 for tim, status?": {"kind": "personal", "subject": "other", "confidence": 0.9},
+                               "How long do refunds take?": dict(GENERAL, question="How long do refunds take for tim?")}).route, "agent")
+        self.assertEqual(last({"How many people live in Paris?": dict(GENERAL, question="What is the population of Paris?",
+                                                                      entities=[{"text": "Paris", "type": "place"}])}).route, "shared")
+        # Must still work: a word that would tailor the answer, never said, keeps it private.
+        self.assertEqual(last({"What should I cook tonight?": dict(GENERAL, question="What should a vegan cook tonight?")}).route, "agent")
+
+    def test_a_name_after_a_relation_is_a_name_whatever_the_model_says(self):
+        frames = {"My colleague JOSE needs a refund.": {"kind": "personal", "subject": "other", "confidence": 0.9,
+                                                       "entities": [{"text": "JOSE", "type": "product"}]},
+                  "How long do refunds take?": dict(GENERAL, question="How long do refunds take for JOSE?",
+                                                    entities=[{"text": "JOSE", "type": "product"}])}
+        _, _, replies = run(frames, list(frames))
+        self.assertEqual(replies[-1].route, "agent")
+        for said, name in (("My teacher Mr Smith asked about refunds.", "Smith"), ("My friend O'Brien wants a refund.", "Brien"),
+                           ("My wife's sister PRIYA needs a refund.", "PRIYA"), ("My son's teacher Ms RAO needs a refund.", "RAO")):
+            wrong_tag = [{"text": name, "type": "product"}]  # the model mis-tags the name; fixed code must not
+            frames = {said: {"kind": "personal", "subject": "other", "confidence": 0.9, "entities": wrong_tag},
+                      "How long do refunds take?": dict(GENERAL, question=f"How long do refunds take for {name}?", entities=wrong_tag)}
+            _, _, replies = run(frames, list(frames))
+            self.assertEqual(replies[-1].route, "agent", said)
+        # Must still work: a product or team name after a relation-like word is not a person.
+        frames = {"Is Customer Support open on Sunday?": dict(GENERAL, question="Is Customer Support open on Sunday?",
+                                                               entities=[{"text": "Customer Support", "type": "topic"}])}
+        _, _, replies = run(frames, list(frames))
+        self.assertEqual(replies[-1].route, "shared")
+
     def test_memory_keeps_no_email(self):
         said = "I'm allergic to peanuts, email me at sarah@example.com"
         store = MemoryStore()

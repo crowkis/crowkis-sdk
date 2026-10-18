@@ -25,7 +25,7 @@ class FakeAgent:
             return {"route": "cache", "answer": self.store[key], "confidence": 0.99}
         return {"route": "expensive", "answer": None, "confidence": 0.0}
 
-    def learn(self, key, answer, ttl=None, template=False):
+    def learn(self, key, answer, ttl=None, template=False, segment=None):
         self.store[key] = answer
         self.saved.append((key, answer, ttl))
 
@@ -278,13 +278,13 @@ class BargeInTests(unittest.TestCase):
     def test_an_old_turn_finishing_late_is_never_saved(self):
         agent = FakeAgent()
         frames = {"Do you price match?": general("Do you price match?"),
-                  "Do you ship to Canada?": general("Do you ship to Canada?")}
+                  "Do you ship to Canada?": general("Do you ship to Canada?", entities=[{"text": "Canada", "type": "place"}])}
         s = CallSession(agent, Scripted(frames))
         old = s.handle("Do you price match?")
         new = s.handle("Do you ship to Canada?")
         self.assertEqual(s.record_answer(old, "Yes, we match prices."), "stale")
         self.assertEqual(s.record_answer(new, "Yes, we ship to Canada."), "saved")
-        self.assertEqual([k for k, _, _ in agent.saved], ["[kb=1] Do you ship to Canada?"])
+        self.assertEqual([k for k, _, _ in agent.saved], ["Do you ship to Canada?"])
 
 
 class PersonalShapeTests(unittest.TestCase):

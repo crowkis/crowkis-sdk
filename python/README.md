@@ -43,8 +43,9 @@ pip install crowkis
 ## Run a Crowkis server
 
 ```bash
-docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
-  crowkis/crowkis:latest server --data /data/.crow
+docker run -d --name crowkis -p 127.0.0.1:6383:6383 -p 127.0.0.1:6384:6384 -e CROWKIS_PROTECTED_MODE=off -e CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0 -v crowkis-data:/data crowkis/crowkis:latest
+# Reachable from this machine only. To serve other machines, publish 6383 and set
+# -e CROWKIS_AUTH_TOKEN=<a long random secret> instead of CROWKIS_PROTECTED_MODE=off.
 ```
 
 The server listens on `6383` (cache/RESP), `6384` (dashboard/HTTP), and `6385` (gRPC).
@@ -124,6 +125,34 @@ mem = CrowkisMemory(agent="support-bot", user="alice")
 mem.remember("Alice prefers email over phone")
 mem.recall("how should I contact Alice?")   # semantic recall
 ```
+
+## Chat apps
+
+A chat turn often depends on what the user said earlier ("I'm allergic to peanuts", then
+"is pad thai safe?"). `Chat` turns each message into one stand-alone question that carries
+it ("Is pad thai safe for someone with a peanut allergy?"), checks it with fixed rules,
+looks it up, and on a miss lets your model answer that question alone, so the answer can be
+shared. Anything personal, urgent, part of a booking or unclear is answered with the whole
+chat and never cached.
+
+```python
+from crowkis import Agent, Chat, CrowkisClient, LLMUnderstander
+
+agent = Agent("support-bot", client=CrowkisClient(tenant="acme"))
+chat = Chat(agent, LLMUnderstander(complete), system="You are Acme's assistant.")
+
+reply = chat.turn(thread_id, messages, answer=complete)   # messages: the whole chat
+print(reply.text, reply.from_cache, reply.outcome, reply.reason)
+```
+
+`complete(messages) -> str` is your model; the same function does both jobs (reading each turn
+into a question, and answering). `reply.outcome` is `served` (from the cache), `saved` (answered
+and shared), `not_shared` (answered for this user only; `reply.reason` says why) or
+`refused:<why>` (answered, but the answer was not kept). If the cache cannot be reached the user
+still gets the model's answer, with `outcome` `refused:write_failed`. Per thread, `Chat` keeps a small memory (facts,
+topic, reply language), never the transcript; pass `store=` with `load`/`save` to keep it
+across several servers. The reply language is part of the cache identity: a Hindi chat never
+gets the English answer.
 
 ## Voice agents
 

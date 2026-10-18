@@ -26,7 +26,8 @@ class SharingTests(unittest.TestCase):
         v = check("How long does shipping take?", question="How long does shipping take?")
         self.assertTrue(v.shared)
         self.assertEqual(v.route, SHARED)
-        self.assertEqual(v.key, "[kb=1] How long does shipping take?")
+        self.assertEqual(v.key, "How long does shipping take?")
+        self.assertEqual(v.segment, "kb=1;lang=und;channel=chat")
 
     def test_a_name_said_with_the_question_never_reaches_the_key(self):
         v = check("What time is check-in? Sarah here.", question="What time is check-in?",
@@ -132,8 +133,9 @@ class KeyTests(unittest.TestCase):
                         attributes={"segment": {"value": "premium", "changes_answer": True}})
         no_change = check("I'm premium, do you have parking?", question="Do you have parking?",
                           attributes={"segment": {"value": "premium", "changes_answer": False}})
-        self.assertIn("segment=premium", changes.key)
-        self.assertNotIn("segment", no_change.key)
+        self.assertIn("segment=premium", changes.segment)
+        self.assertNotIn("segment=", no_change.segment)
+        self.assertEqual(changes.key, "How long does shipping take?", "the key is the question alone")
 
     def test_a_place_question_carries_the_calls_location(self):
         state = CallState()
@@ -144,7 +146,7 @@ class KeyTests(unittest.TestCase):
         v = check("Do they have steak there?", state, question="Does The Press Bistro have steak?",
                   question_type="place_fact", uses_state=True)
         self.assertTrue(v.shared)
-        self.assertIn("region=laguna beach", v.key)
+        self.assertIn("region=laguna beach", v.segment)
 
     def test_expiry_follows_the_question_type(self):
         self.assertIsNone(check("refund policy?", question="What is your refund policy?").ttl)
@@ -157,7 +159,7 @@ class KeyTests(unittest.TestCase):
         v1 = check(turn, question=turn, checker=RuleChecker(knowledge_version="1"))
         v2 = check(turn, question=turn, checker=RuleChecker(knowledge_version="2"))
         self.assertTrue(v1.shared and v2.shared)
-        self.assertNotEqual(v1.key, v2.key)
+        self.assertNotEqual(v1.segment, v2.segment)
 
 
 if __name__ == "__main__":

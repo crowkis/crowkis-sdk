@@ -1241,6 +1241,15 @@ module.exports = {
     return require("./realtime.js").RealtimeGate;
   },
   // Turn understanding: understand once, check with fixed rules, route by contract.
+  get Chat() {
+    return require("./chat.js").Chat;
+  },
+  get ChatConflict() {
+    return require("./chat.js").ChatConflict;
+  },
+  get MemoryStore() {
+    return require("./chat.js").MemoryStore;
+  },
   get CallSession() {
     return require("./session.js").CallSession;
   },

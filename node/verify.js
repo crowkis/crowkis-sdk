@@ -10,7 +10,13 @@
 //   V4 owned record / own purchase     V9 a step of a task in progress goes to the agent
 //   V5 identifying details in the key
 
+const zlib = require("node:zlib");
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("./turn.js");
+
+// Facts that tailor an answer to the caller: what they have, how old, where and when.
+// Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from fixed
+// code; a place or time in an earlier shared question is only its topic ("France").
+const TOLD_TYPES = new Set(["condition"]);
 
 const URGENT = "urgent", TASK = "task", SHARED = "shared", PERSONAL = "personal", TOOLS = "tools", AGENT = "agent";
 
@@ -27,7 +33,8 @@ other another own just only also more most less least very please get got gettin
 using apply applying offer offers offered available availability allowed allow include includes included work works
 working cost costs charge charged charges price pricing fee fees option options way ways happen happens like
 differ different one two three four five six seven eight nine ten first second third time times day days
-tell find found look looking show give know serve serves served recommend suggest`.split(/\s+/));
+tell find found look looking show give know serve serves served recommend suggest
+someone somebody anyone person people year years old aged`.split(/\s+/));
 
 const NUMWORDS = { one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10" };
 const UNITS = /^\s*(rupees?|rs|inr|dollars?|usd|items?|people|persons?|days?|weeks?|months?|years?|hours?|kg|gb|inch(es)?|%)/;
@@ -43,10 +50,16 @@ function stem(w) {
   for (const suffix of ["ing", "ed", "es", "s"]) {
     if (w.length > 4 && w.endsWith(suffix)) { w = w.slice(0, -suffix.length); break; }
   }
+  if (w.length > 6 && w.endsWith("ic")) w = w.slice(0, -2); // allergic/allergy, diabetic/diabetes; not topic, music
   if (w.length > 3 && w.endsWith("e")) w = w.slice(0, -1);
   if (w.length > 3 && (w.endsWith("y") || w.endsWith("i"))) w = w.slice(0, -1);
   return w;
 }
+
+// Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
+// penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
+const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
+const GENERIC_FACT = new Set("allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split(" ").map(stem));
 
 function looksIdentifying(question) {
   if (EMAIL.test(question) || PHONE.test(question)) return true;
@@ -60,17 +73,20 @@ function looksIdentifying(question) {
 }
 
 class Verdict {
-  constructor(shared, route, reasons = [], question = null, attributes = {}, key = null, ttl = null) {
-    Object.assign(this, { shared, route, reasons, question, attributes, key, ttl });
+  // `segment`: the SEGMENT the answer is stored and looked up under (knowledge version, reply
+  // language, region and tier, channel). Answers in different segments never meet.
+  constructor(shared, route, reasons = [], question = null, attributes = {}, key = null, ttl = null, segment = null) {
+    Object.assign(this, { shared, route, reasons, question, attributes, key, ttl, segment });
   }
 }
 
 class RuleChecker {
-  constructor({ confidenceFloor = 0.6, ttl = {}, knowledgeVersion = "1" } = {}) {
+  constructor({ confidenceFloor = 0.6, ttl = {}, knowledgeVersion = "1", channel = "chat" } = {}) {
     if (!(confidenceFloor >= 0 && confidenceFloor <= 1)) throw new Error(`confidenceFloor must be in 0..1, got ${confidenceFloor}`);
     this.confidenceFloor = confidenceFloor;
     this.ttl = { ...DEFAULT_TTL, ...ttl };
     this.knowledgeVersion = String(knowledgeVersion);
+    this.channel = String(channel).split(/\s+/).filter(Boolean).join(" ").toLowerCase() || "chat";
   }
 
   check(frame, turn, state) {
@@ -88,13 +104,16 @@ class RuleChecker {
     if (frame.identifyingTexts.some((t) => low.includes(t.toLowerCase())) || looksIdentifying(question)) reasons.push("V5_identifying");
     const added = this._ungrounded(question, turn, state);
     if (added.length) reasons.push("V6_ungrounded:" + added.slice(0, 3).join(","));
-    const lost = this._lostDetail(frame, question);
+    const lost = this._lostDetail(frame, question) || RuleChecker._droppedStatement(state, question);
     if (lost) reasons.push("V7_lost:" + lost);
     if (reasons.length) return new Verdict(false, AGENT, reasons);
 
-    const attrs = this._keyAttributes(frame, state);
+    const attrs = this._keyAttributes(frame, state, question);
     const ttl = frame.questionType in this.ttl ? this.ttl[frame.questionType] : this.ttl.other;
-    return new Verdict(true, SHARED, [], question, attrs, this.buildKey(question, attrs), ttl);
+    // A language the caller asked for wins over the language this turn happens to be in.
+    const language = state.language || frame.language;
+    return new Verdict(true, SHARED, [], question, attrs, this.buildKey(question, attrs), ttl,
+      this.buildSegment(attrs, language, { told: RuleChecker._tailoring(frame, state, question) }));
   }
 
   /** While a task is running, a reply to the agent's own question is a step of it. */
@@ -127,7 +146,47 @@ class RuleChecker {
     return null;
   }
 
-  _keyAttributes(frame, state) {
+  // A fact the caller stated in this chat that the question does not carry. Fixed code, so the
+  // allergy case never rests on the model having tagged the allergy: the question must keep
+  // at least one content word of each such turn. A turn with no readable word (another
+  // script) cannot be checked, so it keeps the question private.
+  static _droppedStatement(state, question) {
+    const qstems = new Set(toks(question).map(stem));
+    for (const turn of state.stated) {
+      let words = toks(turn).filter((w) => !FUNCTION.has(w) && (w.length > 2 || /^\d+$/.test(w)));
+      // "allergies" alone does not carry "allergic to penicillin": the specific word must be there.
+      const specific = words.filter((w) => !GENERIC_FACT.has(stem(w)));
+      if (specific.length) words = specific;
+      if (!words.length || !words.some((w) => qstems.has(stem(w)))) return turn;
+      // Every item of a list is carried: "penicillin and peanuts" is not "peanuts".
+      const all = toks(turn);
+      for (let i = 0; i < all.length; i++) {
+        // "and I live alone" starts a new clause; it is not a list.
+        if ((all[i] !== "and" && all[i] !== "or") || (i + 1 < all.length && CLAUSE_START.has(all[i + 1]))) continue;
+        for (const side of [all.slice(0, i).reverse(), all.slice(i + 1)]) {
+          const item = side.find((x) => !FUNCTION.has(x));
+          if (item && (item.length > 2 || /^\d+$/.test(item)) && !GENERIC_FACT.has(stem(item)) && !qstems.has(stem(item))) return turn;
+        }
+      }
+    }
+    return null;
+  }
+
+  // What the question carries from what the caller told (their facts, the details of this turn):
+  // a short hash of those words, or null for a question anyone could ask. Two callers with a
+  // peanut allergy share answers; peanut and shellfish never do.
+  static _tailoring(frame, state, question) {
+    const told = [...state.stated,
+      ...state.facts.filter((f) => TOLD_TYPES.has(f.split(":")[0])).map((f) => f.split(":").slice(1).join(":")),
+      // In the question itself only a condition tailors it ("for someone with a peanut allergy"); a
+      // place, time or amount there is part of what anyone could ask.
+      ...frame.entities.filter((e) => e.type === "condition" && !e.identifying).map((e) => e.text)];
+    const toldStems = new Set(told.flatMap((t) => toks(t)).filter((w) => !FUNCTION.has(w)).map(stem));
+    const carried = [...new Set(toks(question).filter((w) => !FUNCTION.has(w)).map(stem))].filter((w) => toldStems.has(w)).sort();
+    return carried.length ? (zlib.crc32(Buffer.from(carried.join(" "))) >>> 0).toString(16).padStart(8, "0") : null;
+  }
+
+  _keyAttributes(frame, state, question) {
     const attrs = {};
     for (const name of ["segment", "region"]) {
       const attr = frame.attributes[name];
@@ -138,14 +197,34 @@ class RuleChecker {
       const region = frame.attributes.region || state.attributes.region;
       if (region) attrs.region = region.normalised;
     }
+    // What the question already says keeps it apart by itself ("the capital of France" is not "the
+    // capital of Spain"); in the segment too it would only split equal questions.
+    const qwords = new Set(toks(question));
+    for (const [name, value] of Object.entries(attrs)) {
+      // The place itself, all of it, word for word: "goa" of "goa, india"; "new york" is not "new".
+      const words = toks(value.split(",")[0]).filter((w) => !FUNCTION.has(w));
+      if (words.length && words.every((w) => qwords.has(w))) delete attrs[name];
+    }
     return attrs;
   }
 
-  /** `[kb=<version>; region=...; segment=...] <question>`: one key per meaning, tier, place and version. */
+  /** The question alone: it is what is embedded and matched, so nothing else may be in its text. */
   buildKey(question, attrs) {
-    const parts = [`kb=${this.knowledgeVersion}`, ...Object.keys(attrs).sort().map((k) => `${k}=${attrs[k]}`)];
-    return `[${parts.join("; ")}] ${question.split(/\s+/).filter(Boolean).join(" ")}`;
+    return question.split(/\s+/).filter(Boolean).join(" ");
+  }
+
+  // `kb=<version>;lang=<language>;region=...;segment=...;channel=<channel>[;told=<hash>]`. A new
+  // version retires old answers. `told` when the question carries facts the user told (an allergy,
+  // an age): "avoid it" for someone with a peanut allergy is wrong for someone who asked only "is pad
+  // thai safe?", and a near match would serve it. Tailored answers only meet the same facts.
+  buildSegment(attrs, language, { told = null } = {}) {
+    let parts = [`kb=${this.knowledgeVersion}`, `lang=${language || "und"}`,
+      ...Object.keys(attrs).sort().map((k) => `${k}=${attrs[k]}`), `channel=${this.channel}`];
+    if (told) parts.push(`told=${told}`);
+    // A value can never add or change a field.
+    parts = parts.map((p) => { const at = p.indexOf("="); return p.slice(0, at + 1) + p.slice(at + 1).replace(/[;=]/g, "_"); });
+    return parts.map((p) => p.split(/\s+/).filter(Boolean).join(" ")).join(";");
   }
 }
 
-module.exports = { RuleChecker, Verdict, DEFAULT_TTL, URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT };
+module.exports = { RuleChecker, Verdict, DEFAULT_TTL, URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT, _FUNCTION: FUNCTION, _NUMWORDS: NUMWORDS };

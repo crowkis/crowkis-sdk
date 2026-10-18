@@ -122,6 +122,9 @@ export interface SimResult {
   similarity: number;
 }
 
+/** The short name (like `new Redis()`): the same class. */
+export { CrowkisClient as Crowkis };
+
 export class CrowkisClient {
   constructor(options?: CrowkisClientOptions);
   connect(): Promise<void>;
@@ -168,6 +171,48 @@ export class CrowkisClient {
     fn: (query: string) => Promise<string | Buffer | Uint8Array> | string | Buffer | Uint8Array,
     options?: CacheGetOptions & CacheSetOptions,
   ): Promise<string>;
+  // High-level, model-agnostic cache API.
+  /** The cached answer for a prompt worded any way, or null. */
+  lookup(prompt: string, options?: CacheGetOptions): Promise<CacheHit | null>;
+  /** Cache an answer for a prompt (`ttl` in seconds). */
+  store(prompt: string, answer: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<void>;
+  /** The cached answer, else `compute(prompt)` (any model), cached and returned. */
+  ask(
+    prompt: string,
+    compute: (prompt: string) => Promise<string | Buffer | Uint8Array> | string | Buffer | Uint8Array,
+    options?: CacheGetOptions & CacheSetOptions,
+  ): Promise<string>;
+  /** Wrap any function whose first argument is the prompt in a semantic cache. */
+  cached<A extends unknown[]>(
+    fn: (prompt: string, ...rest: A) => Promise<string | Buffer | Uint8Array> | string | Buffer | Uint8Array,
+    options?: CacheGetOptions & CacheSetOptions,
+  ): (prompt: string, ...rest: A) => Promise<string>;
+  /** `ask`, streamed: chunks of the cached answer, or of `compute`'s as it is cached. */
+  stream(
+    prompt: string,
+    compute: (
+      prompt: string,
+    ) =>
+      | AsyncIterable<string | Buffer | Uint8Array>
+      | Iterable<string | Buffer | Uint8Array>
+      | Promise<AsyncIterable<string | Buffer | Uint8Array> | Iterable<string | Buffer | Uint8Array>>
+      | string
+      | Buffer
+      | Uint8Array,
+    options?: StreamCacheOptions,
+  ): AsyncIterable<string | Buffer | Uint8Array>;
+  similar(prompt: string, options?: { k?: number; tenant?: string }): Promise<SimResult[]>;
+  embed(text: string): Promise<number[]>;
+  flush(options?: { tenant?: string }): Promise<number>;
+  // Agent memory (also through `@crowkis/client/memory`); each replies with the server's answer.
+  cmemset(agent: string, fact: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
+  cmemget(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
+  cmemextract(agent: string, conversation: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
+  cmemhistory(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
+  cmemforget(agent: string, options?: { query?: string; user?: string; threshold?: number; tenant?: string }): Promise<unknown>;
+  cmemlink(agent: string, subject: string, relation: string, object: string, options?: { user?: string; tenant?: string }): Promise<unknown>;
+  cmemgraph(agent: string, entity: string, options?: { user?: string; depth?: number; tenant?: string }): Promise<unknown>;
+  cmemasof(agent: string, query: string, unixMs: number, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
   streamGetOrCompute(
     query: string,
     fn: (
@@ -636,4 +681,229 @@ export class RealtimeGate {
   handle(event: unknown): Promise<RealtimeClientEvent[]>;
   stats(): RealtimeStats;
   toString(): string;
+}
+// --- Turn understanding (CallSession, Chat) ---------------------------------------------
+
+export type TurnKind = "general" | "personal" | "live" | "action" | "dialogue" | "chitchat" | "sensitive" | "unclear";
+export type Route = "urgent" | "task" | "shared" | "personal" | "tools" | "agent" | "filler";
+export type QuestionType = "policy" | "how_to" | "product_fact" | "place_fact" | "search" | "other";
+
+export class Entity {
+  text: string;
+  type: string;
+  identifying: boolean;
+  answerRelevant: boolean;
+  static fromDict(data: Record<string, unknown>): Entity;
+}
+
+export class Attribute {
+  value: string;
+  normalised: string;
+  changesAnswer: boolean;
+  static fromDict(data: unknown): Attribute | null;
+}
+
+/** What turn understanding says about one caller turn. Parsing is fail-closed. */
+export class TurnFrame {
+  kind: TurnKind;
+  urgent: boolean;
+  subject: "none" | "self" | "other";
+  taskStep: boolean;
+  confidence: number;
+  abstain: boolean;
+  entities: Entity[];
+  attributes: Record<string, Attribute>;
+  usesState: boolean;
+  question: string | null;
+  questionType: QuestionType;
+  /** The language the reply must be in ("hi", "en"), or null. */
+  language: string | null;
+  static fromDict(data: unknown): TurnFrame;
+  readonly identifyingTexts: string[];
+  readonly details: Entity[];
+  readonly memorable: Entity[];
+  readonly isPureAcknowledgement: boolean;
+}
+
+/** Per-call memory as structure, not transcript. */
+export class CallState {
+  activeQuestion: string | null;
+  activeKind: string | null;
+  facts: string[];
+  agentMentions: string[];
+  task: "none" | "searching" | "booking" | "ordering" | "account_action";
+  attributes: Record<string, Attribute>;
+  subjectFocus: string;
+  identity: "anonymous" | "identified" | "verified";
+  lastReply: string;
+  language: string | null;
+  /** Turns in which the caller told something later answers depend on; kept with the chat only. */
+  stated: string[];
+  privateWords: string[];
+  noteStated(turn: string): void;
+  notePrivate(words: Iterable<string>): void;
+  isPrivate(word: string): boolean;
+  toDict(): Record<string, unknown>;
+  static fromDict(data: unknown): CallState;
+  noteAgentReply(text: string, mentions?: string[], task?: string | null): void;
+  startTask(task: string): void;
+  endTask(): void;
+  setIdentity(identity: "anonymous" | "identified" | "verified"): void;
+  apply(frame: TurnFrame, options: { shared: boolean }): void;
+  snapshot(): Record<string, unknown>;
+  groundingSources(): string[];
+  clone(): CallState;
+}
+
+export class Verdict {
+  shared: boolean;
+  route: Route;
+  reasons: string[];
+  question: string | null;
+  attributes: Record<string, string>;
+  /** The question alone. */
+  key: string | null;
+  ttl: number | null;
+  /** SEGMENT the answer is stored and looked up under: version, language, region, tier, channel. */
+  segment: string | null;
+}
+
+export interface RuleCheckerOptions {
+  /** Calibrate per business on real calls. Default 0.6. */
+  confidenceFloor?: number;
+  /** Expiry per question type in seconds; null = until the knowledge version changes. */
+  ttl?: Partial<Record<QuestionType, number | null>>;
+  /** Bump when policies or prices change: every old key retires at once. */
+  knowledgeVersion?: string;
+  /** Goes in the segment: "chat" (default) or "voice", so the two never share answers. */
+  channel?: string;
+}
+
+/** The fixed sharing rules (V1-V9) and the key builder. */
+export class RuleChecker {
+  constructor(options?: RuleCheckerOptions);
+  check(frame: TurnFrame, turn: string, state: CallState): Verdict;
+  buildKey(question: string, attrs: Record<string, string>): string;
+  buildSegment(attrs: Record<string, string>, language: string | null, options?: { told?: string | null }): string;
+}
+
+export interface Understander {
+  understand(turn: string, state: CallState): TurnFrame | Promise<TurnFrame>;
+}
+
+/** Exact repeats of already-verified questions only: the safe fallback with no model. */
+export class ReplayUnderstander implements Understander {
+  constructor(known?: Record<string, QuestionType | string>);
+  remember(turn: string, question: string, questionType?: string): void;
+  understand(turn: string, state?: CallState): TurnFrame;
+  readonly size: number;
+}
+
+export type ChatMessage = { role: string; content: string };
+
+/** Interim understander over the app's own LLM (adds one model call per turn). */
+export class LLMUnderstander implements Understander {
+  constructor(complete: (messages: ChatMessage[]) => string | Promise<string>, options?: { business?: string });
+  messages(turn: string, state: CallState): ChatMessage[];
+  understand(turn: string, state: CallState): Promise<TurnFrame>;
+}
+
+export class WithFallback implements Understander {
+  constructor(primary: Understander, fallback: Understander);
+  primaryFailures: number;
+  understand(turn: string, state: CallState): Promise<TurnFrame>;
+}
+
+export class TurnResult {
+  turnId: number;
+  route: Route;
+  /** What to say now (cache hit or filler), else null. */
+  text: string | null;
+  needsModel: boolean;
+  /** Exactly what the model reads; null = the whole call. */
+  messages: ChatMessage[] | null;
+  frame: TurnFrame | null;
+  verdict: Verdict | null;
+  reason: string;
+  readonly servedFromCache: boolean;
+}
+
+export interface CallSessionOptions {
+  checker?: RuleChecker;
+  onUrgent?: (turn: string, frame: TurnFrame) => void | Promise<void>;
+  replay?: ReplayUnderstander;
+  serveAbove?: number;
+  /** Hard limit on the cache lookup (ms). Default 300. */
+  latencyBudgetMs?: number | null;
+  /** Hard limit on understanding (ms); past it the safe fallback or the agent decides. Default 250. */
+  understandBudgetMs?: number | null;
+  fillers?: Record<string, string>;
+  /** "full" (default), "replay_only" (no model) or "off" (share nothing). */
+  mode?: "full" | "replay_only" | "off";
+  /** Monitoring: routes, reasons, de-identified keys; never the caller's raw words. */
+  onEvent?: (event: Record<string, unknown>) => void;
+  /** The business's pre-approved reply to an emergency (its helplines). Never cached. */
+  urgentReply?: string | null;
+  /** The business's own system for "my balance", "my booking": the reply, or null for the model. Never cached. */
+  onTools?: (turn: string, frame: TurnFrame) => string | null | Promise<string | null>;
+}
+
+/** One call or chat thread on turn understanding v2.2. */
+export class CallSession {
+  constructor(agent: Agent, understander: Understander, options?: CallSessionOptions);
+  state: CallState;
+  handle(turn: string): Promise<TurnResult>;
+  recordAnswer(result: TurnResult, answer: string, options?: { mentions?: string[]; task?: string | null }): Promise<string>;
+  cancel(): boolean;
+  setMode(mode: "full" | "replay_only" | "off"): void;
+  registerShape(field: string, template: string, options?: { requires?: "anonymous" | "identified" | "verified" }): void;
+  phrase(field: string, value: unknown, options?: { subject?: string }): string | null;
+  saveCheck(answer: string, verdict: Verdict, frame?: TurnFrame | null): string | null;
+  stats(): Record<string, number>;
+  /** The thread's memory for the app's store, between turns (no transcript). */
+  export(): Record<string, unknown>;
+  static restore(agent: Agent, understander: Understander, data: unknown, options?: CallSessionOptions): CallSession;
+}
+
+/** Where Chat keeps each thread's memory; MemoryStore by default. `save` returns false when the thread moved on. */
+export interface ChatStore {
+  load(threadId: string): [Record<string, unknown> | null, number] | Promise<[Record<string, unknown> | null, number]>;
+  save(threadId: string, data: Record<string, unknown>, version: number): boolean | Promise<boolean>;
+  /** Needed for `Chat.forget` (erasure). */
+  delete?(threadId: string): void | Promise<void>;
+}
+
+export class MemoryStore implements ChatStore {
+  constructor(options?: { maxThreads?: number });
+  load(threadId: string): [Record<string, unknown> | null, number];
+  save(threadId: string, data: Record<string, unknown>, version: number): boolean;
+  delete(threadId: string): void;
+}
+
+export class ChatConflict extends Error {}
+
+export interface ChatOptions extends CallSessionOptions {
+  store?: ChatStore;
+  /** The business's instructions, sent with every shared question. */
+  system?: string;
+  channel?: string;
+  knowledgeVersion?: string;
+}
+
+export interface ChatReply {
+  text: string;
+  route: Route;
+  fromCache: boolean;
+  /** saved | not_shared | refused:<why> | served */
+  outcome: string;
+  /** Why it went this route ("V3_not_general", "cache hit", ...). */
+  reason: string;
+}
+
+/** Cache a chat app's answers safely: `await chat.turn(threadId, messages, model)`. */
+export class Chat {
+  constructor(agent: Agent, understander: Understander, options?: ChatOptions);
+  turn(threadId: string | number, messages: Array<{ role: string; content: unknown }>, answer: (messages: ChatMessage[]) => string | Promise<string>): Promise<ChatReply>;
+  /** Erase a thread's memory (a user's right to erasure). */
+  forget(threadId: string | number): Promise<void>;
 }

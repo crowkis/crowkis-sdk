@@ -1,7 +1,7 @@
 {
   "name": "@crowkis/client",
   "version": "0.5.2",
-  "description": "Official Node.js and TypeScript SDK for Crowkis — intelligent, Redis-compatible cache & memory for LLM apps and agents",
+  "description": "Official Node.js and TypeScript SDK for Crowkis \u2014 intelligent, Redis-compatible cache & memory for LLM apps and agents",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
@@ -14,9 +14,21 @@
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",
-  "keywords": ["crowkis", "llm", "cache", "semantic-cache", "agent-memory", "langchain", "langgraph", "redis"],
+  "keywords": [
+    "crowkis",
+    "llm",
+    "cache",
+    "semantic-cache",
+    "agent-memory",
+    "langchain",
+    "langgraph",
+    "redis"
+  ],
   "homepage": "https://www.crowkis.com",
-  "repository": { "type": "git", "url": "https://github.com/crowkis/crowkis-sdk.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crowkis/crowkis-sdk.git"
+  },
   "peerDependencies": {
     "@grpc/grpc-js": ">=1.9.0",
     "@grpc/proto-loader": ">=0.7.0"
@@ -40,11 +52,24 @@
     "realtime.js",
     "langchain.js",
     "memory.js",
+    "langchain.d.ts",
+    "memory.d.ts",
     "grpc.js",
+    "chat.js",
+    "session.js",
+    "verify.js",
+    "understand.js",
+    "turn.js",
+    "callstate.js",
     "crowkis.proto",
     "README.md"
   ],
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js",
+    "typecheck": "tsc --noEmit --strict --module node16 --moduleResolution node16 --types node test-types.ts"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "typescript": "5.6.3"
   }
 }

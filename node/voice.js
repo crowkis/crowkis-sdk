@@ -1585,12 +1585,32 @@ function describesSelf(words) {
 // call that starts with them keeps its shared answers.
 function setsContext(text) {
   const words = wordsOf(text);
+  return tellsFacts(text) || (words.length > 0 && instructs(text, words));
+}
+
+// `setsContext` without instructions: what the caller is, has, plans or is doing about their
+// own task. A later shared question must carry these; a "reply in Hindi" is carried by the
+// reply language instead.
+// `tellsFacts` for a chat's memory and its emergency check: a question that only asks about a
+// matter ("what are the symptoms of a heart attack?", "how do I treat a burn?") tells nothing
+// about the caller. What the caller is or has, said inside a question, still counts.
+function tellsAboutCaller(text) {
+  const words = wordsOf(text);
+  if (words.length && (WH_WORDS.has(words[0]) || QUESTION_LEADS.has(words[0])) &&
+      !words.some((w) => POSSESSIVES.has(w) || SOMEONE.has(w))) {
+    return describesSelf(words) || statesSelf(text, words) || words.some((w) => BIRTH_WORDS.has(w));
+  }
+  return tellsFacts(text);
+}
+
+function tellsFacts(text) {
+  const words = wordsOf(text);
   return words.length > 0 && (
     unreadable(text) || discloses(words) || sensitiveSelf(words) || urgent(words) ||
     (diagnosis(words) && !words.some((w) => HAVE_NOT.has(w)) &&
       !["have", "tengo"].some((have) => ["a", "an", "un", "una", "el", "la"].some((article) => contains(words, [have, article])))) ||
     actsOnOwn(words) || describesSelf(words) || statesSelf(text, words) ||
-    words.some((w) => BIRTH_WORDS.has(w)) || instructs(text, words)
+    words.some((w) => BIRTH_WORDS.has(w))
   );
 }
 
@@ -2364,6 +2384,13 @@ module.exports = {
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
   _setsContext: setsContext,
+  _tellsFacts: tellsFacts,
+  _tellsAboutCaller: tellsAboutCaller,
+  _instructs: instructs,
+  _urgent: urgent,
+  _wordsOf: wordsOf,
+  _identifying: identifying,
+  _properNouns: properNouns,
   _isNonAnswer: isNonAnswer,
   _abstract: abstract,
   _fill: fill,

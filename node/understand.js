@@ -76,7 +76,8 @@ Return exactly:
                 "region": {"value": "...", "normalised": "...", "changes_answer": true|false}},
  "uses_state": true|false,
  "question": "standalone question, or -",
- "question_type": "policy|how_to|product_fact|place_fact|search|other"}
+ "question_type": "policy|how_to|product_fact|place_fact|search|other",
+ "language": "language code the reply must be in, e.g. en, hi, ta"}
 
 kind: general = the same answer for every caller from the business's own knowledge (policies, how-to,
 troubleshooting, product facts, stable facts about a named place, searches with stable criteria). personal = about
@@ -92,12 +93,27 @@ task_step: the turn gives details for a task the agent is running (booking, orde
 dates, party size, budget or preferences in reply to the agent's question.
 entities types: person_name, id_number, contact, address, payment, date_of_birth (identifying); owned_record,
 own_purchase, other_person, place, tier, product, plan_product, quantity, time, condition, topic.
+List every capitalised word, name or acronym of the turn as an entity with its type (a person's name is
+person_name; CSV or SSO is topic; PayPal or MacBook is product).
 attributes: tier and location from the turn or the call state; changes_answer only if it changes the answer.
+A location is where the user is (their city or country), never a place the question is about.
+A segment is the customer's tier or plan (e.g. premium), never the topic of the question.
 uses_state / abstain: resolve "it", "that", "the other place", ellipsis from the call state, the agent's mentions
 and last reply. If the referent is not there, abstain = true and kind = dialogue. Never guess.
 question: only for general. Standalone and de-identified, built only from words in the turn, the agent's last reply
 and the call state. Keep every product, place, condition, quantity, time and negation; drop names, IDs, contacts.
 One sentence ending in "?", at most 25 words, generic voice ("How do I reset a password?").
+language: the language the caller asked replies to be in (now, or earlier: call_state.language), otherwise the
+language of the turn. Write the question in English whatever the turn's language; the reply language is separate.
+question must also carry every fact in call_state.facts that changes the answer (an allergy, an age, a diet, a
+trip) in generic words ("for someone with a peanut allergy", "for a 3-year-old").
+How-to questions phrased with "my" ("How do I export my data?", "How do I reset my password?") are general with
+subject none: the steps are the same for everyone. A question whose answer depends only on facts the caller told
+(an allergy, an age, a diet, a trip, a budget) is general: put those facts in the question; personal is only for the
+caller's own records, account, orders, bookings or identity.
+If the turn asks for the same thing as call_state.active_question ("what were the steps again?"), return that
+question exactly as it is written there. Facts about someone the caller mentions ("my mother has type 2 diabetes")
+also make a later question general: "What foods should someone with type 2 diabetes avoid?".
 confidence: your calibrated probability that kind and question are right.`;
 
 function extractJson(t) {

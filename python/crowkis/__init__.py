@@ -23,6 +23,7 @@ from .callstate import CallState
 from .verify import RuleChecker, Verdict
 from .understand import LLMUnderstander, ReplayUnderstander, WithFallback
 from .session import CallSession, TurnResult
+from .chat import Chat, ChatConflict, ChatReply, MemoryStore
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
 # model. A thin OpenAI-SDK drop-in still lives at `crowkis.openai_wrapper.CachedOpenAI`
@@ -36,6 +37,10 @@ __all__ = [
     "RealtimeAdapter",
     "RealtimeGate",
     # turn understanding
+    "Chat",
+    "ChatReply",
+    "ChatConflict",
+    "MemoryStore",
     "CallSession",
     "TurnResult",
     "CallState",

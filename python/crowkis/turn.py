@@ -8,8 +8,12 @@ words. Parsing is fail-closed: anything missing or malformed reads as "not share
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+# A language tag ("hi", "en", "pt-br"); anything else from a model is no language.
+_LANGUAGE = re.compile(r"[a-z]{2,3}(-[a-z0-9]{2,8})?")
 
 KINDS = ("general", "personal", "live", "action", "dialogue", "chitchat", "sensitive", "unclear")
 SUBJECTS = ("none", "self", "other")
@@ -83,6 +87,8 @@ class TurnFrame:
     uses_state: bool = False
     question: Optional[str] = None
     question_type: str = "other"
+    # The language the reply must be in ("hi", "en"): asked for now or earlier, else the turn's.
+    language: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "TurnFrame":
@@ -104,6 +110,7 @@ class TurnFrame:
                 attributes[str(name).lower()] = attr
         question = _text(data.get("question"))
         qtype = _text(data.get("question_type")).lower()
+        language = _text(data.get("language")).lower()
         return cls(
             kind=kind,
             urgent=_bool(data.get("urgent")),
@@ -116,6 +123,7 @@ class TurnFrame:
             uses_state=_bool(data.get("uses_state")),
             question=question if question and question != "-" else None,
             question_type=qtype if qtype in QUESTION_TYPES else "other",
+            language=language if _LANGUAGE.fullmatch(language) else None,
         )
 
     @property

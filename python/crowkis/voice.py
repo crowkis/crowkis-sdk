@@ -1604,13 +1604,33 @@ def _sets_context(text: str) -> bool:
     "I'm frustrated", "I have 2 orders" and a name or number change no answer, and a call that starts
     with them keeps its shared answers."""
     words = _words(text)
+    return _tells_facts(text) or (bool(words) and _instructs(text, words))
+
+
+def _tells_about_caller(text: str) -> bool:
+    """``_tells_facts`` for a chat's memory and its emergency check: a question that only asks
+    about a matter ("what are the symptoms of a heart attack?", "how do I treat a burn?") tells
+    nothing about the caller. What the caller is or has, said inside a question ("what should I
+    eat, I'm diabetic?"), still counts."""
+    words = _words(text)
+    if words and (words[0] in _WH_WORDS or words[0] in _QUESTION_LEADS) and not any(
+            w in _POSSESSIVES or w in _SOMEONE for w in words):
+        return _describes_self(words) or _states_self(text, words) or any(w in _BIRTH_WORDS for w in words)
+    return _tells_facts(text)
+
+
+def _tells_facts(text: str) -> bool:
+    """``_sets_context`` without instructions: what the caller is, has, plans or is doing
+    about their own task. A later shared question must carry these; a "reply in Hindi"
+    is carried by the reply language instead."""
+    words = _words(text)
     return bool(words) and (
         _unreadable(text) or _discloses(words) or _sensitive_self(words) or _urgent(words)
         or (_diagnosis(words) and not any(w in _HAVE_NOT for w in words)
             and not any(_contains(words, (have, article)) for have in ("have", "tengo")
                         for article in ("a", "an", "un", "una", "el", "la")))
         or _acts_on_own(words) or _describes_self(words) or _states_self(text, words)
-        or any(w in _BIRTH_WORDS for w in words) or _instructs(text, words)
+        or any(w in _BIRTH_WORDS for w in words)
     )
 
 

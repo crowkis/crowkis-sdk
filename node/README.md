@@ -110,6 +110,36 @@ await mem.remember("Alice prefers email over phone");
 await mem.recall("how should I contact Alice?");   // semantic recall
 ```
 
+## Chat apps
+
+A chat turn often depends on what the user said earlier ("I'm allergic to peanuts", then
+"is pad thai safe?"). `Chat` turns each message into one stand-alone question that carries
+it ("Is pad thai safe for someone with a peanut allergy?"), checks it with fixed rules,
+looks it up, and on a miss lets your model answer that question alone, so the answer can be
+shared. Anything personal, urgent, part of a booking or unclear is answered with the whole
+chat and never cached.
+
+```js
+const { Agent, Chat, CrowkisClient, LLMUnderstander } = require("@crowkis/client");
+
+const client = new CrowkisClient({ tenant: "acme" });
+const chat = new Chat(new Agent("support-bot", { client }), new LLMUnderstander(complete),
+  { system: "You are Acme's assistant." });
+
+const reply = await chat.turn(threadId, messages, complete); // messages: the whole chat
+console.log(reply.text, reply.fromCache, reply.outcome, reply.reason);
+client.close(); // when your app shuts down
+```
+
+`complete(messages)` is your model; the same function does both jobs (reading each turn into a
+question, and answering). `reply.outcome` is `served` (from the cache), `saved` (answered and
+shared), `not_shared` (answered for this user only; `reply.reason` says why) or `refused:<why>`
+(answered, but the answer was not kept). If the cache cannot be reached the user still gets the
+model's answer, with `outcome` `refused:write_failed`. Per thread, `Chat` keeps a small memory (facts, topic,
+reply language), never the transcript; pass `store` with `load`/`save` to keep it across
+several servers. The reply language is part of the cache identity: a Hindi chat never gets
+the English answer.
+
 ## Voice agents
 
 `VoiceSession` decides, turn by turn, whether a caller can be answered from cache or needs

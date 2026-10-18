@@ -16,6 +16,9 @@ const NOT_GENERAL_TYPES = new Set(["owned_record", "own_purchase", "other_person
 // Non-identifying details worth remembering for later turns ("condition: damaged").
 const DETAIL_TYPES = new Set(["product", "plan_product", "condition", "time", "quantity", "place"]);
 
+// A language tag ("hi", "en", "pt-br"); anything else from a model is no language.
+const LANGUAGE = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/;
+
 function text(value) {
   return value === null || value === undefined ? "" : String(value).split(/\s+/).filter(Boolean).join(" ");
 }
@@ -85,6 +88,7 @@ class TurnFrame {
     }
     const question = text(data.question);
     const qtype = text(data.question_type ?? data.questionType).toLowerCase();
+    const language = text(data.language).toLowerCase();
     return new TurnFrame({
       kind,
       urgent: bool(data.urgent),
@@ -97,6 +101,8 @@ class TurnFrame {
       usesState: bool(data.uses_state ?? data.usesState),
       question: question && question !== "-" ? question : null,
       questionType: QUESTION_TYPES.includes(qtype) ? qtype : "other",
+      // The language the reply must be in ("hi", "en"): asked for now or earlier, else the turn's.
+      language: LANGUAGE.test(language) ? language : null,
     });
   }
 

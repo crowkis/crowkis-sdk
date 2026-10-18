@@ -78,7 +78,8 @@ test("an abstain clears the active question", () => {
 test("a name said with the question never reaches the key", () => {
   const v = check("What time is check-in? Sarah here.", { question: "What time is check-in?", entities: [{ text: "Sarah", type: "person_name" }] });
   assert.strictEqual(v.route, SHARED);
-  assert.strictEqual(v.key, "[kb=1] What time is check-in?");
+  assert.strictEqual(v.key, "What time is check-in?");
+  assert.strictEqual(v.segment, "kb=1;lang=und;channel=chat");
 });
 
 test("identifying details in the key block sharing; Saturday and prices do not", () => {
@@ -115,15 +116,15 @@ test("answering the agent during a task is a task step; outside a task it is jud
 });
 
 test("key: tier only when it matters, location on place questions, expiry by type, knowledge version", () => {
-  assert.ok(check("x premium shipping", { question: "How long does shipping take?", attributes: { segment: { value: "premium", changes_answer: true } } }, new CallState({ activeQuestion: "x premium shipping How long does shipping take" })).key.includes("segment=premium"));
+  assert.ok(check("x premium shipping", { question: "How long does shipping take?", attributes: { segment: { value: "premium", changes_answer: true } } }, new CallState({ activeQuestion: "x premium shipping How long does shipping take" })).segment.includes("segment=premium"));
   const s = new CallState();
   s.apply(frame({ kind: "dialogue", question: "-", attributes: { region: { value: "laguna beach" } }, entities: [{ text: "Laguna Beach", type: "place" }] }), { shared: false });
   s.noteAgentReply("I found The Press Bistro.", ["The Press Bistro"]);
   const v = check("Do they have steak there?", { question: "Does The Press Bistro have steak?", question_type: "place_fact" }, s);
-  assert.ok(v.key.includes("region=laguna beach"));
+  assert.ok(v.segment.includes("region=laguna beach"));
   assert.strictEqual(v.ttl, 6 * 3600);
   const q = "What is your refund policy?";
-  assert.notStrictEqual(check(q, { question: q }, new CallState(), new RuleChecker({ knowledgeVersion: "2" })).key, check(q, { question: q }).key);
+  assert.notStrictEqual(check(q, { question: q }, new CallState(), new RuleChecker({ knowledgeVersion: "2" })).segment, check(q, { question: q }).segment);
 });
 
 // --- understanding slot ------------------------------------------------------------------
@@ -204,7 +205,7 @@ test("save check refuses non-answers, action claims, identifying details and tie
 test("barge-in and late turns are never saved", async () => {
   const agent = new FakeAgent();
   const A = "Do you price match?", B = "Do you ship to Canada?";
-  const frames = { [A]: general(A), [B]: general(B) };
+  const frames = { [A]: general(A), [B]: { ...general(B), entities: [{ text: "Canada", type: "place" }] } };
   const s = new CallSession(agent, scripted(frames));
   const r = await s.handle(A);
   assert.ok(s.cancel());

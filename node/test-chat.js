@@ -571,6 +571,65 @@ test("a non-answer to the question alone is answered from the whole chat", async
   assert.ok(!store.load("t")[0].state.last_reply.includes("access"));
 });
 
+test("an unresolved follow-up is never shared", async () => {
+  const france = [{ text: "France", type: "place" }];
+  const london = [{ text: "London", type: "place" }];
+  for (const [said, question, tags] of [["And how far is it from London?", "How far is it from London?", london],
+    // a neutral question word added does not resolve the reference
+    ["How many people live there?", "What is the population there?", []],
+    ["How far is it from London?", "What is the distance from it to London?", london],
+    ["Is that one open on Sundays?", "Is it open on Sundays?", []],
+    ["How much does that cost?", "How much does that cost?", []],
+    ["How long does this take?", "How long does this take?", []],
+    // a contraction's "s" names nothing; a dropped reference is not resolved
+    ["How many people live there?", "What's the population there?", []],
+    ["Who is their president?", "Who is the president?", []],
+    ["Is that one open on Sundays?", "Is one open on Sundays?", []]]) {
+    const opener = { "What's the capital of France?": { ...GENERAL, question: "What's the capital of France?", entities: france },
+      [said]: { ...GENERAL, question, uses_state: true, entities: tags } };
+    const o = await run(opener, Object.keys(opener), { m: model("Paris is about 340 km from London.") });
+    assert.strictEqual(o.replies[o.replies.length - 1].route, "agent", question);
+    const frames = { "What is the capital of France?": { ...GENERAL, question: "What is the capital of France?", entities: france },
+      [said]: { ...GENERAL, question, uses_state: true, entities: tags } };
+    const r = await run(frames, Object.keys(frames), { m: model("Paris is about 340 km from London.") });
+    assert.strictEqual(r.replies[r.replies.length - 1].route, "agent", question);
+    assert.deepStrictEqual(r.agent.saved.map((s) => s[1]), ["What is the capital of France?"], question);
+  }
+});
+
+test("a resolved follow-up keeps its filler word", async () => {
+  for (const [said, question, place] of [["Is it safe to eat pad thai there?", "Is it safe to eat pad thai in Thailand?", "Thailand"],
+    ["What is there to do there?", "What is there to do in Paris?", "Paris"], ["And what time is it there?", "What time is it in Tokyo?", "Tokyo"]]) {
+    const tag = [{ text: place, type: "place" }];
+    const f = { [`Tell me about ${place}.`]: { ...GENERAL, question: `Tell me about ${place}.`, entities: tag },
+      [said]: { ...GENERAL, question, uses_state: true, entities: tag } };
+    const r = await run(f, Object.keys(f));
+    assert.strictEqual(r.replies[r.replies.length - 1].route, "shared", question);
+  }
+  // A question that stands alone is shared when the model does not lean on the chat.
+  const alone = { "Is it raining in Paris?": { ...GENERAL, question: "Is it raining in Paris?", entities: [{ text: "Paris", type: "place" }] } };
+  const a = await run(alone, Object.keys(alone));
+  assert.strictEqual(a.replies[a.replies.length - 1].route, "shared");
+});
+
+test("a reply that cannot determine is a non-answer", async () => {
+  const { _isNonAnswer } = require("./voice.js");
+  // A hedged real answer is an answer.
+  assert.strictEqual(_isNonAnswer("I can't determine the exact date, but historians place it around 1200 BC."), false);
+  for (const text of ["I cannot determine your location, but you can check Google Maps.",
+    "I cannot determine that, but I recommend checking online.",
+    "I can't determine that, but please ask a local guide.",
+    "I couldn't determine that.", "I could not determine the distance.",
+    "It is impossible to determine that.", "It's impossible to determine without your city."]) {
+    assert.strictEqual(_isNonAnswer(text), true, text);
+  }
+  // A reply that cannot answer ("I cannot determine ...") is a non-answer: never saved.
+  const frames = { "How far is London?": { ...GENERAL, question: "How far is London?", entities: [{ text: "London", type: "place" }] } };
+  const second = await run(frames, Object.keys(frames), { m: model(
+    "I cannot determine the distance from London without knowing your current location. Please provide your city.") });
+  assert.strictEqual(second.replies[second.replies.length - 1].outcome, "refused:non_answer");
+});
+
 test("memory keeps no email", async () => {
   const said = "I'm allergic to peanuts, email me at sarah@example.com";
   const store = new MemoryStore();

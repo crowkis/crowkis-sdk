@@ -15,6 +15,7 @@ Rules
      the caller stated in this chat (an allergy, an age, a trip) missing from the question
   V8 tier/location enter the key only when they change the answer
   V9 a step of a task in progress (booking, ordering...) goes to the agent, never shared
+  V10 a follow-up whose key still says "it", "there", "that"... and names nothing from the chat
 """
 
 from __future__ import annotations
@@ -88,6 +89,8 @@ def _stem(word: str) -> str:
 # live there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could
 # change what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
 _QUESTION_WORDS = frozenset("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split())
+_REFERRING = frozenset("it its they them their there here this that those these he she him his her".split())
+_CONTRACTION = frozenset("s t d m re ll ve".split())  # "what's" -> "what", "s": "s" names nothing
 _CLAUSE_START = frozenset("i we you he she they it my our your his her their me".split())
 # Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
 # penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
@@ -119,7 +122,7 @@ class Verdict:
 
 
 class RuleChecker:
-    """Applies V1-V9 to a frame and builds the key for a shareable turn.
+    """Applies V1-V10 to a frame and builds the key for a shareable turn.
 
     ``confidence_floor`` should be calibrated per business on real calls (a fixed number is
     only the starting point). ``ttl`` maps question types to expiry in seconds.
@@ -160,6 +163,15 @@ class RuleChecker:
         added = self._ungrounded(question, turn, state)
         if added:
             reasons.append("V6_ungrounded:" + ",".join(added[:3]))
+        # The model says the turn leans on the chat ("how far is it from London?") but the turn or its
+        # question says "it" and the question names nothing new from the chat (a neutral "population"
+        # names nothing; "Who is their president?" -> "Who is the president?" dropped it): the
+        # reference was not resolved. A rewrite that resolved it ("Is it safe to eat pad thai in
+        # Thailand?") keeps a filler "it" and is fine.
+        qwords, said = set(_toks(question)), set(_toks(turn))
+        named = {w for w in qwords - said if w not in _FUNCTION and w not in _QUESTION_WORDS and w not in _CONTRACTION}
+        if frame.uses_state and (qwords | said) & _REFERRING and not named:
+            reasons.append("V10_unresolved")
         lost = self._lost_detail(frame, question) or self._dropped_statement(state, question)
         if lost:
             reasons.append("V7_lost:" + lost)

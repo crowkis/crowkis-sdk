@@ -1632,7 +1632,14 @@ const NON_ANSWER_PHRASES = [
   "i'm afraid i don't", "i'm afraid i can't", "i'm afraid i do not", "i'm afraid i cannot",
   "i'm not able to share", "i am not able to share", "i'm not able to provide", "i am not able to provide",
   "i can't provide", "i cannot provide", "i can't share", "i cannot share",
+  "i can't determine", "i cannot determine", "i'm unable to determine", "i am unable to determine",
+  "i'm not able to determine", "i am not able to determine", "i couldn't determine", "i could not determine",
+  "it is impossible to determine", "it's impossible to determine", "it is not possible to determine",
+  "it's not possible to determine",
 ];
+// What follows "..., but" when a reply only points elsewhere: "but you can check a map".
+const REDIRECTS = ["you ", "you'll", "you'd", "a quick search", "a search", "an online search", "i recommend", "i suggest", "i'd ", "i would ", "i can ", "please", "try", "check",
+  "consider", "if you", "it's best", "it is best", "it would be best"];
 // Openers that soften a non-answer without changing it: "Unfortunately I do not know".
 const SOFTENERS = ["unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but "];
 const SENTENCE = /[^.!?]+[.!?]*/g;
@@ -1654,7 +1661,14 @@ function isNonAnswer(answer) {
   if (comma >= 0 && sentences[0].slice(0, comma).split(" ").length <= 3) leads.push(sentences[0].slice(comma + 2));
   return leads
     .map((lead) => { const w = SOFTENERS.find((x) => lead.startsWith(x)); return w ? lead.slice(w.length) : lead; })
-    .some((lead) => NON_ANSWER_PHRASES.some((phrase) => lead.startsWith(phrase)));
+    // "I can't determine the exact date, but historians place it around 1200 BC." answers;
+    // "I cannot determine your location, but you can check a map." does not.
+    .some((lead) => NON_ANSWER_PHRASES.some((phrase) => lead.startsWith(phrase) && !(phrase.includes("determine") && answersAfterBut(lead))));
+}
+
+function answersAfterBut(lead) {
+  const at = lead.indexOf(", but ");
+  return at >= 0 && !REDIRECTS.some((r) => lead.slice(at + 6).startsWith(r));
 }
 
 // What _recordModelTurn did with an answer; the two that put it in the shared cache.

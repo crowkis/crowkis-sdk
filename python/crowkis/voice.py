@@ -1652,7 +1652,14 @@ _NON_ANSWER_PHRASES = (
     "i'm afraid i don't", "i'm afraid i can't", "i'm afraid i do not", "i'm afraid i cannot",
     "i'm not able to share", "i am not able to share", "i'm not able to provide", "i am not able to provide",
     "i can't provide", "i cannot provide", "i can't share", "i cannot share",
+    "i can't determine", "i cannot determine", "i'm unable to determine", "i am unable to determine",
+    "i'm not able to determine", "i am not able to determine", "i couldn't determine", "i could not determine",
+    "it is impossible to determine", "it's impossible to determine", "it is not possible to determine",
+    "it's not possible to determine",
 )
+# What follows "..., but" when a reply only points elsewhere: "but you can check a map".
+_REDIRECTS = ("you ", "you'll", "you'd", "a quick search", "a search", "an online search", "i recommend", "i suggest", "i'd ", "i would ", "i can ", "please", "try", "check",
+              "consider", "if you", "it's best", "it is best", "it would be best")
 # Openers that soften a non-answer without changing it: "Unfortunately I do not know".
 _SOFTENERS = ("unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but ")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]*")
@@ -1677,7 +1684,15 @@ def _is_non_answer(answer: str) -> bool:
     if rest and len(head.split()) <= 3:
         leads.append(rest)
     leads = [next((lead[len(w):] for w in _SOFTENERS if lead.startswith(w)), lead) for lead in leads]
-    return any(lead.startswith(phrase) for lead in leads for phrase in _NON_ANSWER_PHRASES)
+    # "I can't determine the exact date, but historians place it around 1200 BC." answers;
+    # "I cannot determine your location, but you can check a map." does not.
+    return any(lead.startswith(phrase) and not ("determine" in phrase and _answers_after_but(lead))
+               for lead in leads for phrase in _NON_ANSWER_PHRASES)
+
+
+def _answers_after_but(lead: str) -> bool:
+    _, but, after = lead.partition(", but ")
+    return bool(but) and not after.startswith(_REDIRECTS)
 
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.

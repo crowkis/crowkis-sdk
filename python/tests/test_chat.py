@@ -613,6 +613,61 @@ class ReviewFindingTests(unittest.TestCase):
             history.append({"role": "assistant", "content": chat.turn("t", history, answer=Model(model)).text})
         self.assertNotIn("access", store.load("t")[0]["state"]["last_reply"])
 
+    def test_an_unresolved_follow_up_is_never_shared(self):
+        france = [{"text": "France", "type": "place"}]
+        london = [{"text": "London", "type": "place"}]
+        for said, question, tags in (("And how far is it from London?", "How far is it from London?", london),
+                                     # a neutral question word added does not resolve the reference
+                                     ("How many people live there?", "What is the population there?", []),
+                                     ("How far is it from London?", "What is the distance from it to London?", london),
+                                     ("Is that one open on Sundays?", "Is it open on Sundays?", []),
+                                     ("How much does that cost?", "How much does that cost?", []),
+                                     ("How long does this take?", "How long does this take?", []),
+                                     # a contraction's "s" names nothing; a dropped reference is not resolved
+                                     ("How many people live there?", "What's the population there?", []),
+                                     ("Who is their president?", "Who is the president?", []),
+                                     ("Is that one open on Sundays?", "Is one open on Sundays?", [])):
+            frames = {"What's the capital of France?": dict(GENERAL, question="What's the capital of France?", entities=france),
+                      said: dict(GENERAL, question=question, uses_state=True, entities=tags)}
+            agent, _, replies = run(frames, list(frames), model=Model("Paris is about 340 km from London."))
+            self.assertEqual(replies[-1].route, "agent", question)
+            frames = {"What is the capital of France?": dict(GENERAL, question="What is the capital of France?", entities=france),
+                      said: dict(GENERAL, question=question, uses_state=True, entities=tags)}
+            agent, _, replies = run(frames, list(frames), model=Model("Paris is about 340 km from London."))
+            self.assertEqual(replies[-1].route, "agent", question)
+            self.assertEqual([s[1] for s in agent.saved], ["What is the capital of France?"], question)
+
+    def test_a_resolved_follow_up_keeps_its_filler_word(self):
+        for said, question, place in (("Is it safe to eat pad thai there?", "Is it safe to eat pad thai in Thailand?", "Thailand"),
+                                      ("What is there to do there?", "What is there to do in Paris?", "Paris"),
+                                      ("And what time is it there?", "What time is it in Tokyo?", "Tokyo")):
+            tag = [{"text": place, "type": "place"}]
+            frames = {f"Tell me about {place}.": dict(GENERAL, question=f"Tell me about {place}.", entities=tag),
+                      said: dict(GENERAL, question=question, uses_state=True, entities=tag)}
+            _, _, replies = run(frames, list(frames))
+            self.assertEqual(replies[-1].route, "shared", question)
+        # A question that stands alone is shared when the model does not lean on the chat.
+        frames = {"Is it raining in Paris?": dict(GENERAL, question="Is it raining in Paris?",
+                                                  entities=[{"text": "Paris", "type": "place"}])}
+        _, _, replies = run(frames, list(frames))
+        self.assertEqual(replies[-1].route, "shared")
+
+    def test_a_reply_that_cannot_determine_is_a_non_answer(self):
+        from crowkis.voice import _is_non_answer
+        # A hedged real answer is an answer.
+        self.assertFalse(_is_non_answer("I can't determine the exact date, but historians place it around 1200 BC."))
+        for text in ("I cannot determine your location, but you can check Google Maps.",
+                     "I cannot determine that, but I recommend checking online.",
+                     "I can't determine that, but please ask a local guide.",
+                     "I couldn't determine that.", "I could not determine the distance.",
+                     "It is impossible to determine that.", "It's impossible to determine without your city."):
+            self.assertTrue(_is_non_answer(text), text)
+        # A reply that cannot answer ("I cannot determine ...") is a non-answer: never saved.
+        frames = {"How far is London?": dict(GENERAL, question="How far is London?", entities=[{"text": "London", "type": "place"}])}
+        _, _, replies = run(frames, list(frames), model=Model(
+            "I cannot determine the distance from London without knowing your current location. Please provide your city."))
+        self.assertEqual(replies[-1].outcome, "refused:non_answer")
+
     def test_memory_keeps_no_email(self):
         said = "I'm allergic to peanuts, email me at sarah@example.com"
         store = MemoryStore()

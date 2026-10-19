@@ -8,7 +8,7 @@
 //   V2 abstained / low confidence      V7 no answer-relevant detail dropped
 //   V3 not general / about someone     V8 tier/location in the key only if they change the answer
 //   V4 owned record / own purchase     V9 a step of a task in progress goes to the agent
-//   V5 identifying details in the key
+//   V5 identifying details in the key  V10 a follow-up whose key still says "it"/"that" and names nothing
 
 const zlib = require("node:zlib");
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("./turn.js");
@@ -60,6 +60,8 @@ function stem(w) {
 // there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could change
 // what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
 const QUESTION_WORDS = new Set("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split(" "));
+const REFERRING = new Set("it its they them their there here this that those these he she him his her".split(" "));
+const CONTRACTION = new Set("s t d m re ll ve".split(" ")); // "what's" -> "what", "s": "s" names nothing
 const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
 // Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
 // penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
@@ -108,6 +110,15 @@ class RuleChecker {
     if (frame.identifyingTexts.some((t) => low.includes(t.toLowerCase())) || looksIdentifying(question)) reasons.push("V5_identifying");
     const added = this._ungrounded(question, turn, state);
     if (added.length) reasons.push("V6_ungrounded:" + added.slice(0, 3).join(","));
+    // The model says the turn leans on the chat ("how far is it from London?") but the turn or its question
+    // says "it" and the question names nothing new from the chat (a neutral "population" names nothing;
+    // "Who is their president?" -> "Who is the president?" dropped it): the reference was not resolved. A
+    // rewrite that resolved it ("Is it safe to eat pad thai in Thailand?") keeps a filler "it" and is fine.
+    const saidList = toks(turn);
+    const said = new Set(saidList);
+    const qwords = toks(question);
+    const named = qwords.some((w) => !said.has(w) && !FUNCTION.has(w) && !QUESTION_WORDS.has(w) && !CONTRACTION.has(w));
+    if (frame.usesState && [...qwords, ...saidList].some((w) => REFERRING.has(w)) && !named) reasons.push("V10_unresolved");
     const lost = this._lostDetail(frame, question) || RuleChecker._droppedStatement(state, question);
     if (lost) reasons.push("V7_lost:" + lost);
     if (reasons.length) return new Verdict(false, AGENT, reasons);

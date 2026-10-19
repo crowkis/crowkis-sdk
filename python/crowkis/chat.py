@@ -19,7 +19,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .session import CallSession
+from .session import CallSession, _masked
 from .understand import Understander
 from .verify import RuleChecker
 
@@ -67,7 +67,7 @@ class ChatReply:
     text: str
     route: str
     from_cache: bool
-    outcome: str  # saved | not_shared | refused:<why> | served
+    outcome: str  # saved | not_shared | refused:<why> | served; refused:non_answer with `text` answered from the whole chat
     reason: str = ""  # why it went this route ("V3_not_general", "cache hit", ...)
 
 
@@ -114,6 +114,11 @@ class Chat:
                     asked = ([{"role": "system", "content": self.system}] if self.system else []) + result.messages
                 reply = answer(asked)
                 outcome = session.record_answer(result, reply)
+                if outcome == "refused:non_answer" and result.messages is not None:
+                    # The question alone did not carry enough ("What were the steps again?"): the user is
+                    # answered from the whole chat instead, and nothing is saved.
+                    reply = answer(list(messages or []))
+                    session.state.note_agent_reply(_masked(reply))  # what the user saw, names masked
             if not self.store.save(thread_id, session.export(), version):
                 raise ChatConflict(f"thread {thread_id!r} was answered by another request at the same time")
         return ChatReply(text=reply, route=result.route, from_cache=result.served_from_cache, outcome=outcome,

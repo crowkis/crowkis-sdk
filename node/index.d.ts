@@ -894,7 +894,7 @@ export interface ChatReply {
   text: string;
   route: Route;
   fromCache: boolean;
-  /** saved | not_shared | refused:<why> | served */
+  /** saved | not_shared | refused:<why> | served; refused:non_answer with `text` answered from the whole chat */
   outcome: string;
   /** Why it went this route ("V3_not_general", "cache hit", ...). */
   reason: string;

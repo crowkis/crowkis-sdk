@@ -448,4 +448,4 @@ class CallSession {
   }
 }
 
-module.exports = { CallSession, TurnResult, FILLER, MODES };
+module.exports = { CallSession, TurnResult, FILLER, MODES, _masked: masked };

@@ -593,6 +593,26 @@ class ReviewFindingTests(unittest.TestCase):
         _, _, replies = run(frames, list(frames))
         self.assertEqual(replies[-1].route, "shared")
 
+    def test_a_non_answer_to_the_question_alone_is_answered_from_the_whole_chat(self):
+        frames = {"How do I reset my password?": dict(GENERAL, question="How do I reset a password?"),
+                  "What were the steps again?": dict(GENERAL, question="What were the steps again?", uses_state=True)}
+        def model(messages):
+            if len(messages) <= 2 and "again" in messages[-1]["content"]:
+                return "I don't have access to your previous conversation history, so I cannot recall the steps."
+            return "Click Forgot password, then follow the emailed link."
+        agent, _, replies = run(frames, list(frames), model=Model(model))
+        self.assertEqual(replies[-1].text, "Click Forgot password, then follow the emailed link.")
+        self.assertEqual(replies[-1].outcome, "refused:non_answer")
+        self.assertEqual([s[1] for s in agent.saved], ["How do I reset a password?"])
+        # The thread remembers the reply the user saw, not the discarded one.
+        store = MemoryStore()
+        chat = Chat(SegmentedAgent(), Scripted(frames), store=store)
+        history = []
+        for turn in frames:
+            history.append({"role": "user", "content": turn})
+            history.append({"role": "assistant", "content": chat.turn("t", history, answer=Model(model)).text})
+        self.assertNotIn("access", store.load("t")[0]["state"]["last_reply"])
+
     def test_memory_keeps_no_email(self):
         said = "I'm allergic to peanuts, email me at sarah@example.com"
         store = MemoryStore()

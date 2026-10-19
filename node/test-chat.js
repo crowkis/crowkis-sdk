@@ -549,6 +549,28 @@ test("a name after a relation is a name whatever the model says", async () => {
   assert.strictEqual(s.replies[s.replies.length - 1].route, "shared");
 });
 
+test("a non-answer to the question alone is answered from the whole chat", async () => {
+  const frames = { "How do I reset my password?": { ...GENERAL, question: "How do I reset a password?" },
+    "What were the steps again?": { ...GENERAL, question: "What were the steps again?", uses_state: true } };
+  const m = model((messages) => (messages.length <= 2 && messages[messages.length - 1].content.includes("again")
+    ? "I don't have access to your previous conversation history, so I cannot recall the steps."
+    : "Click Forgot password, then follow the emailed link."));
+  const { agent, replies } = await run(frames, Object.keys(frames), { m });
+  const last = replies[replies.length - 1];
+  assert.strictEqual(last.text, "Click Forgot password, then follow the emailed link.");
+  assert.strictEqual(last.outcome, "refused:non_answer");
+  assert.deepStrictEqual(agent.saved.map((s) => s[1]), ["How do I reset a password?"]);
+  // The thread remembers the reply the user saw, not the discarded one.
+  const store = new MemoryStore();
+  const chat = new Chat(new SegmentedAgent(), scripted(frames), { store });
+  const history = [];
+  for (const t of Object.keys(frames)) {
+    history.push({ role: "user", content: t });
+    history.push({ role: "assistant", content: (await chat.turn("t", [...history], m)).text });
+  }
+  assert.ok(!store.load("t")[0].state.last_reply.includes("access"));
+});
+
 test("memory keeps no email", async () => {
   const said = "I'm allergic to peanuts, email me at sarah@example.com";
   const store = new MemoryStore();

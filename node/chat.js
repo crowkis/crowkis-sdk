@@ -11,7 +11,7 @@
 // saved for every user. Anything personal, urgent, part of a booking or unclear is answered
 // with the whole chat and never cached. Per thread only a small memory is kept in `store`.
 
-const { CallSession } = require("./session.js");
+const { CallSession, _masked: masked } = require("./session.js");
 const { RuleChecker } = require("./verify.js");
 
 class ChatConflict extends Error {
@@ -120,6 +120,12 @@ class Chat {
         : [...(this.system ? [{ role: "system", content: this.system }] : []), ...result.messages];
       reply = await answer(asked);
       outcome = await session.recordAnswer(result, reply);
+      if (outcome === "refused:non_answer" && result.messages !== null) {
+        // The question alone did not carry enough ("What were the steps again?"): the user is answered
+        // from the whole chat instead, and nothing is saved.
+        reply = await answer([...(messages || [])]);
+        session.state.noteAgentReply(masked(reply)); // what the user saw, names masked
+      }
     }
     if (!(await this.store.save(threadId, session.export(), version))) {
       throw new ChatConflict(`thread ${threadId} was answered by another request at the same time`);

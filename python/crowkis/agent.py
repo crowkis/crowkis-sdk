@@ -334,7 +334,7 @@ class Agent:
         self.audio_misses += 1
         if audio and not skip_store:
             if use_v2:
-                ms = len(audio) * 1000 // bytes_per_second if bytes_per_second else None
+                ms = int(len(audio) * 1000 // bytes_per_second) if bytes_per_second else None
                 _store_later(self._client.caudioset, text, *labels, bytes(audio), ex=ttl, ms=ms, tenant=self.tenant)
             else:
                 self._client.ctoolset(

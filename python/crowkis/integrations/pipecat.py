@@ -69,11 +69,12 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from ..agent import _store_later
+from ..agent import _store_later, _tts_key
 from ..client import CrowkisError
 from ..voice import VoiceSession, _words
 
-# Same tool name and key shape as Agent.speak(), so both share one audio cache.
+# Same tool name and key rule as Agent.speak(): a clip is shared with speak() when it
+# names the same format (audio_format="pcm16-<rate>").
 TTS_TOOL = "crowkis.tts"
 
 Report = Optional[Callable[[dict], Awaitable[Optional[Frame]]]]
@@ -161,7 +162,9 @@ class CrowkisAudioCache(FrameProcessor):
         self._spoken: list = []  # what that run said, where the TTS reports it
 
     def _key(self, text: str) -> str:
-        return json.dumps({"voice": self._session.voice, "text": text}, sort_keys=True)
+        # The basic cache key names the sample rate too, so a 16 kHz bot never plays a
+        # clip made for a 24 kHz one (it used to be the voice and the text only).
+        return _tts_key(text, self._labels())
 
     def _labels(self) -> tuple:
         """Voice, language, speed and format: a clip is reused only when all match.
@@ -189,7 +192,11 @@ class CrowkisAudioCache(FrameProcessor):
             else:
                 agent._audio_v2 = True
                 return clip or None
-        raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
+        try:
+            raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
+        except Exception as err:  # noqa: BLE001 — a failed read is a miss, never the end of the turn
+            agent._audio_cache_error("read", err)
+            return None
         if not raw:
             return None
         # Strict: a damaged clip is a miss, never noise played to the caller.
@@ -269,10 +276,13 @@ class CrowkisAudioCache(FrameProcessor):
                 ex=self._session.ttl, ms=ms, tenant=agent.tenant,
             )
             return
-        await asyncio.to_thread(
-            agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
-            ex=self._session.ttl, tenant=agent.tenant,
-        )
+        try:
+            await asyncio.to_thread(
+                agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
+                ex=self._session.ttl, tenant=agent.tenant,
+            )
+        except Exception as err:  # noqa: BLE001 — a failed write only costs a later hit
+            agent._audio_cache_error("written", err)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)

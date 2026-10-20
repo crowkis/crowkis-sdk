@@ -50,13 +50,20 @@ class FakeAgent:
 class FakeSession:
     voice = "test-voice"
     ttl = 60
+    language = "und"
+    speed = "1"
+    audio_format = "default"
 
     def __init__(self):
         self.agent = FakeAgent()
 
 
 def _key(text):
-    return json.dumps({"voice": FakeSession.voice, "text": text}, sort_keys=True)
+    # The basic cache key names the sample rate since Phase 1, step 6 (it used to be the
+    # voice and the text only, so a clip could be played at the wrong rate).
+    from crowkis.agent import _tts_key
+
+    return _tts_key(text, (FakeSession.voice, "und", "1", "pcm16-24000"))
 
 
 @unittest.skipIf(CrowkisAudioCache is None, "pipecat-ai not installed")

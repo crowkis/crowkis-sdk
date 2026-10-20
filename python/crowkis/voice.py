@@ -1672,6 +1672,7 @@ class VoiceSession:
         self.held_commitments = 0
         self.unspeakable = 0
         self.empty_answers = 0
+        self.audio_unavailable = 0
         # The question the latest stored answer was stored under.
         self._last_stored: Optional[str] = None
         self._fillers: Dict[str, str] = {}
@@ -2166,6 +2167,7 @@ class VoiceSession:
             "commitments_sent_to_model": self.held_commitments,
             "unspeakable_answers": self.unspeakable,
             "empty_answers": self.empty_answers,
+            "audio_unavailable": self.audio_unavailable,
             "cache_hit_pct": pct(self.served),
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),
@@ -2271,8 +2273,21 @@ class VoiceSession:
         return False
 
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
+        """The audio for an answer this turn speaks, or None. Never raises: when the
+        audio step fails (the cache, or the app's own synthesiser) the turn keeps its
+        text and the app's TTS speaks it."""
         if self.synthesise is None:
             return None
+        try:
+            return self._voice(answer, cacheable)
+        except Exception as err:  # noqa: BLE001 — see docstring
+            self.audio_unavailable += 1
+            # The type only: an app's TTS error can quote the (possibly personal) text.
+            _LOG.warning("crowkis voice: no audio for this answer, the text is still served (%s)",
+                         type(err).__name__)
+            return None
+
+    def _voice(self, answer: str, cacheable: bool) -> Optional[bytes]:
         # A text-only session (voice_session() with no voice) has no real voice id to
         # key a clip on: speak, but never read or store a cached clip.
         if not cacheable or getattr(self, "_text_only", False):

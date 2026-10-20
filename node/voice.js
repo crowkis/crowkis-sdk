@@ -1623,6 +1623,7 @@ class VoiceSession {
     this.heldCommitments = 0;
     this.unspeakable = 0;
     this.emptyAnswers = 0;
+    this.audioUnavailable = 0;
     // The question the latest stored answer was stored under.
     this._lastStored = null;
     this._fillers = new Map();
@@ -2130,6 +2131,7 @@ class VoiceSession {
       commitmentsSentToModel: this.heldCommitments,
       unspeakableAnswers: this.unspeakable,
       emptyAnswers: this.emptyAnswers,
+      audioUnavailable: this.audioUnavailable,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
@@ -2199,8 +2201,22 @@ class VoiceSession {
     return false;
   }
 
+  // The audio for an answer this turn speaks, or null. Never rejects: when the audio
+  // step fails (the cache, or the app's own synthesiser) the turn keeps its text and the
+  // app's TTS speaks it. It used to reject the whole turn, losing the cached answer.
   async _voiced(answer, { cacheable = true } = {}) {
     if (!this.synthesise) return null;
+    try {
+      return await this._voice(answer, cacheable);
+    } catch (error) {
+      this.audioUnavailable += 1;
+      // The type only: an app's TTS error can quote the (possibly personal) text.
+      console.warn(`crowkis voice: no audio for this answer, the text is still served (${(error && error.name) || typeof error})`);
+      return null;
+    }
+  }
+
+  async _voice(answer, cacheable) {
     // A text-only session (voiceSession() with no voice) has no real voice id to key a
     // clip on: speak, but never read or store a cached clip.
     if (!cacheable || this._textOnly) return this.synthesise(answer);

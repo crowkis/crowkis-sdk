@@ -208,6 +208,20 @@ const system =
 const decision = await session.answer(callerSaid, myModel, { system });
 ```
 
+### Cached audio
+
+With `voice` and `synthesise`, a cached answer comes with its audio
+(`decision.audio`), so the next caller who asks skips the TTS too. Two things to know:
+
+- **Audio never breaks a call.** If the audio cache can't be read or written, or your own
+  `synthesise` fails, the turn still gets its text (`decision.audio` is `null`) and your
+  TTS speaks it. Failures are logged and counted (`stats().audioUnavailable`,
+  `agent.audioErrors`).
+- **Name the audio format when your bots differ.** A clip is only reused for the same
+  voice, language, speed and `audioFormat`. If a phone bot (8 kHz) and a web bot (24 kHz)
+  share a voice, set `audioFormat: "pcm16-8000"` / `"pcm16-24000"` so neither plays the
+  other's clip.
+
 ### Streaming the answer
 
 Voice bots send the model's words to the TTS as they arrive, so the caller hears a reply

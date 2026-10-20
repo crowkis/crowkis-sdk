@@ -224,6 +224,21 @@ system = (
 decision = session.answer(caller_said, my_model, system=system)
 ```
 
+### Cached audio
+
+With `voice=` and `synthesise=`, a cached answer comes with its audio
+(`decision.audio`), so the next caller who asks skips the TTS too. Two things to know:
+
+- **Audio never breaks a call.** If the audio cache can't be read or written, or your own
+  `synthesise` fails, the turn still gets its text (`decision.audio` is `None`) and your
+  TTS speaks it. Failures are logged and counted (`stats()["audio_unavailable"]`,
+  `agent.audio_errors`).
+- **Name the audio format when your bots differ.** A clip is only reused for the same
+  voice, language, speed and `audio_format`. If a phone bot (8 kHz) and a web bot (24 kHz)
+  share a voice, set `audio_format="pcm16-8000"` / `"pcm16-24000"` so neither plays the
+  other's clip. The Pipecat processors name the sample rate for you (Pipecat bots that
+  used the basic audio cache before 0.5.2 make each clip once more, under the new key).
+
 ### Streaming the answer
 
 Voice bots send the model's words to the TTS as they arrive, so the caller hears a reply

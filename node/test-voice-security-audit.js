@@ -76,6 +76,20 @@ test("a template never carries details the caller did not declare", async () => 
   assert.deepStrictEqual(server.writes.filter((w) => w.template).map((w) => w.response), ["Your order {order_id} arrives on Tuesday."]);
 });
 
+test("a cut-off personal question never becomes a template", async () => {
+  for (const said of ["when will i get my order on the", "will my order arrive by", "when will my order arrive by um"]) {
+    const server = new Store();
+    await session(server, { values: { order_id: "ORD-111" }, shareTemplates: true })
+      .answer(said, () => "Your order ORD-111 is due to arrive on Tuesday.");
+    assert.deepStrictEqual(server.writes.filter((w) => w.template), [], said);
+  }
+  // A finished one still is.
+  const server = new Store();
+  await session(server, { values: { order_id: "ORD-111" }, shareTemplates: true })
+    .answer("will my order arrive by Friday", () => "Your order ORD-111 arrives on Tuesday.");
+  assert.strictEqual(server.writes.filter((w) => w.template).length, 1);
+});
+
 test("a short or unasked reply never roots a shared chain or is stored alone", async () => {
   for (const root of ROOTS) {
     const server = new Store();

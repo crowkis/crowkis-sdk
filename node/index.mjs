@@ -6,7 +6,8 @@
 // test-packaging.js fails if index.js gains an export that is not named here.
 //
 // Naming them reads every getter, so an ES module import loads agent.js, voice.js and
-// realtime.js at once (require() still loads them on first use). They only define
+// realtime.js at once, and chat.js, session.js, callstate.js, turn.js, verify.js and
+// understand.js too (require() still loads them on first use). They only define
 // classes and constants when loaded.
 import crowkis from "./index.js";
 
@@ -26,4 +27,16 @@ export const {
   warmFromCalls,
   RealtimeAdapter,
   RealtimeGate,
+  Chat,
+  ChatConflict,
+  MemoryStore,
+  CallSession,
+  TurnResult,
+  CallState,
+  TurnFrame,
+  RuleChecker,
+  Verdict,
+  LLMUnderstander,
+  ReplayUnderstander,
+  WithFallback,
 } = crowkis;

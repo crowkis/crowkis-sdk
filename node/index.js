@@ -428,6 +428,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     await this.execute(...args);
   }
 
@@ -445,6 +446,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     const value = await this.execute(...args);
     if (value && typeof value === "object" && !Buffer.isBuffer(value)) return value.response || null;
     return Buffer.isBuffer(value) ? value : null;
@@ -465,6 +467,7 @@ class CrowkisClient {
     const image = imageBase64(options.image);
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
+    if (options.segment) args.push("SEGMENT", options.segment);
     const value = await this.execute(...args);
     if (!value || Buffer.isBuffer(value)) return null;
     return {
@@ -544,11 +547,12 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
-  async cstale(query, tenant) {
+  async cstale(query, tenant, segment) {
     await this._hello3();
     const args = ["CSTALE", query];
     const t = tenant || this.tenant;
     if (t) args.push("TENANT", t);
+    if (segment) args.push("SEGMENT", segment);
     return this.execute(...args);
   }
 
@@ -1286,5 +1290,42 @@ module.exports = {
   },
   get RealtimeGate() {
     return require("./realtime.js").RealtimeGate;
+  },
+  // Turn understanding: understand once, check with fixed rules, route by contract.
+  get Chat() {
+    return require("./chat.js").Chat;
+  },
+  get ChatConflict() {
+    return require("./chat.js").ChatConflict;
+  },
+  get MemoryStore() {
+    return require("./chat.js").MemoryStore;
+  },
+  get CallSession() {
+    return require("./session.js").CallSession;
+  },
+  get TurnResult() {
+    return require("./session.js").TurnResult;
+  },
+  get CallState() {
+    return require("./callstate.js").CallState;
+  },
+  get TurnFrame() {
+    return require("./turn.js").TurnFrame;
+  },
+  get RuleChecker() {
+    return require("./verify.js").RuleChecker;
+  },
+  get Verdict() {
+    return require("./verify.js").Verdict;
+  },
+  get LLMUnderstander() {
+    return require("./understand.js").LLMUnderstander;
+  },
+  get ReplayUnderstander() {
+    return require("./understand.js").ReplayUnderstander;
+  },
+  get WithFallback() {
+    return require("./understand.js").WithFallback;
   },
 };

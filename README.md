@@ -70,8 +70,9 @@ docs: **[www.crowkis.com/docs](https://www.crowkis.com/docs)**.
 ## Run a server
 
 ```bash
-docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
-  crowkis/crowkis:latest server --data /data/.crow
+docker run -d --name crowkis -p 127.0.0.1:6383:6383 -p 127.0.0.1:6384:6384 -e CROWKIS_PROTECTED_MODE=off -e CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0 -v crowkis-data:/data crowkis/crowkis:latest
+# Reachable from this machine only. To serve other machines, publish 6383 and set
+# -e CROWKIS_AUTH_TOKEN=<a long random secret> instead of CROWKIS_PROTECTED_MODE=off.
 ```
 
 ## Releasing

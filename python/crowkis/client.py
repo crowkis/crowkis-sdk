@@ -595,6 +595,7 @@ class CrowkisClient:
         model_version: Optional[str] = None,
         image: Optional[BytesLike] = None,
         template: bool = False,
+        segment: Optional[str] = None,
     ) -> None:
         args: List[BytesLike] = ["CSET", query, response]
         if ttl is not None:
@@ -610,6 +611,8 @@ class CrowkisClient:
             args += ["IMAGE", image_payload]
         if template:
             args += ["TEMPLATE"]
+        if segment:
+            args += ["SEGMENT", segment]
         self.execute(*args)
 
     def cget(
@@ -623,6 +626,7 @@ class CrowkisClient:
         migration_mode: Optional[str] = None,
         image: Optional[BytesLike] = None,
         template: bool = False,
+        segment: Optional[str] = None,
     ) -> Optional[bytes]:
         args: List[BytesLike] = ["CGET", query]
         if threshold is not None:
@@ -640,6 +644,8 @@ class CrowkisClient:
             args += ["IMAGE", image_payload]
         if template:
             args += ["TEMPLATE"]
+        if segment:
+            args += ["SEGMENT", segment]
         value = self.execute(*args)
         if isinstance(value, dict):
             return value.get("response")
@@ -654,10 +660,13 @@ class CrowkisClient:
         migration_mode = kwargs.get("migration_mode")
         image_payload = _image_b64(kwargs.get("image"))
         template = bool(kwargs.get("template"))
+        segment = kwargs.get("segment")
         if threshold is not None:
             args += ["THRESHOLD", str(threshold)]
         if tenant:
             args += ["TENANT", tenant]
+        if segment:
+            args += ["SEGMENT", segment]
         if model:
             args += ["MODEL", model]
         if model_version is not None:
@@ -763,10 +772,12 @@ class CrowkisClient:
             args += ["TENANT", tenant or self.tenant]
         return self.execute(*args)
 
-    def cstale(self, query: str, tenant: Optional[str] = None) -> Any:
+    def cstale(self, query: str, tenant: Optional[str] = None, segment: Optional[str] = None) -> Any:
         args: List[BytesLike] = ["CSTALE", query]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant]
+        if segment:
+            args += ["SEGMENT", segment]
         return self.execute(*args)
 
     def cinvalidate(
@@ -1795,6 +1806,8 @@ class AsyncCrowkisClient(CrowkisClient):
         image_payload = _image_b64(kwargs.get("image"))
         if image_payload is not None:
             args += ["IMAGE", image_payload]
+        if kwargs.get("segment"):
+            args += ["SEGMENT", kwargs["segment"]]
         value = await self.execute_async(*args)
         if isinstance(value, dict):
             return value.get("response")
@@ -1816,6 +1829,8 @@ class AsyncCrowkisClient(CrowkisClient):
         image_payload = _image_b64(kwargs.get("image"))
         if image_payload is not None:
             args += ["IMAGE", image_payload]
+        if kwargs.get("segment"):
+            args += ["SEGMENT", kwargs["segment"]]
         await self.execute_async(*args)
 
     async def get_or_compute_async(

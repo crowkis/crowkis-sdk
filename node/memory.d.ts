@@ -16,9 +16,9 @@ export class CrowkisMemory {
   readonly client: CrowkisClient;
   remember(fact: string, options?: { ttl?: number }): Promise<unknown>;
   recall(query: string, options?: { k?: number }): Promise<unknown>;
-  extract(conversation: unknown, options?: { ttl?: number }): Promise<unknown>;
-  history(query?: string, options?: { k?: number }): Promise<unknown>;
+  extract(conversation: string, options?: { ttl?: number }): Promise<unknown>;
+  history(query: string, options?: { k?: number }): Promise<unknown>;
   forget(options?: { query?: string; threshold?: number }): Promise<unknown>;
-  link(subject: string, relation: string, object?: string): Promise<unknown>;
-  graph(entity?: string, options?: { depth?: number }): Promise<unknown>;
+  link(subject: string, relation: string, object: string): Promise<unknown>;
+  graph(entity: string, options?: { depth?: number }): Promise<unknown>;
 }

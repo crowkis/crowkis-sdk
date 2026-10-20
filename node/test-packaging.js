@@ -54,7 +54,9 @@ test("ESM: every export of the package can be imported by name, and they are req
     import { createRequire } from "node:module";
     import * as ns from "@crowkis/client";
     import crowkis, { Crowkis, CrowkisClient, Agent, VoiceSession, voiceSession, TurnDecision,
-      VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate, CrowkisError, CrowkisAdmin } from "@crowkis/client";
+      VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate, CrowkisError, CrowkisAdmin, Chat, ChatConflict,
+      MemoryStore, CallSession, TurnResult, CallState, TurnFrame, RuleChecker, Verdict, LLMUnderstander,
+      ReplayUnderstander, WithFallback } from "@crowkis/client";
     import { VoiceSession as FromVoice } from "@crowkis/client/voice";
     import { Agent as FromAgent } from "@crowkis/client/agent";
     import { AudioClips } from "@crowkis/client/voiceTurns";
@@ -67,7 +69,9 @@ test("ESM: every export of the package can be imported by name, and they are req
       same: VoiceSession === cjs.VoiceSession && FromVoice === VoiceSession && FromAgent === Agent
         && crowkis === cjs && Crowkis === CrowkisClient,
       kinds: [Agent, voiceSession, TurnDecision, VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate,
-        CrowkisError, CrowkisAdmin, AudioClips, CrowkisCache, CrowkisMemory].map((x) => typeof x),
+        CrowkisError, CrowkisAdmin, AudioClips, CrowkisCache, CrowkisMemory, Chat, ChatConflict, MemoryStore,
+        CallSession, TurnResult, CallState, TurnFrame, RuleChecker, Verdict, LLMUnderstander, ReplayUnderstander,
+        WithFallback].map((x) => typeof x),
     }));
   `);
   assert.strictEqual(out.status, 0, out.stderr);
@@ -110,13 +114,15 @@ test("types: every subpath is typed and the types match the code", (t) => {
       type RealtimeTurnSource, type RealtimeClientEvent, type RealtimeInjectEvent,
       type RealtimeRespondEvent } from "@crowkis/client/realtime";
     import { AudioClips, AnswerPairing, TTS_TOOL, type AskedContext, type TurnGate, type AnswerReport } from "@crowkis/client/voiceTurns";
+    import { Crowkis, Chat, MemoryStore, LLMUnderstander, CallSession, RuleChecker, type ChatReply, type ChatOptions,
+      type CallSessionOptions } from "@crowkis/client";
     // Every re-exported name resolves (a re-export of a name that does not exist fails here).
     type Named = [VoiceSessionOptions, VoiceSessionFactoryOptions, TurnAction, TurnDecisionOptions, VoiceStats,
       VoiceValues, Commitments, ModelCall, StreamingModelCall, ModelMessage, TranscriptTurn, PastTurn,
       WarmStartTotals, AgentOptions, AskOptions, AskResult, AudioStats, RouteStats, ToolStats,
       CachedTool<() => void>, Synthesise, CrowkisCacheOptions, CrowkisMemoryOptions, RealtimeAdapterOptions,
       RealtimeStats, RealtimeTurnSource, RealtimeClientEvent, RealtimeInjectEvent, RealtimeRespondEvent,
-      TurnGate, AnswerReport];
+      TurnGate, AnswerReport, ChatReply, ChatOptions, CallSessionOptions];
     const values = [warmFromCalls, waitForAudioStores, voiceAddonMissing, RealtimeAdapter, CrowkisGrpcClient,
       loadCrowkisGrpc, TTS_TOOL] as const;
 
@@ -149,7 +155,15 @@ test("types: every subpath is typed and the types match the code", (t) => {
       const todo = await pairing.responseEnd();
       if (todo) await pairing.record(...todo);
     }
-    void [n, s2, label, counts, flags, bps, unavailable, go, RealtimeGate, values];
+    async function chats(complete: (m: Array<{ role: string; content: string }>) => Promise<string>) {
+      const asked = await agent.ask("q", { segment: "lang=hi" });
+      const quick = new Crowkis({ tenant: "t" });
+      const chat = new Chat(agent, new LLMUnderstander(complete), { system: "s", store: new MemoryStore() });
+      const reply: ChatReply = await chat.turn("thread", [{ role: "user", content: "hi" }], complete);
+      const outcome: string = reply.outcome;
+      void [asked, quick, outcome, CallSession, RuleChecker];
+    }
+    void [n, s2, label, counts, flags, bps, unavailable, go, chats, RealtimeGate, values];
     export type { Named };
   `);
   const tsc = spawnSync("npx", ["-y", "-p", "typescript@5.6.3", "tsc", "-p", "."], {

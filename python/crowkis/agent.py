@@ -215,6 +215,7 @@ class Agent:
         cheap_above: float = 0.60,
         template: bool = False,
         threshold: Optional[float] = None,
+        segment: Optional[str] = None,
     ) -> dict:
         if not 0.0 <= cheap_above <= serve_above <= 1.0:
             raise ValueError(
@@ -223,8 +224,11 @@ class Agent:
             )
         if threshold is not None and not 0.0 <= threshold <= 1.0:
             raise ValueError(f"threshold must be in 0..1, got {threshold}")
+        # Sent only when set: answers in one segment (a reply language, a region)
+        # are never served to another.
+        extra = {"segment": segment} if segment else {}
         hit = self._client.cget_hit(
-            query, tenant=self.tenant, template=template, threshold=threshold
+            query, tenant=self.tenant, template=template, threshold=threshold, **extra
         )
         if hit is None:
             self.route_counts["expensive"] += 1
@@ -356,7 +360,7 @@ class Agent:
         self.audio_misses += 1
         if audio and not skip_store:
             if use_v2:
-                ms = len(audio) * 1000 // bytes_per_second if bytes_per_second else None
+                ms = int(len(audio) * 1000 // bytes_per_second) if bytes_per_second else None
                 _store_later(self._client.caudioset, text, *labels, bytes(audio), ex=ttl, ms=ms, tenant=self.tenant)
             else:
                 try:
@@ -412,9 +416,11 @@ class Agent:
         *,
         ttl: Optional[int] = None,
         template: bool = False,
+        segment: Optional[str] = None,
     ) -> None:
+        extra = {"segment": segment} if segment else {}
         self._client.cset(
-            query, answer, ttl=ttl, tenant=self.tenant, template=template
+            query, answer, ttl=ttl, tenant=self.tenant, template=template, **extra
         )
 
     def route_stats(self) -> dict:

@@ -322,9 +322,7 @@ class Agent {
       );
     }
     const labels = [voiceId, language || "und", String(speed || "1"), audioFormat || "default"];
-    if (typeof this.client.caudioget !== "function") this._audioV2 = false;
-    else if (this._audioV2 === false && this._audioV2RecheckAt && Date.now() >= this._audioV2RecheckAt) this._audioV2 = null;
-    let useV2 = this._audioV2 !== false && fitsAudioCache(text, labels);
+    let useV2 = this._audioCacheUsable(text, labels);
     let skipStore = false;
     if (useV2) {
       try {
@@ -335,16 +333,9 @@ class Agent {
           return clip;
         }
       } catch (error) {
-        if (voiceAddonMissing(error)) {
-          this._audioV2 = false;
-          this._audioV2RecheckAt = Date.now() + ADDON_RECHECK_MS;
-          useV2 = false;
-        } else {
-          // A failed read is a miss: the clip is made and nothing is stored, so a
-          // failing server is not waited on twice. It used to end the turn.
-          this._audioCacheError("read", error);
-          skipStore = true;
-        }
+        // A failed read is a miss: the clip is made and nothing is stored, so a failing
+        // server is not waited on twice. It used to end the turn.
+        [useV2, skipStore] = this._audioCacheFailed(error);
       }
     }
     const key = ttsKey(text, labels);
@@ -387,6 +378,30 @@ class Agent {
     return audio;
   }
 
+  // Whether to ask the server's audio cache (Voice add-on) for this clip.
+  _audioCacheUsable(text, labels) {
+    if (typeof this.client.caudioget !== "function") {
+      this._audioV2 = false;
+      return false;
+    }
+    if (this._audioV2 === false && this._audioV2RecheckAt && Date.now() >= this._audioV2RecheckAt) {
+      this._audioV2 = null; // ask again: a licence may have been installed or renewed
+    }
+    return this._audioV2 !== false && fitsAudioCache(text, labels);
+  }
+
+  // After the audio cache answered an error: [use it, skip storing]. No Voice add-on: the
+  // basic path, asked again later. Any other error is a miss with nothing stored.
+  _audioCacheFailed(error) {
+    if (voiceAddonMissing(error)) {
+      this._audioV2 = false;
+      this._audioV2RecheckAt = Date.now() + ADDON_RECHECK_MS;
+      return [false, false];
+    }
+    this._audioCacheError("read", error);
+    return [true, true];
+  }
+
   _audioCacheError(what, error) {
     this.audioErrors += 1;
     console.warn(`crowkis: an audio clip could not be ${what}, so it is not cached this time: ${(error && error.message) || error}`);
@@ -425,4 +440,4 @@ class Agent {
   }
 }
 
-module.exports = { Agent, voiceAddonMissing, waitForAudioStores, _ttsKey: ttsKey };
+module.exports = { Agent, voiceAddonMissing, waitForAudioStores, _ttsKey: ttsKey, _storeLater: storeLater };

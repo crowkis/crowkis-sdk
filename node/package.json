@@ -9,6 +9,7 @@
     "./agent": "./agent.js",
     "./voice": "./voice.js",
     "./realtime": "./realtime.js",
+    "./voiceTurns": "./voiceTurns.js",
     "./langchain": "./langchain.js",
     "./memory": "./memory.js"
   },
@@ -39,6 +40,7 @@
     "agent.js",
     "voice.js",
     "realtime.js",
+    "voiceTurns.js",
     "langchain.js",
     "memory.js",
     "grpc.js",

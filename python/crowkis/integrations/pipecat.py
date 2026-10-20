@@ -45,10 +45,7 @@ keep the event loop free.
 from __future__ import annotations
 
 import asyncio
-import base64
-import binascii
 import collections
-import json
 import time
 from typing import Any, Awaitable, Callable, Optional
 
@@ -69,13 +66,22 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from ..agent import _store_later, _tts_key
-from ..client import CrowkisError
-from ..voice import VoiceSession, _words
-
-# Same tool name and key rule as Agent.speak(): a clip is shared with speak() when it
-# names the same format (audio_format="pcm16-<rate>").
-TTS_TOOL = "crowkis.tts"
+from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
+from ..client import CrowkisError  # noqa: F401  (kept importable from here)
+from ..voice import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
+from ..voice_turns import (  # noqa: F401  (the shared layer; names kept importable from here)
+    _HUNG_AFTER,
+    _MAX_TOOLS,
+    _RUNS_AHEAD,
+    _WAITING,
+    TTS_TOOL,
+    AnswerPairing,
+    AudioClips,
+    _field,
+    _last_user,
+    _remember,
+    _tool_context,
+)
 
 Report = Optional[Callable[[dict], Awaitable[Optional[Frame]]]]
 
@@ -89,32 +95,6 @@ _TOOL_CANCELS = tuple(getattr(_frames, name) for name in ("FunctionCallCancelFra
 _TOOL_RESULTS = tuple(getattr(_frames, name) for name in ("FunctionCallResultFrame",) if hasattr(_frames, name))
 # The words a TTS run speaks, where the TTS reports them.
 _TTS_TEXT = getattr(_frames, "TTSTextFrame", None)
-# Answered caller turns a tool may say nothing through before it is taken as hung, and
-# how many silent tools are remembered at most.
-_HUNG_AFTER = 2
-_MAX_TOOLS = 4
-
-
-def _field(message: Any, name: str) -> Any:
-    return message.get(name) if isinstance(message, dict) else getattr(message, name, None)
-
-
-def _last_user(messages: list) -> tuple:
-    """The last user message's text, and the messages after it."""
-    for index in range(len(messages) - 1, -1, -1):
-        if _field(messages[index], "role") == "user":
-            return _field(messages[index], "content") or "", messages[index + 1:]
-    return None, list(messages)
-
-
-def _tool_context(messages: list) -> bool:
-    """Whether a context carries a tool call or a tool's result after its last user message."""
-    _, after = _last_user(messages)
-    return any(
-        _field(m, "role") in ("tool", "function") or _field(m, "tool_calls") or _field(m, "function_call")
-        or _field(m, "type") in ("function_call", "function_call_output", "tool_use", "tool_result")
-        for m in after
-    )
 
 
 def _runs_llm(result: Frame) -> bool:
@@ -129,178 +109,28 @@ def _runs_llm(result: Frame) -> bool:
     return run_llm is not False
 
 
-# Answers whose clip or ruling is still waiting for the other. One turn is in flight at
-# a time; a few cover a barge-in that leaves one behind.
-_WAITING = 4
-# TTS runs that may be reserved ahead of the one playing.
-_RUNS_AHEAD = 16
+class CrowkisAudioCache(AudioClips, FrameProcessor):
+    """Pipecat frames to the shared AudioClips events (crowkis.voice_turns)."""
 
-
-def _remember(waiting: dict, key: str, value: Any) -> None:
-    waiting.pop(key, None)
-    waiting[key] = value
-    while len(waiting) > _WAITING:
-        waiting.pop(next(iter(waiting)))
-
-
-class CrowkisAudioCache(FrameProcessor):
     def __init__(self, session: VoiceSession, sample_rate: int):
         super().__init__()
-        self._session = session
-        self.sample_rate = sample_rate
-        self._pcm = bytearray()
-        # By answer text: finished clips waiting for a ruling, and rulings waiting for
-        # their clip. The TTS can finish before or after the write-back has ruled.
-        self._clips: dict = {}
-        self._rulings: dict = {}
-        # One slot per TTS run still to come, in the order the runs will happen: [text].
-        # A run's audio belongs to the slot it starts with, never to whatever text was
-        # named last, so a clip cannot be stored under another answer's text.
-        self._runs: collections.deque = collections.deque()
-        self._run: Optional[list] = None  # the slot of the TTS run in progress
-        self._unsynced = False
-        self._spoken: list = []  # what that run said, where the TTS reports it
-
-    def _key(self, text: str) -> str:
-        # The basic cache key names the sample rate too, so a 16 kHz bot never plays a
-        # clip made for a 24 kHz one (it used to be the voice and the text only).
-        return _tts_key(text, self._labels())
-
-    def _labels(self) -> tuple:
-        """Voice, language, speed and format: a clip is reused only when all match.
-        The format names the sample rate, so a 16 kHz bot never gets a 24 kHz clip."""
-        session = self._session
-        audio_format = session.audio_format if session.audio_format != "default" else f"pcm16-{self.sample_rate}"
-        return (session.voice, session.language, str(session.speed), audio_format)
-
-    def _uses_audio_cache(self, text: str) -> bool:
-        """The agent's rule for the server's audio cache (Voice add-on), the same as `speak`."""
-        usable = getattr(self._session.agent, "_audio_cache_usable", None)
-        return bool(usable and usable(text, self._labels()))
-
-    async def get(self, text: str) -> Optional[bytes]:
-        if getattr(self._session, "_text_only", False):
-            return None  # no voice id to key a clip on (voice_session() with no voice)
-        agent = self._session.agent
-        if self._uses_audio_cache(text):
-            try:
-                clip = await asyncio.to_thread(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
-            except CrowkisError as err:
-                use, _ = agent._audio_cache_failed(err)
-                if use:
-                    return None  # fail_soft: a miss
-            else:
-                agent._audio_v2 = True
-                return clip or None
-        try:
-            raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
-        except Exception as err:  # noqa: BLE001 — a failed read is a miss, never the end of the turn
-            agent._audio_cache_error("read", err)
-            return None
-        if not raw:
-            return None
-        # Strict: a damaged clip is a miss, never noise played to the caller.
-        try:
-            return base64.b64decode(raw, validate=True) or None
-        except (ValueError, binascii.Error):
-            return None
-
-    def expect(self, text: str, *, shareable: Optional[bool] = None) -> None:
-        """Name the answer that the next TTS run speaks.
-
-        ``shareable=True`` for an answer the cache just served: its clip may be stored.
-        Left out for a new answer: its clip waits for ``settle``. A run named here is
-        trusted by its order; naming another before it starts replaces it."""
-        for waiting in [slot for slot in self._runs if slot[1]]:
-            self._runs.remove(waiting)  # its run never happened: no slot is left behind
-        self.reserve(text, trusted=True)
-        if shareable is not None:
-            _remember(self._rulings, text, shareable)
-
-    def reserve(self, text: Optional[str] = None, *, trusted: bool = False) -> list:
-        """Hold the place of a TTS run that is coming, in stream order; its text can be
-        filled in later (``slot[0] = text``), before the run ends. Unless ``trusted``,
-        its clip is kept only when the TTS reports having spoken that text."""
-        slot = [text, trusted]
-        self._runs.append(slot)
-        if len(self._runs) > _RUNS_AHEAD:
-            # ponytail: far more runs waiting than a call ever has; rather than guess which
-            # run is which, keep no clip until a barge-in resets the order.
-            self._runs.clear()
-            self._unsynced = True
-        return slot
-
-    def release(self, slot: list) -> None:
-        """A reserved run that will not happen (an answer with nothing to speak)."""
-        if slot in self._runs:
-            self._runs.remove(slot)
-
-    def vouch(self, text: str) -> None:
-        """An answer the cache served: its clip may be stored once its own run ends."""
-        _remember(self._rulings, text, True)
-
-    async def settle(self, text: str, shareable: bool) -> None:
-        """The write-back's ruling on a new answer: store its clip, or drop it."""
-        clip = self._clips.pop(text, None)
-        if clip is None:
-            _remember(self._rulings, text, shareable)
-        elif shareable:
-            await self._store(text, clip)
-
-    async def _finish_clip(self) -> None:
-        """The audio of a TTS run is complete: it belongs to the slot the run started with."""
-        run, self._run = self._run, None
-        text, clip, spoken = (run[0] if run else None), bytes(self._pcm), _words(" ".join(self._spoken))
-        self._pcm, self._spoken = bytearray(), []
-        if not (text and clip) or self._unsynced:
-            return
-        if spoken and spoken != _words(text)[:len(spoken)]:
-            return  # the run said something else: never store it under this text
-        if not spoken and not run[1]:
-            return  # fail closed: the TTS did not say what it spoke
-        ruling = self._rulings.pop(text, None)
-        if ruling is None:
-            _remember(self._clips, text, clip)
-        elif ruling:
-            await self._store(text, clip)
-
-    async def _store(self, text: str, clip: bytes) -> None:
-        if getattr(self._session, "_text_only", False):
-            return  # no voice id to key a clip on (voice_session() with no voice)
-        agent = self._session.agent
-        if getattr(agent, "_audio_v2", None) is True and self._uses_audio_cache(text):
-            # In the background: the next frame is never held for a store.
-            ms = len(clip) * 1000 // (self.sample_rate * 2) if self.sample_rate else None
-            _store_later(
-                agent._client.caudioset, text, *self._labels(), bytes(clip),
-                ex=self._session.ttl, ms=ms, tenant=agent.tenant,
-            )
-            return
-        try:
-            await asyncio.to_thread(
-                agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
-                ex=self._session.ttl, tenant=agent.tenant,
-            )
-        except Exception as err:  # noqa: BLE001 — a failed write only costs a later hit
-            agent._audio_cache_error("written", err)
+        self._init_clips(session, sample_rate)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         if isinstance(frame, InterruptionFrame):
-            self._pcm, self._run, self._spoken, self._unsynced = bytearray(), None, [], False
-            self._runs.clear()
+            self.interrupted()
         elif isinstance(frame, TTSStartedFrame):
             # A new answer starts a new clip. A cached clip the gate replayed has no
             # TTSStartedFrame/TTSStoppedFrame around it, so without this it would be
             # stored as the start of the next answer. One per answer, not per sentence.
-            self._pcm, self._spoken = bytearray(), []
-            self._run = self._runs.popleft() if self._runs else None
-        elif _TTS_TEXT is not None and isinstance(frame, _TTS_TEXT) and self._run is not None:
-            self._spoken.append(getattr(frame, "text", "") or "")
+            self.tts_started()
+        elif _TTS_TEXT is not None and isinstance(frame, _TTS_TEXT):
+            self.tts_text(getattr(frame, "text", "") or "")
         elif isinstance(frame, TTSAudioRawFrame):
-            self._pcm += frame.audio
+            self.tts_audio(frame.audio)
         elif isinstance(frame, TTSStoppedFrame):
-            await self._finish_clip()
+            await self.tts_stopped()
         await self.push_frame(frame, direction)
 
 
@@ -394,25 +224,18 @@ class CrowkisGate(FrameProcessor):
             await self.push_frame(TTSSpeakFrame(decision.text))
 
 
-class CrowkisWriteBack(FrameProcessor):
+class CrowkisWriteBack(AnswerPairing, FrameProcessor):
+    """Pipecat frames to the shared AnswerPairing events (crowkis.voice_turns)."""
+
     def __init__(
         self, session: VoiceSession, gate: CrowkisGate, audio: CrowkisAudioCache, *, on_answer: Report = None
     ):
         super().__init__()
-        self._session = session
-        self._gate = gate
+        self._init_pairing(session, gate, audio, on_answer)
         gate.writeback = self
-        self._audio = audio
-        self._on_answer = on_answer
-        self._parts: Optional[list] = None
-        self._bound: Optional[tuple] = None  # the context the response in progress was generated from
-        self._held = False  # that response could be a tool's late answer: hold it until settled
-        self._calling = False  # the response in progress asked for a tool
-        self._pending: list = []  # (turn, question, messages) of tool calls whose answer is still to come
-        self._moves = 0  # caller turns answered, unrecorded, while a tool said nothing
-        self._hung: list = []  # tools taken as hung; a result from one re-arms it
-        self._deferred: Optional[tuple] = None  # (context, answer) of a held response
-        self._slot: Optional[list] = None  # the audio run reserved for the response in progress
+
+    async def _report_answer(self, info: dict) -> None:
+        await _report(self, self._on_answer, info)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -425,160 +248,34 @@ class CrowkisWriteBack(FrameProcessor):
                 await self._settle(True)
             return
         elif isinstance(frame, LLMFullResponseStartFrame):
-            # Its TTS run, in stream order. A gate with no queue of contexts keeps the
-            # original contract: the run is trusted by its order.
-            self._slot = self._audio.reserve(trusted=getattr(self._gate, "asked", None) is None)
-            await self._start()
+            await self.response_start()
         elif isinstance(frame, TTSSpeakFrame):
-            self._audio.reserve(frame.text)
+            self.speak_requested(frame.text)
         elif isinstance(frame, LLMTextFrame) and self._parts is not None:
-            self._parts.append(frame.text)
+            self.response_text(frame.text)
         elif _TOOL_CALLS and isinstance(frame, _TOOL_CALLS):
-            self._calling = True
+            self.tool_call()
         elif (_TOOL_CANCELS and isinstance(frame, _TOOL_CANCELS)) or (
             _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS) and not _runs_llm(frame)
         ):
-            self._pending.clear()  # no answer will follow these tools
-            self._hung.clear()
+            self.tools_done()  # no answer will follow these tools
             await self.push_frame(frame, direction)  # forwarded first; the report can be slow
             await self._settle(True)
             return
-        elif _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS) and not self._pending and self._hung:
-            # A tool taken as hung has answered after all: what follows is its answer.
-            self._pending.append(self._hung.pop(0))
+        elif _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS):
+            self.tool_result()
         elif isinstance(frame, InterruptionFrame):
-            self._parts, self._bound, self._calling, self._held, self._slot = None, None, False, False, None
+            self.interrupted()
             await self.push_frame(frame, direction)  # forwarded first; the report can be slow
             await self._settle(False)
             return
         elif isinstance(frame, LLMFullResponseEndFrame) and self._parts is not None:
-            answer, self._parts = "".join(self._parts).strip(), None
-            bound, self._bound = self._bound, None
-            calling, self._calling = self._calling, False
-            slot, self._slot = self._slot, None
-            if slot is not None and answer:
-                slot[0] = answer  # its clip waits for the ruling below
-            elif slot is not None:
-                self._audio.release(slot)
-            if bound is not None and calling:
-                # Nothing to record until the tool's result is answered.
-                if not self._pending:
-                    self._moves = 0
-                self._pending = (self._pending + [bound[1:]])[-_MAX_TOOLS:]
-                await self._audio.settle(answer, False)
-            elif bound is not None and bound[0] == "caller" and self._held:
-                self._deferred = (bound, answer)
-            elif bound is not None:
+            todo = await self.response_end()
+            if todo is not None:
                 await self.push_frame(frame, direction)
-                await self._record(bound, answer)
+                await self._record(*todo)
                 return
-            else:
-                await self._audio.settle(answer, False)
         await self.push_frame(frame, direction)
-
-    def queue_context(self, messages: list) -> bool:
-        """Queue a context the LLM will answer that the caller did not just say. No await:
-        the caller pushes it right after. True when a held answer is now known to be the
-        caller's own (the tool's answer comes from this context): settle it then."""
-        if not _tool_context(messages):
-            self._gate.asked.append(None)
-            return False
-        question, _ = _last_user(messages)
-        tool = next((t for t in self._pending if t[1] == question), None)
-        if tool is not None:
-            self._pending.remove(tool)
-        self._gate.asked.append(("tool", tool[0] if tool else None, question, messages))
-        return True
-
-    async def caller_moved_on(self) -> None:
-        """A new caller turn: a held response can no longer be told apart from a tool's.
-        A tool that has said nothing while two of the caller's turns were answered is
-        taken as hung, so it stops holding the call's answers; a result from it later
-        re-arms it."""
-        if self._pending and self._deferred is not None:
-            # The caller's previous turn was answered while the tool said nothing. Only such
-            # turns count: a tool can still answer, without its context seen, across turns
-            # that were merely asked. The queue of silent tools is capped instead.
-            self._moves += 1
-        if self._pending and self._moves >= _HUNG_AFTER:
-            self._hung, self._pending, self._moves = self._pending[-_MAX_TOOLS:], [], 0
-        await self._settle(False)
-
-    async def _start(self) -> None:
-        self._parts, self._held = [], False
-        asked = getattr(self._gate, "asked", None)
-        if asked is None:
-            # A gate that keeps no queue of contexts: pair with its current question, as before.
-            self._bound = ("caller", None, self._gate.question, self._gate.messages)
-            return
-        if self._deferred is not None:
-            # Two responses with no context between them while a tool was in flight:
-            # either could be the tool's answer, so neither is stored or paired. Between
-            # them they answered the held one's context and the next one waiting (or the
-            # tool's, if its context was never seen).
-            if asked:
-                asked.popleft()
-            elif self._pending:
-                self._pending.pop(0)
-            self._bound = None
-            await self._settle(False)
-            return
-        if asked:
-            self._bound = asked.popleft()
-        elif self._pending:
-            self._bound = ("tool",) + self._pending.pop(0)  # the answer after the tool's result
-        else:
-            self._bound = None
-        self._held = bool(
-            self._bound and self._bound[0] == "caller"
-            and (self._pending or any(e and e[0] == "tool" for e in asked))
-        )
-
-    async def _settle(self, answered: bool) -> None:
-        """Record a held response as its caller's answer, or drop it."""
-        deferred, self._deferred = self._deferred, None
-        if deferred is None:
-            return
-        if answered:
-            await self._record(*deferred)
-            return
-        await self._audio.settle(deferred[1], False)
-        # Reported with no question: it is never paired with a caller turn.
-        await _report(self, self._on_answer, {
-            "question": "", "answer": deferred[1], "messages": [], "saved": "not_saved",
-            "stored": False, "not_stored": "could not be told apart from a tool's late answer",
-        })
-
-    async def _record(self, bound: tuple, answer: str) -> None:
-        kind, turn, question, messages = bound
-        if not question or (kind == "tool" and turn is None):
-            # Only what the caller said is recorded, and only for a turn it belongs to.
-            await self._audio.settle(answer, False)
-            return
-        # Record first, so the report can say what happened to the answer.
-        if turn is None and kind == "caller":
-            saved = await asyncio.to_thread(self._session._record_model_turn, question, answer)
-        else:
-            saved = await asyncio.to_thread(
-                self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool"
-            )
-        await self._audio.settle(answer, await asyncio.to_thread(self._clip_allowed, saved))
-        stored = saved in ("saved", "template")
-        await _report(self, self._on_answer, {
-            "question": question, "answer": answer, "messages": messages, "saved": saved,
-            "stored": stored, "not_stored": "" if stored else (getattr(saved, "why", "") or str(saved)),
-        })
-
-    def _clip_allowed(self, saved: str) -> bool:
-        """Whether the spoken audio of a new answer may be kept, given what happened to
-        its text. Only an answer saved word for word: a template is saved with this
-        caller's values taken out, but its audio still says them. And not while the
-        server's decision engine holds answers until it vouches for them: the text is
-        not shared yet and may be removed, so the clip is made when it is first served."""
-        if saved != "saved":
-            return False
-        agent = self._session.agent
-        return not (agent.decides() and agent._holds)
 
 
 async def _report(processor: FrameProcessor, callback: Report, info: dict) -> None:

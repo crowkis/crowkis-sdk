@@ -2409,6 +2409,7 @@ module.exports = {
   warmFromCalls,
   _SESSION_OPTIONS: SESSION_OPTIONS,
   _speakable: speakable,
+  _words: wordsOf,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
   _abstract: abstract,

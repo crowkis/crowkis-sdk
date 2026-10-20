@@ -2487,12 +2487,20 @@ class VoiceSession {
   // holds the whole conversation itself (a realtime speech model): it cannot be
   // given decision.messages, so nothing it says is shared.
   recordPrivateTurn(callerSaid, modelSaid) {
+    this._heard(callerSaid);
     if (this._cancelled) return;
     this._open = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (this._shareable[1]) this.notShareable += 1;
     this._shareable = [0, false];
+  }
+
+  // A caller turn this session never decided (a private turn, history the app gave the
+  // model): one that tells the call something a later answer may depend on keeps the
+  // rest of the call off the shared cache, as decide() does for its own turns.
+  _heard(callerSaid) {
+    if (!this._tainted && setsContext(typeof callerSaid === "string" ? callerSaid.trim() : "")) this._tainted = true;
   }
 
   // Record the model's answer to the turn decide() last handled, and cache it if

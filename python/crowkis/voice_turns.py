@@ -67,6 +67,21 @@ def _last_user(messages: list) -> tuple:
     return None, list(messages)
 
 
+def _earlier_callers(messages: list) -> list:
+    """What the caller said before the last user message, as text (a message's content
+    may be a list of parts)."""
+    index = max((i for i, m in enumerate(messages) if _field(m, "role") == "user"), default=-1)
+    said = []
+    for message in messages[:max(index, 0)]:
+        if _field(message, "role") != "user":
+            continue
+        content = _field(message, "content")
+        if isinstance(content, list):
+            content = " ".join(str(_field(part, "text") or "") for part in content)
+        said.append(content if isinstance(content, str) else "")
+    return said
+
+
 def _tool_context(messages: list) -> bool:
     """Whether a context carries a tool call or a tool's result after its last user message."""
     _, after = _last_user(messages)

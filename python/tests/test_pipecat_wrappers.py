@@ -125,6 +125,30 @@ class WrapperTests(unittest.TestCase):
         (key, _), = store.tool_writes
         self.assertEqual((key["voice"], key["format"]), ("rachel", "pcm16-16000"))
 
+    def test_history_given_to_the_model_counts_as_what_the_caller_said(self):
+        # The app's context already holds a turn telling the call something: the later
+        # question is answered with the whole context, and nothing is shared.
+        store = SceneStore({"What should I pack?": "Light clothes."})
+        llm = FakeLLM(reply="For Goa in December, light cotton and a light jacket.")
+        history = [{"role": "system", "content": "You are Acme's assistant."},
+                   {"role": "user", "content": [{"type": "text", "text": "I'm planning a trip to Goa in December."}]},
+                   {"role": "assistant", "content": "Lovely!"},
+                   {"role": "user", "content": "What should I pack?"}]
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(FakeTTS())]),
+             LLMContextFrame(context=LLMContext(messages=history)))
+        self.assertEqual(len(llm.asked), 1, "not served from the shared cache")
+        self.assertEqual(len(llm.asked[0]), 4, "the model read the whole context")
+        self.assertEqual((store.writes, store.tool_writes), ([], []))
+
+    def test_plain_history_keeps_the_shared_cache(self):
+        store = SceneStore({"What should I pack?": "Light clothes."})
+        llm = FakeLLM()
+        history = [{"role": "user", "content": "Hi, I have a question."}, {"role": "assistant", "content": "Sure."},
+                   {"role": "user", "content": "What should I pack?"}]
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(FakeTTS())]),
+             LLMContextFrame(context=LLMContext(messages=history)))
+        self.assertEqual(llm.asked, [], "served from the shared cache")
+
     def test_the_voice_and_sample_rate_come_from_the_tts_service(self):
         store = SceneStore()
         session = _session(store)

@@ -343,6 +343,38 @@ class LiveKitFlowTests(unittest.TestCase):
                 self.assertEqual(store.writes, [])
                 self.assertEqual(session.transcript[-1]["content"], "Refunds take 2 days for Gold members.")
 
+    def test_history_or_a_rag_turn_that_tells_the_call_something_keeps_the_rest_private(self):
+        told = "I'm planning a trip to Goa in December."
+        later = "What should I pack?"
+        rag = lambda ctx: ctx.items.insert(len(ctx.items) - 1, llm.ChatMessage(
+            role="system", content=["Knowledge: Goa is warm in December."]))
+        for name, contexts in (
+            # the app's own chat history, never seen by Crowkis
+            ("history", [_ctx(("user", told), ("assistant", "Lovely!"), ("user", later))]),
+            # the turn was answered with RAG data (kept to the call), then a plain question
+            ("rag turn", [_ctx(("user", told)), _ctx(("user", told), ("assistant", "Lovely!"), ("user", later))]),
+        ):
+            with self.subTest(name):
+                fakes = Fakes(reply="Light cotton and a light jacket.")
+                agent, store, _ = _agent(fakes, store=SceneStore({later: "Light clothes."}))
+                if name == "rag turn":
+                    rag(contexts[0])
+                with _patched(fakes):
+                    for ctx in contexts:
+                        asyncio.run(_turn(agent, ctx))
+                self.assertEqual(len(fakes.llm_calls), len(contexts), "never served from the shared cache")
+                self.assertEqual(len(fakes.llm_calls[-1]), len(contexts[-1].items), "the model read it all")
+                self.assertEqual((store.writes, store.tool_writes), ([], []))
+
+    def test_plain_history_keeps_the_shared_cache(self):
+        fakes = Fakes()
+        agent, _, _ = _agent(fakes, store=SceneStore({"What should I pack?": "Light clothes."}))
+        with _patched(fakes):
+            said, _ = asyncio.run(_turn(agent, _ctx(("user", "Hi, I have a question."), ("assistant", "Sure."),
+                                                    ("user", "What should I pack?"))))
+        self.assertEqual(said, "Light clothes.")
+        self.assertEqual(fakes.llm_calls, [])
+
     def test_the_voice_follows_a_tts_voice_change(self):
         import crowkis
 

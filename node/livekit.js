@@ -47,6 +47,12 @@ function lastUser(chatCtx) {
   return [null, items, -1];
 }
 
+// What the caller said before the last user message, as text.
+function earlierCallers(chatCtx) {
+  const users = chatCtx.items.filter((item) => item.type === "message" && item.role === "user");
+  return users.slice(0, -1).map(textOf);
+}
+
 // The agent's instructions: the system / developer message LiveKit puts first.
 function leadingInstructions(chatCtx) {
   const first = chatCtx.items[0];
@@ -224,6 +230,8 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     if (unspoken && audioOut()) core.cancel(); // the last hit was never spoken (a discarded attempt)
     unspoken = false;
     hits.clear(); // a new caller turn: no earlier reply's clip is waiting to be spoken
+    // History the app gave the model: what the caller told the call there counts too.
+    for (const said of earlierCallers(chatCtx)) core._heard(said);
     if (extraContext(chatCtx, userIndex)) {
       pending.clear(); // a newer turn: no earlier answer is still waiting to be spoken
       const answer = yield* passThrough(chatCtx);

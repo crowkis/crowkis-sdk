@@ -96,6 +96,7 @@ from ..voice_turns import (  # noqa: F401  (the shared layer; names kept importa
     TTS_TOOL,
     AnswerPairing,
     AudioClips,
+    _earlier_callers,
     _field,
     _last_user,
     _remember,
@@ -235,6 +236,9 @@ class CrowkisGate(FrameProcessor):
         if self.writeback is not None:
             await self.writeback.caller_moved_on()
         started = time.perf_counter()
+        for said in _earlier_callers(messages):
+            # History the app gave the model: what the caller told the call there counts too.
+            self._session._heard(said)
         decision = await asyncio.to_thread(self._session.decide, self.question)
         gate_ms = (time.perf_counter() - started) * 1000
         # A served answer filled with this caller's values never uses the shared audio cache.

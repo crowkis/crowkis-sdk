@@ -164,6 +164,32 @@ test("RAG context means the whole context and no sharing", { skip }, async () =>
   assert.deepStrictEqual(store.writes, []);
 });
 
+test("history or a RAG turn that tells the call something keeps the rest private", { skip }, async () => {
+  const told = "I'm planning a trip to Goa in December.";
+  const later = "What should I pack?";
+  const ragTurn = ctx([["user", told]]);
+  ragTurn.items.splice(1, 0, lk.llm.ChatMessage.create({ role: "system", content: ["Knowledge: Goa is warm in December."] }));
+  for (const [name, contexts] of [
+    // the app's own chat history, never seen by Crowkis
+    ["history", [ctx([["user", told], ["assistant", "Lovely!"], ["user", later]])]],
+    // the turn was answered with RAG data (kept to the call), then a plain question
+    ["rag turn", [ragTurn, ctx([["user", told], ["assistant", "Lovely!"], ["user", later]])]],
+  ]) {
+    const { agent, store, fakes } = make({ reply: "Light cotton and a light jacket.", store: new Store({ [later]: "Light clothes." }) });
+    for (const c of contexts) await turn(agent, c);
+    assert.strictEqual(fakes.llmCalls.length, contexts.length, `${name}: never served from the shared cache`);
+    assert.strictEqual(fakes.llmCalls.at(-1).length, contexts.at(-1).items.length, `${name}: the model read it all`);
+    assert.deepStrictEqual([store.writes, store.toolWrites], [[], []], name);
+  }
+});
+
+test("plain history keeps the shared cache", { skip }, async () => {
+  const { agent, fakes } = make({ store: new Store({ "What should I pack?": "Light clothes." }) });
+  const { said } = await turn(agent, ctx([["user", "Hi, I have a question."], ["assistant", "Sure."], ["user", "What should I pack?"]]));
+  assert.strictEqual(said, "Light clothes.");
+  assert.deepStrictEqual(fakes.llmCalls, []);
+});
+
 test("a say() never plays another reply's cached audio", { skip }, async () => {
   const store = new Store({ [QUESTION]: ANSWER });
   const { agent, fakes } = make({ store });

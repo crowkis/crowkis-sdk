@@ -73,6 +73,13 @@ def _last_user(chat_ctx: Any) -> tuple:
     return None, items
 
 
+def _earlier_callers(chat_ctx: Any) -> list:
+    """What the caller said before the last user message, as text."""
+    users = [item for item in chat_ctx.items
+             if getattr(item, "type", None) == "message" and getattr(item, "role", None) == "user"]
+    return [_text_of(item) for item in users[:-1]]
+
+
 def _leading_instructions(chat_ctx: Any) -> list:
     """The agent's instructions: the system / developer message LiveKit puts first. Any
     other system message (RAG or CRM data, even right after it) is extra context."""
@@ -256,6 +263,10 @@ class CrowkisVoice:
             async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
                 yield chunk
             return
+
+        for said in _earlier_callers(chat_ctx):
+            # History the app gave the model: what the caller told the call there counts too.
+            core._heard(said)
 
         if _extra_context(chat_ctx):
             # RAG / CRM messages for this turn, or a tool still running: the model needs the

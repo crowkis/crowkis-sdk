@@ -2609,6 +2609,7 @@ class VoiceSession:
         For a model that holds the whole conversation itself (a realtime speech
         model): it cannot be given ``decision.messages``, so nothing it says is shared.
         """
+        self._heard(caller_said)
         if self._cancelled:
             return
         self._open = False
@@ -2618,6 +2619,13 @@ class VoiceSession:
             if self._shareable[1]:
                 self.not_shareable += 1
             self._shareable = (0, False)
+
+    def _heard(self, caller_said: Optional[str]) -> None:
+        """A caller turn this session never decided (a private turn, history the app gave
+        the model): one that tells the call something a later answer may depend on keeps
+        the rest of the call off the shared cache, as decide() does for its own turns."""
+        if not self._tainted and _sets_context((caller_said or "").strip()):
+            self._tainted = True
 
     def _record_model_turn(
         self, caller_said: str, model_said: str, *, turn: Optional[int] = None, private: bool = False,

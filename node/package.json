@@ -12,7 +12,9 @@
     "./voiceTurns": { "types": "./voiceTurns.d.ts", "default": "./voiceTurns.js" },
     "./livekit": { "types": "./livekit.d.ts", "default": "./livekit.js" },
     "./langchain": { "types": "./langchain.d.ts", "default": "./langchain.js" },
-    "./memory": { "types": "./memory.d.ts", "default": "./memory.js" }
+    "./memory": { "types": "./memory.d.ts", "default": "./memory.js" },
+    "./chat": { "types": "./chat.d.ts", "default": "./chat.js" },
+    "./session": { "types": "./session.d.ts", "default": "./session.js" }
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",
@@ -73,6 +75,8 @@
     "voiceTurns.d.ts",
     "livekit.js",
     "livekit.d.ts",
+    "chat.d.ts",
+    "session.d.ts",
     "README.md"
   ],
   "scripts": {

@@ -268,6 +268,29 @@ something new (`decide()` / `respond()` again). If the model fails mid-stream, t
 thrown and nothing is saved; leaving the loop early or `await stream.close()` saves nothing
 too. `respond()` takes `{ system, private }` like `answer()` and `record()`.
 
+### LiveKit Agents
+
+Wrap your agent; nothing else changes:
+
+```js
+const { voice } = require("@livekit/agents");
+const { withCrowkis } = require("@crowkis/client/livekit");
+
+const agent = withCrowkis(new voice.Agent({ instructions: "You are Acme's phone assistant." }));
+```
+
+- A question the cache can answer is spoken without the LLM, and with its cached audio,
+  without the TTS. Otherwise your LLM answers, reading your instructions and only the
+  caller's question (the whole call for a personal turn), with your tools.
+- A new answer is saved once its TTS has spoken it, so a reply LiveKit discards
+  (preemptive generation) or the caller cuts off is never saved. With audio off, it is saved
+  when the LLM has finished. An answer built from a tool's result, or from RAG/CRM messages
+  you add for the turn, stays in that call; `generateReply({ instructions })` replies are
+  passed through.
+- Each agent makes its own `voiceSession()` (server settings from the environment); pass
+  `withCrowkis(agent, { crowkis })` or `{ options }` to change it. The voice and sample rate
+  come from the agent's TTS. `agent.crowkis` is the session.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

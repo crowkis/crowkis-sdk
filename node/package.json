@@ -10,6 +10,7 @@
     "./voice": { "types": "./voice.d.ts", "default": "./voice.js" },
     "./realtime": { "types": "./realtime.d.ts", "default": "./realtime.js" },
     "./voiceTurns": { "types": "./voiceTurns.d.ts", "default": "./voiceTurns.js" },
+    "./livekit": { "types": "./livekit.d.ts", "default": "./livekit.js" },
     "./langchain": { "types": "./langchain.d.ts", "default": "./langchain.js" },
     "./memory": { "types": "./memory.d.ts", "default": "./memory.js" }
   },
@@ -50,6 +51,8 @@
     "voice.d.ts",
     "realtime.d.ts",
     "voiceTurns.d.ts",
+    "livekit.js",
+    "livekit.d.ts",
     "langchain.d.ts",
     "memory.d.ts",
     "README.md"

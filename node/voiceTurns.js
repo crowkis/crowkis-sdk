@@ -73,6 +73,18 @@ function toolContext(messages) {
   );
 }
 
+// The system / developer messages in what the model read, as one text.
+function instructionsOf(messages) {
+  const parts = [];
+  for (const message of messages || []) {
+    if (!["system", "developer"].includes(field(message, "role"))) continue;
+    const content = field(message, "content");
+    if (typeof content === "string") parts.push(content);
+    else if (Array.isArray(content)) parts.push(...content.map((p) => String(field(p, "text") || "")));
+  }
+  return parts.filter(Boolean).join("\n");
+}
+
 function remember(waiting, key, value) {
   waiting.delete(key);
   waiting.set(key, value);
@@ -114,6 +126,7 @@ class AudioClips {
 
   async get(text) {
     if (this.session._textOnly) return null; // no voice id to key a clip on
+    if (!this.sampleRate) return null; // no TTS has said its sample rate
     const agent = this.session.agent;
     if (this._usesAudioCache(text)) {
       try {
@@ -226,6 +239,7 @@ class AudioClips {
 
   async _store(text, clip) {
     if (this.session._textOnly) return; // no voice id to key a clip on
+    if (!this.sampleRate) return; // no TTS has said its sample rate: the format is unknown
     const agent = this.session.agent;
     if (agent._audioV2 === true && this._usesAudioCache(text)) {
       // In the background: the next event is never held for a store.
@@ -267,6 +281,10 @@ class AnswerPairing {
     this._hung = []; // tools taken as hung; a result from one re-arms it
     this._deferred = null; // [context, answer] of a held response
     this._slot = null; // the audio run reserved for the response in progress
+    // The LLM service's own system instruction, which the model reads on every turn; an
+    // adapter that knows it (as Python's Pipecat one does) sets it so answers repeating a
+    // caller's detail from it are not shared.
+    this.serviceInstructions = null;
   }
 
   async _reportAnswer(info) {
@@ -419,10 +437,15 @@ class AnswerPairing {
       await this.audio.settle(answer, false);
       return;
     }
+    // The system messages the model read (and the LLM service's own instruction, where
+    // the adapter knows it) are its instructions: an answer repeating a detail they give
+    // about this caller is never shared.
+    const instructions = [instructionsOf(messages), this.serviceInstructions || ""].filter(Boolean).join("\n");
+    const extra = instructions ? { instructions } : {};
     const { outcome, why } =
       (turn === null || turn === undefined) && kind === "caller"
-        ? await this.session._record(question, answer)
-        : await this.session._record(question, answer, { turn, private: kind === "tool" });
+        ? await this.session._record(question, answer, extra)
+        : await this.session._record(question, answer, { turn, private: kind === "tool", ...extra });
     await this.audio.settle(answer, await this._clipAllowed(outcome));
     const stored = outcome === "saved" || outcome === "template";
     await this._reportAnswer({

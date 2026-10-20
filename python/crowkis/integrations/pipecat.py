@@ -1,5 +1,19 @@
 """Crowkis in front of the LLM and the TTS of a Pipecat voice pipeline.
 
+The one-line way: wrap the two services you already have.
+
+    from crowkis.integrations.pipecat import CrowkisLLM, CrowkisTTS
+
+    llm = CrowkisLLM(OpenAILLMService(api_key=...))       # the cache in front of the LLM
+    tts = CrowkisTTS(CartesiaTTSService(voice_id=...))    # optional: replays cached audio
+    Pipeline([transport.input(), stt, user_aggregator, llm, tts, transport.output(),
+              assistant_aggregator])
+
+CrowkisLLM builds a crowkis.voice_session() (server settings from the environment, live
+call defaults) unless you pass ``session=``; CrowkisTTS takes the voice id and sample rate
+from the TTS service and finds the CrowkisLLM ahead of it in the pipeline by itself. The
+three processors below are what they are made of, and still work on their own:
+
     stt -> user aggregator -> gate -> llm -> writeback -> tts -> audio -> output
 
     from crowkis.integrations.pipecat import crowkis_processors
@@ -66,6 +80,11 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
+try:  # the one-line wrappers are pipelines of their own
+    from pipecat.pipeline.pipeline import Pipeline as _Pipeline
+except ImportError:  # pragma: no cover - a Pipecat without nested pipelines
+    _Pipeline = None
+
 from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
 from ..client import CrowkisError  # noqa: F401  (kept importable from here)
 from ..voice import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
@@ -109,6 +128,25 @@ def _runs_llm(result: Frame) -> bool:
     return run_llm is not False
 
 
+def _leading_instructions(messages: list) -> list:
+    """The system / developer messages before the conversation starts: the app's own
+    instructions to the model."""
+    leading = []
+    for message in messages:
+        if _field(message, "role") not in ("system", "developer"):
+            break
+        leading.append(message)
+    return leading
+
+
+def _model_context(original: Any, messages: list, chosen: list) -> Any:
+    """The context the model reads on a model turn: the app's instructions, then only
+    what Crowkis chose (the question, or the questions it follows on from), with the
+    original context's tools and tool choice."""
+    kwargs = {name: getattr(original, name) for name in ("tools", "tool_choice") if hasattr(original, name)}
+    return LLMContext(messages=_leading_instructions(messages) + list(chosen), **kwargs)
+
+
 class CrowkisAudioCache(AudioClips, FrameProcessor):
     """Pipecat frames to the shared AudioClips events (crowkis.voice_turns)."""
 
@@ -118,6 +156,11 @@ class CrowkisAudioCache(AudioClips, FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+        await self.on_frame(frame)
+        await self.push_frame(frame, direction)
+
+    async def on_frame(self, frame: Frame) -> None:
+        """The TTS-side frames, as AudioClips events."""
         if isinstance(frame, InterruptionFrame):
             self.interrupted()
         elif isinstance(frame, TTSStartedFrame):
@@ -131,7 +174,6 @@ class CrowkisAudioCache(AudioClips, FrameProcessor):
             self.tts_audio(frame.audio)
         elif isinstance(frame, TTSStoppedFrame):
             await self.tts_stopped()
-        await self.push_frame(frame, direction)
 
 
 class CrowkisGate(FrameProcessor):
@@ -155,6 +197,11 @@ class CrowkisGate(FrameProcessor):
         await super().process_frame(frame, direction)
         if isinstance(frame, LLMContextFrame):
             await self._answer(frame)
+            return
+        if _START is not None and isinstance(frame, _START) and getattr(self, "_announce", False):
+            # A CrowkisLLM: tell the CrowkisTTS further down which audio cache it serves.
+            await self.push_frame(frame, direction)
+            await self.push_frame(CrowkisLinkFrame(audio=self._audio))
             return
         if isinstance(frame, InterruptionFrame):
             if self._serving or self._model_turn:
@@ -194,8 +241,12 @@ class CrowkisGate(FrameProcessor):
         shared_audio = decision.audio_shareable
         audio = None if decision.needs_model or not shared_audio else await self._audio.get(decision.text)
         if decision.needs_model and decision.messages is not None:
-            # The full call stays in the Pipecat context; the model just doesn't read it.
-            frame = LLMContextFrame(context=LLMContext(messages=decision.messages))
+            # The full call stays in the Pipecat context; the model just doesn't read it. It
+            # does read the app's own instructions (the system messages before the call)
+            # and keeps its tools: these used to be dropped on every model turn. An answer
+            # that repeats a detail those instructions give about this caller is never
+            # shared (see VoiceSession: the instructions go with the answer when recorded).
+            frame = LLMContextFrame(context=_model_context(frame.context, messages, decision.messages))
         self.messages = list(frame.context.messages)
         await _report(self, self._on_turn, {
             "question": self.question,
@@ -233,6 +284,15 @@ class CrowkisWriteBack(AnswerPairing, FrameProcessor):
         super().__init__()
         self._init_pairing(session, gate, audio, on_answer)
         gate.writeback = self
+        self._llm_service: Any = None  # set by CrowkisLLM: its system_instruction is read too
+
+    @property
+    def _service_instructions(self) -> Optional[str]:
+        """The LLM service's own system instruction (Pipecat setting), which the model
+        reads on every turn: an answer repeating a caller's detail from it is not shared."""
+        settings = getattr(self._llm_service, "_settings", None)
+        instruction = getattr(settings, "system_instruction", None)
+        return instruction if isinstance(instruction, str) else None
 
     async def _report_answer(self, info: dict) -> None:
         await _report(self, self._on_answer, info)
@@ -278,6 +338,141 @@ class CrowkisWriteBack(AnswerPairing, FrameProcessor):
         await self.push_frame(frame, direction)
 
 
+_START = getattr(_frames, "StartFrame", None)
+_TTS_SETTINGS = getattr(_frames, "TTSUpdateSettingsFrame", None)
+_SYSTEM_FRAME = getattr(_frames, "SystemFrame", Frame)
+
+
+class CrowkisLinkFrame(_SYSTEM_FRAME):  # type: ignore[misc,valid-type]
+    """Sent by a CrowkisLLM when the pipeline starts, so the CrowkisTTS after it finds
+    the audio cache it serves without being told. Never leaves a CrowkisTTS."""
+
+    def __init__(self, audio: Any = None):
+        super().__init__()
+        self.audio = audio
+
+
+def _voice_of(service: Any) -> Optional[str]:
+    """The voice id a Pipecat TTS service speaks with, where it says."""
+    settings = getattr(service, "_settings", None)
+    for value in (getattr(settings, "voice", None), getattr(service, "_voice_id", None)):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+class _AudioRelay(FrameProcessor):
+    """Inside a CrowkisTTS, after the TTS service: feeds the linked audio cache the
+    TTS frames, and gives it the service's sample rate and voice."""
+
+    def __init__(self, tts: Any, audio: Optional[CrowkisAudioCache] = None):
+        super().__init__()
+        self._tts = tts
+        self._target = audio
+        self._started = False
+        self._owns_voice = False  # the session's voice came from this TTS, so follows it
+
+    def _attach(self) -> None:
+        audio = self._target
+        if audio is None or not self._started:
+            return
+        rate = getattr(self._tts, "sample_rate", None)
+        if isinstance(rate, int) and rate > 0:
+            audio.sample_rate = rate
+        session = audio._session
+        voice = _voice_of(self._tts)
+        if voice and (getattr(session, "_text_only", False) or self._owns_voice):
+            # voice_session() made with no voice: the TTS names it, so audio is cached
+            # (keyed on this voice) from now on, and follows the TTS if it changes voice.
+            session.voice = voice
+            session._text_only = False
+            self._owns_voice = True
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, CrowkisLinkFrame):
+            if self._target is None:
+                self._target = frame.audio
+            self._attach()
+            return  # it ends here
+        if _START is not None and isinstance(frame, _START):
+            self._started = True  # the TTS service ahead has started: its rate is known
+            self._attach()
+        elif _TTS_SETTINGS is not None and isinstance(frame, _TTS_SETTINGS):
+            self._attach()  # the TTS ahead has applied it: a new voice keys new clips
+        elif self._target is not None:
+            await self._target.on_frame(frame)
+        await self.push_frame(frame, direction)
+
+
+if _Pipeline is not None:
+
+    class CrowkisLLM(_Pipeline):
+        """Crowkis in front of a Pipecat LLM service: ``CrowkisLLM(OpenAILLMService(...))``.
+
+        A cache hit is spoken without the LLM; on a miss the LLM answers as before and the
+        answer is cached when it is safe to share. ``session`` is the VoiceSession to use;
+        left out, one is made with crowkis.voice_session(**session_options) (server
+        settings from the environment). ``on_turn`` / ``on_answer`` are the same callbacks
+        as crowkis_processors(). The parts: ``.session``, ``.gate``, ``.writeback``,
+        ``.audio``.
+        """
+
+        def __init__(self, service: FrameProcessor, session: Optional[VoiceSession] = None, *,
+                     on_turn: Report = None, on_answer: Report = None, **session_options: Any):
+            if session is not None and session_options:
+                raise ValueError(
+                    f"CrowkisLLM got session= and {', '.join(sorted(session_options))}: "
+                    "set these on the session you pass, or leave session out"
+                )
+            if session is None:
+                from ..voice import voice_session
+
+                session = voice_session(**session_options)
+            self.session = session
+            # The sample rate is the TTS service's: CrowkisTTS sets it when the pipeline starts.
+            self.audio = CrowkisAudioCache(session, sample_rate=0)
+            self.gate = CrowkisGate(session, self.audio, on_turn=on_turn)
+            self.gate._announce = True
+            self.writeback = CrowkisWriteBack(session, self.gate, self.audio, on_answer=on_answer)
+            self.writeback._llm_service = service
+            self.service = service
+            super().__init__([self.gate, service, self.writeback])
+
+        # The LLM service's own calls (register_function, register_direct_function, ...)
+        # work on the wrapper. Event handlers belong to the service: use
+        # ``llm.service.event_handler(...)``.
+        def __getattr__(self, name: str) -> Any:
+            service = self.__dict__.get("service")
+            if service is None or name.startswith("_"):
+                raise AttributeError(name)
+            return getattr(service, name)
+
+    class CrowkisTTS(_Pipeline):
+        """Cached audio for a Pipecat TTS service: ``CrowkisTTS(CartesiaTTSService(...))``.
+
+        Place it where the TTS service was, after a CrowkisLLM. A cached answer whose audio
+        is known is played without the TTS; a new answer's audio is kept once its text is
+        shared. The voice id and sample rate come from the service. ``llm`` names the
+        CrowkisLLM to serve; left out, the one ahead in the pipeline is found when it starts.
+        """
+
+        def __init__(self, service: FrameProcessor, llm: Optional["CrowkisLLM"] = None):
+            self.service = service
+            self._relay = _AudioRelay(service, llm.audio if llm is not None else None)
+            super().__init__([service, self._relay])
+
+else:  # pragma: no cover
+
+    class CrowkisLLM:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any):
+            raise ImportError("CrowkisLLM needs a Pipecat with pipecat.pipeline.pipeline.Pipeline")
+
+    class CrowkisTTS:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any):
+            raise ImportError("CrowkisTTS needs a Pipecat with pipecat.pipeline.pipeline.Pipeline")
+
+
 async def _report(processor: FrameProcessor, callback: Report, info: dict) -> None:
     if callback is None:
         return
@@ -299,4 +494,4 @@ def crowkis_processors(
     return gate, CrowkisWriteBack(session, gate, audio, on_answer=on_answer), audio
 
 
-__all__ = ["CrowkisGate", "CrowkisWriteBack", "CrowkisAudioCache", "crowkis_processors"]
+__all__ = ["CrowkisLLM", "CrowkisTTS", "CrowkisGate", "CrowkisWriteBack", "CrowkisAudioCache", "crowkis_processors"]

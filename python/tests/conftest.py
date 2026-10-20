@@ -23,3 +23,12 @@ _NAMES = (
 def _no_crowkis_settings_from_the_shell(monkeypatch):
     for name in _NAMES:
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_system_prompts_from_other_tests():
+    """Each test starts with no agent's system prompts remembered (the prompt guard
+    compares a call's prompt with the agent's earlier ones, in this process)."""
+    from crowkis.voice import _reset_prompt_baselines
+
+    _reset_prompt_baselines()

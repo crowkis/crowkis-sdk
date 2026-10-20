@@ -77,6 +77,19 @@ def _tool_context(messages: list) -> bool:
     )
 
 
+def _instructions(messages: list) -> str:
+    """The system / developer messages in what the model read, as one text."""
+    parts = []
+    for message in messages or []:
+        if _field(message, "role") in ("system", "developer"):
+            content = _field(message, "content")
+            if isinstance(content, str):
+                parts.append(content)
+            elif isinstance(content, list):  # [{"type": "text", "text": ...}, ...]
+                parts.extend(str(_field(p, "text") or "") for p in content)
+    return "\n".join(p for p in parts if p)
+
+
 def _remember(waiting: dict, key: str, value: Any) -> None:
     waiting.pop(key, None)
     waiting[key] = value
@@ -123,6 +136,8 @@ class AudioClips:
     async def get(self, text: str) -> Optional[bytes]:
         if getattr(self._session, "_text_only", False):
             return None  # no voice id to key a clip on (voice_session() with no voice)
+        if not self.sample_rate:
+            return None  # no TTS has said its sample rate: no clip could be played right
         agent = self._session.agent
         if self._uses_audio_cache(text):
             try:
@@ -233,6 +248,8 @@ class AudioClips:
     async def _store(self, text: str, clip: bytes) -> None:
         if getattr(self._session, "_text_only", False):
             return  # no voice id to key a clip on (voice_session() with no voice)
+        if not self.sample_rate:
+            return  # no TTS has said its sample rate: the clip's format is unknown
         agent = self._session.agent
         if getattr(agent, "_audio_v2", None) is True and self._uses_audio_cache(text):
             # In the background: the next frame is never held for a store.
@@ -426,12 +443,20 @@ class AnswerPairing:
             # Only what the caller said is recorded, and only for a turn it belongs to.
             await self._audio.settle(answer, False)
             return
-        # Record first, so the report can say what happened to the answer.
+        # Record first, so the report can say what happened to the answer. The system
+        # messages the model read (and the LLM service's own instruction, where the
+        # adapter knows it) are its instructions: an answer repeating a detail they give
+        # about this caller is never shared.
+        instructions = "\n".join(p for p in (_instructions(messages),
+                                              getattr(self, "_service_instructions", None) or "") if p)
+        # Passed only when there are some, so a session written for the earlier signature
+        # (a test double, a subclass) keeps working.
+        extra = {"instructions": instructions} if instructions else {}
         if turn is None and kind == "caller":
-            saved = await asyncio.to_thread(self._session._record_model_turn, question, answer)
+            saved = await asyncio.to_thread(self._session._record_model_turn, question, answer, **extra)
         else:
             saved = await asyncio.to_thread(
-                self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool"
+                self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool", **extra
             )
         await self._audio.settle(answer, await asyncio.to_thread(self._clip_allowed, saved))
         stored = saved in ("saved", "template")

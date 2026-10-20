@@ -311,6 +311,42 @@ Python doesn't close an async stream when you `break` out of `async for`: call
 `await stream.close()` after stopping early, so the model's stream is closed straight
 away. An interruption (`session.cancel()`) closes it at the next piece the model sends.
 
+### Pipecat
+
+Wrap the LLM and TTS services you already have; nothing else in the pipeline changes:
+
+```python
+from crowkis.integrations.pipecat import CrowkisLLM, CrowkisTTS   # pip install "crowkis[pipecat]"
+
+llm = CrowkisLLM(OpenAILLMService(api_key=...))       # the cache in front of the LLM
+tts = CrowkisTTS(CartesiaTTSService(voice_id=...))    # optional: replays cached audio
+
+pipeline = Pipeline([transport.input(), stt, user_aggregator, llm, tts,
+                     transport.output(), assistant_aggregator])
+```
+
+- A question the cache can answer is spoken without the LLM, and with `CrowkisTTS`,
+  without the TTS either (the cached audio is played). Otherwise the LLM answers as before
+  and its answer, and audio, are cached when they are safe to share.
+- `CrowkisLLM` makes a `crowkis.voice_session()` (server settings from the environment,
+  live-call defaults). Pass `session=` to use your own, or session options
+  (`serve_above=`, `fillers=`, ...) to change them. `on_turn=` / `on_answer=` report each turn.
+- `CrowkisTTS` takes the voice id and sample rate from the TTS service and finds the
+  `CrowkisLLM` ahead of it by itself (or pass `llm=`).
+- The model reads your system prompt (the system messages before the conversation, and
+  the service's own `system_instruction`) and keeps your tools. Keep caller details out of
+  the system prompt (use `session.set_values(...)`): an answer that repeats a caller detail
+  found there ("Hi Asha! ...") is kept to that call and never shared. Crowkis finds such
+  details by comparing an agent's system prompts across calls (what changes from caller to
+  caller is theirs) and, before it has seen two, by the sentences about a person. The
+  `on_turn` / `on_answer` reports show the messages the model read, system prompt included.
+- `CrowkisLLM` passes the LLM service's own calls on (`llm.register_function(...)`); for its
+  events use `llm.service.event_handler(...)`. When the session has no voice of its own,
+  `CrowkisTTS` sets it to the TTS service's voice (and follows a change of voice).
+
+The three processors they are made of, `crowkis_processors(session, sample_rate=...)`, still
+work on their own.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your
@@ -330,7 +366,7 @@ speak(decision.text)
 follows on from) when the answer may be shared, or `None` when the turn is personal, and then
 give the model the whole call (`session.injections()` plus the question). `record()` then
 saves the answer under exactly the same rules as `answer()`, and fills in `decision.text`,
-`stored`, `not_stored` and `empty`. Pass `private=True` for an answer that must stay in this
+`stored`, `not_stored` and `empty`. If your model read a system prompt, pass it too (`record(decision, reply, system=...)`, and `system=` to `answer()` and `respond()`): an answer that repeats a detail it gives about this caller (a name, an account number) is kept to the call. Better still, keep caller details out of the system prompt and use `set_values()`. Pass `private=True` for an answer that must stay in this
 call even though the question was general, such as one built from a tool's result.
 
 `record()` raises `ValueError` for a decision from another session, a turn served from the

@@ -288,7 +288,7 @@ speak(decision.text);
 follows on from) when the answer may be shared, or `null` when the turn is personal, and then
 give the model the whole call (`session.injections()` plus the question). `record()` then
 saves the answer under exactly the same rules as `answer()`, and fills in `decision.text`,
-`stored`, `notStored` and `empty`. Pass `{ private: true }` for an answer that must stay in
+`stored`, `notStored` and `empty`. If your model read a system prompt, pass it too (`record(decision, reply, { system })`, and `{ system }` to `answer()` and `respond()`): an answer that repeats a detail it gives about this caller (a name, an account number) is kept to the call. Better still, keep caller details out of the system prompt and use `setValues()`. Pass `{ private: true }` for an answer that must stay in
 this call even though the question was general, such as one built from a tool's result.
 
 `record()` rejects for a decision from another session, a turn served from the cache or a

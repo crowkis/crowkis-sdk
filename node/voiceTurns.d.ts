@@ -49,6 +49,8 @@ export class AnswerPairing {
     audio: AudioClips,
     options?: { onAnswer?: ((info: AnswerReport) => unknown) | null },
   );
+  /** The LLM service's own system instruction, if the adapter knows it: checked like the system messages. */
+  serviceInstructions: string | null;
   responseStart(): Promise<void>;
   responseText(text: string): void;
   speakRequested(text: string): void;

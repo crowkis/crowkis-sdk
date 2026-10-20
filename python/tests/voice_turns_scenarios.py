@@ -18,6 +18,7 @@ from pathlib import Path
 
 from crowkis import Agent, CacheHit, VoiceSession
 from crowkis.agent import _wait_for_audio_stores
+from crowkis.voice import _reset_prompt_baselines
 from crowkis.voice_turns import AnswerPairing, AudioClips
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "voice-turns-scenarios.json"
@@ -30,6 +31,7 @@ Q_WEATHER = "what is the weather in paris today"
 Q_HOURS = "what are your opening hours"
 A_REFUND = "Refunds take five business days."
 A_RESET = "Open settings, then security."
+PROMPT_WITH_CALLER = "You are Acme's phone assistant. The caller is Asha Rao, account 99812."
 
 
 def _tool_context(question, result="sunny, 22 degrees"):
@@ -155,6 +157,9 @@ SCENARIOS = [
     {"name": "a Devanagari question is never shared",
      "events": [{"ev": "caller", "said": "\u092e\u0947\u0930\u093e \u0930\u093f\u092b\u0902\u0921 \u0915\u092c \u0906\u090f\u0917\u093e"},
                 *_answer("\u092a\u093e\u0901\u091a \u0926\u093f\u0928 \u092e\u0947\u0902\u0964")]},
+    {"name": "the model reads the system prompt; an answer repeating the caller's details from it stays private",
+     "events": [{"ev": "caller", "said": Q_HOURS, "system": PROMPT_WITH_CALLER}, *_answer("Hi Asha! We open at nine."),
+                {"ev": "caller", "said": Q_RESET, "system": PROMPT_WITH_CALLER}, *_answer(A_RESET)]},
     {"name": "a fallback spoken after a barge-in keeps its own run",
      "events": [{"ev": "caller", "said": Q_REFUND}, {"ev": "start"}, {"ev": "text", "t": "Refunds"},
                 {"ev": "interrupt"}, {"ev": "speak", "t": "Sorry, go ahead."}, {"ev": "tts_start"},
@@ -211,6 +216,7 @@ class AddonStore(SceneStore):
 
 
 def _session(scenario):
+    _reset_prompt_baselines()  # each scenario starts with no remembered system prompts
     store = (AddonStore if scenario.get("addon") else SceneStore)(scenario.get("seed"))
     session = VoiceSession(Agent("caller", client=store), voice="v", **scenario.get("options", {}))
     if scenario.get("holds"):
@@ -265,14 +271,15 @@ async def run_events(scenario):
         kind = event["ev"]
         if kind == "caller":
             said = event["said"]
+            system = [{"role": "system", "content": event["system"]}] if event.get("system") else []
             gate.question = said
             await pairing.caller_moved_on()
             decision = session.decide(said)
             shared_audio = decision.audio_shareable
             audio = None if decision.needs_model or not shared_audio else await clips.get(decision.text)
-            messages = [{"role": "user", "content": said}]
+            messages = system + [{"role": "user", "content": said}]
             if decision.needs_model and decision.messages is not None:
-                messages = decision.messages
+                messages = system + decision.messages
             gate.messages = list(messages)
             turns.append([decision.action, decision.text, audio is not None])
             model_turn = decision.needs_model
@@ -364,7 +371,8 @@ async def run_pipecat(scenario, pc, F, LLMContext):
     for event in scenario["events"]:
         kind = event["ev"]
         if kind == "caller":
-            history = [{"role": "user", "content": event["said"]}]
+            system = [{"role": "system", "content": event["system"]}] if event.get("system") else []
+            history = system + [{"role": "user", "content": event["said"]}]
             await feed(F.LLMContextFrame(context=LLMContext(messages=history)), 0)
         elif kind == "other_context":
             await feed(F.LLMContextFrame(context=LLMContext(messages=[

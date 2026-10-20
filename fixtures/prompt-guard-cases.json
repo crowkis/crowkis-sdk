@@ -1,0 +1,208 @@
+{
+ "prompt": "You are Acme's phone assistant. Be polite and never promise refunds.\nRefunds are possible within 30 days. Our support line is 1800 555 0100.\nThe caller is Asha Rao, account 99812, email asha.rao@example.com, phone 555 0199.",
+ "question": "what are your opening hours",
+ "details": {
+  "words": [
+   "asha",
+   "example",
+   "rao"
+  ],
+  "numbers": [
+   "5550199",
+   "99812"
+  ]
+ },
+ "answers": [
+  [
+   "We open at nine every weekday.",
+   false
+  ],
+  [
+   "Hi Asha! We open at nine.",
+   true
+  ],
+  [
+   "Thanks for calling Acme, refunds take 30 days.",
+   false
+  ],
+  [
+   "Call 1800 555 0100 for help.",
+   false
+  ],
+  [
+   "Your account 99812 is active.",
+   true
+  ],
+  [
+   "We emailed asha.rao@example.com.",
+   true
+  ],
+  [
+   "We will call 555-0199.",
+   true
+  ]
+ ],
+ "prompts": [
+  [
+   "Customer details:\nName: Asha Rao\nPhone: 555 0199\nOrder: 48213",
+   [
+    "asha",
+    "rao"
+   ],
+   [
+    "48213",
+    "5550199"
+   ]
+  ],
+  [
+   "Support phone: 1800 555 0100\nOffice address: 12 High Street",
+   [],
+   []
+  ],
+  [
+   "You are a helpful assistant for Acme Bank. Answer briefly.",
+   [],
+   []
+  ],
+  [
+   "Mr. Sharma called about his policy 77120.",
+   [
+    "sharma"
+   ],
+   [
+    "77120"
+   ]
+  ],
+  [
+   "Our plans start at $499 per year. The Gold plan has 24/7 support.",
+   [],
+   []
+  ],
+  [
+   "",
+   [],
+   []
+  ],
+  [
+   "Always greet the customer warmly. Never share the caller's data.",
+   [],
+   []
+  ],
+  [
+   "You are Acme's assistant helping customers of Acme Bank.",
+   [],
+   []
+  ],
+  [
+   "Our customer service line is 1800 555 0100.",
+   [],
+   []
+  ],
+  [
+   "Asha Rao called yesterday about a refund.",
+   [
+    "asha",
+    "rao"
+   ],
+   []
+  ],
+  [
+   "The customer is Prof. Asha Rao.",
+   [
+    "asha",
+    "rao"
+   ],
+   []
+  ],
+  [
+   "Caller record: {\"name\": \"asha rao\", \"city\": \"Pune\"}",
+   [
+    "asha",
+    "pune",
+    "rao"
+   ],
+   []
+  ],
+  [
+   "Location: Pune",
+   [
+    "pune"
+   ],
+   []
+  ],
+  [
+   "The caller is Asha Rao, account 99,812, phone +91 98765 43210.",
+   [
+    "asha",
+    "rao"
+   ],
+   [
+    "919876543210",
+    "99812"
+   ]
+  ],
+  [
+   "Caller record:\nname=asha rao; city=pune\n\nBe brief.",
+   [
+    "asha",
+    "pune",
+    "rao"
+   ],
+   []
+  ],
+  [
+   "Greet the caller. Keep answers short for the user.",
+   [],
+   []
+  ]
+ ],
+ "numbers": [
+  [
+   "The caller is Asha Rao, account 99,812, phone +91 98765 43210.",
+   [
+    [
+     "Your account 99812 is fine.",
+     true
+    ],
+    [
+     "We will call 98765 43210.",
+     true
+    ],
+    [
+     "Call 1800 555 0100.",
+     false
+    ]
+   ]
+  ]
+ ],
+ "across_calls": {
+  "question": "what are your opening hours",
+  "calls": [
+   [
+    "You are Acme's assistant. Always be brief.\nCaller record:\nname=asha rao; city=pune",
+    "Hi asha, we open at nine.",
+    true
+   ],
+   [
+    "You are Acme's assistant. Always be brief.\nCaller record:\nname=ravi kumar; city=delhi",
+    "Our Pune branch opens at nine.",
+    false
+   ],
+   [
+    "You are Acme's assistant. Always be brief.\nCaller record:\nname=ravi kumar; city=delhi",
+    "Hi ravi! We open at nine.",
+    true
+   ],
+   [
+    "You are Acme's assistant. Always be brief.\nCaller record:\nname=meera; city=goa",
+    "Thanks for calling Acme, we open at nine.",
+    false
+   ],
+   [
+    "You are Acme's assistant. Always be brief.\nCaller record:\nname=meera; city=goa",
+    "Meera, we open at nine in Goa.",
+    true
+   ]
+  ]
+ }
+}

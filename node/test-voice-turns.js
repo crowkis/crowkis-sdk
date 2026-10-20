@@ -10,7 +10,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Agent, waitForAudioStores } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
+const { VoiceSession, _resetPromptBaselines } = require("./voice.js");
 const { AudioClips, AnswerPairing } = require("./voiceTurns.js");
 
 const SCENARIOS = JSON.parse(
@@ -65,6 +65,7 @@ class AddonStore extends SceneStore {
 }
 
 async function runEvents(scenario) {
+  _resetPromptBaselines(); // each scenario starts with no remembered system prompts
   const store = scenario.addon ? new AddonStore(scenario.seed) : new SceneStore(scenario.seed);
   const session = new VoiceSession(new Agent("caller", { client: store }), { voice: "v", ...(scenario.options || {}) });
   if (scenario.holds) {
@@ -83,13 +84,14 @@ async function runEvents(scenario) {
     switch (event.ev) {
       case "caller": {
         const said = event.said;
+        const system = event.system ? [{ role: "system", content: event.system }] : [];
         gate.question = said;
         await pairing.callerMovedOn();
         const decision = await session.decide(said);
         const sharedAudio = decision.audioShareable;
         const audio = decision.needsModel || !sharedAudio ? null : await clips.get(decision.text);
-        let messages = [{ role: "user", content: said }];
-        if (decision.needsModel && decision.messages !== null) messages = decision.messages;
+        let messages = [...system, { role: "user", content: said }];
+        if (decision.needsModel && decision.messages !== null) messages = [...system, ...decision.messages];
         gate.messages = [...messages];
         turns.push([decision.action, decision.text, audio !== null]);
         modelTurn = decision.needsModel;

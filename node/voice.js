@@ -1355,6 +1355,165 @@ const STEERING_BY_FIRST = firstWords(STEERING);
 // Phrases after which the caller gives a name: "my name is sarah", "this is raj".
 const NAMING = [["name", "is"], ["call", "me"], ["this", "is"], ["i", "m"], ["i", "am"]];
 
+// A system prompt can carry one caller's details ("The caller is Asha Rao, account
+// 99812"). An answer that repeats them must never be shared. Same rules as Python
+// (voice.py, _caller_details); fixtures/prompt-guard-cases.json checks both.
+//
+// 1. Across calls (the reliable one): a bot's own instructions are the same on every
+//    call, so once an agent has been seen with two different system prompts, every word
+//    and number of this call's prompt not in all of them is a caller detail.
+// 2. Before that: the sentences of the prompt that are about a person.
+
+// Words that make a sentence about one person, not the business.
+const PERSON_WORDS = new Set([
+  "caller", "customer", "user", "client", "patient", "member", "guest", "student",
+  "name", "named", "account", "acct", "dob", "birthday", "born", "called", "calling",
+  "talking", "speaking", "mr", "mrs", "ms", "mx", "miss", "dr", "prof", "he", "she", "him",
+  "his", "her", "hers",
+]);
+// A "label: value" line about one person's record or contact ("Phone: 555 0199",
+// "Location: Pune"), unless the label says it is the business's own.
+const RECORD_LABELS = new Set([
+  "phone", "mobile", "email", "address", "order", "booking", "reservation", "ticket", "case",
+  "policy", "plan", "balance", "dob", "id", "city", "location", "company", "employer",
+]);
+// Words that make a sentence about the business even when it names a person word.
+const BUSINESS_WORDS = new Set([
+  "support", "our", "office", "helpline", "help", "toll", "free", "business", "sales",
+  "main", "head", "store", "shop", "branch", "service", "services", "care", "line", "we",
+  "us", "customers", "callers", "users", "clients", "patients", "members", "guests",
+]);
+const LABEL_WORDS = new Set([...RECORD_LABELS, ...PERSON_WORDS]);
+// Sentence ends: . ! ? or ; then space, or a line break; never the dots inside an email
+// address or a decimal, nor the one after a title ("Mr. Sharma", "Prof. Rao").
+const SENTENCE_END =
+  /(?<!\bMr\.)(?<!\bMs\.)(?<!\bMx\.)(?<!\bDr\.)(?<!\bSt\.)(?<!\bSr\.)(?<!\bJr\.)(?<!\bMrs\.)(?<!\bProf\.)(?<=[.!?;])\s+/;
+// Runs of digits that belong together ("555 0199", "1800-555-0100", "99,812") make one number.
+const NUMBER_RUN = /[0-9]+(?:[ ,\-./][0-9]+)*/g;
+const EMAIL_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g;
+const LABEL = /^\s*([^:=\n]{1,40}?)\s*[:=]\s*(.*)$/;
+
+const isDecimalWord = (word) => /\p{Nd}/u.test(word);
+const startsUpper = (word) => /^\p{Lu}/u.test(word);
+
+function numbersOf(text) {
+  return (String(text || "").match(NUMBER_RUN) || []).map((run) => run.replace(/[^0-9]/g, ""));
+}
+
+function labelOf(sentence) {
+  const match = LABEL.exec(sentence);
+  return match ? [match[1], match[2]] : ["", ""];
+}
+
+function aboutAPerson(sentence, words) {
+  const present = new Set(words);
+  if ([...present].some((w) => PERSON_WORDS.has(w)) && ![...present].some((w) => BUSINESS_WORDS.has(w))) return true;
+  const [label, value] = labelOf(sentence);
+  const labelWords = new Set(wordsOf(label));
+  return Boolean(
+    value.trim() && [...labelWords].some((w) => LABEL_WORDS.has(w)) && ![...labelWords].some((w) => BUSINESS_WORDS.has(w))
+  );
+}
+
+function valueWords(value) {
+  return wordsOf(value).filter(
+    (w) => !FUNCTION_WORDS.has(w) && !LABEL_WORDS.has(w) && !isDecimalWord(w) && !EMAIL_ENDINGS.has(w)
+  );
+}
+
+// Caller details in one system prompt, read on its own, as { words, numbers }: in its
+// sentences about a person, the capitalised words (a sentence's first only when the next
+// is capitalised too), email words, every number, and the whole value of a "Label: value"
+// / "key=value" about a person's record. Lines under a heading about a person ("Caller
+// record:"), up to a blank line, are all details.
+function promptDetails(instructions) {
+  const words = new Set();
+  const numbers = new Set();
+  let inBlock = false;
+  for (const line of String(instructions || "").split("\n")) {
+    if (!line.trim()) {
+      inBlock = false;
+      continue;
+    }
+    if (inBlock) {
+      for (const w of valueWords(line)) words.add(w);
+      for (const n of numbersOf(line)) if (n) numbers.add(n);
+      continue;
+    }
+    for (const sentence of line.split(SENTENCE_END)) {
+      const lowered = wordsOf(sentence);
+      if (!lowered.length || !aboutAPerson(sentence, lowered)) continue;
+      const [label, value] = labelOf(sentence);
+      if (sentence.trimEnd().endsWith(":") && !value.trim()) inBlock = true;
+      for (const n of numbersOf(sentence)) if (n) numbers.add(n);
+      if (value.trim() && wordsOf(label).some((w) => LABEL_WORDS.has(w))) {
+        for (const w of valueWords(value)) words.add(w);
+      }
+      const tokens = sentence.match(WORDS) || [];
+      tokens.forEach((word, index) => {
+        const low = word.toLowerCase();
+        if (LABEL_WORDS.has(low) || FUNCTION_WORDS.has(low) || !startsUpper(word) || isDecimalWord(word)) return;
+        if (index === 0 && !(index + 1 < tokens.length && startsUpper(tokens[index + 1]))) return;
+        words.add(low);
+      });
+      for (const address of sentence.match(EMAIL_ADDRESS) || []) {
+        for (const w of wordsOf(address)) if (!EMAIL_ENDINGS.has(w) && !/^\p{Nd}+$/u.test(w)) words.add(w);
+      }
+    }
+  }
+  return { words, numbers };
+}
+
+// What every system prompt an agent was seen with has in common, in this process.
+const BASELINES = new Map();
+const BASELINES_MAX = 1024;
+
+function resetPromptBaselines() {
+  BASELINES.clear();
+}
+
+// Caller details in this call's system prompt: what differs from the agent's other calls
+// once its prompt has been seen to vary, the sentences about a person before that.
+function callerDetails(instructions, agentKey = null) {
+  if (agentKey === null || agentKey === undefined) return promptDetails(instructions);
+  const words = new Set(wordsOf(instructions));
+  const numbers = new Set(numbersOf(instructions).filter(Boolean));
+  const key = JSON.stringify(agentKey);
+  const baseline = BASELINES.get(key) || { prompts: new Set(), words: null, numbers: null };
+  BASELINES.delete(key);
+  BASELINES.set(key, baseline); // the most recent last; the oldest is dropped
+  while (BASELINES.size > BASELINES_MAX) BASELINES.delete(BASELINES.keys().next().value);
+  const text = String(instructions || "").trim();
+  if (!baseline.prompts.has(text) && baseline.prompts.size < 2) baseline.prompts.add(text);
+  baseline.words = baseline.words === null ? words : new Set([...baseline.words].filter((w) => words.has(w)));
+  baseline.numbers = baseline.numbers === null ? numbers : new Set([...baseline.numbers].filter((n) => numbers.has(n)));
+  if (baseline.prompts.size < 2) return promptDetails(instructions);
+  return {
+    words: new Set([...words].filter((w) => !baseline.words.has(w) && !FUNCTION_WORDS.has(w))),
+    numbers: new Set([...numbers].filter((n) => !baseline.numbers.has(n))),
+  };
+}
+
+// One number, written with or without its country code or leading part: equal, or the
+// longer ends with the shorter of at least 4 digits.
+function sameNumber(said, detail) {
+  if (said === detail) return true;
+  const [short, long] = said.length <= detail.length ? [said, detail] : [detail, said];
+  return short.length >= 4 && long.endsWith(short);
+}
+
+// Whether the answer repeats a detail the system prompt gave about this caller ("Hi
+// Asha! We open at nine.", "account 99812") that the question itself did not contain.
+// Such an answer was shaped by this caller's details and is never shared.
+function repeatsPromptDetails(answer, question, instructions, agentKey = null) {
+  const { words, numbers } = callerDetails(instructions, agentKey);
+  if (!words.size && !numbers.size) return false;
+  const askedWords = new Set(wordsOf(question));
+  const askedNumbers = new Set(numbersOf(question));
+  if (wordsOf(answer).some((w) => words.has(w) && !askedWords.has(w))) return true;
+  return numbersOf(answer).some((n) => !askedNumbers.has(n) && [...numbers].some((d) => sameNumber(n, d)));
+}
+
 // Words capitalised mid-sentence ("... my agent Priya said"), lower-cased.
 function properNouns(text) {
   const found = new Set();
@@ -1544,7 +1703,7 @@ class VoiceResponse {
         session._interrupted(decision, parts.join(""));
       } else if (ended && !this._closed && !decision._recorded) {
         // A full answer is recorded under answer()'s rules.
-        await session._recordDecision(decision, parts.join(""), this._keep);
+        await session._recordDecision(decision, parts.join(""), this._keep, this._system);
       }
     }
   }
@@ -1898,7 +2057,7 @@ class VoiceSession {
     // Straight to the recording step: answer() made this decision itself, so a
     // subclass whose decide() returns its own decision object keeps working.
     decision._said = callerSaid;
-    return this._recordDecision(decision, await llm(messages), false);
+    return this._recordDecision(decision, await llm(messages), false, system);
   }
 
   // Save the answer to a turn you sent to your own model: decide(), then call the
@@ -1915,7 +2074,7 @@ class VoiceSession {
   // empty filled in, as answer() does. Rejects for a decision this session did not
   // make, one that did not need the model (served from the cache or a filler), or one
   // already recorded.
-  async record(decision, answer, { private: keep = false } = {}) {
+  async record(decision, answer, { private: keep = false, system = null } = {}) {
     if (!(decision instanceof TurnDecision)) {
       throw new Error("record() takes the TurnDecision decide() returned");
     }
@@ -1935,16 +2094,20 @@ class VoiceSession {
         } ("${decision.action}")`
       );
     }
-    return this._recordDecision(decision, answer, keep);
+    return this._recordDecision(decision, answer, keep, system);
   }
 
   // record() and answer(): store the answer and fill in the decision.
-  async _recordDecision(decision, answer, keep) {
+  async _recordDecision(decision, answer, keep, system = null) {
     decision._recorded = true;
     const said = decision._said;
     decision._said = null;
     decision.text = answer;
-    const { outcome, why: reason } = await this._record(said, answer, { turn: decision.turn, private: keep });
+    const { outcome, why: reason } = await this._record(said, answer, {
+      turn: decision.turn,
+      private: keep,
+      instructions: system,
+    });
     decision.stored = STORED.has(outcome);
     const why = decision.stored ? "" : reason || outcome;
     decision.notStored = why;
@@ -1974,6 +2137,12 @@ class VoiceSession {
   async respond(callerSaid, llm, { system = null, private: keep = false } = {}) {
     const decision = await this.decide(callerSaid);
     return new VoiceResponse(this, decision, callerSaid, llm, system, keep);
+  }
+
+  // Which agent's system prompts this call's is compared with.
+  _agentKey() {
+    const agent = this.agent || {};
+    return [agent.tenant || (agent.client && agent.client.tenant) || null, agent.agentId || null];
   }
 
   // The caller talked over this turn, or a newer turn has been decided.
@@ -2023,7 +2192,7 @@ class VoiceSession {
   }
 
   // The same, with why an answer was not stored, in words.
-  async _record(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
+  async _record(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
     const outcome = (word, why = "") => ({ outcome: word, why });
     if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
       return outcome("interrupted", "the caller moved on before this answer was complete");
@@ -2045,6 +2214,12 @@ class VoiceSession {
     if (keep) {
       this.notShareable += 1;
       return outcome("kept", "kept to this call: the answer was built from a tool's result");
+    }
+    if (instructions && repeatsPromptDetails(modelSaid, text, instructions, this._agentKey())) {
+      // The model read a system prompt that names this caller, and its answer repeats
+      // that: right for this caller only, never a shared answer or template.
+      this.notShareable += 1;
+      return outcome("private", "kept to this call: the answer repeats a detail about the caller from the system prompt");
     }
     try {
       if (isPersonal(text)) {
@@ -2410,6 +2585,10 @@ module.exports = {
   _SESSION_OPTIONS: SESSION_OPTIONS,
   _speakable: speakable,
   _words: wordsOf,
+  _promptDetails: promptDetails,
+  _repeatsPromptDetails: repeatsPromptDetails,
+  _callerDetails: callerDetails,
+  _resetPromptBaselines: resetPromptBaselines,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
   _abstract: abstract,

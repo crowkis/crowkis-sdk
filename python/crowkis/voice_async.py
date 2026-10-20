@@ -178,7 +178,7 @@ class AsyncVoiceResponse:
                     recorded, decision._recorded = decision._recorded, True
                 if not recorded:
                     await _off_loop(executor, session._record_decision, decision, "".join(parts),
-                                    private=self._private)
+                                    private=self._private, system=self._system)
 
 
 async def _empty() -> AsyncIterator[str]:
@@ -288,11 +288,14 @@ class AsyncVoiceSession:
             messages = [{"role": "system", "content": system}] + messages
         text = await _call_model(self._model_executor, llm, messages)
         decision._said = caller_said
-        return await _off_loop(self._executor, session._record_decision, decision, text, private=False)
+        return await _off_loop(self._executor, session._record_decision, decision, text, private=False,
+                               system=system)
 
-    async def record(self, decision: TurnDecision, answer: Optional[str], *, private: bool = False) -> TurnDecision:
+    async def record(self, decision: TurnDecision, answer: Optional[str], *, private: bool = False,
+                     system: Optional[str] = None) -> TurnDecision:
         """VoiceSession.record()."""
-        return await _off_loop(self._executor, self.session.record, decision, answer, private=private)
+        return await _off_loop(self._executor, self.session.record, decision, answer, private=private,
+                               system=system)
 
     async def respond(self, caller_said: str, llm: Callable, *, system: Optional[str] = None,
                       private: bool = False) -> AsyncVoiceResponse:

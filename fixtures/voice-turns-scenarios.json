@@ -2054,6 +2054,98 @@
   }
  },
  {
+  "name": "the model reads the system prompt; an answer repeating the caller's details from it stays private",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what are your opening hours",
+    "system": "You are Acme's phone assistant. The caller is Asha Rao, account 99812."
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Hi Asha! We open at nine."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password",
+    "system": "You are Acme's phone assistant. The caller is Asha Rao, account 99812."
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what are your opening hours",
+     "answer": "Hi Asha! We open at nine.",
+     "saved": "private",
+     "stored": false,
+     "not_stored": "kept to this call: the answer repeats a detail about the caller from the system prompt"
+    },
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what are your opening hours"
+    },
+    {
+     "role": "assistant",
+     "content": "Hi Asha! We open at nine."
+    },
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
   "name": "a fallback spoken after a barge-in keeps its own run",
   "events": [
    {

@@ -1,5 +1,5 @@
 {
-  "about": "Phase 3: the scenarios every voice adapter must pass, in Python (tests/test_conformance.py) and Node (test-conformance.js). Each call is a new caller (a new session) on the same server. A turn: what the caller says, the LLM's reply (pieces, as it streams them), and what must happen. llm / tts: whether the adapter called the LLM / the TTS (null: either). heard: what the caller heard. max_ms: the turn must end within it. saved: every shared answer written, as [question, answer]; never_saved: text no write may contain. server: ok | down | slow (each lookup hangs 2 s) | audio_error (the audio cache fails). aliases: reworded questions the fake server matches to a stored one (a real server matches on meaning). concurrent: the calls run that many times at once. real: also run against a real server (CROWKIS_CONFORMANCE_SERVER=1).",
+  "about": "Phase 3: the scenarios every voice adapter must pass, in Python (tests/test_conformance.py) and Node (test-conformance.js). Each call is a new caller (a new session) on the same server. A turn: what the caller says, the LLM's reply (pieces, as it streams them), and what must happen. llm / tts: whether the adapter called the LLM / the TTS (null: either). heard: what the caller heard. max_ms: the turn must end within it. saved: every shared answer written, as [question, answer]; never_saved: text no write may contain. server: ok | down | slow (each lookup hangs 2 s) | audio_error (the audio cache fails). aliases: reworded questions the fake server matches to a stored one (a real server matches on meaning; an answer that is a commitment, such as a refund policy, is served only to the same words). concurrent: the calls run that many times at once. real: also run against a real server (CROWKIS_CONFORMANCE_SERVER=1); there a first caller may already be answered from an earlier run (the cache is per tenant), so llm: true is not required, and callers are 1.5 s apart (a new answer becomes findable within about a second).",
   "budget_ms": 250,
   "scenarios": [
     {
@@ -18,14 +18,14 @@
     {
       "name": "a reworded question hits",
       "real": true,
-      "aliases": {"how long do refunds take": "what is your refund policy"},
+      "aliases": {"how can I turn on dark mode": "how do I turn on dark mode"},
       "calls": [
-        [{"say": "what is your refund policy", "reply": ["Refunds take five business days."],
+        [{"say": "how do I turn on dark mode", "reply": ["Open settings and pick a theme."],
           "expect": {"llm": true}}],
-        [{"say": "how long do refunds take", "reply": ["Wrong: the cache was not used."],
-          "expect": {"llm": false, "heard": "Refunds take five business days."}}]
+        [{"say": "how can I turn on dark mode", "reply": ["Wrong: the cache was not used."],
+          "expect": {"llm": false, "heard": "Open settings and pick a theme."}}]
       ],
-      "saved": [["what is your refund policy", "Refunds take five business days."]]
+      "saved": [["how do I turn on dark mode", "Open settings and pick a theme."]]
     },
     {
       "name": "a barge-in mid-answer is never recorded and never served",

@@ -18,6 +18,7 @@ const { _waitForWrites: waitForWrites } = require("./voice.js");
 const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "adapter-conformance.json"), "utf8"));
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";
 const SLOW_MS = 2000;
+const REAL_GAP_MS = 1500;
 const RATE = 16000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -284,6 +285,7 @@ async function runScenario(driver, scenario, store) {
     const copies = scenario.concurrent || 1;
     results.push(...(await Promise.all(Array.from({ length: copies }, () => driver.call(store, turns, agent)))));
     await settle(store); // writes and clips may finish in the background; the next caller is later
+    if (REAL) await sleep(REAL_GAP_MS); // a real server makes a new answer findable within about a second
   }
   return results;
 }
@@ -295,7 +297,11 @@ function check(assert, scenario, store, results) {
       const got = results[index][t];
       const want = turn.expect;
       const where = `call ${index + 1}, ${JSON.stringify(turn.say)}: ${JSON.stringify(got)}`;
-      if (want.llm !== undefined && want.llm !== null) assert.strictEqual(got.llm, want.llm, `LLM called? ${where}`);
+      // On a real server an earlier run may already have taught it this answer (its cache is
+      // per tenant), so a miss is not required there; what the caller heard is.
+      if (want.llm !== undefined && want.llm !== null && !(REAL && want.llm)) {
+        assert.strictEqual(got.llm, want.llm, `LLM called? ${where}`);
+      }
       if (want.tts !== undefined && want.tts !== null) assert.strictEqual(got.tts, want.tts, `TTS called? ${where}`);
       if (want.heard !== undefined) assert.strictEqual(got.heard.trim(), want.heard, `heard: ${where}`);
       if (want.max_ms !== undefined) assert.ok(got.ms < want.max_ms, `too slow: ${where}`);

@@ -259,6 +259,43 @@ something new (`decide()` / `respond()` again). If the model fails mid-stream, t
 raised and nothing is saved; leaving the loop early or `stream.close()` saves nothing too.
 `respond()` takes `system=` and `private=` like `answer()` and `record()`.
 
+### In an async app (asyncio)
+
+Voice frameworks run on asyncio, where a blocking call stalls every other call on the
+loop. Use the async session there: the same rules, with every wait off the event loop.
+
+```python
+import crowkis
+
+session = crowkis.async_voice_session()      # voice_session(), for asyncio
+
+decision = await session.answer(caller_said, my_model)          # async or sync model
+
+stream = await session.respond(caller_said, my_streaming_model) # async or sync stream
+async for piece in stream:
+    await tts.send(piece)
+```
+
+`decide`, `answer`, `record`, `respond`, `report_stats` and `close` are coroutines.
+`cancel()`, `stats()`, `injections()`, `set_values()` and the rest stay plain calls, since
+they never wait; setting an attribute (`session.latency_budget_ms = 400`) changes the
+session underneath. Your model can be `async` (awaited on the loop) or a normal function
+(run on a thread pool, so a blocking SDK call doesn't stall the loop); a stream can be an
+async iterable or a normal one.
+
+Server calls run on a shared pool of 64 threads, which serves far more than 64 calls at
+once because each wait is capped by the latency budget and the 1 s timeout. A blocking
+(sync) model runs on a separate pool of 256 threads, so a slow model never makes another
+call's lookup wait for a thread; with more simultaneous blocking model calls than that,
+use an async model or pass a bigger `model_executor=`. `executor=` replaces the server
+pool. To make one by hand: `AsyncVoiceSession(agent, voice=...)`, or
+`AsyncVoiceSession.wrap(session)` around a `VoiceSession` you already have. An
+`AsyncVoiceSession` is not a `VoiceSession`: give `.session` to code that needs one.
+
+Python doesn't close an async stream when you `break` out of `async for`: call
+`await stream.close()` after stopping early, so the model's stream is closed straight
+away. An interruption (`session.cancel()`) closes it at the next piece the model sends.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

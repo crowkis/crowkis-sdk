@@ -1550,7 +1550,7 @@ class VoiceResponse:
                 source.close()  # never awaited: closed so it raises no warning
             raise TypeError(
                 "respond() got an async model: VoiceSession.respond() reads a sync iterable "
-                "of text; use an async session for an async model"
+                "of text; for an async model use crowkis.async_voice_session() or AsyncVoiceSession"
             )
         if isinstance(source, (bytes, bytearray)):
             raise TypeError("respond() expects the model to give text (str), got bytes; decode it first")

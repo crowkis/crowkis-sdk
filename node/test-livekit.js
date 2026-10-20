@@ -204,3 +204,98 @@ test("a reply cancelled while written saves nothing and frees its run", { skip }
   await reader.cancel(); // the caller interrupted
   assert.deepStrictEqual(store.writes, []);
 });
+
+test("the agent's own ttsNode is given a ReadableStream, as LiveKit gives it", { skip }, async () => {
+  const { agent, fakes } = make();
+  let got = null;
+  const own = agent.ttsNode;
+  // Re-wrap a fresh agent whose own ttsNode reads its input with getReader().
+  const { agent: other } = make();
+  void own;
+  other._probe = true;
+  const base = new lk.voice.Agent({ instructions: "x" });
+  base.llmNode = async () => streamOf([ANSWER]);
+  base.ttsNode = async (text) => {
+    got = text instanceof ReadableStream;
+    const reader = text.getReader();
+    while (!(await reader.read()).done);
+    return streamOf([new rtc.AudioFrame(PCM, 16000, 1, PCM.length)]);
+  };
+  Object.defineProperty(base, "tts", { get: () => fakes.tts });
+  require("./livekit.js").withCrowkis(base, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
+  await turn(base, ctx([["user", QUESTION]]));
+  assert.strictEqual(got, true);
+});
+
+test("cancelling a reply while a read is pending stops the LLM at once", { skip }, async () => {
+  const { agent } = make();
+  let innerCancelled = false;
+  const agent2 = new lk.voice.Agent({ instructions: "x" });
+  agent2.llmNode = async () =>
+    new ReadableStream({
+      start(c) {
+        c.enqueue("Refunds ");
+      },
+      cancel() {
+        innerCancelled = true;
+      },
+    });
+  agent2.ttsNode = agent.ttsNode;
+  Object.defineProperty(agent2, "tts", { get: () => ({ sampleRate: 16000, numChannels: 1, voice: "v" }) });
+  require("./livekit.js").withCrowkis(agent2, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
+  const stream = await agent2.llmNode(ctx([["user", QUESTION]]), {}, {});
+  const reader = stream.getReader();
+  await reader.read(); // "Refunds ", then the next read waits on the LLM
+  const pendingRead = reader.read();
+  const started = Date.now();
+  await reader.cancel();
+  await pendingRead.catch(() => {});
+  assert.ok(Date.now() - started < 500);
+  assert.strictEqual(innerCancelled, true);
+});
+
+test("with audio output off, answers are saved and hits are not rolled back", { skip }, async () => {
+  const { agent, store, session } = make();
+  Object.defineProperty(agent, "session", { get: () => ({ output: { audio: null, audioEnabled: false } }) });
+  for await (const _ of await agent.llmNode(ctx([["user", QUESTION]]), {}, {})) {
+    // no ttsNode runs: audio is off
+  }
+  assert.deepStrictEqual(store.writes, [[QUESTION, ANSWER, false]]);
+  for await (const _ of await agent.llmNode(ctx([["user", QUESTION], ["assistant", ANSWER], ["user", QUESTION]]), {}, {})) {
+    // a hit, shown as text
+  }
+  for await (const _ of await agent.llmNode(ctx([["user", "how do I reset my password"]]), {}, {})) {
+    // the next caller turn
+  }
+  assert.ok(session.transcript.some((t) => t.content === ANSWER && t.role === "assistant"));
+});
+
+test("a cached answer with an emoji is still matched by its spoken words", { skip }, async () => {
+  const text = "Refunds take five business days \u{1F44D}";
+  const store = new Store({ [QUESTION]: text });
+  const { agent, fakes } = make({ store });
+  const key = JSON.stringify({ format: "pcm16-16000", language: "und", speed: "1", text, voice: "v" });
+  store.tool.set(key, Buffer.from(PCM.buffer).toString("base64"));
+  for await (const _ of await agent.llmNode(ctx([["user", QUESTION]]), {}, {})) {
+    // a hit with audio
+  }
+  async function* transformed() {
+    yield "Refunds take five business days"; // LiveKit's emoji filter ran
+  }
+  const frames = await readAll(await agent.ttsNode(transformed(), {}));
+  assert.ok(frames.length > 0);
+  assert.deepStrictEqual(fakes.ttsCalls, []); // played from the cache
+});
+
+test("an answer cut off while spoken stays in the call's transcript, never shared", { skip }, async () => {
+  const { agent, store, session } = make();
+  const pieces = await readAll(await agent.llmNode(ctx([["user", QUESTION]]), {}, {}));
+  async function* text() {
+    for (const p of pieces) yield p;
+  }
+  const reader = (await agent.ttsNode(text(), {})).getReader();
+  await reader.read();
+  await reader.cancel(); // the caller cut in
+  assert.deepStrictEqual(store.writes, []);
+  assert.strictEqual(session.transcript.at(-1).content, ANSWER);
+});

@@ -80,9 +80,10 @@ const chunkCallsTool = (chunk) => Boolean(chunk && chunk.delta && chunk.delta.to
 // The same words, whatever LiveKit's text transforms did to markup and spacing.
 const same = (a, b) => wordsOf(a).join(" ") === wordsOf(b).join(" ");
 
-// An async iterable as a web ReadableStream that, when LiveKit cancels it, stops the
-// iterable (its finally blocks run) and what it reads.
-function streamOf(iterable) {
+// An async iterable as a web ReadableStream. When LiveKit cancels it, `control` is marked
+// cancelled and every upstream reader it registered is cancelled at once (a pending read
+// returns done straight away, so the LLM stops), then the iterable is stopped.
+function streamOf(iterable, control = { cancelled: false, readers: new Set() }) {
   const iterator = iterable[Symbol.asyncIterator]();
   return new ReadableStream({
     async pull(controller) {
@@ -95,14 +96,17 @@ function streamOf(iterable) {
       }
     },
     async cancel() {
+      control.cancelled = true;
+      await Promise.all([...control.readers].map((r) => r.cancel().catch(() => {})));
       if (typeof iterator.return === "function") await iterator.return();
     },
   });
 }
 
-async function* read(stream) {
+async function* read(stream, control = null) {
   if (!stream) return;
   const reader = stream.getReader();
+  if (control) control.readers.add(reader);
   try {
     for (;;) {
       const { value, done } = await reader.read();
@@ -116,6 +120,7 @@ async function* read(stream) {
       // already closed
     }
     reader.releaseLock();
+    if (control) control.readers.delete(reader);
   }
 }
 
@@ -133,6 +138,16 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
   let unspoken = false; // a cache hit decided but not (yet) spoken
 
   const crowkisSession = () => (session = session || voiceSession(options));
+  // Whether replies are really spoken: audio output on (a TTS with audio off speaks nothing).
+  const audioOut = () => {
+    try {
+      const output = agent.session && agent.session.output;
+      if (output && "audioEnabled" in output) return Boolean(output.audio && output.audioEnabled && ttsOf());
+    } catch {
+      // not in a session yet
+    }
+    return Boolean(ttsOf());
+  };
   const ttsOf = () => {
     try {
       return (agent._agentActivity && agent._agentActivity.tts) || agent.tts || null;
@@ -178,14 +193,14 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     return outcome;
   };
 
-  async function* replies(chatCtx, toolCtx, modelSettings) {
+  async function* replies(chatCtx, toolCtx, modelSettings, control) {
     const core = crowkisSession();
     const [question, after, userIndex] = lastUser(chatCtx);
     const instructions = instructionsOf(chatCtx);
     const cache = clipCache();
     const passThrough = async function* (ctx) {
       const parts = [];
-      for await (const chunk of read(await ownLlm(ctx, toolCtx, modelSettings))) {
+      for await (const chunk of read(await ownLlm(ctx, toolCtx, modelSettings), control)) {
         parts.push(chunkText(chunk));
         yield chunk;
       }
@@ -206,15 +221,22 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
       yield* passThrough(chatCtx); // not a reply to what the caller just said
       return;
     }
-    if (unspoken && ttsOf()) core.cancel(); // the last hit was never spoken (a discarded attempt)
+    if (unspoken && audioOut()) core.cancel(); // the last hit was never spoken (a discarded attempt)
     unspoken = false;
+    hits.clear(); // a new caller turn: no earlier reply's clip is waiting to be spoken
     if (extraContext(chatCtx, userIndex)) {
+      pending.clear(); // a newer turn: no earlier answer is still waiting to be spoken
       const answer = yield* passThrough(chatCtx);
       if (answer) core.recordPrivateTurn(question, answer);
       return;
     }
 
     const decision = await core.decide(question);
+    if (control.cancelled) {
+      // LiveKit dropped this reply while Crowkis was deciding: as if never asked.
+      if (!decision.needsModel) core.cancel();
+      return;
+    }
     if (!decision.needsModel) {
       let audio = decision.audio && core.audioFormat === `pcm16-${cache.sampleRate}` ? decision.audio : null;
       if (!audio && decision.audioShareable) audio = await cache.get(decision.text);
@@ -233,7 +255,7 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     let calledTool = false;
     let ended = false;
     try {
-      for await (const chunk of read(await ownLlm(messages, toolCtx, modelSettings))) {
+      for await (const chunk of read(await ownLlm(messages, toolCtx, modelSettings), control)) {
         parts.push(chunkText(chunk));
         if (chunkCallsTool(chunk)) calledTool = true;
         yield chunk;
@@ -249,8 +271,8 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
       return;
     }
     slot[0] = answer;
-    if (!ttsOf()) {
-      await save(turn, answer); // no TTS: nothing will speak it, so it is saved now
+    if (!audioOut()) {
+      await save(turn, answer); // audio off: nothing will speak it, so it is saved now
       return;
     }
     pending.set(answer, turn);
@@ -267,7 +289,9 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     let ended = false;
     for (;;) {
       const sofar = buffered.join("");
-      if (buffered.length && ![...hits.keys()].some((t) => t.startsWith(sofar.trim()) || same(t, sofar))) break;
+      // By words: LiveKit's text transforms drop markdown and emoji before the TTS.
+      const said = wordsOf(sofar);
+      if (buffered.length && ![...hits.keys()].some((t) => wordsOf(t).slice(0, said.length).join(" ") === said.join(" "))) break;
       const r = await it.next();
       if (r.done) {
         ended = true;
@@ -309,14 +333,25 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     cache.ttsStarted();
     let finished = false;
     try {
-      for await (const frame of read(await ownTts(heard(), modelSettings))) {
+      // A ReadableStream, as LiveKit gives a ttsNode: an override may read it as one.
+      for await (const frame of read(await ownTts(streamOf(heard()), modelSettings))) {
         const data = frame.data;
         cache.ttsAudio(Buffer.from(data.buffer, data.byteOffset, data.byteLength));
         yield frame;
       }
       finished = true;
     } finally {
-      if (!finished) cache.interrupted(); // cut off: no clip, and nothing saved
+      if (!finished) {
+        cache.interrupted(); // cut off: no clip, and nothing shared
+        // The caller heard part of the newest answer: it stays in this call's transcript
+        // (as Python keeps it), so later follow-ups are keyed on what was said.
+        const newest = [...pending.keys()].pop();
+        if (newest !== undefined) {
+          const turn = pending.get(newest);
+          pending.delete(newest);
+          crowkisSession().recordPrivateTurn(turn.question, newest);
+        }
+      }
     }
     const said = spoken.join("");
     unspoken = false;
@@ -330,7 +365,10 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
     await cache.ttsStopped();
   }
 
-  agent.llmNode = async (chatCtx, toolCtx, modelSettings) => streamOf(replies(chatCtx, toolCtx, modelSettings));
+  agent.llmNode = async (chatCtx, toolCtx, modelSettings) => {
+    const control = { cancelled: false, readers: new Set() };
+    return streamOf(replies(chatCtx, toolCtx, modelSettings, control), control);
+  };
   agent.ttsNode = async (text, modelSettings) => streamOf(speech(text, modelSettings));
   Object.defineProperty(agent, "crowkis", { get: crowkisSession, configurable: true });
   return agent;

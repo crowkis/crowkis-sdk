@@ -1411,6 +1411,14 @@ class TurnDecision {
     // Not enumerable: read through `empty`, never set by callers or copied out with the decision.
     Object.defineProperty(this, "_empty", { value: false, writable: true, enumerable: false });
     Object.defineProperty(this, "_audioShareable", { value: false, writable: true, enumerable: false });
+    // Set by decide(): the session that made it (a WeakRef, so a kept decision never
+    // keeps a call alive) and, for a model turn, what the caller said, so record()
+    // takes a decision only from its own session, and only once. Not enumerable, so a
+    // logged or serialised decision never carries them; the caller's words are dropped
+    // once recorded.
+    Object.defineProperty(this, "_session", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_said", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_recorded", { value: false, writable: true, enumerable: false });
   }
 
   /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
@@ -1523,7 +1531,10 @@ class VoiceSession {
     this._cancelled = false;
     this._turnMark = 0;
     this._turn = 0;
-    this._cacheable = false;
+    // [turn, whether that turn's answer may be shared]: read with the turn it belongs
+    // to, so a decide() that finishes after a newer one never lends the newer turn its
+    // flag (two decide() calls in flight at once). Same as Python's _shareable.
+    this._shareable = [0, false];
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
   }
@@ -1555,11 +1566,13 @@ class VoiceSession {
     const turn = this._turn;
     const decision = await this._decide(callerSaid);
     decision.turn = turn;
-    this._cacheable = false;
+    decision._session = new WeakRef(this);
     if (decision.needsModel) {
+      decision._said = callerSaid;
       [decision.messages, decision.cacheable] = this._modelMessages(callerSaid);
-      this._cacheable = decision.cacheable;
     }
+    // A newer turn's flag is never overwritten by an older one.
+    if (turn === this._turn) this._shareable = [turn, decision.cacheable];
     return decision;
   }
 
@@ -1782,8 +1795,56 @@ class VoiceSession {
     if (!decision.needsModel) return decision;
     let messages = decision.messages || [...this.injections(), { role: "user", content: callerSaid }];
     if (system) messages = [{ role: "system", content: system }, ...messages];
-    decision.text = await llm(messages);
-    const { outcome, why: reason } = await this._record(callerSaid, decision.text, { turn: decision.turn });
+    // Straight to the recording step: answer() made this decision itself, so a
+    // subclass whose decide() returns its own decision object keeps working.
+    decision._said = callerSaid;
+    return this._recordDecision(decision, await llm(messages), false);
+  }
+
+  // Save the answer to a turn you sent to your own model: decide(), then call the
+  // model with decision.messages, then record(decision, its answer).
+  //
+  // The same rules as answer() decide what happens to it: shared with other callers
+  // only when decide() said it may be (decision.cacheable), kept to this call
+  // otherwise, and dropped when the caller talked over it (cancel()) or a newer turn
+  // was decided since. `private: true` keeps a shareable answer to this call, e.g. one
+  // built from a tool's result. Never rejects for the server: a refused write is
+  // reported, not thrown.
+  //
+  // Resolves to `decision` with `text` set to the answer and stored / notStored /
+  // empty filled in, as answer() does. Rejects for a decision this session did not
+  // make, one that did not need the model (served from the cache or a filler), or one
+  // already recorded.
+  async record(decision, answer, { private: keep = false } = {}) {
+    if (!(decision instanceof TurnDecision)) {
+      throw new Error("record() takes the TurnDecision decide() returned");
+    }
+    if (decision._recorded) throw new Error("record() got a decision that was already recorded");
+    const owner = decision._session ? decision._session.deref() : undefined;
+    if (owner !== this) {
+      throw new Error(
+        decision._session
+          ? "record() got a decision from another session: each call's answers are recorded in the session that decided them"
+          : "record() takes a decision from this session's decide(); one from another session (another call) or made by hand is refused"
+      );
+    }
+    if (!decision.needsModel) {
+      throw new Error(
+        `record() is for a turn that needed the model; this one was answered by ${
+          decision.servedFromFiller ? "a filler" : "the cache"
+        } ("${decision.action}")`
+      );
+    }
+    return this._recordDecision(decision, answer, keep);
+  }
+
+  // record() and answer(): store the answer and fill in the decision.
+  async _recordDecision(decision, answer, keep) {
+    decision._recorded = true;
+    const said = decision._said;
+    decision._said = null;
+    decision.text = answer;
+    const { outcome, why: reason } = await this._record(said, answer, { turn: decision.turn, private: keep });
     decision.stored = STORED.has(outcome);
     const why = decision.stored ? "" : reason || outcome;
     decision.notStored = why;
@@ -1804,8 +1865,8 @@ class VoiceSession {
     this._open = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (this._cacheable) this.notShareable += 1;
-    this._cacheable = false;
+    if (this._shareable[1]) this.notShareable += 1;
+    this._shareable = [0, false];
   }
 
   // Record the model's answer to the turn decide() last handled, and cache it if
@@ -1821,19 +1882,21 @@ class VoiceSession {
   // details), "non_answer", "not_saved" (a follow-up with nothing to key it to),
   // "refused" (the write failed) or "interrupted" (talked over, or the caller moved
   // on before it was complete).
-  async _recordModelTurn(callerSaid, modelSaid, { turn } = {}) {
-    return (await this._record(callerSaid, modelSaid, { turn })).outcome;
+  async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
+    return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
 
   // The same, with why an answer was not stored, in words.
-  async _record(callerSaid, modelSaid, { turn } = {}) {
+  async _record(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
     const outcome = (word, why = "") => ({ outcome: word, why });
     if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
       return outcome("interrupted", "the caller moved on before this answer was complete");
     }
     this._open = false;
-    const cacheable = this._cacheable;
-    this._cacheable = false;
+    const expected = turn === undefined || turn === null ? this._turn : turn;
+    const shareable = this._shareable;
+    this._shareable = [0, false];
+    const cacheable = shareable[1] && shareable[0] === expected;
     if (!(typeof modelSaid === "string" && modelSaid.trim())) {
       this.emptyAnswers += 1;
       return outcome("non_answer", "the model returned an empty answer");
@@ -1843,6 +1906,10 @@ class VoiceSession {
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on");
+    if (keep) {
+      this.notShareable += 1;
+      return outcome("kept", "kept to this call: the answer was built from a tool's result");
+    }
     try {
       if (isPersonal(text)) {
         if (await this._learnPersonal(keyed, modelSaid)) return outcome("template");
@@ -2050,7 +2117,10 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
       // before anyone is served them.
       const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
       const keyed = session._contextKey(callerSaid, text) || callerSaid;
-      session._cacheable = session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier);
+      session._shareable = [
+        session._turn,
+        session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier),
+      ];
       await session._recordModelTurn(callerSaid, agentSaid);
       earlier.push(callerSaid);
       totals.turns += 1;

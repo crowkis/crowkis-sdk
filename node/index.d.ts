@@ -511,6 +511,15 @@ export class VoiceSession {
    * the messages Crowkis chose, then remembered. `text` on the result is what to speak.
    */
   answer(callerSaid: string, llm: ModelCall, options?: { system?: string }): Promise<TurnDecision>;
+  /**
+   * Save the answer to a turn you sent to your own model: `decide()`, call the model
+   * with `decision.messages`, then `record(decision, answer)`. Same rules as `answer()`;
+   * `private: true` keeps a shareable answer to this call (e.g. from a tool's result).
+   * Resolves to `decision` with `text`, `stored`, `notStored` and `empty` filled in.
+   * Rejects for a decision from another session or made by hand, one served from the
+   * cache or a filler, or one already recorded. Never rejects for a refused write.
+   */
+  record(decision: TurnDecision, answer: string | null | undefined, options?: { private?: boolean }): Promise<TurnDecision>;
   /** Keep a turn in the transcript, never cached: for a model that holds the whole call itself. */
   recordPrivateTurn(callerSaid: string, modelSaid: string): void;
   injections(): TranscriptTurn[];

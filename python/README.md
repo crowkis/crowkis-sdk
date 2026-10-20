@@ -224,6 +224,34 @@ system = (
 decision = session.answer(caller_said, my_model, system=system)
 ```
 
+### Calling your model yourself
+
+`answer()` calls your model for you. When you need to call it yourself (to stream it to your
+TTS, use your own retries, or run it inside a framework), split the turn in three:
+
+```python
+decision = session.decide(caller_said)
+if decision.needs_model:
+    # None means a personal turn: the model reads the whole call.
+    messages = decision.messages or session.injections() + [{"role": "user", "content": caller_said}]
+    reply = my_model(messages)
+    session.record(decision, reply)            # same rules as answer()
+speak(decision.text)
+```
+
+`decision.messages` is what the model may read: the question alone (or with the questions it
+follows on from) when the answer may be shared, or `None` when the turn is personal, and then
+give the model the whole call (`session.injections()` plus the question). `record()` then
+saves the answer under exactly the same rules as `answer()`, and fills in `decision.text`,
+`stored`, `not_stored` and `empty`. Pass `private=True` for an answer that must stay in this
+call even though the question was general, such as one built from a tool's result.
+
+`record()` raises `ValueError` for a decision from another session, a turn served from the
+cache or a filler, or a turn already recorded. It never raises because the server refused
+the write: that is reported in `decision.not_stored`. If the caller talks over the answer,
+call `session.cancel()`; a later `record()` for that turn then stores nothing. Each call
+needs its own session: decisions can't be recorded in another call's session.
+
 ### With the decision engine
 
 These need the server's decision engine to be configured (`CROWKIS_DECIDE_UPSTREAM`). Without

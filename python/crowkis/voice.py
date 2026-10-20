@@ -6,6 +6,7 @@ import re
 import string
 import threading
 import time
+import weakref
 from typing import Any, Callable, Dict, List, Optional
 
 from .agent import Agent, _voice_addon_missing
@@ -1450,6 +1451,13 @@ class TurnDecision:
         self.not_stored = ""
         self._empty = False
         self._audio_shareable = False
+        # Set by decide(): the session that made it (a weak reference, so a kept
+        # decision never keeps a call alive) and, for a model turn, what the caller
+        # said, so record() takes a decision only from its own session, and only once.
+        # The caller's words are dropped once recorded.
+        self._session: Optional["weakref.ReferenceType[VoiceSession]"] = None
+        self._said: Optional[str] = None
+        self._recorded = False
 
     @property
     def audio_shareable(self) -> bool:
@@ -1597,7 +1605,9 @@ class VoiceSession:
             turn = self._turn
         decision = self._decide(caller_said)
         decision.turn = turn
+        decision._session = weakref.ref(self)
         if decision.needs_model:
+            decision._said = caller_said
             decision.messages, decision.cacheable = self._model_messages(caller_said)
         with self._turn_lock:
             if turn == self._turn:  # a newer turn's flag is never overwritten by an older one
@@ -1843,8 +1853,56 @@ class VoiceSession:
             messages = self.injections() + [{"role": "user", "content": caller_said}]
         if system:
             messages = [{"role": "system", "content": system}] + messages
-        decision.text = llm(messages)
-        outcome = self._record_model_turn(caller_said, decision.text, turn=decision.turn)
+        # Straight to the recording step: answer() made this decision itself, so a
+        # subclass whose decide() returns its own decision object keeps working.
+        decision._said = caller_said
+        return self._record_decision(decision, llm(messages), private=False)
+
+    def record(self, decision: TurnDecision, answer: Optional[str], *, private: bool = False) -> TurnDecision:
+        """Save the answer to a turn you sent to your own model: decide(), then call
+        the model with ``decision.messages``, then record(decision, its answer).
+
+        The same rules as answer() decide what happens to it: shared with other
+        callers only when decide() said it may be (``decision.cacheable``), kept to
+        this call otherwise, and dropped when the caller talked over it (cancel()) or
+        a newer turn was decided since. ``private=True`` keeps a shareable answer to
+        this call, e.g. one built from a tool's result. Never raises for the server:
+        a refused write is reported, not thrown.
+
+        Returns ``decision`` with ``text`` set to the answer and ``stored`` /
+        ``not_stored`` / ``empty`` filled in, as answer() does. Raises ValueError for a
+        decision this session did not make, one that did not need the model (served
+        from the cache or a filler), or one already recorded.
+        """
+        if not isinstance(decision, TurnDecision):
+            raise ValueError(f"record() takes the TurnDecision decide() returned, got {type(decision).__name__}")
+        with self._turn_lock:  # two threads recording one decision: only one gets through
+            if decision._recorded:
+                raise ValueError("record() got a decision that was already recorded")
+            owner = decision._session() if decision._session is not None else None
+            if owner is not self:
+                raise ValueError(
+                    "record() takes a decision from this session's decide(); one from another "
+                    "session (another call) or made by hand is refused"
+                    if decision._session is None else
+                    "record() got a decision from another session: each call's answers are "
+                    "recorded in the session that decided them"
+                )
+            if not decision.needs_model:
+                where = "a filler" if decision.served_from_filler else "the cache"
+                raise ValueError(
+                    f"record() is for a turn that needed the model; this one was answered "
+                    f"by {where} ({decision.action!r})"
+                )
+            decision._recorded = True
+        return self._record_decision(decision, answer, private=private)
+
+    def _record_decision(self, decision: TurnDecision, answer: Optional[str], *, private: bool) -> TurnDecision:
+        """record() and answer(): store the answer and fill in the decision."""
+        decision._recorded = True
+        said, decision._said = decision._said, None
+        decision.text = answer
+        outcome = self._record_model_turn(said, answer, turn=decision.turn, private=private)
         decision.stored = outcome in _STORED
         why = "" if decision.stored else (outcome.why or str(outcome))
         decision.not_stored = why

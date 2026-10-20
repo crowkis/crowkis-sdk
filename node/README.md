@@ -208,6 +208,35 @@ const system =
 const decision = await session.answer(callerSaid, myModel, { system });
 ```
 
+### Calling your model yourself
+
+`answer()` calls your model for you. When you need to call it yourself (to stream it to your
+TTS, use your own retries, or run it inside a framework), split the turn in three:
+
+```js
+const decision = await session.decide(callerSaid);
+if (decision.needsModel) {
+  // null means a personal turn: the model reads the whole call.
+  const messages = decision.messages ?? [...session.injections(), { role: "user", content: callerSaid }];
+  const reply = await myModel(messages);
+  await session.record(decision, reply);           // same rules as answer()
+}
+speak(decision.text);
+```
+
+`decision.messages` is what the model may read: the question alone (or with the questions it
+follows on from) when the answer may be shared, or `null` when the turn is personal, and then
+give the model the whole call (`session.injections()` plus the question). `record()` then
+saves the answer under exactly the same rules as `answer()`, and fills in `decision.text`,
+`stored`, `notStored` and `empty`. Pass `{ private: true }` for an answer that must stay in
+this call even though the question was general, such as one built from a tool's result.
+
+`record()` rejects for a decision from another session, a turn served from the cache or a
+filler, or a turn already recorded. It never rejects because the server refused the write:
+that is reported in `decision.notStored`. If the caller talks over the answer, call
+`session.cancel()`; a later `record()` for that turn then stores nothing. Each call needs
+its own session: decisions can't be recorded in another call's session.
+
 ### With the decision engine
 
 These need the server's decision engine to be configured (`CROWKIS_DECIDE_UPSTREAM`). Without

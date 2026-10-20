@@ -65,6 +65,22 @@ async function shared(said, ...before) {
   assert.ok(store.writes.some(([q, a, t]) => q === said && a === ANSWER && !t), said);
 }
 
+test("a cut-off question is never served or stored", async () => {
+  // The real server served "do you deliver on" the Sundays answer at 0.95 (19 Oct).
+  for (const said of ["do you deliver on", "Can I pay with my", "What is the price of the", "Do you have parking for",
+    "do you deliver on um", "are you open until", "can I return it within"]) {
+    const store = new Store();
+    const decision = await sessionOn(store).decide(said);
+    assert.strictEqual(decision.action, "infer", said);
+    assert.deepStrictEqual(store.reads, [], said);
+    await keptPrivate(said);
+  }
+  await shared("Do you deliver on Sundays?");
+  await shared("What happened in 1985?"); // a number ends a finished question
+  await shared("How do I log in?"); // the verb takes "in" as its own
+  await shared("Do you deliver to Besançon?");
+});
+
 test("rr 03: a sensitive state with any first-person word stays private", async () => {
   for (const said of [
     "Im pregnant, can i fly",

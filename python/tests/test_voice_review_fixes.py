@@ -256,6 +256,26 @@ class ReviewFixTests(unittest.TestCase):
         self.assertEqual(session_on(store).decide(said).action, "serve")
         self.assertEqual(store.reads, [said])
 
+    def test_a_cut_off_question_is_never_served_or_stored(self):
+        # The real server served "do you deliver on" the Sundays answer at 0.95 (19 Oct).
+        for said in ("do you deliver on", "Can I pay with my", "What is the price of the", "Do you have parking for",
+                     "do you deliver on um", "are you open until", "can I return it within"):
+            with self.subTest(said=said):
+                store = Store()
+                store.shared[said] = "Yes, deliveries run on Sundays."
+                decision = session_on(store).decide(said)
+                self.assertEqual(decision.action, "infer")
+                self.assertEqual(store.reads, [])
+                self.assertKeptPrivate(said)
+        self.assertShared("What happened in 1985?")  # a number ends a finished question
+        self.assertShared("How do I log in?")  # the verb takes "in" as its own
+        self.assertShared("Do you deliver to Besançon?")
+        said = "Do you deliver on Sundays?"
+        store = Store()
+        store.shared[said] = "Yes, deliveries run on Sundays."
+        self.assertEqual(session_on(store).decide(said).action, "serve")
+        self.assertShared(said)
+
     def test_review_11_a_very_long_turn_is_private_and_classified_in_bounded_time(self):
         long_turn = "what are your opening hours on a normal weekday " * 2500  # 22,500 words
         started = time.perf_counter()

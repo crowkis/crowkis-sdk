@@ -1665,6 +1665,26 @@ _SOFTENERS = ("unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but ")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]*")
 
 
+# Words a finished question rarely ends on: "do you deliver on" was cut off before its day.
+_DANGLING = frozenset(
+    "on in at to for from with about of by into onto over under the a an and or but my your our their "
+    "his her its than if because like as between near via per until before after during within without "
+    "through since outside inside around across against any some whether".split()
+)
+_TRAILING_FILLERS = frozenset("um uh er erm uhm hmm mm".split())
+# "How do I log in?" is finished: the verb takes the word as its own.
+_TAKES_IN_ON = frozenset("log logged sign signed check checked opt opted".split())
+
+
+def _unfinished(text: str) -> bool:
+    words = _words(text)
+    while words and words[-1] in _TRAILING_FILLERS:
+        words.pop()
+    if not words or words[-1] not in _DANGLING:
+        return False
+    return not (words[-1] in ("in", "on") and len(words) > 1 and words[-2] in _TAKES_IN_ON)
+
+
 def _is_non_answer(answer: str) -> bool:
     text = " ".join((answer or "").lower().replace("\u2019", "'").split())
     sentences = [s.strip() for s in _SENTENCE.findall(text) if s.strip(" .!?")]
@@ -1913,7 +1933,7 @@ class VoiceSession:
         text = (caller_said or "").strip()
         if (
             self._tainted or len(text.split()) < self.min_words or _is_personal(text) or _lookup_only(text)
-            or self._after_urgent(text)
+            or self._after_urgent(text) or _unfinished(text)
         ):
             return None, False
         if not _is_context_dependent(text):
@@ -1971,6 +1991,12 @@ class VoiceSession:
         if short and not (self.short_turns and self._engine_vouches()):
             self.refused_short += 1
             return TurnDecision("infer", reason="transcript too short to match safely")
+
+        # A cut-off question ("do you deliver on") is near a full one ("...on Sundays") in meaning
+        # but asks something else: never served a stored answer, never stored.
+        if _unfinished(text):
+            self.refused_short += 1
+            return TurnDecision("infer", reason="the turn was cut off mid-question")
 
         personal = _is_personal(text)
         if personal and not self.values:
@@ -2222,7 +2248,8 @@ class VoiceSession:
             return _Outcome("kept", "kept to this call: the answer was built from a tool's result")
         try:
             if _is_personal(text):
-                if not self._tainted and not _is_non_answer(model_said) and self._learn_personal(keyed, model_said):
+                if (not self._tainted and not _is_non_answer(model_said) and not _unfinished(text)
+                        and self._learn_personal(keyed, model_said)):
                     return _Outcome("template")
                 return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from")
             if self._tainted:

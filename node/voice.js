@@ -1644,6 +1644,22 @@ const REDIRECTS = ["you ", "you'll", "you'd", "a quick search", "a search", "an 
 const SOFTENERS = ["unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but "];
 const SENTENCE = /[^.!?]+[.!?]*/g;
 
+// Words a finished question rarely ends on: "do you deliver on" was cut off before its day.
+const DANGLING = new Set(("on in at to for from with about of by into onto over under the a an and or but my your our their " +
+  "his her its than if because like as between near via per until before after during within without " +
+  "through since outside inside around across against any some whether").split(" "));
+const TRAILING_FILLERS = new Set("um uh er erm uhm hmm mm".split(" "));
+// "How do I log in?" is finished: the verb takes the word as its own.
+const TAKES_IN_ON = new Set("log logged sign signed check checked opt opted".split(" "));
+
+function unfinished(text) {
+  const words = wordsOf(text);
+  while (words.length && TRAILING_FILLERS.has(words[words.length - 1])) words.pop();
+  const lastWord = words[words.length - 1];
+  if (!lastWord || !DANGLING.has(lastWord)) return false;
+  return !((lastWord === "in" || lastWord === "on") && words.length > 1 && TAKES_IN_ON.has(words[words.length - 2]));
+}
+
 function isNonAnswer(answer) {
   const text = String(answer || "").toLowerCase().replace(/’/g, "'").split(/\s+/).filter(Boolean).join(" ");
   const sentences = (text.match(SENTENCE) || []).map((s) => s.trim()).filter((s) => s.replace(/[ .!?]/g, ""));
@@ -1856,7 +1872,7 @@ class VoiceSession {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     if (
       this._tainted || text.split(/\s+/).filter(Boolean).length < this.minWords || isPersonal(text) || lookupOnly(text) ||
-      this._afterUrgent(text)
+      this._afterUrgent(text) || unfinished(text)
     ) {
       return [null, false];
     }
@@ -1917,6 +1933,13 @@ class VoiceSession {
       return new TurnDecision("infer", {
         reason: "transcript too short to match safely",
       });
+    }
+
+    // A cut-off question ("do you deliver on") is near a full one ("...on Sundays") in meaning
+    // but asks something else: never served a stored answer, never stored.
+    if (unfinished(text)) {
+      this.refusedShort += 1;
+      return new TurnDecision("infer", { reason: "the turn was cut off mid-question" });
     }
 
     const personal = isPersonal(text);
@@ -2142,7 +2165,9 @@ class VoiceSession {
     if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on");
     try {
       if (isPersonal(text)) {
-        if (!this._tainted && !isNonAnswer(modelSaid) && (await this._learnPersonal(keyed, modelSaid))) return outcome("template");
+        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text) && (await this._learnPersonal(keyed, modelSaid))) {
+          return outcome("template");
+        }
         return outcome("private", "about this caller, with no declared value to make a shared answer shape from");
       }
       if (this._tainted) {

@@ -54,6 +54,19 @@ class SecurityAuditTests(unittest.TestCase):
         s.answer("when will my order arrive", lambda m: "Your order ORD-111 arrives on Tuesday.")
         self.assertEqual([w["response"] for w in server.writes if w["template"]], ["Your order {order_id} arrives on Tuesday."])
 
+    def test_a_cut_off_personal_question_never_becomes_a_template(self):
+        for said in ("when will i get my order on the", "will my order arrive by", "when will my order arrive by um"):
+            with self.subTest(said=said):
+                server = ScopedFakeClient()
+                s = session(server, values={"order_id": "ORD-111"}, share_templates=True)
+                s.answer(said, lambda m: "Your order ORD-111 is due to arrive on Tuesday.")
+                self.assertEqual([w for w in server.writes if w["template"]], [])
+        # A finished one still is.
+        server = ScopedFakeClient()
+        s = session(server, values={"order_id": "ORD-111"}, share_templates=True)
+        s.answer("will my order arrive by Friday", lambda m: "Your order ORD-111 arrives on Tuesday.")
+        self.assertEqual(len([w for w in server.writes if w["template"]]), 1)
+
     def test_templates_are_off_by_default(self):
         question = "when will my order arrive"
         cases = (

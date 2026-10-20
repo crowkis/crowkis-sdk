@@ -11,7 +11,7 @@
 const { CallState, IDENTITIES, wordDigest } = require("./callstate.js");
 const {
   _isNonAnswer: isNonAnswer, _tellsAboutCaller: tellsAboutCaller, _instructs: instructs, _urgent: urgent,
-  _wordsOf: wordsOf, _properNouns: properNouns,
+  _wordsOf: wordsOf, _properNouns: properNouns, _repeatsPromptDetails: repeatsPromptDetails,
 } = require("./voice.js");
 const { NOT_GENERAL_TYPES, TurnFrame } = require("./turn.js");
 const { _FUNCTION: FUNCTION, _NUMWORDS: NUMWORDS, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
@@ -149,13 +149,16 @@ class CallSession {
    * @param agent        a crowkis Agent (async ask / learn)
    * @param understander anything with understand(turn, state) -> TurnFrame (sync or async)
    * @param options      checker, onUrgent(turn, frame), replay, serveAbove, latencyBudgetMs,
-   *                     understandBudgetMs, fillers, mode ("full" | "replay_only" | "off"), onEvent(event)
+   *                     understandBudgetMs, fillers, mode ("full" | "replay_only" | "off"), onEvent(event),
+   *                     instructions (the system prompt the model reads with a shared question: a
+   *                     shared answer repeating a detail it gives about this caller is never saved,
+   *                     "refused:prompt_detail")
    */
   constructor(agent, understander, options = {}) {
     const {
       checker = null, onUrgent = null, replay = null, serveAbove = 0.92,
       latencyBudgetMs = 300, understandBudgetMs = 250, fillers = {}, mode = "full", onEvent = null,
-      urgentReply = null, onTools = null,
+      urgentReply = null, onTools = null, instructions = "",
     } = options;
     for (const [name, value] of [["latencyBudgetMs", latencyBudgetMs], ["understandBudgetMs", understandBudgetMs]]) {
       if (value !== null && value !== undefined && !(value > 0)) throw new Error(`${name} must be positive or null, got ${value}`);
@@ -175,6 +178,7 @@ class CallSession {
     // The business's own system for "my balance", "my booking": returns the reply, or null for
     // the model to answer with the whole call. Never cached.
     this.onTools = onTools;
+    this.instructions = String(instructions || "").trim();
     this.setMode(mode);
     this.state = new CallState();
     this._fillers = new Map(Object.entries(fillers || {}).map(([k, v]) => [norm(k), v]));
@@ -380,7 +384,17 @@ class CallSession {
     // in a shared answer, unless the shared question itself has it.
     const asked = new Set(wordsOf(verdict.question || ""));
     if (wordsOf(t).some((w) => !asked.has(w) && this.state.isPrivate(w))) return "private_word";
+    if (this.instructions && repeatsPromptDetails(t, verdict.question || "", this.instructions, this._promptKey())) {
+      return "prompt_detail";
+    }
     return null;
+  }
+
+  // Which system prompts this call's is compared with: the same agent's on the same channel
+  // (a chat's prompt never stands in for a voice call's).
+  _promptKey() {
+    const agent = this.agent || {};
+    return [agent.tenant || (agent.client && agent.client.tenant) || null, agent.agentId || null, (this.checker && this.checker.channel) || null];
   }
 
   /** The thread's memory for the app's store, between turns. No transcript is in it. */

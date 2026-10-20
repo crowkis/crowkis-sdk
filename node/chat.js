@@ -74,6 +74,8 @@ class Chat {
     this.store = store || new MemoryStore();
     this.system = String(system || "").trim();
     if (!sessionOptions.checker) sessionOptions.checker = new RuleChecker({ channel, knowledgeVersion });
+    // What the model reads with a shared question: an answer repeating a user's detail from it is never saved.
+    if (sessionOptions.instructions === undefined) sessionOptions.instructions = this.system;
     // A chat waits for its model anyway: understanding gets seconds, not a voice turn's 250 ms.
     if (sessionOptions.understandBudgetMs === undefined) sessionOptions.understandBudgetMs = 10000;
     this.sessionOptions = sessionOptions;

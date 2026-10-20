@@ -955,6 +955,9 @@ export interface CallSessionOptions {
   urgentReply?: string | null;
   /** The business's own system for "my balance", "my booking": the reply, or null for the model. Never cached. */
   onTools?: (turn: string, frame: TurnFrame) => string | null | Promise<string | null>;
+  /** The system prompt the model reads with a shared question (Chat passes its `system`): a shared
+   *  answer repeating a detail it gives about this caller is never saved ("refused:prompt_detail"). */
+  instructions?: string;
 }
 
 /** One call or chat thread on turn understanding v2.2. */

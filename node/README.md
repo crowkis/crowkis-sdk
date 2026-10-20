@@ -38,6 +38,19 @@ This is the official **Node / TypeScript SDK**, with typings included.
 npm install @crowkis/client
 ```
 
+CommonJS and ES modules both work, and give the same objects; TypeScript types are
+included for the package and every subpath (`/voice`, `/agent`, `/realtime`,
+`/voiceTurns`, `/langchain`, `/memory`):
+
+```js
+const { Crowkis, voiceSession } = require("@crowkis/client");   // CommonJS
+import { Crowkis, voiceSession } from "@crowkis/client";         // ES modules
+```
+
+A client opens one connection, shared by calls made at the same time. While no request is
+running it doesn't keep your process alive, so a script exits when its work is done even if
+it never calls `close()` (call it anyway in a server, when shutting down).
+
 ## Run a Crowkis server
 
 ```bash

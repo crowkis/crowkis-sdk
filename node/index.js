@@ -256,10 +256,26 @@ class CrowkisClient {
     this.socket = null;
     this.reader = null;
     this.resp3 = false;
+    this._connecting = null; // the connection attempt in progress, shared by every caller
+    this._closing = false; // close() was called while connecting: drop that connection
+    this._busy = 0; // commands in flight: the socket keeps the process alive only then
   }
 
   connect() {
+    // Calls that arrive together share one attempt, until it has finished (AUTH included):
+    // each used to open its own socket, and every one but the last was never closed.
+    if (this._connecting) return this._connecting;
     if (this.socket) return Promise.resolve();
+    this._closing = false;
+    this._connecting = this._open().finally(() => {
+      this._connecting = null;
+      // Opened by connect() alone, with nothing to send: idle until the first command.
+      if (this.socket && !this._busy) this.socket.unref();
+    });
+    return this._connecting;
+  }
+
+  _open() {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host: this.host, port: this.port });
       const timer = setTimeout(() => {
@@ -268,6 +284,12 @@ class CrowkisClient {
       }, this.timeoutMs);
       socket.once("connect", () => {
         clearTimeout(timer);
+        if (this._closing) {
+          // close() was called while this connection was being made: it is not used.
+          socket.destroy();
+          reject(new CrowkisError("connection closed"));
+          return;
+        }
         this.socket = socket;
         this.reader = new RespReader(socket);
         if (!this.authToken) {
@@ -304,6 +326,7 @@ class CrowkisClient {
   }
 
   close() {
+    if (this._connecting) this._closing = true;
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -313,6 +336,18 @@ class CrowkisClient {
   }
 
   async execute(...args) {
+    // While a command is in flight the socket keeps the process alive; once nothing is,
+    // it no longer does, so a script that never calls close() still exits.
+    this._busy += 1;
+    try {
+      return await this._execute(args);
+    } finally {
+      this._busy -= 1;
+      if (this._busy === 0 && this.socket) this.socket.unref();
+    }
+  }
+
+  async _execute(args) {
     // Retry connection-level failures with exponential backoff +
     // jitter. RESP-level errors (CrowkisError from a live reply) are
     // NOT retried — the server answered; retrying a rejected command
@@ -321,6 +356,7 @@ class CrowkisClient {
     for (;;) {
       try {
         await this.connect();
+        this.socket.ref();
         this.socket.write(encode(args));
         return await this._readWithin(this.timeoutMs);
       } catch (error) {

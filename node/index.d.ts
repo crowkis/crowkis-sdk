@@ -17,7 +17,12 @@ export interface CrowkisClientOptions {
   auth_token?: string;
   /** The server's CROWKIS_AUTH_TOKEN, sent as RESP AUTH. Same as `authToken`. */
   token?: string;
+  /** Per request, connecting included. Default 5000. */
   timeoutMs?: number;
+  /** Retries of a request that failed at the connection (or a BUSY reply). Default 2. */
+  maxRetries?: number;
+  /** The first retry's wait; each next one doubles it. Default 100. */
+  backoffBaseMs?: number;
 }
 
 export interface CacheSetOptions {
@@ -319,6 +324,8 @@ export class Agent {
   routeCounts: { cache: number; cheap: number; expensive: number };
   audioHits: number;
   audioMisses: number;
+  /** Audio cache reads and writes that failed; each was a miss, never an error. */
+  audioErrors: number;
   toolHits: number;
   toolMisses: number;
   remember(fact: string, options?: { ttl?: number }): Promise<unknown>;
@@ -375,7 +382,8 @@ export interface TurnDecisionOptions {
 export class TurnDecision {
   constructor(action: TurnAction, options?: TurnDecisionOptions);
   readonly action: TurnAction;
-  readonly text: string | null;
+  /** What to speak. Set by answer(), record() and respond(); an app may set its own fallback. */
+  text: string | null;
   readonly audio: Buffer | null;
   readonly confidence: number;
   readonly reason: string;
@@ -497,6 +505,8 @@ export interface VoiceStats {
   unspeakableAnswers: number;
   /** Model answers that were empty: never stored, reported as `decision.empty`. */
   emptyAnswers: number;
+  /** Answers served without audio because the audio step failed (the text was still served). */
+  audioUnavailable: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -514,6 +524,13 @@ export class VoiceSession {
   readonly commitments: Commitments;
   readonly values: Record<string, string>;
   readonly transcript: TranscriptTurn[];
+  /** What changes the sound besides the voice: a clip is reused only when all match. */
+  readonly language: string;
+  readonly speed: string | number;
+  readonly audioFormat: string;
+  readonly bytesPerSecond?: number;
+  readonly shortTurns: boolean;
+  readonly shareTemplates: boolean;
   served: number;
   inferred: number;
   filled: number;
@@ -523,6 +540,12 @@ export class VoiceSession {
   overBudget: number;
   bargeIns: number;
   emptyAnswers: number;
+  lookupErrors: number;
+  learnErrors: number;
+  notShareable: number;
+  heldCommitments: number;
+  unspeakable: number;
+  audioUnavailable: number;
   setValues(values: VoiceValues): void;
   registerFiller(trigger: string, response: string): void;
   registerFillers(pairs: Record<string, string>): void;

@@ -5,13 +5,13 @@
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./agent": "./agent.js",
-    "./voice": "./voice.js",
-    "./realtime": "./realtime.js",
-    "./voiceTurns": "./voiceTurns.js",
-    "./langchain": "./langchain.js",
-    "./memory": "./memory.js"
+    ".": { "types": "./index.d.ts", "import": "./index.mjs", "require": "./index.js", "default": "./index.js" },
+    "./agent": { "types": "./agent.d.ts", "default": "./agent.js" },
+    "./voice": { "types": "./voice.d.ts", "default": "./voice.js" },
+    "./realtime": { "types": "./realtime.d.ts", "default": "./realtime.js" },
+    "./voiceTurns": { "types": "./voiceTurns.d.ts", "default": "./voiceTurns.js" },
+    "./langchain": { "types": "./langchain.d.ts", "default": "./langchain.js" },
+    "./memory": { "types": "./memory.d.ts", "default": "./memory.js" }
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",
@@ -45,6 +45,13 @@
     "memory.js",
     "grpc.js",
     "crowkis.proto",
+    "index.mjs",
+    "agent.d.ts",
+    "voice.d.ts",
+    "realtime.d.ts",
+    "voiceTurns.d.ts",
+    "langchain.d.ts",
+    "memory.d.ts",
     "README.md"
   ],
   "scripts": {

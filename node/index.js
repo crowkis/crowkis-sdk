@@ -1,6 +1,7 @@
 "use strict";
 
 const net = require("node:net");
+const { resolveSettings } = require("./config.js");
 
 class CrowkisError extends Error {
   constructor(message) {
@@ -231,13 +232,21 @@ async function* streamValues(value) {
 
 class CrowkisClient {
   constructor(options = {}) {
-    this.host = options.host || "127.0.0.1";
-    this.port = options.port || 6383;
-    this.tenant = options.tenant;
+    // Not passed here: CROWKIS_HOST / _PORT / _AUTH_TOKEN / _TENANT / _URL, then
+    // 127.0.0.1:6383 with no token or tenant (see config.js).
+    const settings = resolveSettings({
+      host: options.host,
+      port: options.port,
+      authToken: options.authToken || options.auth_token || options.token,
+      tenant: options.tenant,
+    });
+    this.host = settings.host;
+    this.port = settings.port;
+    this.tenant = settings.tenant;
     this.model = options.model;
     // Not enumerable: logging or JSON.stringify of a client must not print it.
     Object.defineProperty(this, "authToken", {
-      value: options.authToken || options.auth_token || options.token,
+      value: settings.authToken,
       enumerable: false,
       writable: true,
     });

@@ -68,8 +68,8 @@ class CachedOpenAI:
     def __init__(
         self,
         *,
-        crowkis_host: str = "127.0.0.1",
-        crowkis_port: int = 6383,
+        crowkis_host: Optional[str] = None,
+        crowkis_port: Optional[int] = None,
         tenant: Optional[str] = None,
         ttl: int = 3600,
         openai_client: Any = None,

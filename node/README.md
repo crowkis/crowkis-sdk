@@ -48,6 +48,38 @@ docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
 The server listens on `6383` (cache/RESP), `6384` (dashboard/HTTP), and `6385` (gRPC).
 Image → [hub.docker.com/r/crowkis/crowkis](https://hub.docker.com/r/crowkis/crowkis).
 
+## Connect to your server
+
+Put the server's details in the environment (or a `.env` file) once, and create clients
+with no options:
+
+```bash
+# .env
+CROWKIS_HOST=10.0.0.5
+CROWKIS_PORT=6383
+CROWKIS_AUTH_TOKEN=change-me      # only if the server sets one
+CROWKIS_TENANT=my-app             # optional
+# or all in one line:  CROWKIS_URL=crowkis://:change-me@10.0.0.5:6383/my-app
+```
+
+```js
+// node --env-file=.env app.js   (or dotenv, or set the variables any other way)
+const { Crowkis } = require("@crowkis/client");
+const { Agent } = require("@crowkis/client/agent");
+
+const cache = new Crowkis();            // 10.0.0.5:6383, with the token and tenant above
+const agent = new Agent("support");     // every class that connects reads the same settings
+```
+
+An option you pass in code always wins: `new Crowkis({ port: 7000 })` uses 7000 and takes
+the rest from the environment. For each setting the order is: your code, then
+`CROWKIS_HOST` / `CROWKIS_PORT` / `CROWKIS_AUTH_TOKEN` (or `CROWKIS_TOKEN`) /
+`CROWKIS_TENANT`, then the matching part of `CROWKIS_URL`, then the default
+(`127.0.0.1:6383`, no token, no tenant). With nothing set, nothing changes. The variables
+are read when a client is created, so `.env` loaded later still applies; the SDK never
+loads a `.env` itself. A bad value (`CROWKIS_PORT=abc`) throws at once with an error naming
+the variable, and the token is never printed.
+
 ## Cache any model — the wrapper
 
 Wrap any async function whose first argument is the prompt. It matches on **meaning**, so
@@ -215,7 +247,8 @@ to the model instead of being read out.
 A Crowkis server has one secret, `CROWKIS_AUTH_TOKEN`. It protects cache commands (sent as
 RESP `AUTH`) and management writes (sent as `Authorization: Bearer`); the dashboard and reads
 need nothing. There are no users or per-user API keys (removed in 0.5.2). Keep the token in a
-gitignored `.env` and pass it from your environment — never hard-code it.
+gitignored `.env` — never hard-code it. Cache clients read it from `CROWKIS_AUTH_TOKEN`
+by themselves (see [Connect to your server](#connect-to-your-server)).
 
 ```bash
 # .env
@@ -223,14 +256,10 @@ CROWKIS_AUTH_TOKEN=change-me
 ```
 
 ```ts
-const token = process.env.CROWKIS_AUTH_TOKEN;   // from .env, not the code
+const cache = new Crowkis({ tenant: "my-app" });   // token from CROWKIS_AUTH_TOKEN
+// or pass it yourself: new Crowkis({ tenant: "my-app", token })  (authToken still works)
 
-const cache = new Crowkis({
-  host: process.env.CROWKIS_HOST ?? "127.0.0.1",
-  port: Number(process.env.CROWKIS_PORT ?? 6383),
-  tenant: "my-app",
-  token,                                       // authToken still works
-});
+const token = process.env.CROWKIS_AUTH_TOKEN;       // the admin client takes it explicitly
 const admin = new CrowkisAdmin({ baseUrl: "http://127.0.0.1:6380", token });
 ```
 

@@ -78,8 +78,8 @@ class Agent {
     this.client =
       options.client ||
       new CrowkisClient({
-        host: options.host || "127.0.0.1",
-        port: options.port || 6383,
+        host: options.host,
+        port: options.port,
         tenant: options.tenant,
         authToken: options.authToken,
       });

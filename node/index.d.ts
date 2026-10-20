@@ -1,8 +1,18 @@
+/**
+ * Server settings left out here are read from the environment when the client is
+ * created: CROWKIS_HOST, CROWKIS_PORT, CROWKIS_AUTH_TOKEN (or CROWKIS_TOKEN),
+ * CROWKIS_TENANT, then the parts of CROWKIS_URL (crowkis://:token@host:port/tenant),
+ * then the defaults (127.0.0.1:6383, no token, no tenant). A value passed here wins.
+ */
 export interface CrowkisClientOptions {
+  /** Default: CROWKIS_HOST, else the host in CROWKIS_URL, else "127.0.0.1". */
   host?: string;
+  /** Default: CROWKIS_PORT, else the port in CROWKIS_URL, else 6383. */
   port?: number;
+  /** Default: CROWKIS_TENANT, else the path of CROWKIS_URL, else none. */
   tenant?: string;
   model?: string;
+  /** Default: CROWKIS_AUTH_TOKEN, else CROWKIS_TOKEN, else the token in CROWKIS_URL, else none. */
   authToken?: string;
   auth_token?: string;
   /** The server's CROWKIS_AUTH_TOKEN, sent as RESP AUTH. Same as `authToken`. */
@@ -242,9 +252,13 @@ export type Synthesise = (
 
 export interface AgentOptions {
   client?: CrowkisClient;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   host?: string;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   port?: number;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   tenant?: string;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   authToken?: string;
   sharesWith?: string[];
 }

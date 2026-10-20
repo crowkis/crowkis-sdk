@@ -39,8 +39,8 @@ class CrowkisMemory:
         client: Optional[CrowkisClient] = None,
         *,
         user: Optional[str] = None,
-        host: str = "127.0.0.1",
-        port: int = 6383,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         tenant: Optional[str] = None,
         auth_token: Optional[str] = None,
     ) -> None:

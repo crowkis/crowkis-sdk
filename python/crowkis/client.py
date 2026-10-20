@@ -27,6 +27,8 @@ from typing import (
 )
 from urllib.parse import urlencode, urlparse
 
+from . import _config
+
 BytesLike = Union[str, bytes, bytearray, memoryview]
 
 
@@ -383,8 +385,8 @@ async def _stream_values(value: Any) -> AsyncIterator[Any]:
 class CrowkisClient:
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 6383,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         *,
         tenant: Optional[str] = None,
         model: Optional[str] = None,
@@ -400,12 +402,15 @@ class CrowkisClient:
         fail_soft: bool = False,
         on_error: Optional[Callable[[BaseException], None]] = None,
     ) -> None:
-        self.host = host
-        self.port = port
-        self.tenant = tenant
+        # Not passed here: CROWKIS_HOST / _PORT / _AUTH_TOKEN / _TENANT / _URL, then
+        # 127.0.0.1:6383 with no token or tenant (see _config).
+        settings = _config.resolve(host, port, auth_token or token or None, tenant)
+        self.host = settings.host
+        self.port = settings.port
+        self.tenant = settings.tenant
         self.model = model
         self.user = user
-        self.auth_token = auth_token or token
+        self.auth_token = settings.auth_token
         self.timeout = timeout
         self.connect_timeout = float(timeout if connect_timeout is None else connect_timeout)
         self.read_timeout = float(timeout if read_timeout is None else read_timeout)

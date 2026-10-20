@@ -35,6 +35,7 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "config.js",
     "agent.js",
     "voice.js",
     "realtime.js",
@@ -45,6 +46,7 @@
     "README.md"
   ],
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js",
+    "test": "node run-tests.js"
   }
 }

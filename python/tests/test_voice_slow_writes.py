@@ -62,12 +62,12 @@ class SlowWriteTests(unittest.TestCase):
         session = crowkis.voice_session(client=store)
         decision, ms = _timed(lambda: session.answer(QUESTION, lambda m: ANSWER))
         self.assertTrue(decision.needs_model)
-        self.assertLess(ms, 600, "the turn waited for the slow write")
+        self.assertLess(ms, 800, "the turn waited for the slow write (it waits at most twice the budget)")
         self.assertFalse(decision.stored, "not confirmed, so not reported as saved")
         self.assertIn("latency budget", decision.not_stored)
         self.assertEqual(session.slow_writes, 1)
         self.assertEqual(session.stats()["slow_writes"], 1)
-        time.sleep(1.2)  # the write still lands, in the background
+        _wait_for_writes()  # the write still lands, in the background
         self.assertEqual(store.writes, [[QUESTION, ANSWER, False]])
 
     def test_streaming_and_record_are_bounded_too(self):
@@ -78,17 +78,17 @@ class SlowWriteTests(unittest.TestCase):
             with self.subTest(name):
                 session = crowkis.voice_session(client=SlowWrites())
                 _, ms = _timed(lambda: run(session))
-                self.assertLess(ms, 600)
+                self.assertLess(ms, 800)
 
     def test_a_late_write_that_fails_is_counted(self):
         class Failing(SlowWrites):
             def cset(self, *args, **kwargs):
-                time.sleep(0.5)
+                time.sleep(0.8)
                 raise RuntimeError("refused")
 
         session = crowkis.voice_session(client=Failing())
         session.answer(QUESTION, lambda m: ANSWER)
-        time.sleep(0.8)
+        _wait_for_writes()
         self.assertEqual((session.slow_writes, session.learn_errors), (1, 1))
 
     def test_a_hung_server_never_queues_writes_without_limit(self):
@@ -110,7 +110,28 @@ class SlowWriteTests(unittest.TestCase):
         finally:
             release.set()
         self.assertEqual(session.slow_writes, 5)
-        self.assertTrue(all("latency budget" in o for o in outcomes), outcomes)
+        self.assertTrue(all("latency budget" in o for o in outcomes[:3]), outcomes)
+        # Past the cap nothing is written, and the report says so.
+        self.assertTrue(all("not written" in o and "too many writes" in o for o in outcomes[3:]), outcomes)
+
+    def test_a_slow_template_write_is_not_reported_as_stored(self):
+        store = SlowWrites()
+        session = crowkis.voice_session(client=store, values={"order_id": "A-1001", "eta": "Tuesday"},
+                                        share_templates=True)
+        decision = session.answer("when will i get my order", lambda m: "Your order A-1001 is due to arrive on Tuesday.")
+        self.assertFalse(decision.stored)
+        self.assertIn("latency budget", decision.not_stored)
+        self.assertEqual(session.slow_writes, 1)
+        _wait_for_writes()
+        self.assertEqual(store.writes, [["when will i get my order", "Your order {order_id} is due to arrive on {eta}.", True]])
+
+    def test_must_still_work_a_quick_template_write_is_a_template(self):
+        store = ConformanceStore()
+        session = crowkis.voice_session(client=store, values={"order_id": "A-1001", "eta": "Tuesday"},
+                                        share_templates=True)
+        decision = session.answer("when will i get my order", lambda m: "Your order A-1001 is due to arrive on Tuesday.")
+        self.assertTrue(decision.stored)
+        self.assertEqual(session.slow_writes, 0)
 
     def test_a_write_within_the_budget_is_reported_as_before(self):
         class Refusing(ConformanceStore):

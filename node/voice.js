@@ -1316,7 +1316,7 @@ function within(ms, promise) {
 
 const LATE = Symbol("late");
 
-// Writes a turn stopped waiting for (past the latency budget), finishing in the background.
+// Writes a turn stopped waiting for (past twice the latency budget), finishing in the background.
 // At most WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
 let WRITES_MAX = 256;
 const pendingWrites = new Set();
@@ -2523,37 +2523,46 @@ class VoiceSession {
     this._shareable = [0, false];
   }
 
-  // agent.learn(), waited for no longer than the latency budget: a slow server never
+  // agent.learn(), waited for no longer than twice the latency budget: a slow server never
   // stalls the turn after a miss. A write still running then finishes in the background
   // (an error it ends with is counted). An error within the budget is thrown, as before.
   // Without a budget it is waited for, as it always was. False when the turn stopped waiting.
+  //
+  // Resolves to null when the write is done; otherwise to the "slow_write" outcome to
+  // report (still running, or not written at all because too many writes wait).
   async _learn(...args) {
     if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) {
       await this.agent.learn(...args);
-      return true;
+      return null;
     }
     if (pendingWrites.size >= WRITES_MAX) {
       this.slowWrites += 1;
       console.warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
-      return false;
+      return { outcome: "slow_write", why: "not written: too many writes are waiting on a slow server" };
     }
-    let late = false; // set once the turn stopped waiting: a later error is counted here
+    let late = false; // set by the timer itself, so an error at any later moment is counted here
     const write = Promise.resolve().then(() => this.agent.learn(...args));
     const tracked = write
       .catch((error) => {
-        if (!late) return; // within the budget: thrown to the caller below, and counted there
+        if (!late) return; // before the turn stopped waiting: thrown to the caller, counted there
         this.learnErrors += 1;
         console.warn(`crowkis voice: a write that passed the latency budget then failed (${(error && error.name) || "Error"})`);
       })
       .finally(() => pendingWrites.delete(tracked));
     pendingWrites.add(tracked);
-    const result = await within(this.latencyBudgetMs, write);
-    if (result === LATE) {
-      late = true;
-      this.slowWrites += 1;
-      return false;
-    }
-    return true;
+    const finished = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        late = true;
+        resolve(false);
+      }, 2 * this.latencyBudgetMs);
+      write.then(
+        () => { clearTimeout(timer); resolve(true); },
+        (error) => { clearTimeout(timer); if (!late) reject(error); }
+      );
+    });
+    if (finished) return null;
+    this.slowWrites += 1;
+    return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background" };
   }
 
   // A caller turn this session never decided (a private turn, history the app gave the
@@ -2577,8 +2586,9 @@ class VoiceSession {
   // as a shape, this caller's values removed), "kept" (the model read the whole
   // call, so it stays in this call), "private" (personal, or repeats this caller's
   // details), "non_answer", "not_saved" (a follow-up with nothing to key it to),
-  // "refused" (the write failed) or "interrupted" (talked over, or the caller moved
-  // on before it was complete).
+  // "refused" (the write failed), "slow_write" (a session with a latency budget stopped
+  // waiting for the write: not confirmed) or "interrupted" (talked over, or the caller
+  // moved on before it was complete).
   async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
     return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
@@ -2615,8 +2625,10 @@ class VoiceSession {
     }
     try {
       if (isPersonal(text)) {
-        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text) && (await this._learnPersonal(keyed, modelSaid))) {
-          return outcome("template");
+        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text)) {
+          const templated = await this._learnPersonal(keyed, modelSaid);
+          if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
+          if (templated) return outcome("template");
         }
         return outcome("private", "about this caller, with no declared value to make a shared answer shape from");
       }
@@ -2636,12 +2648,9 @@ class VoiceSession {
         this.notShareable += 1;
         return outcome("non_answer", "not saved: the answer asks back or does not answer");
       }
-      const done = await this._learn(keyed, modelSaid, { ttl: this.ttl });
+      const slow = await this._learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
-      if (!done) {
-        return outcome("slow_write", "not confirmed: the server took longer than the latency budget, so the write finishes in the background");
-      }
-      return outcome("saved");
+      return slow || outcome("saved");
     } catch (error) {
       this.learnErrors += 1;
       return outcome(
@@ -2775,8 +2784,7 @@ class VoiceSession {
       readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
       carriesCallContext(outside, keyed, earlier);
     if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values) && !undeclared) {
-      await this._learn(keyed, shaped, { ttl: this.ttl, template: true });
-      return true;
+      return (await this._learn(keyed, shaped, { ttl: this.ttl, template: true })) || true;
     }
     this.uncacheablePersonal += 1;
     return false;

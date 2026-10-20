@@ -4,6 +4,7 @@ import collections
 import concurrent.futures
 import inspect
 import logging
+import queue
 import re
 import string
 import threading
@@ -1914,12 +1915,42 @@ _CHAIN_LIMIT = 6
 _HEARD_MAX = 2048
 
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
-# A write a turn stopped waiting for (past the latency budget) finishes here. At most
-# _WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
-_WRITES = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-voice-write")
+# A write a turn stopped waiting for (past twice the latency budget) finishes on these
+# workers. Daemon threads, so a write to a hung server never holds up the program's exit
+# (a cache write lost at exit costs a later hit). At most _WRITES_MAX wait at once: past
+# it (a hung server) a new answer is not written at all.
+_WRITE_WORKERS = 16
 _WRITES_MAX = 256
+_WRITE_QUEUE: "queue.Queue" = queue.Queue()
 _PENDING_WRITES: set = set()
 _PENDING_LOCK = threading.Lock()
+_write_workers_started = False
+# Counters a write worker and a turn may both update.
+_COUNT_LOCK = threading.Lock()
+
+
+def _write_worker() -> None:
+    while True:
+        future, fn, args, kwargs = _WRITE_QUEUE.get()
+        try:
+            if future.set_running_or_notify_cancel():
+                try:
+                    future.set_result(fn(*args, **kwargs))
+                except BaseException as err:  # noqa: BLE001 - handed to the waiting turn
+                    future.set_exception(err)
+        finally:
+            _WRITE_QUEUE.task_done()
+
+
+def _submit_write(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> "concurrent.futures.Future":
+    global _write_workers_started
+    if not _write_workers_started:
+        for n in range(_WRITE_WORKERS):
+            threading.Thread(target=_write_worker, name=f"crowkis-voice-write-{n}", daemon=True).start()
+        _write_workers_started = True
+    future: "concurrent.futures.Future" = concurrent.futures.Future()
+    _WRITE_QUEUE.put((future, fn, args, kwargs))
+    return future
 
 
 def _wait_for_writes() -> None:
@@ -2646,34 +2677,43 @@ class VoiceSession:
                 self.not_shareable += 1
             self._shareable = (0, False)
 
-    def _learn(self, *args: Any, **kwargs: Any) -> bool:
-        """agent.learn(), waited for no longer than the latency budget: a slow server never
-        stalls the turn after a miss. A write still running then finishes in the
-        background (an error it ends with is counted). An error within the budget is
-        raised, as before. Without a budget it is waited for, as it always was. False
-        when the turn stopped waiting."""
+    def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
+        """agent.learn(), waited for no longer than twice the latency budget: a slow server
+        never stalls the turn after a miss. A write still running then finishes in the
+        background (an error it ends with is counted). An error before that is raised, as
+        before. Without a budget it is waited for, as it always was.
+
+        None when the write is done; otherwise the ``slow_write`` outcome to report (still
+        running, or not written at all because too many writes wait on a slow server)."""
         if self.latency_budget_ms is None:
             self.agent.learn(*args, **kwargs)
-            return True
+            return None
         with _PENDING_LOCK:
-            if len(_PENDING_WRITES) >= _WRITES_MAX:
-                self.slow_writes += 1
-                _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
-                return False
-            future = _WRITES.submit(self.agent.learn, *args, **kwargs)
-            _PENDING_WRITES.add(future)
+            full = len(_PENDING_WRITES) >= _WRITES_MAX
+            if not full:
+                future = _submit_write(self.agent.learn, *args, **kwargs)
+                _PENDING_WRITES.add(future)
+        if full:
+            self._count("slow_writes")
+            _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
+            return _Outcome("slow_write", "not written: too many writes are waiting on a slow server")
         future.add_done_callback(_write_done)
         try:
-            future.result(timeout=self.latency_budget_ms / 1000)
+            future.result(timeout=2 * self.latency_budget_ms / 1000)
         except concurrent.futures.TimeoutError:
-            self.slow_writes += 1
+            self._count("slow_writes")
             future.add_done_callback(self._late_write)
-            return False
-        return True
+            return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
+                                          "budget, so the write finishes in the background")
+        return None
+
+    def _count(self, name: str) -> None:
+        with _COUNT_LOCK:
+            setattr(self, name, getattr(self, name) + 1)
 
     def _late_write(self, future: "concurrent.futures.Future") -> None:
         if future.exception() is not None:
-            self.learn_errors += 1
+            self._count("learn_errors")
             _LOG.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
                          type(future.exception()).__name__)
 
@@ -2706,8 +2746,9 @@ class VoiceSession:
         as a shape, this caller's values removed), ``kept`` (the model read the whole
         call, or a tool's result, so it stays in this call), ``private`` (personal, or
         repeats this caller's details), ``non_answer``, ``not_saved`` (a follow-up with
-        nothing to key it to), ``refused`` (the write failed) or ``interrupted`` (talked
-        over, or the caller moved on before it was complete). The returned string's
+        nothing to key it to), ``refused`` (the write failed), ``slow_write`` (a session
+        with a latency budget stopped waiting for the write: not confirmed) or
+        ``interrupted`` (talked over, or the caller moved on before it was complete). The returned string's
         ``why`` says it in words.
         """
         with self._turn_lock:
@@ -2737,9 +2778,12 @@ class VoiceSession:
                                        "from the system prompt")
         try:
             if _is_personal(text):
-                if (not self._tainted and not _is_non_answer(model_said) and not _unfinished(text)
-                        and self._learn_personal(keyed, model_said)):
-                    return _Outcome("template")
+                if not self._tainted and not _is_non_answer(model_said) and not _unfinished(text):
+                    templated = self._learn_personal(keyed, model_said)
+                    if isinstance(templated, _Outcome):
+                        return templated  # slow_write: the shape was not confirmed written
+                    if templated:
+                        return _Outcome("template")
                 return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from")
             if self._tainted:
                 self.not_shareable += 1
@@ -2753,12 +2797,9 @@ class VoiceSession:
             if _is_non_answer(model_said):
                 self.not_shareable += 1
                 return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
-            done = self._learn(keyed, model_said, ttl=self.ttl)
+            slow = self._learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
-            if not done:
-                return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
-                                              "budget, so the write finishes in the background")
-            return _Outcome("saved")
+            return slow or _Outcome("saved")
         except Exception as error:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
             why = f"the server refused the write: {str(error) or type(error).__name__}"
@@ -2890,8 +2931,7 @@ class VoiceSession:
             and not _leaks(shaped, self.values)
             and not undeclared
         ):
-            self._learn(keyed, shaped, ttl=self.ttl, template=True)
-            return True
+            return self._learn(keyed, shaped, ttl=self.ttl, template=True) or True
         self.uncacheable_personal += 1
         return False
 

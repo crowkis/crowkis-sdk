@@ -1,6 +1,7 @@
 "use strict";
 
-const { voiceAddonMissing } = require("./agent.js");
+const { Agent, voiceAddonMissing } = require("./agent.js");
+const { CrowkisClient } = require("./index.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -1998,7 +1999,9 @@ class VoiceSession {
 
   async _voiced(answer, { cacheable = true } = {}) {
     if (!this.synthesise) return null;
-    if (!cacheable) return this.synthesise(answer);
+    // A text-only session (voiceSession() with no voice) has no real voice id to key a
+    // clip on: speak, but never read or store a cached clip.
+    if (!cacheable || this._textOnly) return this.synthesise(answer);
     return this.agent.speak(answer, this.synthesise, {
       voice: this.voice,
       ttl: this.ttl,
@@ -2083,10 +2086,106 @@ async function judgedInTime(agent, query, ms) {
   return !query;
 }
 
+// The voice id of a text-only session. Never used as a cache key: every audio path
+// checks `_textOnly` first.
+const TEXT_ONLY_VOICE = "crowkis:text-only";
+
+// Every option new VoiceSession() takes, so a misspelt one is an error here, as in Python.
+const SESSION_OPTIONS = new Set([
+  "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
+  "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
+]);
+
+/**
+ * A ready VoiceSession in one call, with defaults for live calls (same as Python's
+ * crowkis.voice_session()).
+ *
+ * It builds the client and the Agent itself. Server settings not passed here come from
+ * the environment, then the defaults (see the README, "Connect to your server"). The
+ * defaults differ from a bare VoiceSession because a caller is waiting:
+ * - latencyBudgetMs 250: the longest a turn waits for a cache lookup before it goes to
+ *   the model. null turns the budget off.
+ * - timeoutMs 1000 per server request, with no retries. Saving the model's answer
+ *   happens while the caller waits; 5 s tried three times would leave a stuck server
+ *   holding the turn for about 15 s. The cost of no retries: a request that fails once
+ *   (the first after a server restart, or a BUSY reply) is not tried again, so that
+ *   lookup goes to the model or that answer is not stored. Pass your own `client` for
+ *   other settings, e.g. for warmFromCalls, which should not use this live-call client.
+ *
+ * `voice` is the TTS voice id. Without it the session caches text only and never reads
+ * or stores audio, so two voices can never share a clip; passing `synthesise` then is
+ * an error. Every other VoiceSession option is passed on as it is.
+ *
+ * `client` uses a client you built, as it is: passing host/port/authToken/token/tenant/
+ * timeoutMs with it is an error, and closing the agent leaves it open.
+ */
+function voiceSession(options = {}) {
+  const {
+    voice,
+    agentId = "voice",
+    client: given,
+    host,
+    port,
+    authToken,
+    auth_token: authTokenAlias,
+    token,
+    tenant,
+    timeoutMs,
+    latencyBudgetMs = 250,
+    ...rest
+  } = options;
+  if (timeoutMs !== undefined && timeoutMs !== null && !(timeoutMs > 0)) {
+    throw new Error(`timeoutMs must be a positive number of milliseconds, got ${timeoutMs}`);
+  }
+  const unknown = Object.keys(rest).filter((name) => !SESSION_OPTIONS.has(name));
+  if (unknown.length) {
+    throw new TypeError(`voiceSession() got unknown option(s): ${unknown.join(", ")}`);
+  }
+  if (given) {
+    const passed = Object.entries({ host, port, authToken, auth_token: authTokenAlias, token, tenant, timeoutMs })
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([name]) => name);
+    if (passed.length) {
+      throw new Error(
+        `voiceSession() got client and ${passed.join(", ")}: a client passed in is used as it is, ` +
+          "so set these on the client instead"
+      );
+    }
+  }
+  const textOnly = voice === undefined || voice === null;
+  if (textOnly && rest.synthesise) {
+    throw new Error(
+      "voiceSession() got synthesise without voice. Cached audio is keyed on the voice that " +
+        "spoke it: pass your TTS voice id, or leave out synthesise to cache text only"
+    );
+  }
+  const client =
+    given ||
+    new CrowkisClient({
+      host,
+      port,
+      authToken: authToken || authTokenAlias || token,
+      tenant,
+      timeoutMs: timeoutMs ?? 1000,
+      maxRetries: 0,
+    });
+  const agent = new Agent(agentId, { client, tenant: client.tenant });
+  agent._ownsClient = !given;
+  const session = new VoiceSession(agent, {
+    ...rest,
+    voice: textOnly ? TEXT_ONLY_VOICE : voice,
+    latencyBudgetMs,
+  });
+  session._textOnly = textOnly;
+  return session;
+}
+
 module.exports = {
   VoiceSession,
   TurnDecision,
+  voiceSession,
   warmFromCalls,
+  _SESSION_OPTIONS: SESSION_OPTIONS,
   _speakable: speakable,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,

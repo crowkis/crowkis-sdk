@@ -176,6 +176,8 @@ class CrowkisAudioCache(FrameProcessor):
         return bool(usable and usable(text, self._labels()))
 
     async def get(self, text: str) -> Optional[bytes]:
+        if getattr(self._session, "_text_only", False):
+            return None  # no voice id to key a clip on (voice_session() with no voice)
         agent = self._session.agent
         if self._uses_audio_cache(text):
             try:
@@ -256,6 +258,8 @@ class CrowkisAudioCache(FrameProcessor):
             await self._store(text, clip)
 
     async def _store(self, text: str, clip: bytes) -> None:
+        if getattr(self._session, "_text_only", False):
+            return  # no voice id to key a clip on (voice_session() with no voice)
         agent = self._session.agent
         if getattr(agent, "_audio_v2", None) is True and self._uses_audio_cache(text):
             # In the background: the next frame is never held for a store.

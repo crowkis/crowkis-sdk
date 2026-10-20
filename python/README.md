@@ -162,15 +162,43 @@ mem.recall("how should I contact Alice?")   # semantic recall
 the model. An answer about one caller's own records is never spoken to another caller.
 
 ```python
-from crowkis import Agent, VoiceSession
+import crowkis
 
-agent = Agent("support-line", tenant="my-app")
-session = VoiceSession(agent, voice="my-voice")
+session = crowkis.voice_session()     # server settings from the environment
 
 # my_model(messages) -> str. It is called only when the cache cannot answer, with
 # exactly the messages Crowkis chose, and its answer is cached when it is safe to share.
 decision = session.answer(caller_said, my_model)
 speak(decision.text)
+```
+
+`voice_session()` builds the connection and the agent for you, with defaults for a live
+call, where a caller is waiting:
+
+| Setting | Default | Why |
+|---|---|---|
+| `latency_budget_ms` | `250` | The longest a turn waits for a cache lookup before it asks the model. `None` turns it off. |
+| `timeout` | `1.0` s, no retries | Saving the model's answer happens while the caller waits. With a stuck server this caps the turn at about a second, not ~15 s. The cost: a request that fails once (the first on a connection after a server restart, or a `BUSY` reply) is not retried, so that turn goes to the model or that answer isn't stored. |
+| `agent_id` | `"voice"` | The agent the session's cache belongs to. |
+| server | from the environment | `host=`, `port=`, `auth_token=`, `tenant=` still win; or pass your own `client=`. |
+
+`voice=` is your TTS voice id. Without it the session caches text only and never reads or
+stores audio, so two voices can never share a clip. To cache audio too:
+
+```python
+session = crowkis.voice_session(voice="eleven-rachel", synthesise=my_tts)
+```
+
+Every other `VoiceSession` option (`serve_above`, `fillers`, `ttl`, `values`, ...) can be
+passed to `voice_session()` as well. For bulk work such as `warm_from_calls`, build an
+`Agent` with an ordinary client rather than reusing the session's live-call one. To build
+it yourself, as before:
+
+```python
+from crowkis import Agent, VoiceSession
+
+agent = Agent("support-line", tenant="my-app")
+session = VoiceSession(agent, voice="my-voice")   # no budget, 5 s timeout with 2 retries
 ```
 
 `decision.stored` says whether the model's answer was cached and, when it was not,

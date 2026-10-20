@@ -1236,6 +1236,9 @@ module.exports = {
   get TurnDecision() {
     return require("./voice.js").TurnDecision;
   },
+  get voiceSession() {
+    return require("./voice.js").voiceSession;
+  },
   get warmFromCalls() {
     return require("./voice.js").warmFromCalls;
   },

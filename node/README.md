@@ -147,17 +147,45 @@ await mem.recall("how should I contact Alice?");   // semantic recall
 `VoiceSession` decides, turn by turn, whether a caller can be answered from cache or needs
 the model. An answer about one caller's own records is never spoken to another caller.
 
-```ts
-import { Agent, VoiceSession } from "@crowkis/client";
+```js
+const { voiceSession } = require("@crowkis/client");
 
-const agent = new Agent("support-line", { tenant: "my-app" });
-const session = new VoiceSession(agent, { voice: "my-voice" });
+const session = voiceSession();     // server settings from the environment
 
 // myModel(messages) resolves to a string. It is called only when the cache cannot
 // answer, with exactly the messages Crowkis chose, and its answer is cached when
 // it is safe to share.
 const decision = await session.answer(callerSaid, myModel);
 speak(decision.text);
+```
+
+`voiceSession()` builds the connection and the agent for you, with defaults for a live
+call, where a caller is waiting:
+
+| Option | Default | Why |
+|---|---|---|
+| `latencyBudgetMs` | `250` | The longest a turn waits for a cache lookup before it asks the model. `null` turns it off. |
+| `timeoutMs` | `1000`, no retries | Saving the model's answer happens while the caller waits. With a stuck server this caps the turn at about a second, not ~15 s. The cost: a request that fails once (the first after a server restart, or a `BUSY` reply) is not retried, so that turn goes to the model or that answer isn't stored. |
+| `agentId` | `"voice"` | The agent the session's cache belongs to. |
+| server | from the environment | `host`, `port`, `authToken`, `tenant` still win; or pass your own `client`. |
+
+`voice` is your TTS voice id. Without it the session caches text only and never reads or
+stores audio, so two voices can never share a clip. To cache audio too:
+
+```js
+const session = voiceSession({ voice: "eleven-rachel", synthesise: myTts });
+```
+
+Every other `VoiceSession` option (`serveAbove`, `fillers`, `ttl`, `values`, ...) can be
+passed to `voiceSession()` as well; an unknown one throws. For bulk work such as
+`warmFromCalls`, build an `Agent` with an ordinary client rather than reusing the session's
+live-call one. To build it yourself, as before:
+
+```js
+const { Agent, VoiceSession } = require("@crowkis/client");
+
+const agent = new Agent("support-line", { tenant: "my-app" });
+const session = new VoiceSession(agent, { voice: "my-voice" });  // no budget, 5 s timeout with 2 retries
 ```
 
 `decision.stored` says whether the model's answer was cached and, when it was not,

@@ -6,10 +6,10 @@ import re
 import string
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .agent import Agent, _voice_addon_missing
-from .client import CrowkisError
+from .client import CrowkisClient, CrowkisError
 
 # The server takes at most this per count in one report.
 _REPORT_MAX = 1_000_000
@@ -2061,7 +2061,9 @@ class VoiceSession:
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         if self.synthesise is None:
             return None
-        if not cacheable:
+        # A text-only session (voice_session() with no voice) has no real voice id to
+        # key a clip on: speak, but never read or store a cached clip.
+        if not cacheable or getattr(self, "_text_only", False):
             return self.synthesise(answer)
         return self.agent.speak(
             answer,
@@ -2082,6 +2084,84 @@ def _private_chain(chain: List[str], min_words: int = 0) -> bool:
     if chain and (len(root.split()) < min_words or not _asks(root)):
         return True
     return any(_is_personal(turn) or _lookup_only(turn) for turn in chain)
+
+
+# The voice id of a text-only session. Never used as a cache key: every audio path
+# checks `_text_only` first.
+_TEXT_ONLY_VOICE = "crowkis:text-only"
+
+
+def voice_session(
+    *,
+    voice: Optional[str] = None,
+    agent_id: str = "voice",
+    client: Optional[CrowkisClient] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    auth_token: Optional[str] = None,
+    token: Optional[str] = None,
+    tenant: Optional[str] = None,
+    timeout: Optional[float] = None,
+    latency_budget_ms: Optional[float] = 250,
+    **options: Any,
+) -> VoiceSession:
+    """A ready VoiceSession in one call, with defaults for live calls.
+
+    It builds the client and the Agent itself. Server settings not passed here come
+    from the environment, then the defaults (see the README, "Connect to your server").
+    The defaults differ from a bare VoiceSession because a caller is waiting:
+
+    - ``latency_budget_ms=250``: the longest a turn waits for a cache lookup before it
+      goes to the model. ``None`` turns the budget off.
+    - ``timeout=1.0`` seconds per server request, with no retries. Saving the model's
+      answer happens while the caller waits; a 5 s timeout tried three times would
+      leave a stuck server holding the turn for about 15 s. The cost of no retries: a
+      request that fails once (the first on each pooled connection after a server
+      restart, or a BUSY reply) is not tried again, so that lookup goes to the model or
+      that answer is not stored. Pass your own ``client`` for other settings, e.g. for
+      ``warm_from_calls``, which should not use this live-call client.
+
+    ``voice`` is the TTS voice id. Without it the session caches text only and never
+    reads or stores audio, so two voices can never share a clip; passing
+    ``synthesise`` then is an error. Every other VoiceSession option (``serve_above``,
+    ``fillers``, ``ttl``, ...) is passed on as it is.
+
+    ``client`` uses a client you built, as it is: its server settings and timeouts are
+    yours, so passing ``host``/``port``/``auth_token``/``token``/``tenant``/``timeout`` with
+    it is an error, and closing the agent leaves it open.
+    """
+    if timeout is not None and not timeout > 0:
+        raise ValueError(f"timeout must be a positive number of seconds, got {timeout}")
+    if client is not None:
+        given = [name for name, value in (("host", host), ("port", port), ("auth_token", auth_token),
+                                          ("token", token), ("tenant", tenant), ("timeout", timeout))
+                 if value is not None]
+        if given:
+            raise ValueError(
+                f"voice_session() got client= and {', '.join(given)}: a client passed in is "
+                "used as it is, so set these on the client instead"
+            )
+    if voice is None and options.get("synthesise") is not None:
+        raise ValueError(
+            "voice_session() got synthesise= without voice=. Cached audio is keyed on the "
+            "voice that spoke it: pass your TTS voice id, or leave out synthesise to cache text only"
+        )
+    owns_client = client is None
+    if client is None:
+        client = CrowkisClient(
+            host, port, auth_token=auth_token, token=token, tenant=tenant,
+            timeout=1.0 if timeout is None else timeout, max_retries=0,
+        )
+    agent = Agent(agent_id, client=client, tenant=client.tenant)
+    agent._owns_client = owns_client
+    session = VoiceSession(
+        agent,
+        voice=_TEXT_ONLY_VOICE if voice is None else voice,
+        latency_budget_ms=latency_budget_ms,
+        **options,
+    )
+    session._text_only = voice is None
+    return session
 
 
 def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:

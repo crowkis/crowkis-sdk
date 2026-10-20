@@ -544,6 +544,34 @@ export function warmFromCalls(
   options?: { wait?: number },
 ): Promise<WarmStartTotals>;
 
+/** Options for voiceSession(): every VoiceSession option, with `voice` optional. */
+export interface VoiceSessionFactoryOptions extends Omit<VoiceSessionOptions, "voice" | "latencyBudgetMs"> {
+  /** The TTS voice id. Left out: text is cached, audio never is; `synthesise` is then refused. */
+  voice?: string;
+  /** Default "voice". */
+  agentId?: string;
+  /** A client you built, used as it is. Not allowed together with the server settings below. */
+  client?: CrowkisClient;
+  /** Server settings; left out: the environment, then the defaults (see CrowkisClientOptions). */
+  host?: string;
+  port?: number;
+  authToken?: string;
+  auth_token?: string;
+  token?: string;
+  tenant?: string;
+  /** Per server request. Default 1000, with no retries. */
+  timeoutMs?: number;
+  /** The longest a turn waits for a cache lookup. Default 250; null turns it off. */
+  latencyBudgetMs?: number | null;
+}
+
+/**
+ * A ready VoiceSession in one call, with defaults for live calls: a 250 ms lookup
+ * budget and a 1 s server timeout with no retries, so a stuck server costs a turn about
+ * a second. Unknown options throw. Same as Python's crowkis.voice_session().
+ */
+export function voiceSession(options?: VoiceSessionFactoryOptions): VoiceSession;
+
 /**
  * Names of the three events this realtime provider uses. They are data, not
  * constants: a wrong name means the gate never fires and every turn is billed.

@@ -250,14 +250,15 @@ class AudioClips {
       );
       return;
     }
-    try {
-      await agent.client.ctoolset(TTS_TOOL, this._key(text), Buffer.from(clip).toString("base64"), {
-        ex: this.session.ttl,
-        tenant: agent.tenant,
-      });
-    } catch (error) {
-      agent._audioCacheError("written", error); // a failed write only costs a later hit
-    }
+    // In the background too: a slow server never holds the next event.
+    const payload = Buffer.from(clip).toString("base64");
+    storeLater(async () => {
+      try {
+        await agent.client.ctoolset(TTS_TOOL, this._key(text), payload, { ex: this.session.ttl, tenant: agent.tenant });
+      } catch (error) {
+        agent._audioCacheError("written", error); // a failed write only costs a later hit
+      }
+    });
   }
 }
 

@@ -254,8 +254,10 @@ class StuckServerTests(unittest.TestCase):
         self.assertEqual(decision.text, "Refunds arrive within five business days of approval.")
         self.assertFalse(decision.stored)
         self.assertGreater(session.over_budget + session.lookup_errors, 0)
-        self.assertEqual(session.learn_errors, 1)  # the save was tried, and gave up in time
-        self.assertLess(took, 3.0)
+        # The save was tried; the turn stopped waiting for it at the latency budget (it
+        # gives up in the background). Was: the turn waited the client's 1 s timeout.
+        self.assertEqual(session.slow_writes, 1)
+        self.assertLess(took, 1.0)
 
 
 if __name__ == "__main__":

@@ -1316,6 +1316,23 @@ function within(ms, promise) {
 
 const LATE = Symbol("late");
 
+// Writes a turn stopped waiting for (past the latency budget), finishing in the background.
+// At most WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
+let WRITES_MAX = 256;
+const pendingWrites = new Set();
+
+/** For tests: every write handed to the background has finished. */
+async function waitForWrites() {
+  await Promise.allSettled([...pendingWrites]);
+}
+
+// For tests: a smaller cap; returns a function that puts the old one back.
+function setWritesMax(max) {
+  const old = WRITES_MAX;
+  WRITES_MAX = max;
+  return () => { WRITES_MAX = old; };
+}
+
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.
 const CHAIN_LIMIT = 6;
 
@@ -2083,6 +2100,8 @@ class VoiceSession {
     this.bargeIns = 0;
     this.lookupErrors = 0;
     this.learnErrors = 0;
+    // Writes the turn stopped waiting for at the latency budget (they finish in the background).
+    this.slowWrites = 0;
     this.notShareable = 0;
     this.heldCommitments = 0;
     this.unspeakable = 0;
@@ -2504,6 +2523,39 @@ class VoiceSession {
     this._shareable = [0, false];
   }
 
+  // agent.learn(), waited for no longer than the latency budget: a slow server never
+  // stalls the turn after a miss. A write still running then finishes in the background
+  // (an error it ends with is counted). An error within the budget is thrown, as before.
+  // Without a budget it is waited for, as it always was. False when the turn stopped waiting.
+  async _learn(...args) {
+    if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) {
+      await this.agent.learn(...args);
+      return true;
+    }
+    if (pendingWrites.size >= WRITES_MAX) {
+      this.slowWrites += 1;
+      console.warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
+      return false;
+    }
+    let late = false; // set once the turn stopped waiting: a later error is counted here
+    const write = Promise.resolve().then(() => this.agent.learn(...args));
+    const tracked = write
+      .catch((error) => {
+        if (!late) return; // within the budget: thrown to the caller below, and counted there
+        this.learnErrors += 1;
+        console.warn(`crowkis voice: a write that passed the latency budget then failed (${(error && error.name) || "Error"})`);
+      })
+      .finally(() => pendingWrites.delete(tracked));
+    pendingWrites.add(tracked);
+    const result = await within(this.latencyBudgetMs, write);
+    if (result === LATE) {
+      late = true;
+      this.slowWrites += 1;
+      return false;
+    }
+    return true;
+  }
+
   // A caller turn this session never decided (a private turn, history the app gave the
   // model): one that tells the call something a later answer may depend on keeps the
   // rest of the call off the shared cache, as decide() does for its own turns.
@@ -2584,8 +2636,11 @@ class VoiceSession {
         this.notShareable += 1;
         return outcome("non_answer", "not saved: the answer asks back or does not answer");
       }
-      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      const done = await this._learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
+      if (!done) {
+        return outcome("slow_write", "not confirmed: the server took longer than the latency budget, so the write finishes in the background");
+      }
       return outcome("saved");
     } catch (error) {
       this.learnErrors += 1;
@@ -2652,6 +2707,7 @@ class VoiceSession {
       bargeIns: this.bargeIns,
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
+      slowWrites: this.slowWrites,
       notShareable: this.notShareable,
       commitmentsSentToModel: this.heldCommitments,
       unspeakableAnswers: this.unspeakable,
@@ -2719,7 +2775,7 @@ class VoiceSession {
       readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
       carriesCallContext(outside, keyed, earlier);
     if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values) && !undeclared) {
-      await this.agent.learn(keyed, shaped, { ttl: this.ttl, template: true });
+      await this._learn(keyed, shaped, { ttl: this.ttl, template: true });
       return true;
     }
     this.uncacheablePersonal += 1;
@@ -2940,6 +2996,8 @@ module.exports = {
   _repeatsPromptDetails: repeatsPromptDetails,
   _callerDetails: callerDetails,
   _resetPromptBaselines: resetPromptBaselines,
+  _waitForWrites: waitForWrites,
+  _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
   _isContextDependent: isContextDependent,
   _setsContext: setsContext,

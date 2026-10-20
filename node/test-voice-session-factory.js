@@ -200,6 +200,8 @@ test("a stuck server costs a turn about a second, not ~15 s", async () => {
   assert.ok(held.length > 0, "the turn never reached the server, so this proves nothing");
   assert.strictEqual(decision.text, "Refunds arrive within five business days of approval.");
   assert.strictEqual(decision.stored, false);
-  assert.strictEqual(session.learnErrors, 1, "the save was tried, and gave up in time");
-  assert.ok(took < 3000, `took ${took} ms`);
+  // The save was tried; the turn stopped waiting for it at the latency budget (it gives
+  // up in the background). Was: the turn waited the client's 1 s timeout.
+  assert.strictEqual(session.slowWrites, 1, "the save was tried, and the turn did not wait for it");
+  assert.ok(took < 1000, `took ${took} ms`);
 });

@@ -274,13 +274,15 @@ class AudioClips:
                 ex=self._session.ttl, ms=ms, tenant=agent.tenant,
             )
             return
-        try:
-            await asyncio.to_thread(
-                agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
-                ex=self._session.ttl, tenant=agent.tenant,
-            )
-        except Exception as err:  # noqa: BLE001 — a failed write only costs a later hit
-            agent._audio_cache_error("written", err)
+        # In the background too: a slow server never holds the next frame.
+        _store_later(_store_clip, agent, self._key(text), base64.b64encode(clip).decode("ascii"), self._session.ttl)
+
+
+def _store_clip(agent: Any, key: str, clip: str, ttl: Optional[int]) -> None:
+    try:
+        agent._client.ctoolset(TTS_TOOL, key, clip, ex=ttl, tenant=agent.tenant)
+    except Exception as err:  # noqa: BLE001 — a failed write only costs a later hit
+        agent._audio_cache_error("written", err)
 
 
 class AnswerPairing:

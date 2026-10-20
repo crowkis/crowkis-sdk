@@ -1914,6 +1914,24 @@ _CHAIN_LIMIT = 6
 _HEARD_MAX = 2048
 
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
+# A write a turn stopped waiting for (past the latency budget) finishes here. At most
+# _WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
+_WRITES = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-voice-write")
+_WRITES_MAX = 256
+_PENDING_WRITES: set = set()
+_PENDING_LOCK = threading.Lock()
+
+
+def _wait_for_writes() -> None:
+    """For tests: every write handed to the background has finished."""
+    with _PENDING_LOCK:
+        pending = list(_PENDING_WRITES)
+    concurrent.futures.wait(pending)
+
+
+def _write_done(future: "concurrent.futures.Future") -> None:
+    with _PENDING_LOCK:
+        _PENDING_WRITES.discard(future)
 
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.
@@ -2175,6 +2193,8 @@ class VoiceSession:
         self.barge_ins = 0
         self.lookup_errors = 0
         self.learn_errors = 0
+        # Writes the turn stopped waiting for at the latency budget (they finish in the background).
+        self.slow_writes = 0
         self.not_shareable = 0
         self.held_commitments = 0
         self.unspeakable = 0
@@ -2626,6 +2646,37 @@ class VoiceSession:
                 self.not_shareable += 1
             self._shareable = (0, False)
 
+    def _learn(self, *args: Any, **kwargs: Any) -> bool:
+        """agent.learn(), waited for no longer than the latency budget: a slow server never
+        stalls the turn after a miss. A write still running then finishes in the
+        background (an error it ends with is counted). An error within the budget is
+        raised, as before. Without a budget it is waited for, as it always was. False
+        when the turn stopped waiting."""
+        if self.latency_budget_ms is None:
+            self.agent.learn(*args, **kwargs)
+            return True
+        with _PENDING_LOCK:
+            if len(_PENDING_WRITES) >= _WRITES_MAX:
+                self.slow_writes += 1
+                _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
+                return False
+            future = _WRITES.submit(self.agent.learn, *args, **kwargs)
+            _PENDING_WRITES.add(future)
+        future.add_done_callback(_write_done)
+        try:
+            future.result(timeout=self.latency_budget_ms / 1000)
+        except concurrent.futures.TimeoutError:
+            self.slow_writes += 1
+            future.add_done_callback(self._late_write)
+            return False
+        return True
+
+    def _late_write(self, future: "concurrent.futures.Future") -> None:
+        if future.exception() is not None:
+            self.learn_errors += 1
+            _LOG.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
+                         type(future.exception()).__name__)
+
     def _heard(self, caller_said: Optional[str]) -> None:
         """A caller turn this session never decided (a private turn, history the app gave
         the model): one that tells the call something a later answer may depend on keeps
@@ -2702,8 +2753,11 @@ class VoiceSession:
             if _is_non_answer(model_said):
                 self.not_shareable += 1
                 return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
-            self.agent.learn(keyed, model_said, ttl=self.ttl)
+            done = self._learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
+            if not done:
+                return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
+                                              "budget, so the write finishes in the background")
             return _Outcome("saved")
         except Exception as error:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
@@ -2731,6 +2785,7 @@ class VoiceSession:
             "barge_ins": self.barge_ins,
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
+            "slow_writes": self.slow_writes,
             "not_shareable": self.not_shareable,
             "commitments_sent_to_model": self.held_commitments,
             "unspeakable_answers": self.unspeakable,
@@ -2835,7 +2890,7 @@ class VoiceSession:
             and not _leaks(shaped, self.values)
             and not undeclared
         ):
-            self.agent.learn(keyed, shaped, ttl=self.ttl, template=True)
+            self._learn(keyed, shaped, ttl=self.ttl, template=True)
             return True
         self.uncacheable_personal += 1
         return False

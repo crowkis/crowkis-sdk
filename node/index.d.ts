@@ -546,6 +546,8 @@ export interface VoiceStats {
   cacheUnavailable: number;
   /** Model answers that could not be cached (refused write); the call went on. */
   failedWrites: number;
+  /** Writes the turn stopped waiting for at the latency budget; they finish in the background. */
+  slowWrites: number;
   /** Shareable-looking model answers that were kept to this call (a declared value in them, or a private turn). */
   notShareable: number;
   /** Cached commitments the `commitments` option did not allow speaking. */
@@ -591,6 +593,8 @@ export class VoiceSession {
   emptyAnswers: number;
   lookupErrors: number;
   learnErrors: number;
+  /** Writes the turn stopped waiting for at the latency budget (a slow server); they finish in the background. */
+  slowWrites: number;
   notShareable: number;
   heldCommitments: number;
   unspeakable: number;

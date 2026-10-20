@@ -347,6 +347,32 @@ pipeline = Pipeline([transport.input(), stt, user_aggregator, llm, tts,
 The three processors they are made of, `crowkis_processors(session, sample_rate=...)`, still
 work on their own.
 
+### LiveKit Agents
+
+Add `CrowkisVoice` before `Agent` in your agent class:
+
+```python
+from livekit.agents import Agent
+from crowkis.integrations.livekit import CrowkisVoice   # pip install "crowkis[livekit]"
+
+class Assistant(CrowkisVoice, Agent):
+    def __init__(self):
+        super().__init__(instructions="You are Acme's phone assistant.")
+```
+
+- A question the cache can answer is spoken without the LLM, and with its cached audio,
+  without the TTS. Otherwise the LLM answers through LiveKit's own `llm_node`, reading your
+  instructions and only the caller's question (the whole call for a personal turn), with
+  your tools; the answer and its audio are cached when they are safe to share.
+- A reply LiveKit cancels because the caller interrupted is never saved; an answer built
+  from a tool's result stays in that call; an answer repeating a caller detail from your
+  instructions ("Hi Asha! ...") is never shared.
+- Each agent (one per call) makes its own `crowkis.async_voice_session()` (server settings
+  from the environment). Pass `crowkis=` to use your own session, or set
+  `crowkis_options = {...}` on the class for `async_voice_session()`'s options. The voice id
+  and sample rate come from the session's TTS.
+- If you override `llm_node` / `tts_node` yourself, call `super()` to keep Crowkis in the path.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

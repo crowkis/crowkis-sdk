@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import concurrent.futures
+import inspect
 import logging
 import re
 import string
 import threading
 import time
 import weakref
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Union
 
 from .agent import Agent, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
@@ -1490,6 +1491,114 @@ class TurnDecision:
         )
 
 
+class VoiceResponse:
+    """What VoiceSession.respond() returns: iterate it for the text to speak, piece by
+    piece as the model writes it.
+
+    ``decision`` is ready at once, before the first piece: ``decision.served_from_cache``
+    and ``decision.audio`` say whether a cached answer (and its audio) can be played
+    instead of running the TTS. A response is read once.
+    """
+
+    def __init__(self, session: "VoiceSession", decision: "TurnDecision", caller_said: str,
+                 llm, system, private) -> None:
+        self.decision = decision
+        self._session = session
+        self._caller_said = caller_said
+        self._llm = llm
+        self._system = system
+        self._private = private
+        self._pieces: Optional[Iterator[str]] = None
+
+    def __iter__(self) -> Iterator[str]:
+        if self._pieces is not None:
+            raise RuntimeError("a VoiceResponse is read once")
+        self._pieces = self._run()
+        return self._pieces
+
+    def close(self) -> None:
+        """Stop early: the model's stream is closed and nothing is stored."""
+        if self._pieces is None:
+            self._pieces = iter(())
+        else:
+            self._pieces.close()  # type: ignore[union-attr]
+
+    def _stopped(self) -> bool:
+        """The caller talked over this turn, a newer turn was decided, or the app
+        recorded the turn itself: speak no more of this answer."""
+        return self.decision._recorded or self._session._moved_on(self.decision)
+
+    def _run(self) -> Iterator[str]:
+        session, decision = self._session, self.decision
+        if not decision.needs_model:
+            if decision.text:
+                yield decision.text
+            return
+        if self._stopped():  # talked over before a word was read: never call the model
+            session._interrupted(decision, "")
+            return
+        # As answer() does, so a subclass whose decide() returns its own decision works.
+        decision._said = self._caller_said
+        messages = decision.messages
+        if messages is None:
+            messages = session.injections() + [{"role": "user", "content": self._caller_said}]
+        if self._system:
+            messages = [{"role": "system", "content": self._system}] + messages
+        source = self._llm(messages)
+        if inspect.isawaitable(source) or hasattr(source, "__aiter__"):
+            if inspect.iscoroutine(source):
+                source.close()  # never awaited: closed so it raises no warning
+            raise TypeError(
+                "respond() got an async model: VoiceSession.respond() reads a sync iterable "
+                "of text; use an async session for an async model"
+            )
+        if isinstance(source, (bytes, bytearray)):
+            raise TypeError("respond() expects the model to give text (str), got bytes; decode it first")
+        if isinstance(source, str):
+            source = [source]
+        try:
+            upstream = iter(source)
+        except TypeError:
+            raise TypeError(
+                f"respond() expects the model to give text: a str, or an iterable of str "
+                f"pieces; got {type(source).__name__}"
+            ) from None
+        parts: List[str] = []
+        ended = moved_on = False
+        try:
+            for piece in upstream:
+                if piece is None:
+                    continue
+                if not isinstance(piece, str):
+                    raise TypeError(
+                        f"respond() expects the model to give text pieces (str), got "
+                        f"{type(piece).__name__}; map each chunk to its text first"
+                    )
+                if self._stopped():
+                    moved_on = True
+                    break
+                parts.append(piece)
+                if piece:
+                    yield piece
+            else:
+                ended = True
+        finally:
+            closer = getattr(upstream, "close", None)
+            if closer is not None:
+                try:
+                    closer()
+                except Exception:  # noqa: BLE001 — the stream is over either way
+                    pass
+            if moved_on:
+                session._interrupted(decision, "".join(parts))
+            elif ended:
+                # A full answer is recorded under answer()'s rules.
+                with session._turn_lock:
+                    recorded, decision._recorded = decision._recorded, True
+                if not recorded:
+                    session._record_decision(decision, "".join(parts), private=self._private)
+
+
 class VoiceSession:
 
     def __init__(
@@ -1912,6 +2021,51 @@ class VoiceSession:
         elif why:
             decision.reason = f"{decision.reason}; not stored: {why}"
         return decision
+
+    def respond(
+        self,
+        caller_said: str,
+        llm: Callable[[List[Dict[str, str]]], Union[str, Iterable[Optional[str]]]],
+        *,
+        system: Optional[str] = None,
+        private: bool = False,
+    ) -> VoiceResponse:
+        """answer(), streamed: decide now, then give the text to speak piece by piece.
+
+        ``llm(messages)`` returns the model's text pieces as it writes them (any
+        iterable of str; None pieces are skipped) or the whole answer as one str. It is
+        called with the same messages answer() would use, only when the turn needs
+        the model, and only once the response is read.
+
+        A turn the cache or a filler answers yields that text once (``decision.audio``
+        has its audio when the session caches audio). A model turn yields the model's
+        pieces and, when its stream ends, records the full answer under answer()'s rules
+        (``private`` as in record()). If the caller talks over it (cancel()) or a newer
+        turn is decided, the stream stops at the next piece, the model's stream is
+        closed and nothing is stored. A model error is raised and stores nothing, as
+        does stopping early (``close()``, or leaving the loop); the decision can then
+        still be recorded with record().
+        """
+        decision = self.decide(caller_said)
+        return VoiceResponse(self, decision, caller_said, llm, system, private)
+
+    def _moved_on(self, decision: TurnDecision) -> bool:
+        """The caller talked over this turn, or a newer turn has been decided."""
+        with self._turn_lock:
+            return self._cancelled or decision.turn != self._turn
+
+    def _interrupted(self, decision: TurnDecision, spoken: str) -> None:
+        """A streamed turn the caller talked over: report it, store and keep nothing.
+        Not an empty answer, so an app never retries over the caller's new words."""
+        with self._turn_lock:
+            if decision._recorded:
+                return
+            decision._recorded = True
+        decision._said = None
+        decision.text = spoken
+        decision.stored = False
+        decision.not_stored = "the caller moved on before this answer was complete"
+        decision.reason = f"{decision.reason}; not stored: {decision.not_stored}"
 
     def record_private_turn(self, caller_said: str, model_said: str) -> None:
         """Keep a turn in this call's transcript and never cache it.

@@ -224,6 +224,41 @@ system = (
 decision = session.answer(caller_said, my_model, system=system)
 ```
 
+### Streaming the answer
+
+Voice bots send the model's words to the TTS as they arrive, so the caller hears a reply
+sooner. `respond()` does that and still caches the answer:
+
+```python
+stream = session.respond(caller_said, my_streaming_model)
+if stream.decision.audio:              # a cached answer with its audio: play it, skip the TTS
+    play(stream.decision.audio)
+else:
+    for piece in stream:               # cached text, or the model's words as they arrive
+        tts.send(piece)
+```
+
+`my_streaming_model(messages)` returns the model's text pieces as it writes them (any
+iterable of `str`), or the whole answer as one `str`. With an OpenAI-style client:
+
+```python
+def my_streaming_model(messages):
+    # `with` closes the HTTP stream when respond() stops early, so no more tokens are billed.
+    with client.chat.completions.create(model="gpt-4o-mini", messages=messages, stream=True) as chunks:
+        for chunk in chunks:
+            if chunk.choices:
+                yield chunk.choices[0].delta.content
+```
+
+The model is only called when the cache can't answer, and only with the messages Crowkis
+chose. When its stream ends, the full answer is saved under the same rules as `answer()`
+(`stream.decision.stored` / `not_stored` say what happened). If the caller talks over the
+answer, call `session.cancel()`: the stream stops at the next piece, the model's stream is
+closed (no more tokens billed) and nothing is saved. The same happens when the caller says
+something new (`decide()` / `respond()` again). If the model fails mid-stream, the error is
+raised and nothing is saved; leaving the loop early or `stream.close()` saves nothing too.
+`respond()` takes `system=` and `private=` like `answer()` and `record()`.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

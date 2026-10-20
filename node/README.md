@@ -208,6 +208,39 @@ const system =
 const decision = await session.answer(callerSaid, myModel, { system });
 ```
 
+### Streaming the answer
+
+Voice bots send the model's words to the TTS as they arrive, so the caller hears a reply
+sooner. `respond()` does that and still caches the answer:
+
+```js
+const stream = await session.respond(callerSaid, myStreamingModel);
+if (stream.decision.audio) {
+  play(stream.decision.audio);          // a cached answer with its audio: skip the TTS
+} else {
+  for await (const piece of stream) tts.send(piece);   // cached text, or the model's words
+}
+```
+
+`myStreamingModel(messages)` gives the model's text as it writes it (an async iterable or
+iterable of strings), or the whole answer as a string. With an OpenAI-style client:
+
+```js
+async function* myStreamingModel(messages) {
+  const chunks = await client.chat.completions.create({ model: "gpt-4o-mini", messages, stream: true });
+  for await (const chunk of chunks) yield chunk.choices[0]?.delta?.content;
+}
+```
+
+The model is only called when the cache can't answer, and only with the messages Crowkis
+chose. When its stream ends, the full answer is saved under the same rules as `answer()`
+(`stream.decision.stored` / `notStored` say what happened). If the caller talks over the
+answer, call `session.cancel()`: the stream stops at the next piece, the model's stream is
+closed (no more tokens billed) and nothing is saved. The same happens when the caller says
+something new (`decide()` / `respond()` again). If the model fails mid-stream, the error is
+thrown and nothing is saved; leaving the loop early or `await stream.close()` saves nothing
+too. `respond()` takes `{ system, private }` like `answer()` and `record()`.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

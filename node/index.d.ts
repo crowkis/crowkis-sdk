@@ -413,6 +413,28 @@ export interface ModelMessage {
 /** The app's model: reads exactly the messages Crowkis chose, returns its answer. */
 export type ModelCall = (messages: ModelMessage[]) => string | Promise<string>;
 
+/** What respond() calls: the model's text as it writes it, or the whole answer. */
+export type StreamingModelCall = (
+  messages: ModelMessage[],
+) =>
+  | string
+  | Promise<string>
+  | Iterable<string | null | undefined>
+  | AsyncIterable<string | null | undefined>
+  | Promise<Iterable<string | null | undefined> | AsyncIterable<string | null | undefined>>;
+
+/**
+ * What VoiceSession.respond() resolves to. Read it with `for await` for the text to
+ * speak, piece by piece. `decision` is ready before the first piece (servedFromCache,
+ * audio). Read once.
+ */
+export declare class VoiceResponse implements AsyncIterable<string> {
+  readonly decision: TurnDecision;
+  [Symbol.asyncIterator](): AsyncIterator<string>;
+  /** Stop early: the model's stream is closed and nothing is stored. */
+  close(): Promise<void>;
+}
+
 export interface VoiceValues {
   [slot: string]: string | number | null | undefined;
 }
@@ -520,6 +542,19 @@ export class VoiceSession {
    * cache or a filler, or one already recorded. Never rejects for a refused write.
    */
   record(decision: TurnDecision, answer: string | null | undefined, options?: { private?: boolean }): Promise<TurnDecision>;
+  /**
+   * answer(), streamed: decides now, then yields the text to speak piece by piece. A
+   * cache or filler turn yields that text and never calls `llm`. A model turn yields
+   * the model's pieces and records the full answer when its stream ends, under
+   * answer()'s rules. The stream stops, closes the model's stream and stores nothing
+   * if the caller talks over it (cancel()) or a newer turn is decided; a model error or
+   * stopping early stores nothing either (the decision can still be record()ed).
+   */
+  respond(
+    callerSaid: string,
+    llm: StreamingModelCall,
+    options?: { system?: string; private?: boolean },
+  ): Promise<VoiceResponse>;
   /** Keep a turn in the transcript, never cached: for a model that holds the whole call itself. */
   recordPrivateTurn(callerSaid: string, modelSaid: string): void;
   injections(): TranscriptTurn[];

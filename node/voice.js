@@ -1451,6 +1451,105 @@ class TurnDecision {
   }
 }
 
+// What VoiceSession.respond() resolves to: read it with `for await` for the text to
+// speak, piece by piece as the model writes it. `decision` is ready at once, before the
+// first piece: decision.servedFromCache and decision.audio say whether a cached answer
+// (and its audio) can be played instead of running the TTS. A response is read once.
+class VoiceResponse {
+  constructor(session, decision, callerSaid, llm, system, keep) {
+    this.decision = decision;
+    for (const [name, value] of Object.entries({ session, callerSaid, llm, system, keep })) {
+      Object.defineProperty(this, `_${name}`, { value, enumerable: false });
+    }
+    Object.defineProperty(this, "_pieces", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_closed", { value: false, writable: true, enumerable: false });
+  }
+
+  [Symbol.asyncIterator]() {
+    if (this._pieces) throw new Error("a VoiceResponse is read once");
+    this._pieces = this._run();
+    return this._pieces;
+  }
+
+  // Stop early: the model's stream is closed and nothing is stored.
+  async close() {
+    this._closed = true;
+    if (!this._pieces) {
+      this._pieces = (async function* () {})();
+      return;
+    }
+    await this._pieces.return();
+  }
+
+  // The caller talked over this turn, a newer turn was decided, or the app recorded the
+  // turn itself: speak no more of this answer.
+  _stopped() {
+    return this.decision._recorded || this._session._movedOn(this.decision);
+  }
+
+  async *_run() {
+    const session = this._session;
+    const decision = this.decision;
+    if (!decision.needsModel) {
+      if (decision.text) yield decision.text;
+      return;
+    }
+    if (this._stopped()) {
+      // Talked over before a word was read: never call the model.
+      session._interrupted(decision, "");
+      return;
+    }
+    // As answer() does, so a subclass whose decide() returns its own decision works.
+    decision._said = this._callerSaid;
+    let messages = decision.messages || [...session.injections(), { role: "user", content: this._callerSaid }];
+    if (this._system) messages = [{ role: "system", content: this._system }, ...messages];
+    let source = await this._llm(messages);
+    if (typeof source === "string" || source instanceof String) source = [String(source)];
+    let upstream;
+    if (source && typeof source[Symbol.asyncIterator] === "function") upstream = source[Symbol.asyncIterator]();
+    else if (source && typeof source[Symbol.iterator] === "function") upstream = source[Symbol.iterator]();
+    else throw new TypeError("respond() expects the model to give text: a string, or an (async) iterable of text pieces");
+    const parts = [];
+    let ended = false;
+    let movedOn = false;
+    try {
+      for (;;) {
+        const { value: piece, done } = await upstream.next();
+        if (done) {
+          ended = true;
+          break;
+        }
+        if (piece === null || piece === undefined) continue;
+        if (typeof piece !== "string") {
+          throw new TypeError(
+            `respond() expects the model to give text pieces (strings), got ${typeof piece}; map each chunk to its text first`
+          );
+        }
+        if (this._stopped()) {
+          movedOn = true;
+          break;
+        }
+        parts.push(piece);
+        if (piece) yield piece;
+      }
+    } finally {
+      if (!ended && typeof upstream.return === "function") {
+        try {
+          await upstream.return();
+        } catch {
+          // the model's stream failed to close; nothing of it is kept either way
+        }
+      }
+      if (movedOn) {
+        session._interrupted(decision, parts.join(""));
+      } else if (ended && !this._closed && !decision._recorded) {
+        // A full answer is recorded under answer()'s rules.
+        await session._recordDecision(decision, parts.join(""), this._keep);
+      }
+    }
+  }
+}
+
 class VoiceSession {
   constructor(
     agent,
@@ -1857,6 +1956,42 @@ class VoiceSession {
     return decision;
   }
 
+  // answer(), streamed: decide now, then give the text to speak piece by piece.
+  //
+  // llm(messages) gives the model's text as it writes it: an async iterable or iterable
+  // of strings (null pieces are skipped), or the whole answer as a string (or a promise
+  // of one). It is called with the same messages answer() would use, only when the turn
+  // needs the model, and only once the response is read.
+  //
+  // A turn the cache or a filler answers yields that text once (decision.audio has its
+  // audio when the session caches audio). A model turn yields the model's pieces and,
+  // when its stream ends, records the full answer under answer()'s rules (`private` as
+  // in record()). If the caller talks over it (cancel()) or a newer turn is decided, the
+  // stream stops at the next piece, the model's stream is closed and nothing is stored.
+  // A model error rejects and stores nothing, as does stopping early (close(), or
+  // leaving the loop); the decision can then still be recorded with record().
+  async respond(callerSaid, llm, { system = null, private: keep = false } = {}) {
+    const decision = await this.decide(callerSaid);
+    return new VoiceResponse(this, decision, callerSaid, llm, system, keep);
+  }
+
+  // The caller talked over this turn, or a newer turn has been decided.
+  _movedOn(decision) {
+    return this._cancelled || decision.turn !== this._turn;
+  }
+
+  // A streamed turn the caller talked over: report it, store and keep nothing. Not an
+  // empty answer, so an app never retries over the caller's new words.
+  _interrupted(decision, spoken) {
+    if (decision._recorded) return;
+    decision._recorded = true;
+    decision._said = null;
+    decision.text = spoken;
+    decision.stored = false;
+    decision.notStored = "the caller moved on before this answer was complete";
+    decision.reason = `${decision.reason}; not stored: ${decision.notStored}`;
+  }
+
   // Keep a turn in this call's transcript and never cache it. For a model that
   // holds the whole conversation itself (a realtime speech model): it cannot be
   // given decision.messages, so nothing it says is shared.
@@ -2252,6 +2387,7 @@ function voiceSession(options = {}) {
 
 module.exports = {
   VoiceSession,
+  VoiceResponse,
   TurnDecision,
   voiceSession,
   warmFromCalls,

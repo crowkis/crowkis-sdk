@@ -14,7 +14,8 @@
     "./langchain": { "types": "./langchain.d.ts", "default": "./langchain.js" },
     "./memory": { "types": "./memory.d.ts", "default": "./memory.js" },
     "./chat": { "types": "./chat.d.ts", "default": "./chat.js" },
-    "./session": { "types": "./session.d.ts", "default": "./session.js" }
+    "./session": { "types": "./session.d.ts", "default": "./session.js" },
+    "./package.json": "./package.json"
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",

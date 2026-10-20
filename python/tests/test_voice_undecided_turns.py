@@ -91,6 +91,28 @@ class UndecidedTurnTests(unittest.TestCase):
             session._heard(said)
         self.assertEqual(_ask(session, "What should I pack?")[0].action, "serve")
 
+    def test_content_that_is_not_text_is_kept_as_before_and_never_raises(self):
+        session = _session(ScopedFakeClient())
+        parts = [{"type": "text", "text": "I'm allergic to peanuts."}]
+        session.record_private_turn(parts, "Noted.")  # stored as before, not read
+        self.assertEqual(session.transcript[-2]["content"], parts)
+        session._heard(42)
+        self.assertFalse(session._tainted)
+
+    def test_a_long_history_is_checked_once_per_turn_text(self):
+        from unittest import mock
+
+        session = _session(ScopedFakeClient())
+        history = [f"what is the price of plan number {n}" for n in range(300)]
+        with mock.patch("crowkis.voice._sets_context", wraps=__import__("crowkis.voice", fromlist=["x"])._sets_context) as check:
+            for _ in range(3):  # three turns, each re-reading the whole history
+                for said in history:
+                    session._heard(said)
+        self.assertEqual(check.call_count, 300)
+        self.assertFalse(session._tainted)
+        session._heard("Reply only in Hindi from now on.")  # a new turn is still checked
+        self.assertTrue(session._tainted)
+
     def test_a_cancelled_turn_still_keeps_what_the_caller_said(self):
         # The caller said it, whatever happened to the answer: over-privacy only costs savings.
         session = _session(ScopedFakeClient())

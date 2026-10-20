@@ -109,6 +109,27 @@ test("empty or missing text changes nothing", async () => {
   assert.strictEqual((await ask(talk, "What should I pack?")).decision.action, "serve");
 });
 
+test("content that is not text is kept as before and never throws", () => {
+  const talk = session(new FakeClient());
+  const parts = [{ type: "text", text: "I'm allergic to peanuts." }];
+  talk.recordPrivateTurn(parts, "Noted."); // stored as before, not read
+  assert.deepStrictEqual(talk.transcript.at(-2).content, parts);
+  talk._heard(42);
+  assert.strictEqual(talk._tainted, false);
+});
+
+test("a long history is checked once per turn text", () => {
+  const talk = session(new FakeClient());
+  const history = Array.from({ length: 300 }, (_, n) => `what is the price of plan number ${n}`);
+  const started = process.hrtime.bigint();
+  for (let turn = 0; turn < 3; turn += 1) for (const said of history) talk._heard(said);
+  assert.strictEqual(talk._heardTexts.size, 300);
+  assert.strictEqual(talk._tainted, false);
+  talk._heard("Reply only in Hindi from now on."); // a new turn is still checked
+  assert.strictEqual(talk._tainted, true);
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 500);
+});
+
 test("a cancelled turn still keeps what the caller said", () => {
   // The caller said it, whatever happened to the answer: over-privacy only costs savings.
   const talk = session(new FakeClient());

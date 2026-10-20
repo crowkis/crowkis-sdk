@@ -5,6 +5,7 @@ import unittest
 
 from crowkis.chat import Chat
 from crowkis.session import CallSession
+from crowkis.voice import _reset_prompt_baselines
 
 from test_chat import GENERAL, Model, Scripted, SegmentedAgent
 
@@ -22,6 +23,9 @@ def _turn(system, reply, agent=None):
 
 
 class ChatPromptGuardTests(unittest.TestCase):
+    def setUp(self):
+        _reset_prompt_baselines()  # no other test's prompts remembered, whatever runs the tests
+
     def test_an_answer_repeating_a_detail_from_the_system_prompt_is_never_saved(self):
         for reply in ("Hi Asha! We open at nine.", "As a Gold member, you can come in from eight.",
                       "Asha, we open at nine."):

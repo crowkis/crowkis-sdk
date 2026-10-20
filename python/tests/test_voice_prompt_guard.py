@@ -60,6 +60,19 @@ class DetectorTests(unittest.TestCase):
         self.assertFalse(_repeats_prompt_details("Always happy to help at Acme Bank.", "q", base.format("Ravi"), key))
         self.assertTrue(_repeats_prompt_details("Ravi, Acme Bank opens at nine.", "q", base.format("Ravi"), key))
 
+    def test_the_same_caller_on_two_calls_stays_a_detail(self):
+        # The first two prompts the agent sees can both be one caller's (a date or time
+        # in the prompt makes them differ): their name is common to both, and still theirs.
+        _reset_prompt_baselines()
+        key = ("t", "voice")
+        prompt = "You are Acme's assistant. The caller is Asha Rao, a Gold member. Today is {}."
+        self.assertTrue(_repeats_prompt_details("Hi Asha! We open at nine.", "q", prompt.format("Monday"), key))
+        self.assertTrue(_repeats_prompt_details("Hi Asha! We open at nine.", "q", prompt.format("Tuesday"), key))
+        self.assertTrue(_repeats_prompt_details("As a Gold member you get early access.", "q",
+                                                prompt.format("Wednesday"), key))
+        # Must still work: an answer without them is shared.
+        self.assertFalse(_repeats_prompt_details("We open at nine.", "q", prompt.format("Thursday"), key))
+
     def test_non_latin_names_are_caught_across_calls(self):
         _reset_prompt_baselines()
         key = ("t", "voice")

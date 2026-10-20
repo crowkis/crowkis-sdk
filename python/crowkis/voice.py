@@ -1542,9 +1542,10 @@ def _reset_prompt_baselines() -> None:
 
 
 def _caller_details(instructions: str, agent_key: Optional[tuple] = None) -> tuple:
-    """Caller details in this call's system prompt, as (words, numbers): what differs from
-    the agent's other calls once its prompt has been seen to vary, the sentences about a
-    person before that."""
+    """Caller details in this call's system prompt, as (words, numbers): the sentences
+    about a person, and once the agent's prompt has been seen to vary, also whatever
+    differs from its other calls. The first two prompts seen can both be one caller's
+    (only a date differs), so what is common to them is never taken as not a detail."""
     if agent_key is None:
         return _prompt_details(instructions)
     words = set(_words(instructions))
@@ -1561,9 +1562,10 @@ def _caller_details(instructions: str, agent_key: Optional[tuple] = None) -> tup
         baseline.numbers = numbers if baseline.numbers is None else baseline.numbers & numbers
         varied = len(baseline.prompts) >= 2
         common_words, common_numbers = set(baseline.words), set(baseline.numbers)
+    own_words, own_numbers = _prompt_details(instructions)
     if not varied:
-        return _prompt_details(instructions)
-    return words - common_words - _FUNCTION_WORDS, numbers - common_numbers
+        return own_words, own_numbers
+    return (words - common_words - _FUNCTION_WORDS) | own_words, (numbers - common_numbers) | own_numbers
 
 
 def _same_number(said: str, detail: str) -> bool:
@@ -1908,6 +1910,8 @@ def _answers_after_but(lead: str) -> bool:
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
 _CHAIN_LIMIT = 6
+# How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
+_HEARD_MAX = 2048
 
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
 
@@ -2189,6 +2193,8 @@ class VoiceSession:
         # Set once the caller tells the call something a later answer may depend on;
         # from then on nothing in this call is looked up or shared.
         self._tainted = False
+        # Caller turns _heard() has already checked (history is re-read every turn).
+        self._heard_texts: set = set()
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = threading.RLock()
         if values:
@@ -2624,7 +2630,12 @@ class VoiceSession:
         """A caller turn this session never decided (a private turn, history the app gave
         the model): one that tells the call something a later answer may depend on keeps
         the rest of the call off the shared cache, as decide() does for its own turns."""
-        if not self._tainted and _sets_context((caller_said or "").strip()):
+        text = caller_said.strip() if isinstance(caller_said, str) else ""
+        if self._tainted or not text or text in self._heard_texts:
+            return
+        if len(self._heard_texts) < _HEARD_MAX:
+            self._heard_texts.add(text)
+        if _sets_context(text):
             self._tainted = True
 
     def _record_model_turn(

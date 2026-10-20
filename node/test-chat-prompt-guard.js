@@ -4,10 +4,13 @@
 // that repeats them was shaped by that user and is never saved for everyone, as in voice
 // (test-voice-prompt-guard.js). Mirrors python/tests/test_chat_prompt_guard.py.
 const assert = require("node:assert");
-const { test } = require("node:test");
+const { test, beforeEach } = require("node:test");
 const { Chat } = require("./chat.js");
 const { CallSession } = require("./session.js");
 const { TurnFrame } = require("./turn.js");
+const { _resetPromptBaselines } = require("./voice.js");
+
+beforeEach(() => _resetPromptBaselines()); // no other test's prompts remembered
 
 const GENERAL = { kind: "general", subject: "none", confidence: 0.9 };
 const QUESTION = "What time do you open?";

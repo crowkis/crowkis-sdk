@@ -1487,10 +1487,13 @@ function callerDetails(instructions, agentKey = null) {
   if (!baseline.prompts.has(text) && baseline.prompts.size < 2) baseline.prompts.add(text);
   baseline.words = baseline.words === null ? words : new Set([...baseline.words].filter((w) => words.has(w)));
   baseline.numbers = baseline.numbers === null ? numbers : new Set([...baseline.numbers].filter((n) => numbers.has(n)));
-  if (baseline.prompts.size < 2) return promptDetails(instructions);
+  // The sentences about a person always count: the first two prompts seen can both be one
+  // caller's (only a date differs), so what is common to them is never taken as not a detail.
+  const own = promptDetails(instructions);
+  if (baseline.prompts.size < 2) return own;
   return {
-    words: new Set([...words].filter((w) => !baseline.words.has(w) && !FUNCTION_WORDS.has(w))),
-    numbers: new Set([...numbers].filter((n) => !baseline.numbers.has(n))),
+    words: new Set([...[...words].filter((w) => !baseline.words.has(w) && !FUNCTION_WORDS.has(w)), ...own.words]),
+    numbers: new Set([...[...numbers].filter((n) => !baseline.numbers.has(n)), ...own.numbers]),
   };
 }
 
@@ -1743,6 +1746,9 @@ function describesSelf(words) {
 // on ("reply only in Hindi"). Each is a match on what was said, never a default: small
 // talk, "I have a question", "I'm frustrated", "I have 2 orders" and a name or number change no answer, and a
 // call that starts with them keeps its shared answers.
+// How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
+const HEARD_MAX = 2048;
+
 function setsContext(text) {
   const words = wordsOf(text);
   return tellsFacts(text) || (words.length > 0 && instructs(text, words));
@@ -2096,6 +2102,8 @@ class VoiceSession {
     // Set once the caller tells the call something a later answer may depend on;
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
+    // Caller turns _heard() has already checked (history is re-read every turn).
+    this._heardTexts = new Set();
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
   }
@@ -2500,7 +2508,10 @@ class VoiceSession {
   // model): one that tells the call something a later answer may depend on keeps the
   // rest of the call off the shared cache, as decide() does for its own turns.
   _heard(callerSaid) {
-    if (!this._tainted && setsContext(typeof callerSaid === "string" ? callerSaid.trim() : "")) this._tainted = true;
+    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
+    if (this._tainted || !text || this._heardTexts.has(text)) return;
+    if (this._heardTexts.size < HEARD_MAX) this._heardTexts.add(text);
+    if (setsContext(text)) this._tainted = true;
   }
 
   // Record the model's answer to the turn decide() last handled, and cache it if

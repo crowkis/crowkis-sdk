@@ -110,6 +110,19 @@ test("across calls, whatever differs between callers is a detail, as in Python",
   }
 });
 
+test("the same caller on two calls stays a detail, as in Python", () => {
+  // The first two prompts the agent sees can both be one caller's (a date or time in the
+  // prompt makes them differ): their name is common to both, and still theirs.
+  _resetPromptBaselines();
+  const key = ["t", "voice"];
+  const prompt = (day) => `You are Acme's assistant. The caller is Asha Rao, a Gold member. Today is ${day}.`;
+  assert.strictEqual(_repeatsPromptDetails("Hi Asha! We open at nine.", "q", prompt("Monday"), key), true);
+  assert.strictEqual(_repeatsPromptDetails("Hi Asha! We open at nine.", "q", prompt("Tuesday"), key), true);
+  assert.strictEqual(_repeatsPromptDetails("As a Gold member you get early access.", "q", prompt("Wednesday"), key), true);
+  // Must still work: an answer without them is shared.
+  assert.strictEqual(_repeatsPromptDetails("We open at nine.", "q", prompt("Thursday"), key), false);
+});
+
 test("a business prompt never blocks sharing once it has varied; non-Latin names are caught", () => {
   _resetPromptBaselines();
   const key = ["t", "voice"];

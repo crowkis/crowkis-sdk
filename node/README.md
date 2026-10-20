@@ -40,7 +40,7 @@ npm install @crowkis/client
 
 CommonJS and ES modules both work, and give the same objects; TypeScript types are
 included for the package and every subpath (`/voice`, `/agent`, `/realtime`,
-`/voiceTurns`, `/langchain`, `/memory`):
+`/voiceTurns`, `/livekit`, `/langchain`, `/memory`, `/chat`, `/session`):
 
 ```js
 const { Crowkis, voiceSession } = require("@crowkis/client");   // CommonJS
@@ -54,8 +54,9 @@ it never calls `close()` (call it anyway in a server, when shutting down).
 ## Run a Crowkis server
 
 ```bash
-docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
-  crowkis/crowkis:latest server --data /data/.crow
+docker run -d --name crowkis -p 127.0.0.1:6383:6383 -p 127.0.0.1:6384:6384 -e CROWKIS_PROTECTED_MODE=off -e CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0 -v crowkis-data:/data crowkis/crowkis:latest
+# Reachable from this machine only. To serve other machines, publish 6383 and set
+# -e CROWKIS_AUTH_TOKEN=<a long random secret> instead of CROWKIS_PROTECTED_MODE=off.
 ```
 
 The server listens on `6383` (cache/RESP), `6384` (dashboard/HTTP), and `6385` (gRPC).
@@ -180,7 +181,8 @@ client.close(); // when your app shuts down
 question, and answering). `reply.outcome` is `served` (from the cache), `saved` (answered and
 shared), `not_shared` (answered for this user only; `reply.reason` says why) or `refused:<why>`
 (answered, but the answer was not kept). If the cache cannot be reached the user still gets the
-model's answer, with `outcome` `refused:write_failed`. Per thread, `Chat` keeps a small memory (facts, topic,
+model's answer, with `outcome` `refused:write_failed`. Keep a user's details out of `system`: an
+answer that repeats one ("Hi Asha! ...") is answered but never saved (`refused:prompt_detail`). Per thread, `Chat` keeps a small memory (facts, topic,
 reply language), never the transcript; pass `store` with `load`/`save` to keep it across
 several servers. The reply language is part of the cache identity: a Hindi chat never gets
 the English answer.
@@ -208,7 +210,7 @@ call, where a caller is waiting:
 | Option | Default | Why |
 |---|---|---|
 | `latencyBudgetMs` | `250` | The longest a turn waits for a cache lookup before it asks the model. `null` turns it off. |
-| `timeoutMs` | `1000`, no retries | Saving the model's answer happens while the caller waits. With a stuck server this caps the turn at about a second, not ~15 s. The cost: a request that fails once (the first after a server restart, or a `BUSY` reply) is not retried, so that turn goes to the model or that answer isn't stored. |
+| `timeoutMs` | `1000`, no retries | A request to a stuck server gives up within a second, not ~15 s. Saving the model's answer waits at most twice the latency budget (500 ms); a slower save finishes in the background, and the answer is reported as `slow_write` (`stats().slowWrites`). The cost: a request that fails once (the first after a server restart, or a `BUSY` reply) is not retried, so that turn goes to the model or that answer isn't stored. |
 | `agentId` | `"voice"` | The agent the session's cache belongs to. |
 | server | from the environment | `host`, `port`, `authToken`, `tenant` still win; or pass your own `client`. |
 
@@ -430,7 +432,7 @@ const cache = new Crowkis({ tenant: "my-app" });   // token from CROWKIS_AUTH_TO
 // or pass it yourself: new Crowkis({ tenant: "my-app", token })  (authToken still works)
 
 const token = process.env.CROWKIS_AUTH_TOKEN;       // the admin client takes it explicitly
-const admin = new CrowkisAdmin({ baseUrl: "http://127.0.0.1:6380", token });
+const admin = new CrowkisAdmin({ baseUrl: "http://127.0.0.1:6384", token });   // the dashboard / management port
 ```
 
 `new CrowkisAdmin({ apiKey })` still works exactly as before (sent as `X-Crowkis-Api-Key`, which

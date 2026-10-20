@@ -32,6 +32,8 @@ SCENARIOS = SPEC["scenarios"]
 REAL = os.environ.get("CROWKIS_CONFORMANCE_SERVER") == "1"
 SLOW_S = 2.0
 REAL_GAP_S = 1.5
+REAL_RETRIES = 3
+REAL_RETRY_S = 2.0
 RATE = 16000
 PCM = b"\x01\x02" * 320
 
@@ -164,6 +166,16 @@ def _seconds(turn: dict) -> float:
     return turn["expect"].get("max_ms", 10_000) / 1000
 
 
+def _for_real(turns: list) -> list:
+    """On a real server a turn that must hit gets an empty stand-in reply: if it misses, the
+    SDK never stores an empty answer, so a failing run leaves nothing wrong on the server."""
+    return [dict(t, reply=[]) if t["expect"].get("llm") is False else t for t in turns]
+
+
+def _missed(turns: list, heard: List[Heard]) -> bool:
+    return any(t["expect"].get("llm") is False and got.llm for t, got in zip(turns, heard))
+
+
 async def run_scenario(driver, scenario: dict, store) -> List[List[Heard]]:
     """Every call of the scenario, one after another (each ``concurrent`` times at once)."""
     agent = agent_id()
@@ -171,7 +183,16 @@ async def run_scenario(driver, scenario: dict, store) -> List[List[Heard]]:
     await asyncio.to_thread(_settle)  # nothing left over from an earlier scenario
     for turns in scenario["calls"]:
         copies = scenario.get("concurrent", 1)
+        if REAL:
+            turns = _for_real(turns)
         runs = await asyncio.gather(*(driver.call(store, turns, agent) for _ in range(copies)))
+        for attempt in range(REAL_RETRIES if REAL else 0):
+            # A real server's engine may take longer to make a new answer findable: a new
+            # caller asks again, a few seconds later.
+            if not any(_missed(turns, run) for run in runs):
+                break
+            await asyncio.sleep(REAL_RETRY_S)
+            runs = await asyncio.gather(*(driver.call(store, turns, agent) for _ in range(copies)))
         results.extend(runs)
         # Writes and clips may finish in the background; the next caller is a later call.
         await asyncio.to_thread(_settle)
@@ -199,7 +220,7 @@ def check(case, scenario: dict, store, results: List[List[Heard]]) -> None:
                 case.assertEqual(got.llm, want["llm"], "LLM called? " + where)
             if want.get("tts") is not None:
                 case.assertEqual(got.tts, want["tts"], "TTS called? " + where)
-            if "heard" in want:
+            if "heard" in want and not (REAL and want.get("llm") is False and got.llm):
                 case.assertEqual(got.heard.strip(), want["heard"], "heard: " + where)
             if "max_ms" in want:
                 case.assertLess(got.ms, want["max_ms"], "too slow: " + where)
@@ -209,6 +230,14 @@ def check(case, scenario: dict, store, results: List[List[Heard]]) -> None:
     if "saved" in scenario and REAL:
         case.assertTrue(all(list(w) in [list(s) for s in scenario["saved"]] for w in ([x[0], x[1]] for x in writes)),
                         f"unexpected shared answers: {writes}")
+        # The server may know the answer from an earlier run, but a turn the LLM answered
+        # whose answer is to be shared must have written it: an adapter that never writes fails.
+        to_share = {q for q, _ in scenario["saved"]}
+        written = [[w[0], w[1].strip()] for w in writes]
+        for turns, heard in zip(expected, results):
+            for turn, got in zip(turns, heard):
+                if got.llm and turn["say"] in to_share and turn.get("barge_in_after") is None:
+                    case.assertIn([turn["say"], got.heard.strip()], written, f"not written: {turn['say']!r}")
     if scenario.get("never_saved"):
         everything = json.dumps([store.writes, store.tool_writes], default=str)
         case.assertNotIn(scenario["never_saved"], everything)

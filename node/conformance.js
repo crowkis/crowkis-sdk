@@ -19,6 +19,8 @@ const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";
 const SLOW_MS = 2000;
 const REAL_GAP_MS = 1500;
+const REAL_RETRIES = 3;
+const REAL_RETRY_MS = 2000;
 const RATE = 16000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -277,13 +279,27 @@ async function settle(store) {
   await store.idle();
 }
 
+// On a real server a turn that must hit gets an empty stand-in reply: if it misses, the SDK
+// never stores an empty answer, so a failing run leaves nothing wrong on the server.
+const forReal = (turns) => turns.map((t) => (t.expect.llm === false ? { ...t, reply: [] } : t));
+const missed = (turns, heardTurns) => turns.some((t, i) => t.expect.llm === false && heardTurns[i].llm);
+
 async function runScenario(driver, scenario, store) {
   const agent = agentId();
   const results = [];
   await settle(store);
-  for (const turns of scenario.calls) {
+  for (const original of scenario.calls) {
     const copies = scenario.concurrent || 1;
-    results.push(...(await Promise.all(Array.from({ length: copies }, () => driver.call(store, turns, agent)))));
+    const turns = REAL ? forReal(original) : original;
+    const run = () => Promise.all(Array.from({ length: copies }, () => driver.call(store, turns, agent)));
+    let runs = await run();
+    for (let attempt = 0; REAL && attempt < REAL_RETRIES && runs.some((r) => missed(turns, r)); attempt += 1) {
+      // A real server's engine may take longer to make a new answer findable: a new caller
+      // asks again, a few seconds later.
+      await sleep(REAL_RETRY_MS);
+      runs = await run();
+    }
+    results.push(...runs);
     await settle(store); // writes and clips may finish in the background; the next caller is later
     if (REAL) await sleep(REAL_GAP_MS); // a real server makes a new answer findable within about a second
   }
@@ -313,6 +329,18 @@ function check(assert, scenario, store, results) {
   if (scenario.saved && REAL) {
     const allowed = new Set(scenario.saved.map(key));
     assert.ok(writes.every((w) => allowed.has(key(w))), `unexpected shared answers: ${JSON.stringify(writes)}`);
+    // The server may know the answer from an earlier run, but a turn the LLM answered whose
+    // answer is to be shared must have written it: an adapter that never writes fails.
+    const toShare = new Set(scenario.saved.map(([q]) => q));
+    const written = new Set(writes.map(([q, a]) => key([q, a.trim()])));
+    expected.forEach((turns, index) => {
+      turns.forEach((turn, t) => {
+        const got = results[index][t];
+        if (got.llm && toShare.has(turn.say) && turn.barge_in_after === undefined) {
+          assert.ok(written.has(key([turn.say, got.heard.trim()])), `not written: ${JSON.stringify(turn.say)}`);
+        }
+      });
+    });
   }
   if (scenario.never_saved) {
     assert.ok(!JSON.stringify([store.writes, store.toolWrites]).includes(scenario.never_saved), "a private detail was written");

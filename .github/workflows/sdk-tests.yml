@@ -92,7 +92,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Python (Pipecat, then LiveKit)
+      - name: Python (with Pipecat, then with Pipecat and LiveKit)
         working-directory: python
         run: |
           python -m pip install pytest pipecat-ai==1.13.0

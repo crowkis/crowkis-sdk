@@ -161,6 +161,9 @@ class AudioClips:
                 use, _ = agent._audio_cache_failed(err)
                 if use:
                     return None
+            except Exception as err:  # noqa: BLE001 — a failed read is a miss, never the end of the turn
+                agent._audio_cache_error("read", err)
+                return None
             else:
                 agent._audio_v2 = True
                 return clip or None

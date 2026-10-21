@@ -2571,13 +2571,16 @@ class VoiceSession:
         return None
 
     def cancel(self) -> bool:
-        if not self._open:
-            return False
-        self._open = False
-        self._cancelled = True
-        self.barge_ins += 1
-        del self.transcript[self._turn_mark:]
-        return True
+        # Under the turn lock, like decide() and recording: a save finishing on another
+        # thread never adds to the transcript while it is being trimmed.
+        with self._turn_lock:
+            if not self._open:
+                return False
+            self._open = False
+            self._cancelled = True
+            self.barge_ins += 1
+            del self.transcript[self._turn_mark:]
+            return True
 
     def answer(
         self,

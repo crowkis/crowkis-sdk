@@ -86,6 +86,9 @@ class AudioCacheTests(unittest.TestCase):
         asyncio.run(run())
 
     def stored(self, text):
+        from crowkis.agent import _wait_for_audio_stores
+
+        _wait_for_audio_stores()  # clips are written on the background audio workers
         clip = self.session.agent._client.stored.get((TTS_TOOL, _key(text)))
         return base64.b64decode(clip) if clip else None
 
@@ -130,6 +133,7 @@ class AudioCacheTests(unittest.TestCase):
         self.cache.expect(answer)
         self.settle(answer, False)
         self.speak()
+        self.assertIsNone(self.stored(answer))  # waits for the audio workers first
         self.assertEqual(self.session.agent._client.stored, {})
 
     def test_replayed_hit_is_not_glued_onto_the_next_answer(self):

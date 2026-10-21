@@ -65,8 +65,13 @@ class CrowkisCache(BaseCache):
         if hit is None:
             return None
         try:
-            # Full-fidelity restore (handles chat vs completion generations).
-            return loads(hit.text)
+            # Full-fidelity restore (handles chat vs completion generations). Only
+            # LangChain's own classes are rebuilt from cached data ("core"); older
+            # langchain-core versions take no allowed_objects.
+            try:
+                return loads(hit.text, allowed_objects="core")
+            except TypeError:
+                return loads(hit.text)
         except Exception:
             # Value predates serialization or came from another writer — treat as text.
             return [Generation(text=hit.text)]

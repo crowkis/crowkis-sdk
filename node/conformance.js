@@ -39,6 +39,7 @@ class ConformanceStore {
     this.aliases = { ...aliases };
     this.shared = new Map(Object.entries(seed));
     this.tool = new Map();
+    this.keys = new Map(); // plain GET / SET keys
     this.writes = [];
     this.toolWrites = [];
     this.tenant = undefined;
@@ -69,6 +70,18 @@ class ConformanceStore {
       await this._fault();
       this.writes.push([query, response, Boolean(options.template)]);
       if (!options.template) this.shared.set(query, response);
+    });
+  }
+  get(key) {
+    return this._work(async () => {
+      await this._fault();
+      return this.keys.has(key) ? this.keys.get(key) : null;
+    });
+  }
+  set(key, value) {
+    return this._work(async () => {
+      await this._fault();
+      this.keys.set(key, Buffer.from(String(value)));
     });
   }
   ctoolget(tool, key) {

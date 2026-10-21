@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import collections
 import concurrent.futures
+import hashlib
 import inspect
+import json
 import logging
 import queue
 import re
@@ -12,7 +14,7 @@ import time
 import weakref
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Union
 
-from .agent import Agent, _voice_addon_missing
+from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 
 # The server takes at most this per count in one report.
@@ -202,6 +204,49 @@ def _normalise(text: str) -> str:
 
 def _words(text: str) -> List[str]:
     return _WORDS.findall((text or "").lower())
+
+
+# Which question a shared answer was saved for, kept beside it as a plain key (keyed by
+# the answer, per tenant), so a hit can be checked against the question it really answers.
+# A plain GET/SET key, not the tool cache: that is an Enterprise feature.
+_QUESTION_KEY = "crowkis:question:{tenant}:{answer}"
+_QUESTIONS_KEPT = 8
+# Words that change how a question is put, not what it asks about.
+_FRAMING_WORDS = frozenset(
+    {"what", "when", "where", "which", "who", "whom", "whose", "why", "you", "your", "yours",
+     "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
+     "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
+     "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question"}
+)
+
+
+def _stem(word: str) -> str:
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: len(word) - len(suffix)] + keep
+    return word
+
+
+def _content_words(text: str) -> set:
+    return {_stem(w) for w in _words(text) if w not in _FUNCTION_WORDS and w not in _FRAMING_WORDS}
+
+
+def _different_specifics(asked: str, stored: str) -> bool:
+    """Two questions about different things: each has content words the other does
+    not ("on Saturday" / "on Sunday", "the city museum" / "the riverside greenhouse").
+    A rewording only adds or drops words on one side ("when are you open" / "what
+    are your opening hours"), or changes how it asks ("can I" / "do I")."""
+    a, s = _content_words(asked), _content_words(stored)
+    return bool(a - s) and bool(s - a)
+
+
+def _question_key(tenant: Optional[str], answer: str) -> str:
+    digest = hashlib.sha256(answer.strip().encode("utf-8")).hexdigest()[:32]
+    return _QUESTION_KEY.format(tenant=tenant or "default", answer=digest)
+
+
+def _tenant_of(agent: Any) -> Optional[str]:
+    return getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
 
 
 # Question words in front of a pronoun that are not what it refers to: "how long
@@ -2226,6 +2271,8 @@ class VoiceSession:
         self.learn_errors = 0
         # Writes the turn stopped waiting for at the latency budget (they finish in the background).
         self.slow_writes = 0
+        # Hits refused because the stored answer was saved for a different question.
+        self.different_question = 0
         self.not_shareable = 0
         self.held_commitments = 0
         self.unspeakable = 0
@@ -2465,6 +2512,18 @@ class VoiceSession:
                     ),
                 )
 
+        if not personal and not hit.get("exact") and self._answers_another_question(keyed, answer):
+            self.different_question += 1
+            self.inferred += 1
+            return TurnDecision(
+                "infer",
+                confidence=hit["confidence"],
+                reason=(
+                    "the cached answer was saved for a different question (it asks about "
+                    "something this one does not); a model call is better than a wrong answer"
+                ),
+            )
+
         held = self._held(hit, answer, short)
         if held:
             self.inferred += 1
@@ -2677,6 +2736,43 @@ class VoiceSession:
                 self.not_shareable += 1
             self._shareable = (0, False)
 
+    def _keep_question(self, question: str, answer: str) -> None:
+        """Note, in the background, that ``answer`` was saved for ``question``. A
+        failure only means a later hit can't be checked, which is how it was before."""
+        client = getattr(self.agent, "_client", None)
+        if client is None or not hasattr(client, "set"):
+            return
+        key, ttl = _question_key(_tenant_of(self.agent), answer), self.ttl
+
+        def keep() -> None:
+            try:
+                raw = client.get(key)
+                kept = json.loads(raw) if raw else []
+                kept = [q for q in kept if isinstance(q, str) and q != question][-(_QUESTIONS_KEPT - 1):]
+                client.set(key, json.dumps(kept + [question], separators=(",", ":"), ensure_ascii=False), ttl=ttl)
+            except Exception as err:  # noqa: BLE001 — see docstring
+                _LOG.debug("crowkis voice: the answer's question was not kept (%s)", type(err).__name__)
+
+        _store_later(keep)
+
+    def _answers_another_question(self, asked: str, answer: str) -> bool:
+        """Whether every question this answer was saved for asks about something else.
+        Unknown (no record, or it can't be read in time) means no: as before."""
+        client = getattr(self.agent, "_client", None)
+        if client is None or not hasattr(client, "get"):
+            return False
+        read = lambda: client.get(_question_key(_tenant_of(self.agent), answer))  # noqa: E731
+        try:
+            if self.latency_budget_ms is None:
+                raw = read()
+            else:
+                raw = _LOOKUPS.submit(read).result(timeout=self.latency_budget_ms / 1000.0)
+            questions = json.loads(raw) if raw else []
+        except Exception:  # noqa: BLE001 — see docstring
+            return False
+        questions = [q for q in questions if isinstance(q, str)] if isinstance(questions, list) else []
+        return bool(questions) and all(_different_specifics(asked, q) for q in questions)
+
     def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
         """agent.learn(), waited for no longer than twice the latency budget: a slow server
         never stalls the turn after a miss. A write still running then finishes in the
@@ -2799,6 +2895,8 @@ class VoiceSession:
                 return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
             slow = self._learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
+            if slow is None:  # a slow server gets no extra write
+                self._keep_question(keyed, model_said)
             return slow or _Outcome("saved")
         except Exception as error:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
@@ -2827,6 +2925,7 @@ class VoiceSession:
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
             "slow_writes": self.slow_writes,
+            "different_question": self.different_question,
             "not_shareable": self.not_shareable,
             "commitments_sent_to_model": self.held_commitments,
             "unspeakable_answers": self.unspeakable,

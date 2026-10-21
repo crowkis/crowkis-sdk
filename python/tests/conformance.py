@@ -50,6 +50,7 @@ class ConformanceStore:
         self.aliases = dict(aliases or {})
         self.shared = dict(seed or {})
         self.tool: Dict[str, str] = {}
+        self.keys: Dict[str, bytes] = {}  # plain GET / SET keys
         self.writes: List[list] = []
         self.tool_writes: List[list] = []
         self.tenant = None
@@ -80,6 +81,15 @@ class ConformanceStore:
             self.writes.append([query, response, bool(template)])
             if not template:
                 self.shared[query] = response
+
+    def get(self, key):
+        self._fault()
+        return self.keys.get(key)
+
+    def set(self, key, value, *, ttl=None):
+        self._fault()
+        with self._lock:
+            self.keys[key] = value.encode() if isinstance(value, str) else value
 
     def ctoolget(self, tool, key, *, tenant=None):
         self._fault(audio=True)

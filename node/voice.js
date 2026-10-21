@@ -1,6 +1,7 @@
 "use strict";
 
-const { Agent, voiceAddonMissing } = require("./agent.js");
+const crypto = require("node:crypto");
+const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
 const { CrowkisClient } = require("./index.js");
 
 // The server takes at most this per count in one report.
@@ -246,6 +247,45 @@ function wordsOf(text) {
   const source = String(text === null || text === undefined ? "" : text).toLowerCase();
   return source.match(WORDS) || [];
 }
+
+// Which question a shared answer was saved for, kept beside it as a plain key (keyed by the
+// answer, per tenant), so a hit can be checked against the question it really answers. A
+// plain GET/SET key, not the tool cache: that is an Enterprise feature.
+const QUESTIONS_KEPT = 8;
+// Words that change how a question is put, not what it asks about.
+const FRAMING_WORDS = new Set([
+  "what", "when", "where", "which", "who", "whom", "whose", "why", "you", "your", "yours",
+  "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
+  "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
+  "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question",
+]);
+
+function stem(word) {
+  for (const [suffix, keep] of [["ies", "y"], ["ing", ""], ["ed", ""], ["es", ""], ["s", ""]]) {
+    if (word.endsWith(suffix) && word.length - suffix.length >= 3) return word.slice(0, word.length - suffix.length) + keep;
+  }
+  return word;
+}
+
+function contentWords(text) {
+  return new Set(wordsOf(text).filter((w) => !FUNCTION_WORDS.has(w) && !FRAMING_WORDS.has(w)).map(stem));
+}
+
+// Two questions about different things: each has content words the other does not ("on
+// Saturday" / "on Sunday"). A rewording only adds or drops words on one side, or changes
+// how it asks ("can I" / "do I"). Same as Python's _different_specifics.
+function differentSpecifics(asked, stored) {
+  const a = contentWords(asked);
+  const s = contentWords(stored);
+  return [...a].some((w) => !s.has(w)) && [...s].some((w) => !a.has(w));
+}
+
+function questionKey(tenant, answer) {
+  const digest = crypto.createHash("sha256").update(String(answer).trim(), "utf8").digest("hex").slice(0, 32);
+  return `crowkis:question:${tenant || "default"}:${digest}`;
+}
+
+const tenantOf = (agent) => (agent && (agent.tenant || (agent.client && agent.client.tenant))) || null;
 
 function splitPlain(text) {
   return text.split(/\s+/).filter(Boolean);
@@ -2102,6 +2142,8 @@ class VoiceSession {
     this.learnErrors = 0;
     // Writes the turn stopped waiting for at the latency budget (they finish in the background).
     this.slowWrites = 0;
+    // Hits refused because the stored answer was saved for a different question.
+    this.differentQuestion = 0;
     this.notShareable = 0;
     this.heldCommitments = 0;
     this.unspeakable = 0;
@@ -2328,6 +2370,17 @@ class VoiceSession {
       }
     }
 
+    if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer))) {
+      this.differentQuestion += 1;
+      this.inferred += 1;
+      return new TurnDecision("infer", {
+        confidence: hit.confidence,
+        reason:
+          "the cached answer was saved for a different question (it asks about something " +
+          "this one does not); a model call is better than a wrong answer",
+      });
+    }
+
     const held = this._held(hit, answer, short);
     if (held) {
       this.inferred += 1;
@@ -2523,6 +2576,45 @@ class VoiceSession {
     this._shareable = [0, false];
   }
 
+  // Note, in the background, that `answer` was saved for `question`. A failure only means a
+  // later hit can't be checked, which is how it was before.
+  _keepQuestion(question, answer) {
+    const client = this.agent && this.agent.client;
+    if (!client || typeof client.set !== "function") return;
+    const key = questionKey(tenantOf(this.agent), answer);
+    const ttl = this.ttl;
+    storeLater(async () => {
+      try {
+        const raw = await client.get(key);
+        let kept = raw ? JSON.parse(String(raw)) : [];
+        kept = (Array.isArray(kept) ? kept : []).filter((q) => typeof q === "string" && q !== question).slice(-(QUESTIONS_KEPT - 1));
+        await client.set(key, JSON.stringify([...kept, question]), ttl === undefined || ttl === null ? {} : { ttl });
+      } catch {
+        // see above
+      }
+    });
+  }
+
+  // Whether every question this answer was saved for asks about something else. Unknown
+  // (no record, or it can't be read in time) means no: as before.
+  async _answersAnotherQuestion(asked, answer) {
+    const client = this.agent && this.agent.client;
+    if (!client || typeof client.get !== "function") return false;
+    try {
+      const read = Promise.resolve().then(() => client.get(questionKey(tenantOf(this.agent), answer)));
+      read.catch(() => {});
+      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
+      const raw = budgeted ? await within(this.latencyBudgetMs, read) : await read;
+      if (raw === LATE || !raw) return false;
+      const questions = JSON.parse(String(raw));
+      if (!Array.isArray(questions)) return false;
+      const kept = questions.filter((q) => typeof q === "string");
+      return kept.length > 0 && kept.every((q) => differentSpecifics(asked, q));
+    } catch {
+      return false;
+    }
+  }
+
   // agent.learn(), waited for no longer than twice the latency budget: a slow server never
   // stalls the turn after a miss. A write still running then finishes in the background
   // (an error it ends with is counted). An error within the budget is thrown, as before.
@@ -2650,6 +2742,7 @@ class VoiceSession {
       }
       const slow = await this._learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
+      if (!slow) this._keepQuestion(keyed, modelSaid); // a slow server gets no extra write
       return slow || outcome("saved");
     } catch (error) {
       this.learnErrors += 1;
@@ -2717,6 +2810,7 @@ class VoiceSession {
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
       slowWrites: this.slowWrites,
+      differentQuestion: this.differentQuestion,
       notShareable: this.notShareable,
       commitmentsSentToModel: this.heldCommitments,
       unspeakableAnswers: this.unspeakable,
@@ -3004,6 +3098,7 @@ module.exports = {
   _repeatsPromptDetails: repeatsPromptDetails,
   _callerDetails: callerDetails,
   _resetPromptBaselines: resetPromptBaselines,
+  _differentSpecifics: differentSpecifics,
   _waitForWrites: waitForWrites,
   _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,

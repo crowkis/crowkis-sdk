@@ -15,7 +15,7 @@ import json
 import unittest
 
 from crowkis import Agent, CrowkisError, VoiceSession
-from crowkis.agent import _tts_key
+from crowkis.agent import _tts_key, _wait_for_audio_stores
 
 from test_voice_stress_bugs import ANSWER, Store, _pipecat
 
@@ -199,6 +199,7 @@ class PipecatTests(unittest.TestCase):
         audio = pc.CrowkisAudioCache(session, sample_rate=16000)
         self.assertIsNone(asyncio.run(audio.get(ANSWER)))
         asyncio.run(audio._store(ANSWER, PCM))
+        _wait_for_audio_stores()  # the clip is stored in the background (c20ee2a)
         self.assertEqual(session.agent.audio_errors, 2)
 
     def test_the_read_miss_reaches_decide_with_a_working_synthesiser(self):

@@ -149,6 +149,38 @@ class WrapperTests(unittest.TestCase):
              LLMContextFrame(context=LLMContext(messages=history)))
         self.assertEqual(llm.asked, [], "served from the shared cache")
 
+    def test_a_replayed_clip_has_its_text_for_captions_and_lands_in_the_context_once(self):
+        from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
+
+        store = SceneStore()
+        session = _session(store)
+        _run(Pipeline([CrowkisLLM(FakeLLM(), session=session), CrowkisTTS(FakeTTS())]), _context(QUESTION))
+        writes = len(store.tool_writes)
+        self.assertEqual(writes, 1, "the first answer's clip is kept")
+
+        tts = FakeTTS()
+        context = LLMContext(messages=[{"role": "user", "content": QUESTION}])
+        assistant = LLMContextAggregatorPair(context).assistant()
+        seen = []
+
+        class Recorder(FrameProcessor):  # before the aggregator, which consumes the text
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                seen.append(frame)
+                await self.push_frame(frame, direction)
+
+        _run(Pipeline([CrowkisLLM(FakeLLM(), session=session), CrowkisTTS(tts), Recorder(), assistant]),
+             LLMContextFrame(context=context), SleepFrame(0.3))
+        down = seen
+        texts = [f for f in down if isinstance(f, TTSTextFrame)]
+        self.assertEqual([f.text for f in texts], [ANSWER], "captions and transcripts see the cached answer")
+        self.assertTrue(all(getattr(f, "skip_tts", False) for f in texts))
+        self.assertTrue(any(isinstance(f, TTSStartedFrame) for f in down) and any(isinstance(f, TTSStoppedFrame) for f in down))
+        self.assertEqual(tts.spoke, [], "the TTS never speaks a replayed clip")
+        self.assertEqual([m for m in context.get_messages() if m["role"] == "assistant"],
+                         [{"role": "assistant", "content": ANSWER}], "the answer is in the context exactly once")
+        self.assertEqual(len(store.tool_writes), writes, "a replayed clip is not stored again")
+
     def test_the_voice_and_sample_rate_come_from_the_tts_service(self):
         store = SceneStore()
         session = _session(store)

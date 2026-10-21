@@ -116,6 +116,37 @@ _TOOL_RESULTS = tuple(getattr(_frames, name) for name in ("FunctionCallResultFra
 # The words a TTS run speaks, where the TTS reports them.
 _TTS_TEXT = getattr(_frames, "TTSTextFrame", None)
 
+# A cached clip the gate plays is marked, so the audio processor never keeps it again.
+_REPLAY = "crowkis_replay"
+
+
+def _mark_replay(frame: Frame) -> Frame:
+    meta = getattr(frame, "metadata", None)
+    if isinstance(meta, dict):
+        meta[_REPLAY] = True
+    else:
+        setattr(frame, _REPLAY, True)
+    return frame
+
+
+def _is_replay(frame: Frame) -> bool:
+    meta = getattr(frame, "metadata", None)
+    return bool((isinstance(meta, dict) and meta.get(_REPLAY)) or getattr(frame, _REPLAY, False))
+
+
+def _replay_frames(text: str, audio: bytes, sample_rate: int) -> list:
+    """A cached clip played like any spoken answer: a TTS run with its text, so captions and
+    transcripts show it and Pipecat's assistant aggregator adds it to the context. The text
+    is marked skip_tts, so the TTS passes it on without speaking it."""
+    caption = None
+    try:
+        caption = _TTS_TEXT(text, aggregated_by="sentence")
+    except TypeError:
+        caption = _TTS_TEXT(text)
+    caption.skip_tts = True
+    frames = [TTSStartedFrame(), TTSAudioRawFrame(audio, sample_rate, 1), caption, TTSStoppedFrame()]
+    return [_mark_replay(f) for f in frames]
+
 
 def _runs_llm(result: Frame) -> bool:
     """Whether a tool's result makes Pipecat run the LLM again: only a non-empty result,
@@ -162,6 +193,8 @@ class CrowkisAudioCache(AudioClips, FrameProcessor):
 
     async def on_frame(self, frame: Frame) -> None:
         """The TTS-side frames, as AudioClips events."""
+        if _is_replay(frame):
+            return  # a cached clip the gate played: already kept
         if isinstance(frame, InterruptionFrame):
             self.interrupted()
         elif isinstance(frame, TTSStartedFrame):
@@ -267,7 +300,13 @@ class CrowkisGate(FrameProcessor):
             await self.push_frame(frame)
             return
         self._serving = True
-        if audio:
+        if audio and _TTS_TEXT is not None:
+            # Played like any spoken answer (see _replay_frames): the assistant aggregator
+            # adds it to the context, once.
+            for out in _replay_frames(decision.text, audio, self._audio.sample_rate):
+                await self.push_frame(out)
+        elif audio:
+            # A Pipecat without TTSTextFrame: the answer goes into the context directly.
             frame.context.add_message({"role": "assistant", "content": decision.text})
             await self.push_frame(TTSAudioRawFrame(audio, self._audio.sample_rate, 1))
         else:

@@ -1143,7 +1143,7 @@ let apiKeyWarned = false;
 
 class CrowkisAdmin {
   constructor(options = {}) {
-    this.baseUrl = options.baseUrl || "http://127.0.0.1:6380";
+    this.baseUrl = options.baseUrl || "http://127.0.0.1:6384"; // the management port (the RESP port + 1)
     // The server's CROWKIS_AUTH_TOKEN; reading needs none. `apiKey` is its old name.
     // Not enumerable: logging or JSON.stringify of a client must not print them.
     for (const name of ["token", "apiKey"]) {

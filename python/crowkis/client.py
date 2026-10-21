@@ -1928,7 +1928,7 @@ class CrowkisAdmin:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:6380",
+        base_url: str = "http://127.0.0.1:6384",
         *,
         token: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -1945,7 +1945,7 @@ class CrowkisAdmin:
             )
         parsed = urlparse(base_url)
         self.host = parsed.hostname or "127.0.0.1"
-        self.port = parsed.port or 6380
+        self.port = parsed.port or 6384  # the management port (the RESP port + 1)
         self.token = token
         self.api_key = api_key
         self.timeout = timeout

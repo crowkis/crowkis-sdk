@@ -621,6 +621,8 @@ const DIGITS = /[0-9]{5,}/;
 // out, so a price ("1,499") or a weight ("1.5") is not an identifier.
 const SPACED_DIGITS = /[0-9]+(?:[ \t-]+[0-9]+)+/g;
 const EMAIL = /[A-Za-z0-9._%+-]@[A-Za-z0-9-]/;
+// An IPv4 address: personal data, as an IPv6 address already counts (its digit runs).
+const IPV4 = /(?<![0-9.])(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?![0-9]|\.[0-9])/;
 const CLAUSES = /([,.!?;:]+)/;
 const LETTER = /\p{L}/u;
 
@@ -1116,7 +1118,7 @@ function tellsOwnStory(words) {
 // Whether a turn's answer must never be shared, whatever the rest of the rules say.
 function neverShare(text, words) {
   if (unreadable(text)) return true;
-  if (DIGITS.test(text) || EMAIL.test(text) || readsOutDigits(text, words)) return true;
+  if (DIGITS.test(text) || EMAIL.test(text) || IPV4.test(text) || readsOutDigits(text, words)) return true;
   if (words.includes("at") && words.includes("dot") && words.some((w) => EMAIL_ENDINGS.has(w))) return true;
   if (words.some((w) => SINGLE_WORDS.has(w)) || hasPhrase(words, NEVER_PHRASES_BY_FIRST)) return true;
   if (identifies(text, words) || namesSomeone(text, words)) return true;
@@ -1352,6 +1354,36 @@ function flatten(text) {
 function leaks(shaped, values) {
   const flat = flatten(shaped);
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
+}
+
+// A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
+const ID_TOKEN = /[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]/g;
+const YEAR = /^(?:19|20)[0-9]{2}$/;
+
+// The ID-like values said in `texts`, flattened as leaks() compares them: tokens with four
+// or more digits (not a bare year) or an @, and digit groups said with spaces
+// ("2345 6789 0123"). As in Python's _identifiers.
+function identifiers(texts) {
+  const found = new Set();
+  for (const text of texts) {
+    for (const token of String(text || "").match(ID_TOKEN) || []) {
+      const digits = (token.match(/[0-9]/g) || []).length;
+      if (token.includes("@") || (digits >= 4 && !YEAR.test(token))) found.add(flatten(token));
+    }
+    for (const group of String(text || "").match(SPACED_DIGITS) || []) {
+      const joined = group.replace(/[^0-9]/g, "");
+      if (joined.length >= 5) found.add(joined);
+    }
+  }
+  return new Set([...found].filter((value) => value.length >= 4));
+}
+
+// Whether `answer` says one of `ids`. A short value must be a whole token of the answer
+// ("1800" is not in "21,800"); a long one may appear anywhere in it. As in Python.
+function repeatsIdentifier(answer, ids) {
+  const flat = flatten(answer);
+  const tokens = new Set([...(String(answer || "").match(ID_TOKEN) || []).map(flatten), ...wordsOf(answer)]);
+  return [...ids].some((value) => (value.length >= 6 ? flat.includes(value) : tokens.has(value)));
 }
 
 // A hard deadline: a slow or hung cache must never hold a live call past its budget.
@@ -2673,6 +2705,15 @@ class VoiceSession {
     return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background" };
   }
 
+  // The ID-like values this caller said earlier in the call: its earlier turns in the
+  // transcript and the turns the session only heard (private turns, loaded history).
+  // Called once the turn being recorded is in the transcript, so that turn is left out:
+  // it passed the personal rules, so its numbers are not private. As in Python.
+  _saidIdentifiers() {
+    const said = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content).slice(0, -1);
+    return identifiers([...said, ...[...this._heardTexts].sort()]);
+  }
+
   // A caller turn this session never decided (a private turn, history the app gave the
   // model): one that tells the call something a later answer may depend on keeps the
   // rest of the call off the shared cache, as decide() does for its own turns.
@@ -2751,6 +2792,12 @@ class VoiceSession {
       if (leaks(modelSaid, this.values)) {
         this.notShareable += 1;
         return outcome("private", "kept to this call: the answer contains a value declared for this call");
+      }
+      if (repeatsIdentifier(modelSaid, this._saidIdentifiers())) {
+        // Its model read only the question, so this can only come from an app that sent
+        // it the whole call: never share it.
+        this.notShareable += 1;
+        return outcome("private", "kept to this call: the answer repeats a number or ID this caller said");
       }
       if (isNonAnswer(modelSaid)) {
         this.notShareable += 1;
@@ -3118,6 +3165,7 @@ module.exports = {
   _waitForWrites: waitForWrites,
   _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
+  _IPV4: IPV4,
   _isContextDependent: isContextDependent,
   _setsContext: setsContext,
   _tellsFacts: tellsFacts,

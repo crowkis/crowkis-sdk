@@ -668,6 +668,9 @@ _DIGITS = re.compile(r"[0-9]{5,}")
 # out, so a price ("1,499") or a weight ("1.5") is not an identifier.
 _SPACED_DIGITS = re.compile(r"[0-9]+(?:[ \t-]+[0-9]+)+")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]@[A-Za-z0-9-]")
+# An IPv4 address: personal data, as an IPv6 address already counts (its digit runs).
+_OCTET = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
+_IPV4 = re.compile(r"(?<![0-9.])" + _OCTET + r"(?:\." + _OCTET + r"){3}(?![0-9]|\.[0-9])")
 _CLAUSES = re.compile(r"([,.!?;:]+)")
 
 # A turn longer than this is private without being read: every rule is linear in
@@ -1164,7 +1167,7 @@ def _never_share(text: str, words: List[str]) -> bool:
     """Whether a turn's answer must never be shared, whatever the rest of the rules say."""
     if _unreadable(text):
         return True
-    if _DIGITS.search(text) or _EMAIL.search(text) or _reads_out_digits(text, words):
+    if _DIGITS.search(text) or _EMAIL.search(text) or _IPV4.search(text) or _reads_out_digits(text, words):
         return True
     if "at" in words and "dot" in words and any(w in _EMAIL_ENDINGS for w in words):
         return True
@@ -1399,6 +1402,36 @@ def _flatten(text: str) -> str:
 def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     flat = _flatten(shaped)
     return any(value and _flatten(value) in flat for value in values.values())
+
+
+# A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
+_ID_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]")
+_YEAR = re.compile(r"(?:19|20)[0-9]{2}")
+
+
+def _identifiers(texts: Iterable[str]) -> set:
+    """The ID-like values said in ``texts``, flattened as _leaks compares them: tokens
+    with four or more digits (not a bare year) or an @, and digit groups said with
+    spaces ("2345 6789 0123")."""
+    found: set = set()
+    for text in texts:
+        for token in _ID_TOKEN.findall(text or ""):
+            digits = sum(c in "0123456789" for c in token)
+            if "@" in token or (digits >= 4 and not _YEAR.fullmatch(token)):
+                found.add(_flatten(token))
+        for group in _SPACED_DIGITS.findall(text or ""):
+            joined = "".join(c for c in group if c in "0123456789")
+            if len(joined) >= 5:
+                found.add(joined)
+    return {value for value in found if len(value) >= 4}
+
+
+def _repeats_identifier(answer: str, identifiers: set) -> bool:
+    """Whether ``answer`` says one of ``identifiers``. A short value must be a whole token
+    of the answer ("1800" is not in "21,800"); a long one may appear anywhere in it."""
+    flat = _flatten(answer)
+    tokens = {_flatten(token) for token in _ID_TOKEN.findall(answer or "")} | set(_words(answer))
+    return any(value in flat if len(value) >= 6 else value in tokens for value in identifiers)
 
 
 # The checks below are for past transcripts only (warm_from_calls). A live turn
@@ -2828,6 +2861,14 @@ class VoiceSession:
             _LOG.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
                          type(future.exception()).__name__)
 
+    def _said_identifiers(self) -> set:
+        """The ID-like values this caller said earlier in the call: its earlier turns in
+        the transcript and the turns the session only heard (private turns, loaded
+        history). Called once the turn being recorded is in the transcript, so that
+        turn is left out: it passed the personal rules, so its numbers are not private."""
+        said = [turn["content"] for turn in self.transcript if turn["role"] == "user"][:-1]
+        return _identifiers(said + sorted(self._heard_texts))
+
     def _heard(self, caller_said: Optional[str]) -> None:
         """A caller turn this session never decided (a private turn, history the app gave
         the model): one that tells the call something a later answer may depend on keeps
@@ -2905,6 +2946,11 @@ class VoiceSession:
             if _leaks(model_said, self.values):
                 self.not_shareable += 1
                 return _Outcome("private", "kept to this call: the answer contains a value declared for this call")
+            if _repeats_identifier(model_said, self._said_identifiers()):
+                # Its model read only the question, so this can only come from an app
+                # that sent it the whole call: never share it.
+                self.not_shareable += 1
+                return _Outcome("private", "kept to this call: the answer repeats a number or ID this caller said")
             if _is_non_answer(model_said):
                 self.not_shareable += 1
                 return _Outcome("non_answer", "not saved: the answer asks back or does not answer")

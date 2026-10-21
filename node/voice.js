@@ -2890,18 +2890,7 @@ class VoiceSession {
   async _voiced(answer, { cacheable = true } = {}) {
     if (!this.synthesise) return null;
     try {
-      if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) return await this._voice(answer, cacheable);
-      // With a budget, a hung audio cache never holds the turn: past twice the budget the
-      // text is served and the audio step (with its clip) finishes in the background.
-      const voicing = this._voice(answer, cacheable);
-      voicing.catch(() => {});
-      const audio = await within(2 * this.latencyBudgetMs, voicing);
-      if (audio === LATE) {
-        this.audioUnavailable += 1;
-        console.warn("crowkis voice: the audio step passed the latency budget; the text is served");
-        return null;
-      }
-      return audio;
+      return await this._voice(answer, cacheable);
     } catch (error) {
       this.audioUnavailable += 1;
       // The type only: an app's TTS error can quote the (possibly personal) text.

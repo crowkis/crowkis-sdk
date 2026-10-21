@@ -61,11 +61,18 @@ function leadingInstructions(chatCtx) {
 
 // More than instructions and conversation for this turn: something right before the
 // caller's last message that is not conversation (RAG or CRM data), or a running tool.
+// LiveKit's own bookkeeping in the chat context (an instructions or tools update before a
+// call's first turn, an agent handoff): never context for the model.
+const BOOKKEEPING = new Set(["agent_config_update", "agent_handoff", "cache_breakpoint"]);
+
 function extraContext(chatCtx, lastUserIndex) {
   const items = [...chatCtx.items];
   if (items.some((i) => i && i.extra && RUNNING_PLACEHOLDER_KEY in i.extra)) return true;
-  const before = lastUserIndex - 1;
-  return before >= leadingInstructions(chatCtx).length && !isConversation(items[before]);
+  const leading = leadingInstructions(chatCtx).length;
+  let before = lastUserIndex - 1;
+  while (before >= leading && items[before] && BOOKKEEPING.has(items[before].type)) before -= 1;
+  // The item just before the caller's message (LiveKit's bookkeeping aside) is not conversation.
+  return before >= leading && !isConversation(items[before]);
 }
 
 function voiceOf(tts) {

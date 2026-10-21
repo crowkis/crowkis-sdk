@@ -366,6 +366,30 @@ class LiveKitFlowTests(unittest.TestCase):
                 self.assertEqual(len(fakes.llm_calls[-1]), len(contexts[-1].items), "the model read it all")
                 self.assertEqual((store.writes, store.tool_writes), ([], []))
 
+    def test_livekits_own_bookkeeping_items_are_not_extra_context(self):
+        # LiveKit 1.8 puts an agent_config_update item before the first question of a
+        # call (and agent_handoff items on a handoff): the question is still shared.
+        for name, item in (("config update", llm.AgentConfigUpdate(instructions="You are Acme's assistant.")),
+                           ("handoff", llm.AgentHandoff(old_agent_id=None, new_agent_id="a2"))):
+            with self.subTest(name):
+                fakes = Fakes()
+                agent, store, session = _agent(fakes)
+                ctx = _ctx(("user", QUESTION))
+                ctx.items.insert(len(ctx.items) - 1, item)
+                with _patched(fakes):
+                    asyncio.run(_turn(agent, ctx))
+                self.assertEqual(store.writes, [[QUESTION, ANSWER, False]])
+                self.assertEqual(session.stats()["turns"], 1)
+        # Must still work: RAG data right before the question keeps the turn private.
+        fakes = Fakes()
+        agent, store, _ = _agent(fakes)
+        ctx = _ctx(("user", QUESTION))
+        ctx.items.insert(len(ctx.items) - 1, llm.AgentConfigUpdate(instructions="x"))
+        ctx.items.insert(len(ctx.items) - 1, llm.ChatMessage(role="system", content=["Knowledge: Gold refunds take 2 days."]))
+        with _patched(fakes):
+            asyncio.run(_turn(agent, ctx))
+        self.assertEqual(store.writes, [])
+
     def test_plain_history_keeps_the_shared_cache(self):
         fakes = Fakes()
         agent, _, _ = _agent(fakes, store=SceneStore({"What should I pack?": "Light clothes."}))

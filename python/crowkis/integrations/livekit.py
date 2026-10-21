@@ -99,6 +99,11 @@ def _is_conversation(item: Any) -> bool:
     return getattr(item, "type", None) == "message" and getattr(item, "role", None) in ("user", "assistant")
 
 
+# LiveKit's own bookkeeping in the chat context (an instructions or tools update before
+# a call's first turn, an agent handoff, a cache marker): never context for the model.
+_BOOKKEEPING = frozenset({"agent_config_update", "agent_handoff", "cache_breakpoint"})
+
+
 def _extra_context(chat_ctx: Any) -> bool:
     """Whether the context carries more than instructions and conversation for this turn:
     messages or tool items right before the caller's last message (RAG or CRM data an app
@@ -110,9 +115,10 @@ def _extra_context(chat_ctx: Any) -> bool:
     last_user = max((n for n, i in enumerate(items)
                      if getattr(i, "type", None) == "message" and getattr(i, "role", None) == "user"), default=-1)
     index = last_user - 1
-    while index >= leading and not _is_conversation(items[index]):
-        return True  # the item just before the caller's message is not conversation
-    return False
+    while index >= leading and getattr(items[index], "type", None) in _BOOKKEEPING:
+        index -= 1
+    # The item just before the caller's message (LiveKit's bookkeeping aside) is not conversation.
+    return index >= leading and not _is_conversation(items[index])
 
 
 def _speech() -> Any:

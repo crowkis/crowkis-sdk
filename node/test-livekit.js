@@ -183,6 +183,27 @@ test("history or a RAG turn that tells the call something keeps the rest private
   }
 });
 
+test("LiveKit's own bookkeeping items are not extra context", { skip }, async () => {
+  // LiveKit puts an agent_config_update item before a call's first question (and
+  // agent_handoff items on a handoff): the question is still shared. As in Python.
+  for (const item of [lk.llm.AgentConfigUpdate.create({ instructions: "You are Acme's assistant." }),
+    lk.llm.AgentHandoffItem.create({ oldAgentId: undefined, newAgentId: "a2" })]) {
+    const { agent, store, session } = make();
+    const c = ctx([["user", QUESTION]]);
+    c.items.splice(c.items.length - 1, 0, item);
+    await turn(agent, c);
+    assert.deepStrictEqual(store.writes, [[QUESTION, ANSWER, false]], item.type);
+    assert.strictEqual(session.stats().turns, 1);
+  }
+  // Must still work: RAG data right before the question keeps the turn private.
+  const { agent, store } = make();
+  const c = ctx([["user", QUESTION]]);
+  c.items.splice(c.items.length - 1, 0, lk.llm.AgentConfigUpdate.create({ instructions: "x" }),
+    lk.llm.ChatMessage.create({ role: "system", content: ["Knowledge: Gold refunds take 2 days."] }));
+  await turn(agent, c);
+  assert.deepStrictEqual(store.writes, []);
+});
+
 test("plain history keeps the shared cache", { skip }, async () => {
   const { agent, fakes } = make({ store: new Store({ "What should I pack?": "Light clothes." }) });
   const { said } = await turn(agent, ctx([["user", "Hi, I have a question."], ["assistant", "Sure."], ["user", "What should I pack?"]]));

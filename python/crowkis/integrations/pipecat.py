@@ -145,6 +145,11 @@ def _replay_frames(text: str, audio: bytes, sample_rate: int) -> list:
         caption = _TTS_TEXT(text)
     caption.skip_tts = True
     frames = [TTSStartedFrame(), TTSAudioRawFrame(audio, sample_rate, 1), caption, TTSStoppedFrame()]
+    push = getattr(_frames, "LLMAssistantPushAggregationFrame", None)
+    if push is not None:
+        # The assistant aggregator writes to the context on a response end; a replayed
+        # clip has none, so ask it to write now (not when the caller next speaks).
+        frames.append(push())
     return [_mark_replay(f) for f in frames]
 
 

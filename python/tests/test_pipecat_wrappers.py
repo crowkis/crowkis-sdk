@@ -169,8 +169,27 @@ class WrapperTests(unittest.TestCase):
                 seen.append(frame)
                 await self.push_frame(frame, direction)
 
-        _run(Pipeline([CrowkisLLM(FakeLLM(), session=session), CrowkisTTS(tts), Recorder(), assistant]),
-             LLMContextFrame(context=context), SleepFrame(0.3))
+        from dataclasses import dataclass
+        from pipecat.frames.frames import DataFrame
+
+        @dataclass
+        class Marker(DataFrame):
+            pass
+
+        live = []
+
+        class AfterAggregator(FrameProcessor):  # what the context holds mid-call, before EndFrame flushes
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                if isinstance(frame, Marker):
+                    live.append([m for m in context.get_messages() if m["role"] == "assistant"])
+                await self.push_frame(frame, direction)
+
+        _run(Pipeline([CrowkisLLM(FakeLLM(), session=session), CrowkisTTS(tts), Recorder(), assistant,
+                       AfterAggregator()]),
+             LLMContextFrame(context=context), SleepFrame(0.3), Marker(), SleepFrame(0.1))
+        self.assertEqual(live, [[{"role": "assistant", "content": ANSWER}]],
+                         "the answer is in the context during the call, not only when the pipeline ends")
         down = seen
         texts = [f for f in down if isinstance(f, TTSTextFrame)]
         self.assertEqual([f.text for f in texts], [ANSWER], "captions and transcripts see the cached answer")

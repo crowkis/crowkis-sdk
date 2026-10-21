@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .callstate import IDENTITIES, CallState, word_digest
-from .voice import _instructs, _proper_nouns, _is_non_answer as is_non_answer, _repeats_prompt_details, _tells_about_caller, _urgent, _words
+from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _is_non_answer as is_non_answer, _repeats_prompt_details, _tells_about_caller, _urgent, _words
 from .turn import NOT_GENERAL_TYPES, TurnFrame
 from .understand import ReplayUnderstander, Understander
 from .verify import _FUNCTION, _NUMWORDS, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
@@ -532,7 +532,8 @@ class CallSession:
             self.counts["lookup_errors"] += 1
             return None
         if hit.get("route") == "cache" and hit.get("answer"):
-            return hit["answer"]
+            # A placeholder the server put in place of someone's detail is never served.
+            return None if _PII_PLACEHOLDER.search(hit["answer"]) else hit["answer"]
         return None
 
     @staticmethod

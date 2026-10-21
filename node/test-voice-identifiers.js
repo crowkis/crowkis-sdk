@@ -107,3 +107,26 @@ test("must still work: a first turn with no identifier", async () => {
   const decision = await answer(session(), "How long do refunds take?", "Refunds take five days.");
   assert.strictEqual(decision.stored, true);
 });
+
+// A cached answer the server scrubbed ("Write to pii_email_k3fa9 ...") is never spoken: it
+// would read a placeholder aloud. The model answers instead (T1).
+async function decideOn(storedAnswer, asked = "How do I ask for a refund?") {
+  const store = new ConformanceStore({ seed: { [asked]: storedAnswer } });
+  return voiceSession({ client: store }).decide(asked);
+}
+
+test("a cached answer with a PII placeholder is not spoken", async () => {
+  for (const stored of ["Write to pii_email_k3fa9 and we refund you in five days.",
+    "Call pii_phone_a1b2c3 to get a refund.", "Refunds go to PII_IBAN_9f8e7d within a week."]) {
+    const decision = await decideOn(stored);
+    assert.strictEqual(decision.action, "infer", `${stored}: ${decision.reason}`);
+    assert.match(decision.reason, /placeholder/);
+  }
+});
+
+test("must still work: an answer about PII is spoken", async () => {
+  for (const stored of ["Our PII policy says we never keep your card number.",
+    "Refunds take five days; see pii_policy on our site."]) {
+    assert.strictEqual((await decideOn(stored)).action, "serve", stored);
+  }
+});

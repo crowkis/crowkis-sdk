@@ -248,3 +248,17 @@ test("the new classes are exported from the package", () => {
     assert.strictEqual(typeof sdk[name], "function", name);
   }
 });
+
+// A cached answer the server scrubbed ("Write to pii_email_k3fa9 ...") is never served: it
+// would read a placeholder to the user. As VoiceSession (T1, review).
+test("a cached answer with a PII placeholder is a miss", async () => {
+  const agent = new FakeAgent();
+  agent.store.set("refunds", "Write to pii_email_k3fa9 and we refund you in five days.");
+  assert.strictEqual(await new CallSession(agent, scripted({}))._lookup("refunds", null), null);
+});
+
+test("must still work: an ordinary cached answer is served", async () => {
+  const agent = new FakeAgent();
+  agent.store.set("refunds", "Our PII policy: refunds take five days.");
+  assert.strictEqual(await new CallSession(agent, scripted({}))._lookup("refunds", null), "Our PII policy: refunds take five days.");
+});

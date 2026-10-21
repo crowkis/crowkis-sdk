@@ -1404,6 +1404,13 @@ def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     return any(value and _flatten(value) in flat for value in values.values())
 
 
+# What the server puts in a stored answer in place of a caller's detail (its PII scrubber):
+# "pii_email_k3fa9". Spoken, it is noise at best.
+_PII_PLACEHOLDER = re.compile(
+    r"(?<![A-Za-z0-9_])pii_(?:email|phone|natid|card|person|location|ip|dob|passport|iban)_[A-Za-z0-9]+",
+    re.IGNORECASE,
+)
+
 # A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
 _ID_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]")
 _YEAR = re.compile(r"(?:19|20)[0-9]{2}")
@@ -2552,6 +2559,18 @@ class VoiceSession:
                         "for; speaking a half-filled answer is worse than a model call"
                     ),
                 )
+
+        if _PII_PLACEHOLDER.search(answer):
+            self.refused_private += 1
+            self.inferred += 1
+            return TurnDecision(
+                "infer",
+                confidence=hit["confidence"],
+                reason=(
+                    "the cached answer holds a placeholder the server put in place of a "
+                    "caller's detail; reading it aloud is worse than a model call"
+                ),
+            )
 
         if not personal and not hit.get("exact") and self._answers_another_question(
                 keyed, answer, (time.monotonic() - started) * 1000.0):

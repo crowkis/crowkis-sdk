@@ -122,5 +122,29 @@ class RepeatedIdentifierTests(unittest.TestCase):
         self.assertTrue(decision.stored)
 
 
+class PlaceholderTests(unittest.TestCase):
+    """A cached answer the server scrubbed ("Write to pii_email_k3fa9 ...") is never
+    spoken: it would read a placeholder aloud. The model answers instead (T1)."""
+
+    def _decide(self, stored_answer, asked="How do I ask for a refund?"):
+        store = ConformanceStore(seed={asked: stored_answer})
+        return crowkis.voice_session(client=store).decide(asked)
+
+    def test_a_cached_answer_with_a_pii_placeholder_is_not_spoken(self):
+        for stored in ("Write to pii_email_k3fa9 and we refund you in five days.",
+                       "Call pii_phone_a1b2c3 to get a refund.",
+                       "Refunds go to PII_IBAN_9f8e7d within a week."):
+            with self.subTest(stored=stored):
+                decision = self._decide(stored)
+                self.assertEqual(decision.action, "infer", decision.reason)
+                self.assertIn("placeholder", decision.reason)
+
+    def test_must_still_work_an_answer_about_pii_is_spoken(self):
+        for stored in ("Our PII policy says we never keep your card number.",
+                       "Refunds take five days; see pii_policy on our site."):
+            with self.subTest(stored=stored):
+                self.assertEqual(self._decide(stored).action, "serve")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1356,6 +1356,10 @@ function leaks(shaped, values) {
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
 }
 
+// What the server puts in a stored answer in place of a caller's detail (its PII scrubber):
+// "pii_email_k3fa9". Spoken, it is noise at best. As in Python.
+const PII_PLACEHOLDER = /(?<![A-Za-z0-9_])pii_(?:email|phone|natid|card|person|location|ip|dob|passport|iban)_[A-Za-z0-9]+/i;
+
 // A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
 const ID_TOKEN = /[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]/g;
 const YEAR = /^(?:19|20)[0-9]{2}$/;
@@ -2414,6 +2418,17 @@ class VoiceSession {
       }
     }
 
+    if (PII_PLACEHOLDER.test(answer)) {
+      this.refusedPrivate += 1;
+      this.inferred += 1;
+      return new TurnDecision("infer", {
+        confidence: hit.confidence,
+        reason:
+          "the cached answer holds a placeholder the server put in place of a caller's detail; " +
+          "reading it aloud is worse than a model call",
+      });
+    }
+
     if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer, performance.now() - started))) {
       this.differentQuestion += 1;
       this.inferred += 1;
@@ -3166,6 +3181,7 @@ module.exports = {
   _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
   _IPV4: IPV4,
+  _PII_PLACEHOLDER: PII_PLACEHOLDER,
   _isContextDependent: isContextDependent,
   _setsContext: setsContext,
   _tellsFacts: tellsFacts,

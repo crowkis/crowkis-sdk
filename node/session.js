@@ -12,6 +12,7 @@ const { CallState, IDENTITIES, wordDigest } = require("./callstate.js");
 const {
   _isNonAnswer: isNonAnswer, _tellsAboutCaller: tellsAboutCaller, _instructs: instructs, _urgent: urgent,
   _wordsOf: wordsOf, _properNouns: properNouns, _repeatsPromptDetails: repeatsPromptDetails,
+  _PII_PLACEHOLDER: PII_PLACEHOLDER,
 } = require("./voice.js");
 const { NOT_GENERAL_TYPES, TurnFrame } = require("./turn.js");
 const { _FUNCTION: FUNCTION, _NUMWORDS: NUMWORDS, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
@@ -444,7 +445,9 @@ class CallSession {
       }),
         this.latencyBudgetMs);
       if (hit === TIMEOUT) { this.counts.lookup_timeouts += 1; return null; }
-      return hit && hit.route === "cache" && hit.answer ? hit.answer : null;
+      if (!(hit && hit.route === "cache" && hit.answer)) return null;
+      // A placeholder the server put in place of someone's detail is never served.
+      return PII_PLACEHOLDER.test(hit.answer) ? null : hit.answer;
     } catch {
       this.counts.lookup_errors += 1;
       return null;

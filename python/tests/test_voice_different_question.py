@@ -92,6 +92,12 @@ class DifferentQuestionTests(unittest.TestCase):
         self.assertFalse(_different_specifics("when are you open", "what are your opening hours"))
         self.assertFalse(_different_specifics("", ""))
         self.assertFalse(_different_specifics("कब खुलता है", "कब खुलता है"))
+        # Plurals and Hinglish framing words are not "different things" (review of b9df7f6).
+        self.assertFalse(_different_specifics("what are your prices", "what is the price"))
+        self.assertFalse(_different_specifics("what are your rates", "what is the rate"))
+        self.assertFalse(_different_specifics("kya aap sunday ko khule hain", "aap sunday ko khule hain kya"))
+        self.assertTrue(_different_specifics("kya aap sunday ko khule hain", "kya aap monday ko khule hain"))
+        self.assertFalse(_different_specifics("how many boxes ship", "how many box ships"))
 
 
 if __name__ == "__main__":

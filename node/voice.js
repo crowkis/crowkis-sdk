@@ -258,11 +258,19 @@ const FRAMING_WORDS = new Set([
   "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
   "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
   "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question",
+  "kya", "kab", "kahan", "kaise", "kaun", "kyun", "kyon", "kitna", "kitne", "kitni", "hai",
+  "hain", "ho", "hun", "hoon", "aap", "tum", "ko", "ka", "ki", "ke", "se", "par", "bhi", "toh",
 ]);
+// How long a question record lives when the answer has no TTL of its own.
+const QUESTION_TTL = 30 * 24 * 3600;
 
 function stem(word) {
-  for (const [suffix, keep] of [["ies", "y"], ["ing", ""], ["ed", ""], ["es", ""], ["s", ""]]) {
-    if (word.endsWith(suffix) && word.length - suffix.length >= 3) return word.slice(0, word.length - suffix.length) + keep;
+  // "boxes", "dishes"; "prices" and "rates" just drop the "s". As in Python's _stem.
+  if (word.endsWith("es") && /(s|x|z|ch|sh)$/.test(word.slice(0, -2)) && word.length >= 5) return word.slice(0, -2);
+  for (const [suffix, keep] of [["ies", "y"], ["ing", ""], ["ed", ""], ["s", ""]]) {
+    if (word.endsWith(suffix) && word.length - suffix.length >= 3 && !word.endsWith("ss")) {
+      return word.slice(0, word.length - suffix.length) + keep;
+    }
   }
   return word;
 }
@@ -281,7 +289,8 @@ function differentSpecifics(asked, stored) {
 }
 
 function questionKey(tenant, answer) {
-  const digest = crypto.createHash("sha256").update(String(answer).trim(), "utf8").digest("hex").slice(0, 32);
+  const trimmed = String(answer).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); // as Python's strip(" \t\r\n")
+  const digest = crypto.createHash("sha256").update(trimmed, "utf8").digest("hex").slice(0, 32);
   return `crowkis:question:${tenant || "default"}:${digest}`;
 }
 
@@ -2370,7 +2379,7 @@ class VoiceSession {
       }
     }
 
-    if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer))) {
+    if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer, performance.now() - started))) {
       this.differentQuestion += 1;
       this.inferred += 1;
       return new TurnDecision("infer", {
@@ -2582,29 +2591,31 @@ class VoiceSession {
     const client = this.agent && this.agent.client;
     if (!client || typeof client.set !== "function") return;
     const key = questionKey(tenantOf(this.agent), answer);
-    const ttl = this.ttl;
-    storeLater(async () => {
+    const ttl = this.ttl || QUESTION_TTL;
+    (async () => {
       try {
         const raw = await client.get(key);
         let kept = raw ? JSON.parse(String(raw)) : [];
         kept = (Array.isArray(kept) ? kept : []).filter((q) => typeof q === "string" && q !== question).slice(-(QUESTIONS_KEPT - 1));
-        await client.set(key, JSON.stringify([...kept, question]), ttl === undefined || ttl === null ? {} : { ttl });
+        await client.set(key, JSON.stringify([...kept, question]), { ttl });
       } catch {
         // see above
       }
-    });
+    })(); // never on the audio-clip queue
   }
 
   // Whether every question this answer was saved for asks about something else. Unknown
   // (no record, or it can't be read in time) means no: as before.
-  async _answersAnotherQuestion(asked, answer) {
+  async _answersAnotherQuestion(asked, answer, spentMs = 0) {
     const client = this.agent && this.agent.client;
     if (!client || typeof client.get !== "function") return false;
     try {
       const read = Promise.resolve().then(() => client.get(questionKey(tenantOf(this.agent), answer)));
       read.catch(() => {});
       const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
-      const raw = budgeted ? await within(this.latencyBudgetMs, read) : await read;
+      const left = budgeted ? this.latencyBudgetMs - spentMs : null; // what the lookup left of the budget
+      if (budgeted && left <= 0) return false;
+      const raw = budgeted ? await within(left, read) : await read;
       if (raw === LATE || !raw) return false;
       const questions = JSON.parse(String(raw));
       if (!Array.isArray(questions)) return false;

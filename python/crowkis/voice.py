@@ -216,13 +216,19 @@ _FRAMING_WORDS = frozenset(
     {"what", "when", "where", "which", "who", "whom", "whose", "why", "you", "your", "yours",
      "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
      "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
-     "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question"}
+     "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question",
+     "kya", "kab", "kahan", "kaise", "kaun", "kyun", "kyon", "kitna", "kitne", "kitni", "hai",
+     "hain", "ho", "hun", "hoon", "aap", "tum", "ko", "ka", "ki", "ke", "se", "par", "bhi", "toh"}
 )
+# How long a question record lives when the answer has no TTL of its own.
+_QUESTION_TTL = 30 * 24 * 3600
 
 
 def _stem(word: str) -> str:
-    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")):
-        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+    if word.endswith("es") and word[:-2].endswith(("s", "x", "z", "ch", "sh")) and len(word) >= 5:
+        return word[:-2]  # "boxes", "dishes"; "prices" and "rates" just drop the "s"
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
             return word[: len(word) - len(suffix)] + keep
     return word
 
@@ -241,7 +247,7 @@ def _different_specifics(asked: str, stored: str) -> bool:
 
 
 def _question_key(tenant: Optional[str], answer: str) -> str:
-    digest = hashlib.sha256(answer.strip().encode("utf-8")).hexdigest()[:32]
+    digest = hashlib.sha256(answer.strip(" \t\r\n").encode("utf-8")).hexdigest()[:32]
     return _QUESTION_KEY.format(tenant=tenant or "default", answer=digest)
 
 
@@ -2512,7 +2518,8 @@ class VoiceSession:
                     ),
                 )
 
-        if not personal and not hit.get("exact") and self._answers_another_question(keyed, answer):
+        if not personal and not hit.get("exact") and self._answers_another_question(
+                keyed, answer, (time.monotonic() - started) * 1000.0):
             self.different_question += 1
             self.inferred += 1
             return TurnDecision(
@@ -2745,7 +2752,7 @@ class VoiceSession:
         client = getattr(self.agent, "_client", None)
         if client is None or not hasattr(client, "set"):
             return
-        key, ttl = _question_key(_tenant_of(self.agent), answer), self.ttl
+        key, ttl = _question_key(_tenant_of(self.agent), answer), self.ttl or _QUESTION_TTL
 
         def keep() -> None:
             try:
@@ -2756,9 +2763,9 @@ class VoiceSession:
             except Exception as err:  # noqa: BLE001 — see docstring
                 _LOG.debug("crowkis voice: the answer's question was not kept (%s)", type(err).__name__)
 
-        _store_later(keep)
+        _submit_write(keep)  # never on the audio-clip queue
 
-    def _answers_another_question(self, asked: str, answer: str) -> bool:
+    def _answers_another_question(self, asked: str, answer: str, spent_ms: float = 0.0) -> bool:
         """Whether every question this answer was saved for asks about something else.
         Unknown (no record, or it can't be read in time) means no: as before."""
         client = getattr(self.agent, "_client", None)
@@ -2769,7 +2776,10 @@ class VoiceSession:
             if self.latency_budget_ms is None:
                 raw = read()
             else:
-                raw = _LOOKUPS.submit(read).result(timeout=self.latency_budget_ms / 1000.0)
+                left = self.latency_budget_ms - spent_ms  # what the lookup left of the budget
+                if left <= 0:
+                    return False
+                raw = _LOOKUPS.submit(read).result(timeout=left / 1000.0)
             questions = json.loads(raw) if raw else []
         except Exception:  # noqa: BLE001 — see docstring
             return False

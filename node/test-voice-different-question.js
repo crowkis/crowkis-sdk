@@ -81,4 +81,10 @@ test("the rule itself, as in Python", () => {
   assert.strictEqual(differentSpecifics("when are you open", "what are your opening hours"), false);
   assert.strictEqual(differentSpecifics("", ""), false);
   assert.strictEqual(differentSpecifics("कब खुलता है", "कब खुलता है"), false);
+  // Plurals and Hinglish framing words are not "different things".
+  assert.strictEqual(differentSpecifics("what are your prices", "what is the price"), false);
+  assert.strictEqual(differentSpecifics("what are your rates", "what is the rate"), false);
+  assert.strictEqual(differentSpecifics("kya aap sunday ko khule hain", "aap sunday ko khule hain kya"), false);
+  assert.strictEqual(differentSpecifics("kya aap sunday ko khule hain", "kya aap monday ko khule hain"), true);
+  assert.strictEqual(differentSpecifics("how many boxes ship", "how many box ships"), false);
 });

@@ -3044,7 +3044,17 @@ class VoiceSession:
         if self.synthesise is None:
             return None
         try:
-            return self._voice(answer, cacheable)
+            if self.latency_budget_ms is None:
+                return self._voice(answer, cacheable)
+            # With a budget, a hung audio cache never holds the turn: past twice the budget
+            # the text is served and the audio step (with its clip) finishes in the background.
+            future = _submit_write(self._voice, answer, cacheable)
+            try:
+                return future.result(timeout=2 * self.latency_budget_ms / 1000)
+            except concurrent.futures.TimeoutError:
+                self._count("audio_unavailable")
+                _LOG.warning("crowkis voice: the audio step passed the latency budget; the text is served")
+                return None
         except Exception as err:  # noqa: BLE001 — see docstring
             self.audio_unavailable += 1
             # The type only: an app's TTS error can quote the (possibly personal) text.

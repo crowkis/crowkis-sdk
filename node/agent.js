@@ -98,6 +98,9 @@ class Agent {
         tenant: options.tenant,
         authToken: options.authToken,
       });
+    // The client's tenant (from CROWKIS_TENANT, or the client given): commands go there
+    // anyway, so the agent says so too.
+    if (this.tenant === undefined || this.tenant === null) this.tenant = this.client.tenant;
   }
 
   async remember(fact, { ttl } = {}) {

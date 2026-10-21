@@ -140,6 +140,10 @@ class Agent:
         self._client = client or CrowkisClient(
             host=host, port=port, tenant=tenant, auth_token=auth_token
         )
+        if self.tenant is None:
+            # The client's tenant (from CROWKIS_TENANT, or the client given): commands go
+            # there anyway, so the agent says so too.
+            self.tenant = getattr(self._client, "tenant", None)
 
     def remember(self, fact: str, *, ttl: Optional[int] = None) -> None:
         self._client.cmemset(self.agent_id, fact, ex=ttl, tenant=self.tenant)

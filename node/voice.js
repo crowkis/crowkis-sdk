@@ -1371,8 +1371,11 @@ let WRITES_MAX = 256;
 const pendingWrites = new Set();
 
 /** For tests: every write handed to the background has finished. */
+// Question records being written in the background (not capped like answer writes).
+const pendingRecords = new Set();
+
 async function waitForWrites() {
-  await Promise.allSettled([...pendingWrites]);
+  await Promise.allSettled([...pendingWrites, ...pendingRecords]);
 }
 
 // For tests: a smaller cap; returns a function that puts the old one back.
@@ -2592,7 +2595,7 @@ class VoiceSession {
     if (!client || typeof client.set !== "function") return;
     const key = questionKey(tenantOf(this.agent), answer);
     const ttl = this.ttl || QUESTION_TTL;
-    (async () => {
+    const record = (async () => {
       try {
         const raw = await client.get(key);
         let kept = raw ? JSON.parse(String(raw)) : [];
@@ -2602,6 +2605,8 @@ class VoiceSession {
         // see above
       }
     })(); // never on the audio-clip queue
+    pendingRecords.add(record);
+    record.finally(() => pendingRecords.delete(record));
   }
 
   // Whether every question this answer was saved for asks about something else. Unknown

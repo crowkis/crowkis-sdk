@@ -3,7 +3,7 @@
 // Mirrors python/tests/test_voice_different_question.py.
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
-const { voiceSession, _differentSpecifics: differentSpecifics } = require("./voice.js");
+const { voiceSession, _differentSpecifics: differentSpecifics, _waitForWrites: waitForWrites } = require("./voice.js");
 const { waitForAudioStores } = require("./agent.js");
 const { ConformanceStore } = require("./conformance.js");
 
@@ -16,6 +16,7 @@ async function ask(store, question, reply = "From the model.") {
   const session = voiceSession({ client: store });
   const calls = [];
   const decision = await session.answer(question, async (m) => { calls.push(m); return reply; });
+  await waitForWrites(); // the question record is written in the background
   await waitForAudioStores();
   return { decision, calls, session };
 }

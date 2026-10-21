@@ -2009,6 +2009,8 @@ def _wait_for_writes() -> None:
     with _PENDING_LOCK:
         pending = list(_PENDING_WRITES)
     concurrent.futures.wait(pending)
+    if _write_workers_started:
+        _WRITE_QUEUE.join()  # and everything else on the write workers (question records)
 
 
 def _write_done(future: "concurrent.futures.Future") -> None:

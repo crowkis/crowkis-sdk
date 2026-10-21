@@ -11,7 +11,7 @@ import unittest
 
 import crowkis
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.voice import _different_specifics
+from crowkis.voice import _different_specifics, _wait_for_writes
 
 from conformance import ConformanceStore
 
@@ -23,6 +23,7 @@ def _ask(store, question, reply="From the model."):
     session = crowkis.voice_session(client=store)
     calls = []
     decision = session.answer(question, lambda m: calls.append(m) or reply)
+    _wait_for_writes()  # the question record is written in the background
     _wait_for_audio_stores()
     return decision, calls, session
 

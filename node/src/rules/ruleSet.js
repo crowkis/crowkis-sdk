@@ -1,6 +1,6 @@
 "use strict";
 
-const { RuleChain } = require("./chain.js");
+const { FloorRuleLocked, RuleChain, UnknownRule, ruleNames } = require("./chain.js");
 const {
   CommitmentRewording, ConfidenceBar, DifferentQuestion, PiiPlaceholder, ScreenOnlyAnswer, ShortTurnUnvouched,
   TemplateSlotMissing,
@@ -46,8 +46,20 @@ class RuleSet {
     });
   }
 
-  /** These rules with the named ones turned off; a floor rule stays on unless `unsafe`. */
+  /**
+   * These rules with the named ones turned off; a floor rule stays on unless `unsafe`. The
+   * personal-answer rule is never turned off: it decides when an answer about the caller's own
+   * records is shared. A name the set does not have is refused.
+   */
   without(names, { unsafe = false } = {}) {
+    ruleNames(names);
+    const known = new Set([...CHAINS.flatMap((chain) => this[chain].names), this.personal.name]);
+    const unknown = names.filter((name) => !known.has(name));
+    if (unknown.length) throw new UnknownRule(`no such rule: ${unknown.join(", ")}`);
+    if (names.includes(this.personal.name)) {
+      throw new FloorRuleLocked(`${this.personal.name} cannot be turned off: it decides when an answer about ` +
+        "the caller's own records is shared");
+    }
     const chains = Object.fromEntries(CHAINS.map((chain) => [chain, this[chain].without(names, { unsafe })]));
     return new RuleSet({ ...chains, personal: this.personal });
   }

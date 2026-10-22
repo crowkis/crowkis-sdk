@@ -18,9 +18,12 @@ class TooShort {
     return false;
   }
 
-  async check(turn) {
-    if (!turn.isShort || (turn.call.shortTurns && (await turn.call.engineVouches()))) return null;
-    return new Verdict(this.name, "transcript too short to match safely", ["refusedShort"]);
+  // Asks the server only when it must (a short turn, short turns on): then a promise.
+  check(turn) {
+    if (!turn.isShort) return null;
+    const verdict = new Verdict(this.name, "transcript too short to match safely", ["refusedShort"]);
+    if (!turn.call.shortTurns) return verdict;
+    return Promise.resolve(turn.call.engineVouches()).then((vouches) => (vouches ? null : verdict));
   }
 }
 

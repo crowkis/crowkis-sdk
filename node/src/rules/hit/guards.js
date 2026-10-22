@@ -79,12 +79,13 @@ class DifferentQuestion {
     return false;
   }
 
-  async check(cached) {
+  // Asks the server (the questions the answer was saved for) only for a near hit: then a promise.
+  check(cached) {
     const turn = cached.turn;
     if (turn.isPersonal || cached.hit.exact) return null;
     const spentMs = performance.now() - cached.started;
-    if (!(await turn.call.answersAnotherQuestion(turn.key, cached.answer, spentMs))) return null;
-    return new Verdict(this.name, DIFFERENT_QUESTION_REASON, ["differentQuestion", "inferred"]);
+    return Promise.resolve(turn.call.answersAnotherQuestion(turn.key, cached.answer, spentMs)).then((another) =>
+      (another ? new Verdict(this.name, DIFFERENT_QUESTION_REASON, ["differentQuestion", "inferred"]) : null));
   }
 }
 

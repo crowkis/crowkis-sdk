@@ -1357,12 +1357,12 @@ class VoiceSession:
                 return _Outcome("interrupted", "the caller moved on before this answer was complete", rule="Interrupted")
             self._open = False
             shareable, self._shareable = self._shareable, (0, False)
-        answer = ModelAnswer(caller_said, model_said, self._context_key(caller_said, (caller_said or "").strip()),
-                             self._call, private=private, instructions=instructions,
+        answer = ModelAnswer(caller_said, model_said, None, self._call, private=private, instructions=instructions,
                              cacheable=shareable[1] and shareable[0] == expected and not private)
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return self._kept(verdict)
+        answer = answer.keyed(self._context_key(caller_said, answer.text))
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
         verdict = self._rules.before_sharing.first_objection(answer)

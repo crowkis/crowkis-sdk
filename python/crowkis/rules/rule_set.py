@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from typing import Sequence
 
-from .chain import RuleChain
+from .chain import FloorRuleLocked, RuleChain, UnknownRule, rule_names
 from .hit.guards import (
     CommitmentRewording,
     ConfidenceBar,
@@ -67,6 +67,16 @@ class RuleSet:
         )
 
     def without(self, names: Sequence[str], *, unsafe: bool = False) -> "RuleSet":
-        """These rules with the named ones turned off; a floor rule stays on unless ``unsafe``."""
+        """These rules with the named ones turned off; a floor rule stays on unless ``unsafe``.
+        The personal-answer rule is never turned off: it decides when an answer about the caller's
+        own records is shared. A name the set does not have is refused."""
+        names = rule_names(names)
         chains = {f.name: getattr(self, f.name) for f in fields(self) if isinstance(getattr(self, f.name), RuleChain)}
+        known = {name for chain in chains.values() for name in chain.names} | {self.personal.name}
+        unknown = [name for name in names if name not in known]
+        if unknown:
+            raise UnknownRule(f"no such rule: {', '.join(unknown)}")
+        if self.personal.name in names:
+            raise FloorRuleLocked(f"{self.personal.name} cannot be turned off: it decides when an answer about "
+                                  "the caller's own records is shared")
         return replace(self, **{name: chain.without(names, unsafe=unsafe) for name, chain in chains.items()})

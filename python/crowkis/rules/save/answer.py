@@ -74,7 +74,7 @@ class PersonalTemplate:
     the answer does not answer, the turn was cut off, or no shape could be made)."""
 
     name = "PersonalTemplate"
-    floor = False
+    floor = True
     REASON = "about this caller, with no declared value to make a shared answer shape from"
 
     def check(self, answer: ModelAnswer) -> Optional[Verdict]:

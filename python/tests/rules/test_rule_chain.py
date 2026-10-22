@@ -2,7 +2,7 @@
 import unittest
 
 from crowkis import CrowkisError
-from crowkis.rules import FloorRuleLocked, RuleChain, RuleSet
+from crowkis.rules import FloorRuleLocked, RuleChain, RuleSet, UnknownRule
 from crowkis.turns import Verdict
 
 
@@ -54,6 +54,22 @@ class VoiceRuleSetTests(unittest.TestCase):
         self.assertEqual(rules.personal.name, "PersonalTemplate")
         self.assertEqual(rules.sharing.names, ("TaintedCall", "NotShareable", "DeclaredValue", "CallerIdentifier",
                                                "NonAnswer"))
+
+    def test_rule_names_are_a_list_never_one_string(self):
+        with self.assertRaises(TypeError):
+            RuleChain([Objects("PrivateChain", True)]).without("PrivateChainX")
+        with self.assertRaises(TypeError):
+            RuleSet.voice().without("PrivateChainX")
+
+    def test_an_unknown_rule_name_is_refused(self):
+        with self.assertRaises(UnknownRule) as caught:
+            RuleSet.voice().without(["PrivateChainX"])
+        self.assertIsInstance(caught.exception, ValueError)
+
+    def test_the_personal_answer_rule_cannot_be_turned_off(self):
+        for unsafe in (False, True):
+            with self.subTest(unsafe=unsafe), self.assertRaises(FloorRuleLocked):
+                RuleSet.voice().without(["PersonalTemplate"], unsafe=unsafe)
 
     def test_the_floor_rules_of_the_voice_defaults_are_locked(self):
         rules = RuleSet.voice()

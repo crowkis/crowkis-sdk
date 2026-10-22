@@ -86,6 +86,10 @@ class PersonalTemplate extends SaveRule {
     return "PersonalTemplate";
   }
 
+  get floor() {
+    return true;
+  }
+
   check(answer) {
     if (!answer.isPersonal) return null;
     if (answer.call.tainted || answer.isNonAnswer || unfinished(answer.text)) return this.refusal();

@@ -6,7 +6,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CrowkisError } = require("../../index.js");
-const { FloorRuleLocked, RuleChain } = require("../../src/rules/chain.js");
+const { FloorRuleLocked, RuleChain, UnknownRule } = require("../../src/rules/chain.js");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
 const { Verdict } = require("../../src/turns/verdict.js");
 
@@ -57,6 +57,21 @@ test("the voice defaults are today's rules in today's order", () => {
   assert.strictEqual(rules.personal.name, "PersonalTemplate");
   assert.deepStrictEqual(rules.sharing.names, ["TaintedCall", "NotShareable", "DeclaredValue", "CallerIdentifier",
     "NonAnswer"]);
+});
+
+test("rule names are a list, never one string", () => {
+  assert.throws(() => new RuleChain([new Objects("PrivateChain", true)]).without("PrivateChainX"), TypeError);
+  assert.throws(() => RuleSet.voice().without("PrivateChainX"), TypeError);
+});
+
+test("an unknown rule name is refused", () => {
+  assert.throws(() => RuleSet.voice().without(["PrivateChainX"]), UnknownRule);
+});
+
+test("the personal answer rule cannot be turned off", () => {
+  for (const unsafe of [false, true]) {
+    assert.throws(() => RuleSet.voice().without(["PersonalTemplate"], { unsafe }), FloorRuleLocked);
+  }
 });
 
 test("the floor rules of the voice defaults are locked", () => {

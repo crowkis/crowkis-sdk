@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
 const { CrowkisClient } = require("./index.js");
+const { RuleChain } = require("./src/rules/chain.js");
 const { RuleSet } = require("./src/rules/ruleSet.js");
 const { CachedAnswer } = require("./src/turns/cachedAnswer.js");
 const { ModelAnswer } = require("./src/turns/modelAnswer.js");
@@ -672,7 +673,8 @@ class VoiceSession {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const reading = this._classifier.classify(text);
     const turn = new VoiceTurn(callerSaid, this._call, reading, this._rewriter.rewrite(text, reading));
-    let verdict = await this._rules.beforeFiller.firstObjection(turn);
+    let verdict = this._rules.beforeFiller.firstObjection(turn);
+    if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._infer(verdict);
 
     const filler = this._fillers.get(normalise(turn.text));
@@ -689,7 +691,9 @@ class VoiceSession {
       return decision;
     }
 
-    verdict = await this._rules.question.firstObjection(turn);
+    verdict = this._rules.question.firstObjection(turn);
+
+    if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._infer(verdict);
 
     const started = performance.now();
@@ -697,7 +701,8 @@ class VoiceSession {
     if (lookupVerdict) return this._infer(lookupVerdict);
 
     const cached = new CachedAnswer(turn, hit, started);
-    verdict = await this._rules.hit.firstObjection(cached);
+    verdict = this._rules.hit.firstObjection(cached);
+    if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._infer(verdict, hit.confidence);
 
     this.served += 1;
@@ -1046,19 +1051,22 @@ class VoiceSession {
     const expected = turn === undefined || turn === null ? this._turn : turn;
     const shareable = this._shareable;
     this._shareable = [0, false];
-    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    const answer = new ModelAnswer(callerSaid, modelSaid, this._contextKey(callerSaid, text), this._call, {
+    let answer = new ModelAnswer(callerSaid, modelSaid, null, this._call, {
       private: keep, instructions, cacheable: shareable[1] && shareable[0] === expected,
     });
-    let verdict = await this._rules.answerGiven.firstObjection(answer);
+    let verdict = this._rules.answerGiven.firstObjection(answer);
+    if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._kept(verdict);
+    answer = answer.keyed(this._contextKey(callerSaid, answer.text));
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    verdict = await this._rules.beforeSharing.firstObjection(answer);
+    verdict = this._rules.beforeSharing.firstObjection(answer);
+    if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._kept(verdict);
     try {
       if (answer.isPersonal) return await this._recordPersonal(answer);
-      verdict = await this._rules.sharing.firstObjection(answer);
+      verdict = this._rules.sharing.firstObjection(answer);
+      if (RuleChain.isPending(verdict)) verdict = await verdict;
       if (verdict) return this._kept(verdict);
       const slow = await this._learn(answer.key, modelSaid, { ttl: this.ttl });
       this._lastStored = answer.key;

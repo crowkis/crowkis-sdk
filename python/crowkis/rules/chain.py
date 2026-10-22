@@ -13,6 +13,17 @@ class FloorRuleLocked(CrowkisError, ValueError):
     """A floor rule was asked to be turned off without the explicit unsafe flag."""
 
 
+class UnknownRule(CrowkisError, ValueError):
+    """A rule was named that the rule set does not have."""
+
+
+def rule_names(names: Sequence[str]) -> Tuple[str, ...]:
+    """The names as a tuple; one string is refused, as it would match by its letters."""
+    if isinstance(names, str):
+        raise TypeError("rule names are a list of names, not one string")
+    return tuple(names)
+
+
 class RuleChain:
     """Chain of Responsibility: the rules of one stage, run in order; the first objection
     wins and names its rule."""
@@ -34,6 +45,7 @@ class RuleChain:
 
     def without(self, names: Sequence[str], *, unsafe: bool = False) -> "RuleChain":
         """This chain with the named rules turned off. A floor rule stays on unless ``unsafe``."""
+        names = rule_names(names)
         locked = [rule.name for rule in self._rules if rule.name in names and rule.floor]
         if locked and not unsafe:
             raise FloorRuleLocked(f"floor rules cannot be turned off without unsafe=True: {', '.join(locked)}")

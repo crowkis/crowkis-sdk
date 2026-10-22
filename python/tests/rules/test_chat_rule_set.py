@@ -24,9 +24,14 @@ class ChatRuleSetTests(unittest.TestCase):
         self.assertIn("LostDetail", rules.question.all_names)
 
     def test_chats_floor_rules_are_locked(self):
-        for floor_rule in ("UrgentTurn", "AboutSomeone", "IdentifyingDetails"):
+        for floor_rule in ("UrgentTurn", "NotGeneral", "AboutSomeone", "IdentifyingDetails"):
             with self.subTest(rule=floor_rule), self.assertRaises(FloorRuleLocked):
                 ChatRuleSet.chat(0.6).without([floor_rule])
+
+    def test_the_frame_group_reports_every_objection(self):
+        frame = TurnFrame.from_dict(dict(QUESTION, confidence=0.3, kind="personal", subject="self"))
+        verdict = RuleChecker().check(frame, "what is my refund policy", CallState())
+        self.assertEqual((verdict.route, verdict.reasons), ("personal", ["V2_uncertain", "V3_not_general"]))
 
     def test_must_still_work_a_confidence_floor_changed_later_is_read(self):
         checker = RuleChecker()

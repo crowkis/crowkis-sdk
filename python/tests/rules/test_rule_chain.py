@@ -40,6 +40,14 @@ class RuleChainTests(unittest.TestCase):
         self.assertEqual(chain.without(["Floor"], unsafe=True).names, ())
 
 
+class NestedFloorTests(unittest.TestCase):
+    def test_a_group_holding_a_floor_rule_is_locked_too(self):
+        chain = RuleChain([RuleChain([Objects("Floor", True, floor=True)], name="Group")])
+        with self.assertRaises(FloorRuleLocked):
+            chain.without(["Group"])
+        self.assertEqual(chain.without(["Group"], unsafe=True).names, ())
+
+
 class VoiceRuleSetTests(unittest.TestCase):
     def test_the_voice_defaults_are_todays_rules_in_todays_order(self):
         rules = RuleSet.voice()

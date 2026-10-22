@@ -6,12 +6,12 @@
  "cases": [
   {
    "name": "a phone number in the key",
-   "say": "is 9876543210 on my account",
+   "say": "is 5550001234 on my account",
    "frame": {
     "kind": "general",
     "subject": "none",
     "confidence": 0.9,
-    "question": "Is 9876543210 on the account?"
+    "question": "Is 5550001234 on the account?"
    },
    "state": {},
    "objects": true,

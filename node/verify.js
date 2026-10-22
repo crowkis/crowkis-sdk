@@ -24,9 +24,6 @@ const { ChatTurn } = require("./src/turns/chatTurn.js");
 const {
   FUNCTION,
   NUMWORDS,
-  UNITS,
-  EMAIL,
-  PHONE,
   toks,
   stem,
   QUESTION_WORDS,

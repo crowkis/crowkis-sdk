@@ -121,10 +121,6 @@ function norm(t) {
   return String(t || "").toLowerCase().replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, "").split(/\s+/).filter(Boolean).join(" ");
 }
 
-function escapeRe(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 class TurnResult {
   constructor(turnId, route, fields = {}) {
     this.turnId = turnId;

@@ -19,6 +19,20 @@
    "reason": "V6_ungrounded:visitors"
   },
   {
+   "name": "many words nobody said: the first three are named",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy for visitors tourists students pensioners?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V6_ungrounded:visitors,tourists,students"
+  },
+  {
    "name": "every word grounded",
    "say": "what is your refund policy",
    "frame": {

@@ -24,6 +24,13 @@ def rule_names(names: Sequence[str]) -> Tuple[str, ...]:
     return tuple(names)
 
 
+def _holds_floor(rule: Rule) -> bool:
+    """A floor rule, or a chain with a floor rule anywhere inside it."""
+    if rule.floor:
+        return True
+    return isinstance(rule, RuleChain) and any(_holds_floor(inner) for inner in rule._rules)
+
+
 class RuleChain:
     """Chain of Responsibility: the rules of one stage, run in order; the first objection
     wins and names its rule. ``all_objections`` runs every rule instead (Chat reports each
@@ -74,7 +81,7 @@ class RuleChain:
         """This chain with the named rules turned off, in chains inside it too. A floor rule stays
         on unless ``unsafe``."""
         names = rule_names(names)
-        locked = [rule.name for rule in self._rules if rule.name in names and rule.floor]
+        locked = [rule.name for rule in self._rules if rule.name in names and _holds_floor(rule)]
         if locked and not unsafe:
             raise FloorRuleLocked(f"floor rules cannot be turned off without unsafe=True: {', '.join(locked)}")
         kept = [rule.without(names, unsafe=unsafe) if isinstance(rule, RuleChain) else rule

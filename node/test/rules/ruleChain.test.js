@@ -45,6 +45,17 @@ test("a floor rule stays on without the unsafe flag", () => {
   assert.deepStrictEqual(chain.without(["Floor"], { unsafe: true }).names, []);
 });
 
+test("a group holding a floor rule is locked too", () => {
+  const chain = new RuleChain([new RuleChain([new Objects("Floor", true, true)], { name: "Group" })]);
+  assert.throws(() => chain.without(["Group"]), FloorRuleLocked);
+  assert.deepStrictEqual(chain.without(["Group"], { unsafe: true }).names, []);
+});
+
+test("collecting every objection refuses a rule that answers with a promise", () => {
+  const later = { name: "Later", floor: false, check: async () => null };
+  assert.throws(() => new RuleChain([later]).allObjections("turn"), TypeError);
+});
+
 test("the voice defaults are today's rules in today's order", () => {
   const rules = RuleSet.voice();
   assert.deepStrictEqual(rules.beforeFiller.names, ["EmptyTurn"]);

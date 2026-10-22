@@ -27,9 +27,15 @@ test("a rule inside the V7 group can be turned off", () => {
 });
 
 test("chat's floor rules are locked", () => {
-  for (const floorRule of ["UrgentTurn", "AboutSomeone", "IdentifyingDetails"]) {
+  for (const floorRule of ["UrgentTurn", "NotGeneral", "AboutSomeone", "IdentifyingDetails"]) {
     assert.throws(() => ChatRuleSet.chat(0.6).without([floorRule]), FloorRuleLocked, floorRule);
   }
+});
+
+test("the frame group reports every objection", () => {
+  const frame = TurnFrame.fromDict({ ...QUESTION, confidence: 0.3, kind: "personal", subject: "self" });
+  const verdict = new RuleChecker().check(frame, "what is my refund policy", new CallState());
+  assert.deepStrictEqual([verdict.route, verdict.reasons], ["personal", ["V2_uncertain", "V3_not_general"]]);
 });
 
 test("must still work: a confidence floor changed later is read", () => {

@@ -70,11 +70,17 @@ class RuleChain {
     return this.firstObjection(subject);
   }
 
-  /** Every rule's objection to `subject`, in order. Chat's rules answer at once. */
+  /** A floor rule, or a chain with a floor rule anywhere inside it. */
+  static _holdsFloor(rule) {
+    return Boolean(rule.floor) || (rule instanceof RuleChain && rule._rules.some((inner) => RuleChain._holdsFloor(inner)));
+  }
+
+  /** Every rule's objection to `subject`, in order. Chat's rules answer at once; one that does not is refused. */
   allObjections(subject) {
     const found = [];
     for (const rule of this._rules) {
       const verdict = rule.check(subject);
+      if (isPending(verdict)) throw new TypeError(`${rule.name} answered with a promise; allObjections needs answers at once`);
       if (verdict) found.push(verdict);
     }
     return found;
@@ -93,7 +99,7 @@ class RuleChain {
   /** This chain with the named rules turned off. A floor rule stays on unless `unsafe`. */
   without(names, { unsafe = false } = {}) {
     ruleNames(names);
-    const locked = this._rules.filter((rule) => names.includes(rule.name) && rule.floor).map((rule) => rule.name);
+    const locked = this._rules.filter((rule) => names.includes(rule.name) && RuleChain._holdsFloor(rule)).map((rule) => rule.name);
     if (locked.length && !unsafe) {
       throw new FloorRuleLocked(`floor rules cannot be turned off without unsafe: true: ${locked.join(", ")}`);
     }

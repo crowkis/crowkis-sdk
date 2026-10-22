@@ -11,7 +11,7 @@ class NotGeneral {
   }
 
   get floor() {
-    return false;
+    return true;
   }
 
   check(turn) {

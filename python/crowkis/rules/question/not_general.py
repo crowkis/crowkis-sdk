@@ -12,7 +12,7 @@ class NotGeneral:
     """A turn that is not a general question about no one in particular is not shared."""
 
     name = "NotGeneral"
-    floor = False
+    floor = True
 
     def check(self, turn: ChatTurn) -> Optional[Verdict]:
         if turn.frame.kind == "general" and turn.frame.subject == "none":

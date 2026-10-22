@@ -9,8 +9,9 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
-| P4 pluggable understanding | 1-2 windows | | | |
+| P4 pluggable understanding | 1-2 windows | in progress (owner: start 2026-10-22; stop lines 97% 5-hour and weekly) | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
+| P5.5 clean code (owner, 2026-10-22) | after P5 | not started (in the plan file, owned by the orchestrating session) | | |
 | P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
 
 ## P0 (done)

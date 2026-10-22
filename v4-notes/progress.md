@@ -58,15 +58,32 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
-## Where the work stopped (2026-10-22, ~19:00 IST)
+## Where the work stopped, and how to continue (2026-10-22, ~19:00 IST)
 
-- Stopped at a clean point: everything committed (last code commit `5382d42`, notes after it), Python 702
-  passed / 77 skipped and Node 48/48 files, golden decisions identical.
-- Why: the weekly limit is at 85% and rising about 14 points an hour; P3's last piece (CallSession / Chat
-  on the shared core) could take it past 95%. The weekly limit resets 2026-10-23 13:00 UTC; the owner
-  restarts the work.
-- Waiting on an owner decision for that piece: Chat's writes stay unbounded (proposed; only the lookup
-  deadline moves to CacheLookup), or Chat gets bounded writes with a new `slow_write` outcome.
+- **Clean point:** everything committed (last code commit `5382d42`), Python 702 passed / 77 skipped, Node
+  48/48 files, golden decisions identical. Paused for the weekly limit (85%); the owner restarts the work
+  after the weekly reset (2026-10-23 13:00 UTC). No timer is set for it.
+- **Current step: P3's last piece.** `CallSession` and `Chat` on the shared turn core with a `ChatChannel`
+  profile (value object: budget ~1000 ms, no audio, not spoken, saves answers), and Chat's lookup through
+  `runtime/CacheLookup` (adapt its counters: Chat counts `lookup_timeouts` / `lookup_errors` in `counts`).
+  Golden Chat decisions must stay identical; Chat's tests unchanged.
+- **Owner decision (2026-10-22): option (b).** Chat keeps waiting for its writes, and only the lookup deadline
+  moves to `CacheLookup`, so Chat's outcomes do not change. Chat's `BoundedWrite` (with the new `slow_write`
+  outcome) is **deferred to P5 item 3**, as an opt-in behaviour change with failing-first tests.
+- **Open review findings:** none blocking. Deferred to P4: rules read the classifier's reading instead of
+  private `word_rules` functions (and `_model_messages`, `ModelAnswer.is_personal`, `PrivateChain`'s chain
+  too), a typed `Hit` instead of the raw hit dict. Pre-existing, logged only: the "refused" warning logs
+  `str(error)`; `TurnPairing.start()` / `record_private_turn` flags outside the lock; the real-server
+  conformance scenario "a reworded question hits" fails since this morning (also on `0594148`).
+- **After P3:** reviews (code + privacy, subagents), real-server conformance (`docker start crowkis-demo`,
+  tenant `voice`, never flush, stop afterwards), progress note, then P4.
+- **Usage rules (owner):** check `mcp__ccd_session_mgmt__get_usage` before every step. 5-hour limit: stop at a
+  clean point before a step that would pass 97%, then wait for its reset with a background timer and
+  continue. Weekly limit: never start a step that could take it past 95%; stop at a clean point, note it
+  here, and do not set a timer (the owner restarts).
+- **Environments:** framework venvs in this session's scratchpad (`lk-venv` LiveKit 1.8.8, `pc-venv` Pipecat
+  1.13); LiveKit JS under the older scratchpad `9b31f435-.../livekit-js/node_modules` (`NODE_PATH`). Commits:
+  no co-author trailer; push nothing (pushes from this clone are blocked).
 
 ## P2 follow-ups (owner request, 2026-10-22, done before resuming P3)
 

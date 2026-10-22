@@ -3,17 +3,14 @@
 const crypto = require("node:crypto");
 const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
 const { CrowkisClient } = require("./index.js");
-const { RuleChain } = require("./src/rules/chain.js");
 const { RuleSet } = require("./src/rules/ruleSet.js");
-const { CachedAnswer } = require("./src/turns/cachedAnswer.js");
-const { ModelAnswer } = require("./src/turns/modelAnswer.js");
 const { SessionCall } = require("./src/turns/sessionCall.js");
 const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
 const { CacheLookup } = require("./src/runtime/cacheLookup.js");
 const { TurnPairing } = require("./src/runtime/turnPairing.js");
+const { TurnDecision } = require("./src/turns/decision.js");
+const { TurnCore } = require("./src/turns/turnCore.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
-const { Verdict } = require("./src/turns/verdict.js");
-const { VoiceTurn } = require("./src/turns/voiceTurn.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
@@ -331,69 +328,6 @@ const HEARD_MAX = 2048;
 // What _recordModelTurn did with an answer; the two that put it in the shared cache.
 const STORED = new Set(["saved", "template"]);
 
-class TurnDecision {
-  constructor(action, { text = null, audio = null, confidence = 0, reason = "", rule = null } = {}) {
-    this.action = action;
-    this.text = text;
-    this.audio = audio;
-    this.confidence = confidence;
-    this.reason = reason;
-    // The rule behind the action (null for a confident hit), and after record() the rule
-    // that kept the answer out of the cache (null when it was stored). Names are the v4
-    // rule names, so a decision can be traced to the one check that made it.
-    this.rule = rule;
-    this.saveRule = null;
-    // For a model turn: what the model must read, and whether its answer is shared.
-    // null means "the whole call", and then the answer is never shared.
-    this.messages = null;
-    this.cacheable = false;
-    // Which turn of the call this is; an answer recorded for an older turn is dropped.
-    this.turn = 0;
-    // After answer(): whether the model's answer was stored, and if not, why.
-    this.stored = false;
-    this.notStored = "";
-    // Not enumerable: read through `empty`, never set by callers or copied out with the decision.
-    Object.defineProperty(this, "_empty", { value: false, writable: true, enumerable: false });
-    Object.defineProperty(this, "_audioShareable", { value: false, writable: true, enumerable: false });
-    // Set by decide(): the session that made it (a WeakRef, so a kept decision never
-    // keeps a call alive) and, for a model turn, what the caller said, so record()
-    // takes a decision only from its own session, and only once. Not enumerable, so a
-    // logged or serialised decision never carries them; the caller's words are dropped
-    // once recorded.
-    Object.defineProperty(this, "_session", { value: null, writable: true, enumerable: false });
-    Object.defineProperty(this, "_said", { value: null, writable: true, enumerable: false });
-    Object.defineProperty(this, "_recorded", { value: false, writable: true, enumerable: false });
-  }
-
-  /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
-  get audioShareable() {
-    return this._audioShareable;
-  }
-
-  get servedFromCache() {
-    return this.action === "serve";
-  }
-
-  get servedFromFiller() {
-    return this.action === "filler";
-  }
-
-  get needsModel() {
-    return this.action === "infer";
-  }
-
-  /** After answer(): the model was asked and said nothing (the action stays "infer"); retry, or speak a fallback. */
-  get empty() {
-    return this._empty;
-  }
-
-  toString() {
-    return (
-      `TurnDecision('${this.action}', confidence=${this.confidence.toFixed(4)}, ` +
-      `reason='${this.reason}')`
-    );
-  }
-}
 
 // What VoiceSession.respond() resolves to: read it with `for await` for the text to
 // speak, piece by piece as the model writes it. `decision` is ready at once, before the
@@ -592,6 +526,11 @@ class VoiceSession {
       (message) => console.warn(message));
     // Lookups run inside the budget the call has when it looks up.
     this._cacheLookup = new CacheLookup();
+    // The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
+    this._core = new TurnCore(this, {
+      rules: this._rules, call: this._call, pairing: this._pairing, cacheLookup: this._cacheLookup,
+      classifier: this._classifier, rewriter: this._rewriter,
+    });
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
     if (values) this.setValues(values);
@@ -656,79 +595,9 @@ class VoiceSession {
     return [[...chain, callerSaid].map((turn) => ({ role: "user", content: turn })), true];
   }
 
-  async _decide(callerSaid) {
-    this._pairing.start(this.transcript.length);
 
-    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    const reading = this._classifier.classify(text);
-    const turn = new VoiceTurn(callerSaid, this._call, reading, this._rewriter.rewrite(text, reading));
-    let verdict = this._rules.beforeFiller.firstObjection(turn);
-    if (RuleChain.isPending(verdict)) verdict = await verdict;
-    if (verdict) return this._infer(verdict);
 
-    const filler = this._fillers.get(normalise(turn.text));
-    if (filler !== undefined) {
-      this.filled += 1;
-      const decision = new TurnDecision("filler", {
-        text: filler,
-        audio: await this._voiced(filler),
-        confidence: 1,
-        reason: "registered filler, answered without a lookup or a model",
-        rule: "RegisteredFiller",
-      });
-      decision._audioShareable = true;
-      return decision;
-    }
 
-    verdict = this._rules.question.firstObjection(turn);
-
-    if (RuleChain.isPending(verdict)) verdict = await verdict;
-    if (verdict) return this._infer(verdict);
-
-    const started = performance.now();
-    const { hit, verdict: lookupVerdict } = await this._lookup(turn, started);
-    if (lookupVerdict) return this._infer(lookupVerdict);
-
-    const cached = new CachedAnswer(turn, hit, started);
-    verdict = this._rules.hit.firstObjection(cached);
-    if (RuleChain.isPending(verdict)) verdict = await verdict;
-    if (verdict) return this._infer(verdict, hit.confidence);
-
-    this.served += 1;
-    this.transcript.push({ role: "user", content: callerSaid });
-    this.transcript.push({ role: "assistant", content: cached.answer });
-    const decision = new TurnDecision("serve", {
-      text: cached.answer,
-      audio: await this._voiced(cached.answer, { cacheable: !turn.isPersonal }),
-      confidence: hit.confidence,
-      reason: "confident cache hit",
-    });
-    decision._audioShareable = !turn.isPersonal;
-    return decision;
-  }
-
-  // The cache's hit for a turn, within the latency budget, or a Verdict when the cache was too
-  // slow or could not be reached (the model answers then).
-  async _lookup(turn, started) {
-    const ask = () => this.agent.ask(turn.key, {
-      serveAbove: this.serveAbove,
-      cheapAbove: Math.min(0.6, this.serveAbove),
-      template: turn.isPersonal,
-      threshold: turn.isContextDependent || turn.isShort ? CONTEXT_BOUND_THRESHOLD : undefined,
-    });
-    return this._cacheLookup.find(ask, started, this.latencyBudgetMs);
-  }
-
-  // The model answers this turn: `verdict` says which rule decided so, and why.
-  _infer(verdict, confidence = 0) {
-    this._countVerdict(verdict);
-    this._ruleCounts.set(verdict.rule, (this._ruleCounts.get(verdict.rule) || 0) + 1);
-    return new TurnDecision("infer", { confidence, reason: verdict.reason, rule: verdict.rule });
-  }
-
-  _countVerdict(verdict) {
-    for (const name of verdict.counts) this[name] += 1;
-  }
 
   /**
    * Whether the server judges what it caches, asked inside this call's budget:
@@ -976,69 +845,23 @@ class VoiceSession {
   // "refused" (the write failed), "slow_write" (a session with a latency budget stopped
   // waiting for the write: not confirmed) or "interrupted" (talked over, or the caller
   // moved on before it was complete).
+  _decide(callerSaid) {
+    return this._core.decide(callerSaid);
+  }
+
   async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
     return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
 
   // The same, with why an answer was not stored, in words, and the rule that decided it.
   async _record(callerSaid, modelSaid, options = {}) {
-    const recorded = await this._recordAnswer(callerSaid, modelSaid, options);
+    const recorded = await this._core.record(callerSaid, modelSaid, options);
     if (recorded.rule) this._ruleCounts.set(recorded.rule, (this._ruleCounts.get(recorded.rule) || 0) + 1);
     return recorded;
   }
 
-  // _record without the per-rule count: the save chains, then the write.
-  async _recordAnswer(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
-    const outcome = (word, why = "", rule = null) => ({ outcome: word, why, rule });
-    const settled = this._pairing.settle(turn);
-    if (!settled) return outcome("interrupted", "the caller moved on before this answer was complete", "Interrupted");
-    let answer = new ModelAnswer(callerSaid, modelSaid, null, this._call, { private: keep, instructions, cacheable: settled[1] });
-    let verdict = this._rules.answerGiven.firstObjection(answer);
-    if (RuleChain.isPending(verdict)) verdict = await verdict;
-    if (verdict) return this._kept(verdict);
-    answer = answer.keyed(this._contextKey(callerSaid, answer.text));
-    this.transcript.push({ role: "user", content: callerSaid });
-    this.transcript.push({ role: "assistant", content: modelSaid });
-    verdict = this._rules.beforeSharing.firstObjection(answer);
-    if (RuleChain.isPending(verdict)) verdict = await verdict;
-    if (verdict) return this._kept(verdict);
-    try {
-      if (answer.isPersonal) return await this._recordPersonal(answer);
-      verdict = this._rules.sharing.firstObjection(answer);
-      if (RuleChain.isPending(verdict)) verdict = await verdict;
-      if (verdict) return this._kept(verdict);
-      const slow = await this._learn(answer.key, modelSaid, { ttl: this.ttl });
-      this._lastStored = answer.key;
-      if (!slow) this._keepQuestion(answer.key, modelSaid); // a slow server gets no extra write
-      return slow || outcome("saved");
-    } catch (error) {
-      this.learnErrors += 1;
-      return outcome(
-        "refused",
-        `the server refused the write: ${(error && error.message) || (error && error.name) || String(error)}`,
-        "WriteRefused"
-      );
-    }
-  }
 
-  // A personal answer is shared only as a shape with this call's values taken out.
-  async _recordPersonal(answer) {
-    const personal = this._rules.personal;
-    let verdict = personal.check(answer);
-    if (!verdict) {
-      const templated = await this._learnPersonal(answer.key, answer.answer);
-      if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
-      if (templated) return { outcome: "template", why: "", rule: null };
-      verdict = personal.refusal();
-    }
-    return this._kept(verdict);
-  }
 
-  // A save rule kept the answer out of the shared cache.
-  _kept(verdict) {
-    this._countVerdict(verdict);
-    return { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule };
-  }
 
   injections() {
     return this.transcript.slice();

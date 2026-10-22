@@ -67,6 +67,12 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   profile (value object: budget ~1000 ms, no audio, not spoken, saves answers), and Chat's lookup through
   `runtime/CacheLookup` (adapt its counters: Chat counts `lookup_timeouts` / `lookup_errors` in `counts`).
   Golden Chat decisions must stay identical; Chat's tests unchanged.
+- **Resumed 2026-10-22 (owner: finish P3 today, weekly line 98% for P3 only, then stop; no P4).** Steps:
+  (1) channel profiles `turns/channel` (`VOICE`, `CHAT`, `REALTIME` per plan §3.3); (2) Chat's lookup through
+  `CacheLookup` with `refuse_late_hits=False` (Chat never refused a late hit; voice does); (3) Chat's turn flow
+  into `ChatCore` (Template Method beside the voice `TurnCore`, typed parts, a `ChatHost` interface the session
+  implements), `CallSession` delegating. One core class for both channels needs Chat's steps generalised and is
+  left to P5 (noted for the owner).
 - **Owner decision (2026-10-22): option (b).** Chat keeps waiting for its writes, and only the lookup deadline
   moves to `CacheLookup`, so Chat's outcomes do not change. Chat's `BoundedWrite` (with the new `slow_write`
   outcome) is **deferred to P5 item 3**, as an opt-in behaviour change with failing-first tests.

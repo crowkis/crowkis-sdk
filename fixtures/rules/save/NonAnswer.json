@@ -1,0 +1,23 @@
+{
+ "rule": "NonAnswer",
+ "stage": "save",
+ "about": "v4: when the save rule NonAnswer objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "asks back",
+   "say": "what is your refund policy",
+   "answer": "Could you tell me which order you mean?",
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "non_answer"
+  },
+  {
+   "name": "answers",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "objects": false
+  }
+ ]
+}

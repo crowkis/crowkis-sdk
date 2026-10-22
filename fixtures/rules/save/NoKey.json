@@ -1,0 +1,24 @@
+{
+ "rule": "NoKey",
+ "stage": "save",
+ "about": "v4: when the save rule NoKey objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "no key",
+   "say": "and what about that",
+   "answer": "It is free.",
+   "call": {
+    "key": null
+   },
+   "objects": true,
+   "counts": [],
+   "outcome": "not_saved"
+  },
+  {
+   "name": "a key",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "objects": false
+  }
+ ]
+}

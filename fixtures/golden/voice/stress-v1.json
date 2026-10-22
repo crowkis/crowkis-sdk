@@ -15,6 +15,11 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 2,
+    "rules": {
+     "ConfidenceBar": 5,
+     "NotShareable": 2,
+     "TooShort": 2
+    },
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 6,
@@ -136,6 +141,12 @@
     "not_shareable": 6,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 7,
+     "ConfidenceBar": 2,
+     "PersonalTemplate": 1,
+     "TaintedCall": 6
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -263,6 +274,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 8
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -393,6 +407,10 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 7,
+     "NonAnswer": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -514,6 +532,11 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 7,
+     "NotShareable": 1,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -641,6 +664,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 7
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -756,6 +782,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 7,
+     "OwnRecords": 1,
+     "PersonalTemplate": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -884,6 +915,11 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 6,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -1008,6 +1044,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 8
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -1137,6 +1176,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
+     "OwnRecords": 5,
+     "PersonalTemplate": 5,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -1266,6 +1312,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
+     "OwnRecords": 5,
+     "PersonalTemplate": 5,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -1395,6 +1448,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 2,
+     "OwnRecords": 5,
+     "PersonalTemplate": 5
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -1500,6 +1558,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 3,
+     "OwnRecords": 4,
+     "PersonalTemplate": 5,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -1629,6 +1694,12 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "ConfidenceBar": 2,
+     "OwnRecords": 3,
+     "PersonalTemplate": 7
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -1756,6 +1827,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 4,
+     "NotShareable": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -1852,6 +1929,12 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 6,
+     "ConfidenceBar": 1,
+     "PersonalTemplate": 4,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -1955,6 +2038,11 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 8,
+     "PersonalTemplate": 5,
+     "TaintedCall": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -2067,6 +2155,11 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 7,
+     "PersonalTemplate": 5,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -2168,6 +2261,11 @@
     "not_shareable": 4,
     "refused_to_share_a_private_answer": 9,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 9,
+     "PersonalTemplate": 5,
+     "TaintedCall": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -2291,6 +2389,13 @@
     "not_shareable": 4,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 4,
+     "OwnRecords": 4,
+     "PersonalTemplate": 4,
+     "PrivateChain": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -2416,6 +2521,12 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 8,
+     "NonAnswer": 3,
+     "PersonalTemplate": 1,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -2571,6 +2682,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 5,
+     "NotShareable": 2,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -2693,6 +2811,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NonAnswer": 1,
+     "NotShareable": 1,
+     "OwnRecords": 6,
+     "PersonalTemplate": 6
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -2820,6 +2945,13 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 6,
+     "ConfidenceBar": 2,
+     "OwnRecords": 2,
+     "PersonalTemplate": 5,
+     "TaintedCall": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 10,
@@ -2958,6 +3090,11 @@
     "not_shareable": 6,
     "refused_to_share_a_private_answer": 9,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 9,
+     "PersonalTemplate": 3,
+     "TaintedCall": 6
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -3081,6 +3218,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 5,
+     "NotShareable": 1,
+     "PersonalTemplate": 1,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -3191,6 +3335,14 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 2,
+    "rules": {
+     "ConfidenceBar": 2,
+     "CutOff": 1,
+     "NotShareable": 2,
+     "OwnRecords": 3,
+     "PersonalTemplate": 3,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 5,
@@ -3297,6 +3449,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "ConfidenceBar": 3,
+     "OwnRecords": 2,
+     "PersonalTemplate": 4,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
@@ -3426,6 +3585,12 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 6,
+     "OwnRecords": 2,
+     "PersonalTemplate": 5,
+     "TaintedCall": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -3538,6 +3703,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "OwnRecords": 2,
+     "PersonalTemplate": 5,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -3628,6 +3799,11 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 6,
+     "PersonalTemplate": 3,
+     "TaintedCall": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -3718,6 +3894,13 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 5,
+     "NoKey": 1,
+     "OwnRecords": 3,
+     "PersonalTemplate": 4,
+     "TaintedCall": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -3830,6 +4013,12 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 7,
+     "ConfidenceBar": 1,
+     "PersonalTemplate": 5,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -3944,6 +4133,11 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 8,
+     "PersonalTemplate": 6,
+     "TaintedCall": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -4056,6 +4250,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
+     "OwnRecords": 4,
+     "PersonalTemplate": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -4161,6 +4361,11 @@
     "not_shareable": 4,
     "refused_to_share_a_private_answer": 8,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 8,
+     "PersonalTemplate": 4,
+     "TaintedCall": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -4273,6 +4478,13 @@
     "not_shareable": 4,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 3,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 4,
+     "OwnRecords": 3,
+     "PersonalTemplate": 4,
+     "TooShort": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -4398,6 +4610,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
+     "OwnRecords": 4,
+     "PersonalTemplate": 4,
+     "PrivateChain": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -4516,6 +4735,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 4,
+    "rules": {
+     "ConfidenceBar": 2,
+     "NotShareable": 2,
+     "OwnRecords": 4,
+     "PersonalTemplate": 6,
+     "TooShort": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -4654,6 +4880,14 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 6,
     "refused_too_short": 1,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 2,
+     "CutOff": 1,
+     "OwnRecords": 4,
+     "PersonalTemplate": 6,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -4781,6 +5015,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 6,
+     "OwnRecords": 1,
+     "PersonalTemplate": 1
+    },
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 8,
@@ -4903,6 +5142,13 @@
     "not_shareable": 10,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 9,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 10,
+     "PersonalTemplate": 2,
+     "PrivateChain": 1,
+     "TooShort": 9
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,
@@ -5072,6 +5318,12 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 4,
+     "CutOff": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -5181,6 +5433,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
+     "OwnRecords": 3,
+     "PersonalTemplate": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -5275,6 +5533,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 4,
+     "NotShareable": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -5372,6 +5636,11 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "PersonalTemplate": 3,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,
@@ -5440,6 +5709,11 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 5,
+     "PersonalTemplate": 4,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 5,
@@ -5519,6 +5793,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 3,
+     "OwnRecords": 2,
+     "PersonalTemplate": 3,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -5629,6 +5910,13 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 4,
+     "CutOff": 1,
+     "NotShareable": 2,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -5737,6 +6025,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 2,
+     "OwnRecords": 4,
+     "PersonalTemplate": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -5832,6 +6125,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 5,
     "refused_too_short": 1,
+    "rules": {
+     "ConfidenceBar": 2,
+     "NotShareable": 1,
+     "OwnRecords": 5,
+     "PersonalTemplate": 5,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -5948,6 +6248,14 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 3,
+    "rules": {
+     "ConfidenceBar": 1,
+     "CutOff": 1,
+     "NotShareable": 3,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2,
+     "TooShort": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 3,
@@ -6040,6 +6348,12 @@
     "not_shareable": 3,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 4,
+     "NotShareable": 3,
+     "OwnRecords": 3,
+     "PersonalTemplate": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -6143,6 +6457,15 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 2,
+     "ConfidenceBar": 3,
+     "FollowUpWithoutContext": 1,
+     "NoKey": 1,
+     "NotShareable": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
@@ -6260,6 +6583,13 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 1,
+    "rules": {
+     "CallContextTaint": 5,
+     "NotShareable": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 7,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 7,
@@ -6372,6 +6702,12 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "ConfidenceBar": 2,
+     "PersonalTemplate": 3,
+     "TaintedCall": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -6466,6 +6802,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "OwnRecords": 4,
+     "PersonalTemplate": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 5,
@@ -6547,6 +6888,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "OwnRecords": 3,
+     "PersonalTemplate": 3
+    },
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 5,
@@ -6626,6 +6972,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 2,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,
@@ -6698,6 +7049,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 4,
@@ -6766,6 +7122,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "OwnRecords": 2,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 3,
@@ -6825,6 +7186,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 1,
+     "OwnRecords": 1,
+     "PersonalTemplate": 2
+    },
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 3,
@@ -6880,6 +7246,11 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 3,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "OwnRecords": 3,
+     "PersonalTemplate": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,
@@ -6950,6 +7321,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 4
+    },
     "served_from_cache": 2,
     "slow_writes": 0,
     "turns": 6,
@@ -7044,6 +7418,13 @@
     "not_shareable": 15,
     "refused_to_share_a_private_answer": 27,
     "refused_too_short": 1,
+    "rules": {
+     "CallContextTaint": 27,
+     "NotShareable": 1,
+     "PersonalTemplate": 13,
+     "TaintedCall": 14,
+     "TooShort": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 27,
@@ -7376,6 +7757,14 @@
     "not_shareable": 6,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 3,
+    "rules": {
+     "ConfidenceBar": 12,
+     "NonAnswer": 2,
+     "NotShareable": 4,
+     "OwnRecords": 7,
+     "PersonalTemplate": 7,
+     "TooShort": 3
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 19,
@@ -7665,6 +8054,11 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 5,
+     "NotShareable": 1,
+     "ScreenOnlyAnswer": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 6,
@@ -7765,6 +8159,10 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 4,
     "refused_too_short": 0,
+    "rules": {
+     "CallContextTaint": 4,
+     "NoKey": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,
@@ -7833,6 +8231,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 5
+    },
     "served_from_cache": 2,
     "slow_writes": 0,
     "turns": 7,
@@ -7940,6 +8341,15 @@
     "not_shareable": 2,
     "refused_to_share_a_private_answer": 2,
     "refused_too_short": 4,
+    "rules": {
+     "FollowUpWithoutContext": 2,
+     "NoKey": 2,
+     "NotShareable": 2,
+     "OwnRecords": 1,
+     "PersonalTemplate": 4,
+     "PrivateChain": 1,
+     "TooShort": 4
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 4,

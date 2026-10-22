@@ -1,0 +1,23 @@
+{
+ "rule": "EmptyAnswer",
+ "stage": "save",
+ "about": "v4: when the save rule EmptyAnswer objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "nothing said",
+   "say": "what is your refund policy",
+   "answer": "",
+   "objects": true,
+   "counts": [
+    "empty_answers"
+   ],
+   "outcome": "non_answer"
+  },
+  {
+   "name": "an answer",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "objects": false
+  }
+ ]
+}

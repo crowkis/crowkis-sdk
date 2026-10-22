@@ -1,0 +1,26 @@
+{
+ "rule": "TaintedCall",
+ "stage": "save",
+ "about": "v4: when the save rule TaintedCall objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "the call was told something",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "call": {
+    "tainted": true
+   },
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "kept"
+  },
+  {
+   "name": "nothing told",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "objects": false
+  }
+ ]
+}

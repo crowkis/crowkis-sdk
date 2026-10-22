@@ -1,0 +1,31 @@
+{
+ "rule": "OwnRecords",
+ "stage": "question",
+ "about": "v4: when the question rule OwnRecords objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "the caller's own order",
+   "say": "my order 48213 has not arrived where is it",
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "the caller's own order, values declared",
+   "say": "my order 48213 has not arrived where is it",
+   "call": {
+    "values": {
+     "eta": "Tuesday"
+    }
+   },
+   "objects": false
+  },
+  {
+   "name": "a general question",
+   "say": "what is your refund policy",
+   "objects": false
+  }
+ ]
+}

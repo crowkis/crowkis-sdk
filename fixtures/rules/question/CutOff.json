@@ -1,0 +1,20 @@
+{
+ "rule": "CutOff",
+ "stage": "question",
+ "about": "v4: when the question rule CutOff objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a cut-off question",
+   "say": "do you deliver on",
+   "objects": true,
+   "counts": [
+    "refused_short"
+   ]
+  },
+  {
+   "name": "a full question",
+   "say": "do you deliver on sundays",
+   "objects": false
+  }
+ ]
+}

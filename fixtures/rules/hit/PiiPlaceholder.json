@@ -1,0 +1,35 @@
+{
+ "rule": "PiiPlaceholder",
+ "stage": "hit",
+ "about": "v4: when the hit rule PiiPlaceholder objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a server placeholder",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "We emailed pii_email_a1b2 the receipt.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a plain answer",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": false
+  }
+ ]
+}

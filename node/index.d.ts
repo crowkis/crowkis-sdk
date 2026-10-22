@@ -566,6 +566,8 @@ export interface VoiceStats {
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
+  /** How often each rule decided a turn or kept an answer, by the rule's name (e.g. { CutOff: 2 }). */
+  rules: Record<string, number>;
 }
 
 export class VoiceSession {

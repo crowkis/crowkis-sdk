@@ -1,0 +1,53 @@
+{
+ "rule": "DifferentQuestion",
+ "stage": "hit",
+ "about": "v4: when the hit rule DifferentQuestion objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "saved for another question",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "call": {
+    "another_question": true
+   },
+   "objects": true,
+   "counts": [
+    "different_question",
+    "inferred"
+   ]
+  },
+  {
+   "name": "an exact hit",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": true,
+    "vouched": false,
+    "commitment": false
+   },
+   "call": {
+    "another_question": true
+   },
+   "objects": false
+  },
+  {
+   "name": "saved for this question",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": false
+  }
+ ]
+}

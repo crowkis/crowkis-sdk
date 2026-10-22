@@ -1,5 +1,5 @@
 "use strict";
-// Runs every test-*.js in its own process with the CROWKIS_* server settings removed
+// Runs every test-*.js (and test/**/*.test.js) in its own process with the CROWKIS_* server settings removed
 // from the environment, so a variable set for real work (CROWKIS_AUTH_TOKEN, ...)
 // cannot reach tests that build a client with only a port. Tests that want the
 // environment set it themselves.  Usage: npm test  (or node run-tests.js [files...])
@@ -11,9 +11,21 @@ const NAMES = ["CROWKIS_HOST", "CROWKIS_PORT", "CROWKIS_AUTH_TOKEN", "CROWKIS_TO
 const env = { ...process.env };
 for (const name of NAMES) delete env[name];
 
+// The old place (test-*.js here) and the new one (test/**/*.test.js, mirroring src/).
+function testsUnder(dir) {
+  return fs.readdirSync(path.join(__dirname, dir), { withFileTypes: true }).flatMap((entry) => {
+    const file = path.posix.join(dir, entry.name);
+    if (entry.isDirectory()) return testsUnder(file);
+    return /\.test\.js$/.test(entry.name) ? [file] : [];
+  });
+}
+
 const files = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : fs.readdirSync(__dirname).filter((f) => /^test-.*\.js$/.test(f)).sort();
+  : [
+    ...fs.readdirSync(__dirname).filter((f) => /^test-.*\.js$/.test(f)).sort(),
+    ...(fs.existsSync(path.join(__dirname, "test")) ? testsUnder("test").sort() : []),
+  ];
 
 let failed = 0;
 for (const file of files) {

@@ -3,6 +3,12 @@
 const crypto = require("node:crypto");
 const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
 const { CrowkisClient } = require("./index.js");
+const { RuleSet } = require("./src/rules/ruleSet.js");
+const { CachedAnswer } = require("./src/turns/cachedAnswer.js");
+const { ModelAnswer } = require("./src/turns/modelAnswer.js");
+const { SessionCall } = require("./src/turns/sessionCall.js");
+const { Verdict } = require("./src/turns/verdict.js");
+const { VoiceTurn } = require("./src/turns/voiceTurn.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -583,6 +589,10 @@ class VoiceSession {
     // Set once the caller tells the call something a later answer may depend on;
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
+    // The checks of the three SDK stages, read through this call's view of the session.
+    this._rules = RuleSet.voice();
+    this._call = new SessionCall(this);
+    this._ruleCounts = new Map();
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
     if (values) this.setValues(values);
@@ -654,13 +664,11 @@ class VoiceSession {
     this._open = true;
     this._cancelled = false;
 
-    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    if (!text) {
-      this.refusedShort += 1;
-      return new TurnDecision("infer", { reason: "empty transcript", rule: "EmptyTurn" });
-    }
+    const turn = new VoiceTurn(callerSaid, this._call);
+    let verdict = await this._rules.beforeFiller.firstObjection(turn);
+    if (verdict) return this._infer(verdict);
 
-    const filler = this._fillers.get(normalise(text));
+    const filler = this._fillers.get(normalise(turn.text));
     if (filler !== undefined) {
       this.filled += 1;
       const decision = new TurnDecision("filler", {
@@ -674,174 +682,65 @@ class VoiceSession {
       return decision;
     }
 
-    if (this._tainted || setsContext(text)) {
-      this._tainted = true;
-      this.refusedPrivate += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        reason:
-          "the caller has told this call something a later answer may depend on " +
-          "(a condition, an age, a plan, an instruction, a step in their own task); " +
-          "a shared answer to the bare question could be wrong for them",
-        rule: "CallContextTaint",
-      });
-    }
+    verdict = await this._rules.question.firstObjection(turn);
+    if (verdict) return this._infer(verdict);
 
-    // "Thank you" or "hello" is too short to match on meaning. With shortTurns
-    // on it is served on an exact match the server's decision engine has
-    // vouched for; otherwise, and with no engine, it goes to the model as it
-    // always did.
-    const short = text.split(/\s+/).length < this.minWords;
-    if (short && !(this.shortTurns && (await this._engineVouches()))) {
-      this.refusedShort += 1;
-      return new TurnDecision("infer", {
-        reason: "transcript too short to match safely",
-        rule: "TooShort",
-      });
-    }
-
-    // A cut-off question ("do you deliver on") is near a full one ("...on Sundays") in meaning
-    // but asks something else: never served a stored answer, never stored.
-    if (unfinished(text)) {
-      this.refusedShort += 1;
-      return new TurnDecision("infer", { reason: "the turn was cut off mid-question", rule: "CutOff" });
-    }
-
-    const personal = isPersonal(text);
-    if (personal && !this._hasValues()) {
-      this.refusedPrivate += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        reason:
-          "the caller asked about their own records and this session has no values " +
-          "to fill a shared answer shape with, so nothing can be answered from " +
-          "cache without one caller's answer reaching the next",
-        rule: "OwnRecords",
-      });
-    }
-
-    const contextBound = isContextDependent(text);
-    const keyed = this._contextKey(callerSaid, text);
-    if (keyed === null) {
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        reason:
-          "the utterance only has meaning against an earlier turn and this call " +
-          "has none, so no cache key can be built for it",
-        rule: "FollowUpWithoutContext",
-      });
-    }
-    if ((contextBound && privateChain(this._chain() || [], this.minWords)) || this._afterUrgent(text)) {
-      this.refusedPrivate += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        reason:
-          "a follow-up to a private turn of this call: its answer depends on what " +
-          "this caller said, so it is never answered from a shared cache",
-        rule: "PrivateChain",
-      });
-    }
-
-    let hit;
     const started = performance.now();
-    try {
-      const lookup = this.agent.ask(keyed, {
-        serveAbove: this.serveAbove,
-        cheapAbove: Math.min(0.6, this.serveAbove),
-        template: personal,
-        threshold: contextBound || short ? CONTEXT_BOUND_THRESHOLD : undefined,
-      });
-      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
-      hit = budgeted ? await within(this.latencyBudgetMs, lookup) : await lookup;
-      // Cut off a slow lookup, and refuse one that finished after the budget.
-      if (hit === LATE || (budgeted && performance.now() - started > this.latencyBudgetMs)) {
-        lookup.catch(() => {});
-        this.overBudget += 1;
-        this.inferred += 1;
-        return new TurnDecision("infer", {
-          reason:
-            `lookup passed the ${this.latencyBudgetMs}ms voice budget; ` +
-            "a late hit is worse than a fast miss",
-          rule: "LookupDeadline",
-        });
-      }
-    } catch (error) {
-      // An unreachable or refusing cache means "ask the model", never silence.
-      this.lookupErrors += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        reason: `cache unavailable (${error && error.name}); asking the model`,
-        rule: "CacheUnavailable",
-      });
-    }
+    const { hit, verdict: lookupVerdict } = await this._lookup(turn, started);
+    if (lookupVerdict) return this._infer(lookupVerdict);
 
-    if (hit.route !== "cache") {
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        confidence: hit.confidence,
-        reason: `confidence below the spoken-answer bar of ${this.serveAbove}`,
-        rule: "ConfidenceBar",
-      });
-    }
-
-    let answer = hit.answer;
-    if (personal) {
-      answer = fill(answer, this.values);
-      if (answer === null) {
-        this.refusedPrivate += 1;
-        this.inferred += 1;
-        return new TurnDecision("infer", {
-          confidence: hit.confidence,
-          reason:
-            "the shared answer shape has a slot this call has no value for; " +
-            "speaking a half-filled answer is worse than a model call",
-          rule: "TemplateSlotMissing",
-        });
-      }
-    }
-
-    if (PII_PLACEHOLDER.test(answer)) {
-      this.refusedPrivate += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        confidence: hit.confidence,
-        reason:
-          "the cached answer holds a placeholder the server put in place of a caller's detail; " +
-          "reading it aloud is worse than a model call",
-        rule: "PiiPlaceholder",
-      });
-    }
-
-    if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer, performance.now() - started))) {
-      this.differentQuestion += 1;
-      this.inferred += 1;
-      return new TurnDecision("infer", {
-        confidence: hit.confidence,
-        reason:
-          "the cached answer was saved for a different question (it asks about something " +
-          "this one does not); a model call is better than a wrong answer",
-        rule: "DifferentQuestion",
-      });
-    }
-
-    const held = this._held(hit, answer, short);
-    if (held) {
-      this.inferred += 1;
-      const [rule, reason] = held;
-      return new TurnDecision("infer", { confidence: hit.confidence, reason, rule });
-    }
+    const cached = new CachedAnswer(turn, hit, started);
+    verdict = await this._rules.hit.firstObjection(cached);
+    if (verdict) return this._infer(verdict, hit.confidence);
 
     this.served += 1;
     this.transcript.push({ role: "user", content: callerSaid });
-    this.transcript.push({ role: "assistant", content: answer });
+    this.transcript.push({ role: "assistant", content: cached.answer });
     const decision = new TurnDecision("serve", {
-      text: answer,
-      audio: await this._voiced(answer, { cacheable: !personal }),
+      text: cached.answer,
+      audio: await this._voiced(cached.answer, { cacheable: !turn.isPersonal }),
       confidence: hit.confidence,
       reason: "confident cache hit",
     });
-    decision._audioShareable = !personal;
+    decision._audioShareable = !turn.isPersonal;
     return decision;
+  }
+
+  // The cache's hit for a turn, within the latency budget, or a Verdict when the cache was too
+  // slow or could not be reached (the model answers then).
+  async _lookup(turn, started) {
+    try {
+      const lookup = this.agent.ask(turn.key, {
+        serveAbove: this.serveAbove,
+        cheapAbove: Math.min(0.6, this.serveAbove),
+        template: turn.isPersonal,
+        threshold: turn.isContextDependent || turn.isShort ? CONTEXT_BOUND_THRESHOLD : undefined,
+      });
+      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
+      const hit = budgeted ? await within(this.latencyBudgetMs, lookup) : await lookup;
+      // Cut off a slow lookup, and refuse one that finished after the budget.
+      if (hit === LATE || (budgeted && performance.now() - started > this.latencyBudgetMs)) {
+        lookup.catch(() => {});
+        const reason = `lookup passed the ${this.latencyBudgetMs}ms voice budget; a late hit is worse than a fast miss`;
+        return { hit: null, verdict: new Verdict("LookupDeadline", reason, ["overBudget", "inferred"]) };
+      }
+      return { hit, verdict: null };
+    } catch (error) {
+      // An unreachable or refusing cache means "ask the model", never silence.
+      const reason = `cache unavailable (${error && error.name}); asking the model`;
+      return { hit: null, verdict: new Verdict("CacheUnavailable", reason, ["lookupErrors", "inferred"]) };
+    }
+  }
+
+  // The model answers this turn: `verdict` says which rule decided so, and why.
+  _infer(verdict, confidence = 0) {
+    this._countVerdict(verdict);
+    this._ruleCounts.set(verdict.rule, (this._ruleCounts.get(verdict.rule) || 0) + 1);
+    return new TurnDecision("infer", { confidence, reason: verdict.reason, rule: verdict.rule });
+  }
+
+  _countVerdict(verdict) {
+    for (const name of verdict.counts) this[name] += 1;
   }
 
   /**
@@ -853,30 +752,6 @@ class VoiceSession {
     if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) return asked;
     const answer = await within(this.latencyBudgetMs, asked);
     return answer === LATE ? false : answer;
-  }
-
-  /** Which rule sends a confident hit to the model, and why, as [rule, reason], if one does. */
-  _held(hit, answer, short) {
-    if (short && !(hit.vouched && hit.exact)) {
-      return [
-        "ShortTurnUnvouched",
-        "a short turn is only answered from cache once the answer has been " +
-        "judged to stand on its own, and this one has not",
-      ];
-    }
-    if (hit.commitment && !COMMITMENTS[this.commitments](hit)) {
-      this.heldCommitments += 1;
-      return [
-        "CommitmentRewording",
-        "the cached answer is a commitment (a price, a refund, a policy) and " +
-        `commitments="${this.commitments}" does not allow speaking this match`,
-      ];
-    }
-    if (!speakable(answer)) {
-      this.unspeakable += 1;
-      return ["ScreenOnlyAnswer", "the cached answer was written for a screen (a link, code or markup)"];
-    }
-    return null;
   }
 
   cancel() {
@@ -1007,6 +882,7 @@ class VoiceSession {
     decision.text = spoken;
     decision.stored = false;
     decision.saveRule = "Interrupted";
+    this._ruleCounts.set("Interrupted", (this._ruleCounts.get("Interrupted") || 0) + 1);
     decision.notStored = "the caller moved on before this answer was complete";
     decision.reason = `${decision.reason}; not stored: ${decision.notStored}`;
   }
@@ -1146,8 +1022,15 @@ class VoiceSession {
     return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
 
-  // The same, with why an answer was not stored, in words.
-  async _record(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
+  // The same, with why an answer was not stored, in words, and the rule that decided it.
+  async _record(callerSaid, modelSaid, options = {}) {
+    const recorded = await this._recordAnswer(callerSaid, modelSaid, options);
+    if (recorded.rule) this._ruleCounts.set(recorded.rule, (this._ruleCounts.get(recorded.rule) || 0) + 1);
+    return recorded;
+  }
+
+  // _record without the per-rule count: the save chains, then the write.
+  async _recordAnswer(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
     const outcome = (word, why = "", rule = null) => ({ outcome: word, why, rule });
     if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
       return outcome("interrupted", "the caller moved on before this answer was complete", "Interrupted");
@@ -1156,60 +1039,23 @@ class VoiceSession {
     const expected = turn === undefined || turn === null ? this._turn : turn;
     const shareable = this._shareable;
     this._shareable = [0, false];
-    const cacheable = shareable[1] && shareable[0] === expected;
-    if (!(typeof modelSaid === "string" && modelSaid.trim())) {
-      this.emptyAnswers += 1;
-      return outcome("non_answer", "the model returned an empty answer", "EmptyAnswer");
-    }
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    const keyed = this._contextKey(callerSaid, text);
+    const answer = new ModelAnswer(callerSaid, modelSaid, this._contextKey(callerSaid, text), this._call, {
+      private: keep, instructions, cacheable: shareable[1] && shareable[0] === expected,
+    });
+    let verdict = await this._rules.answerGiven.firstObjection(answer);
+    if (verdict) return this._kept(verdict);
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on", "NoKey");
-    if (keep) {
-      this.notShareable += 1;
-      return outcome("kept", "kept to this call: the answer was built from a tool's result", "ToolResult");
-    }
-    if (instructions && repeatsPromptDetails(modelSaid, text, instructions, this._agentKey())) {
-      // The model read a system prompt that names this caller, and its answer repeats
-      // that: right for this caller only, never a shared answer or template.
-      this.notShareable += 1;
-      return outcome("private", "kept to this call: the answer repeats a detail about the caller from the system prompt", "PromptCallerDetails");
-    }
+    verdict = await this._rules.beforeSharing.firstObjection(answer);
+    if (verdict) return this._kept(verdict);
     try {
-      if (isPersonal(text)) {
-        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text)) {
-          const templated = await this._learnPersonal(keyed, modelSaid);
-          if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
-          if (templated) return outcome("template");
-        }
-        return outcome("private", "about this caller, with no declared value to make a shared answer shape from", "PersonalTemplate");
-      }
-      if (this._tainted) {
-        this.notShareable += 1;
-        return outcome("kept", "kept to this call: the caller told it something the answer may depend on", "TaintedCall");
-      }
-      if (!cacheable) {
-        this.notShareable += 1;
-        return outcome("kept", "kept to this call: the answer depends on what this caller said", "NotShareable");
-      }
-      if (leaks(modelSaid, this.values)) {
-        this.notShareable += 1;
-        return outcome("private", "kept to this call: the answer contains a value declared for this call", "DeclaredValue");
-      }
-      if (repeatsIdentifier(modelSaid, this._saidIdentifiers())) {
-        // Its model read only the question, so this can only come from an app that sent
-        // it the whole call: never share it.
-        this.notShareable += 1;
-        return outcome("private", "kept to this call: the answer repeats a number or ID this caller said", "CallerIdentifier");
-      }
-      if (isNonAnswer(modelSaid)) {
-        this.notShareable += 1;
-        return outcome("non_answer", "not saved: the answer asks back or does not answer", "NonAnswer");
-      }
-      const slow = await this._learn(keyed, modelSaid, { ttl: this.ttl });
-      this._lastStored = keyed;
-      if (!slow) this._keepQuestion(keyed, modelSaid); // a slow server gets no extra write
+      if (answer.isPersonal) return await this._recordPersonal(answer);
+      verdict = await this._rules.sharing.firstObjection(answer);
+      if (verdict) return this._kept(verdict);
+      const slow = await this._learn(answer.key, modelSaid, { ttl: this.ttl });
+      this._lastStored = answer.key;
+      if (!slow) this._keepQuestion(answer.key, modelSaid); // a slow server gets no extra write
       return slow || outcome("saved");
     } catch (error) {
       this.learnErrors += 1;
@@ -1219,6 +1065,25 @@ class VoiceSession {
         "WriteRefused"
       );
     }
+  }
+
+  // A personal answer is shared only as a shape with this call's values taken out.
+  async _recordPersonal(answer) {
+    const personal = this._rules.personal;
+    let verdict = personal.check(answer);
+    if (!verdict) {
+      const templated = await this._learnPersonal(answer.key, answer.answer);
+      if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
+      if (templated) return { outcome: "template", why: "", rule: null };
+      verdict = personal.refusal();
+    }
+    return this._kept(verdict);
+  }
+
+  // A save rule kept the answer out of the shared cache.
+  _kept(verdict) {
+    this._countVerdict(verdict);
+    return { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule };
   }
 
   injections() {
@@ -1287,6 +1152,8 @@ class VoiceSession {
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
+      // How often each rule decided a turn or kept an answer, by the rule's name.
+      rules: Object.fromEntries([...this._ruleCounts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
     };
   }
 

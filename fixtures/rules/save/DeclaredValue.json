@@ -1,0 +1,33 @@
+{
+ "rule": "DeclaredValue",
+ "stage": "save",
+ "about": "v4: when the save rule DeclaredValue objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "holds a declared value",
+   "say": "how do I reset my password",
+   "answer": "Your code is 4471.",
+   "call": {
+    "values": {
+     "code": "4471"
+    }
+   },
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "private"
+  },
+  {
+   "name": "holds none",
+   "say": "how do I reset my password",
+   "answer": "Use the reset page.",
+   "call": {
+    "values": {
+     "code": "4471"
+    }
+   },
+   "objects": false
+  }
+ ]
+}

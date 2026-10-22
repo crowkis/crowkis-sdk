@@ -1,0 +1,33 @@
+{
+ "rule": "CallerIdentifier",
+ "stage": "save",
+ "about": "v4: when the save rule CallerIdentifier objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "repeats the caller's ID",
+   "say": "what is your refund policy",
+   "answer": "Refunds for ORD55821 take five days.",
+   "call": {
+    "identifiers": [
+     "ord55821"
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "private"
+  },
+  {
+   "name": "no ID of theirs",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "call": {
+    "identifiers": [
+     "ord55821"
+    ]
+   },
+   "objects": false
+  }
+ ]
+}

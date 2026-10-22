@@ -1,0 +1,50 @@
+{
+ "rule": "CommitmentRewording",
+ "stage": "hit",
+ "about": "v4: when the hit rule CommitmentRewording objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a commitment for a rewording",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": true
+   },
+   "objects": true,
+   "counts": [
+    "held_commitments",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a commitment for the same words",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": true,
+    "vouched": false,
+    "commitment": true
+   },
+   "objects": false
+  },
+  {
+   "name": "a commitment, served by choice",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": true
+   },
+   "call": {
+    "commitments": "serve"
+   },
+   "objects": false
+  }
+ ]
+}

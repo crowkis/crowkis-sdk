@@ -1,0 +1,24 @@
+{
+ "rule": "ToolResult",
+ "stage": "save",
+ "about": "v4: when the save rule ToolResult objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "built from a tool",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "private": true,
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "kept"
+  },
+  {
+   "name": "the model's own",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "objects": false
+  }
+ ]
+}

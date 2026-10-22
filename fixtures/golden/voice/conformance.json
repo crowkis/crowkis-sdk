@@ -15,6 +15,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -52,6 +55,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -85,6 +89,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -122,6 +129,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -155,6 +163,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -192,6 +203,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -225,6 +237,10 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1,
+     "Interrupted": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -262,6 +278,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -299,6 +318,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -336,6 +358,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -369,6 +392,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -402,6 +426,10 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "OwnRecords": 1,
+     "PersonalTemplate": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -437,6 +465,10 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "OwnRecords": 1,
+     "PersonalTemplate": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -472,6 +504,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -509,6 +544,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -542,6 +578,10 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "OwnRecords": 1,
+     "ToolResult": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -577,6 +617,10 @@
     "not_shareable": 1,
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
+    "rules": {
+     "OwnRecords": 1,
+     "ToolResult": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -612,6 +656,9 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "ConfidenceBar": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
@@ -649,6 +696,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -682,6 +730,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -715,6 +764,7 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {},
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 1,
@@ -748,6 +798,10 @@
     "not_shareable": 0,
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 0,
+    "rules": {
+     "CacheUnavailable": 1,
+     "WriteRefused": 1
+    },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,

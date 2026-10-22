@@ -1,0 +1,35 @@
+{
+ "rule": "ScreenOnlyAnswer",
+ "stage": "hit",
+ "about": "v4: when the hit rule ScreenOnlyAnswer objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a link",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "See https://example.com/refunds for details.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": true,
+   "counts": [
+    "unspeakable",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a spoken answer",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": false
+  }
+ ]
+}

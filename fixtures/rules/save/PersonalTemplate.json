@@ -1,0 +1,30 @@
+{
+ "rule": "PersonalTemplate",
+ "stage": "save",
+ "about": "v4: when the save rule PersonalTemplate objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "personal, the call was told something",
+   "say": "when will my order arrive",
+   "answer": "On Tuesday.",
+   "call": {
+    "tainted": true
+   },
+   "objects": true,
+   "counts": [],
+   "outcome": "private"
+  },
+  {
+   "name": "personal, can be a shape",
+   "say": "when will my order arrive",
+   "answer": "Your order arrives on Tuesday.",
+   "objects": false
+  },
+  {
+   "name": "not personal",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five business days.",
+   "objects": false
+  }
+ ]
+}

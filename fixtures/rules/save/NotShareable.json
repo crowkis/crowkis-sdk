@@ -1,0 +1,24 @@
+{
+ "rule": "NotShareable",
+ "stage": "save",
+ "about": "v4: when the save rule NotShareable objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "the model read the whole call",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "cacheable": false,
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "kept"
+  },
+  {
+   "name": "the model read the question",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "objects": false
+  }
+ ]
+}

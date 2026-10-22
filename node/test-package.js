@@ -11,9 +11,11 @@ test("every file a packaged file requires is packaged", () => {
   for (const file of files) {
     if (!file.endsWith(".js")) continue;
     const src = fs.readFileSync(path.join(__dirname, file), "utf8");
-    for (const [, dep] of src.matchAll(/require\("\.\/([^"]+)"\)/g)) {
-      const name = path.extname(dep) ? dep : `${dep}.js`;
-      assert.ok(files.has(name), `${file} requires ./${dep}, which package.json "files" leaves out`);
+    // Relative to the requiring file, so files in src/ folders are followed too ("./", "../").
+    for (const [, dep] of src.matchAll(/require\("(\.\.?\/[^"]+)"\)/g)) {
+      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), dep));
+      const name = path.extname(resolved) ? resolved : `${resolved}.js`;
+      assert.ok(files.has(name), `${file} requires ${dep}, which package.json "files" leaves out`);
     }
   }
 });

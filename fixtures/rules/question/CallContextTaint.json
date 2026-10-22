@@ -1,0 +1,33 @@
+{
+ "rule": "CallContextTaint",
+ "stage": "question",
+ "about": "v4: when the question rule CallContextTaint objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "the caller states a condition",
+   "say": "I am allergic to peanuts",
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a call already told something",
+   "say": "what is your refund policy",
+   "call": {
+    "tainted": true
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a plain question",
+   "say": "what is your refund policy",
+   "objects": false
+  }
+ ]
+}

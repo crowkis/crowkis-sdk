@@ -1,0 +1,43 @@
+{
+ "rule": "PrivateChain",
+ "stage": "question",
+ "about": "v4: when the question rule PrivateChain objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a follow-up to a personal turn",
+   "say": "and how long will that take",
+   "call": {
+    "earlier": [
+     "my order 48213 has not arrived"
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "any turn after an urgent one",
+   "say": "what is your refund policy",
+   "call": {
+    "urgent_before": true
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "a follow-up to a shared question",
+   "say": "and how long will that take",
+   "call": {
+    "earlier": [
+     "what is your refund policy"
+    ]
+   },
+   "objects": false
+  }
+ ]
+}

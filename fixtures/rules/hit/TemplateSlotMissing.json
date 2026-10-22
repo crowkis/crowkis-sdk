@@ -1,0 +1,57 @@
+{
+ "rule": "TemplateSlotMissing",
+ "stage": "hit",
+ "about": "v4: when the hit rule TemplateSlotMissing objects, run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a slot with no value",
+   "say": "when will my order arrive",
+   "hit": {
+    "route": "cache",
+    "answer": "Your order arrives on {eta}.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "call": {
+    "values": {
+     "name": "Asha"
+    }
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "every slot filled",
+   "say": "when will my order arrive",
+   "hit": {
+    "route": "cache",
+    "answer": "Your order arrives on {eta}.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "call": {
+    "values": {
+     "eta": "Tuesday"
+    }
+   },
+   "objects": false
+  },
+  {
+   "name": "not personal",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "Refunds take five business days.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "objects": false
+  }
+ ]
+}

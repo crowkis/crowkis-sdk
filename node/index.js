@@ -202,6 +202,8 @@ function busyRetryMs(error) {
   return Math.min(Math.max(Number(digits[1]), 1), 2000);
 }
 
+const NO_SERVER_TOKEN = /called without any password configured/i;
+
 function tokenChunks(text, chunkTokens = 4) {
   const size = Math.max(1, Math.min(Number(chunkTokens) || 4, 128));
   const words = String(text).split(/\s+/).filter(Boolean);
@@ -270,7 +272,9 @@ class CrowkisClient {
         // the next command to use.
         this.reader.read().then(resolve, (error) => {
           this.close();
-          reject(error);
+          reject(NO_SERVER_TOKEN.test(error.message)
+            ? new CrowkisError("the server has no CROWKIS_AUTH_TOKEN set; remove authToken or set the same token on the server")
+            : error);
         });
       });
       socket.once("error", (error) => {

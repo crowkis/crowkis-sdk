@@ -331,6 +331,16 @@ def _transport_error(host: str, port: int, attempts: int, cause: BaseException) 
     )
 
 
+def _auth_refused(denied: CrowkisError) -> CrowkisError:
+    if "without any password configured" in str(denied):
+        denied = CrowkisError(
+            "the server has no CROWKIS_AUTH_TOKEN set; remove auth_token "
+            "or set the same token on the server"
+        )
+    denied.retryable = False
+    return denied
+
+
 class _Conn:
     __slots__ = ("sock", "reader")
 
@@ -459,8 +469,7 @@ class CrowkisClient:
                 sock.sendall(_encode(["AUTH", self.auth_token]))
                 denied = _read_frame(conn.reader)
                 if isinstance(denied, CrowkisError):
-                    denied.retryable = False
-                    raise denied
+                    raise _auth_refused(denied)
             sock.sendall(_encode(["HELLO", "3"]))
             _read_frame(conn.reader)
         except BaseException:
@@ -1625,8 +1634,7 @@ class AsyncCrowkisClient(CrowkisClient):
                 await writer.drain()
                 denied = await _aread_frame(reader)
                 if isinstance(denied, CrowkisError):
-                    denied.retryable = False
-                    raise denied
+                    raise _auth_refused(denied)
             writer.write(_encode(["HELLO", "3"]))
             await writer.drain()
             await _aread_frame(reader)

@@ -11,6 +11,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
+| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
 
 ## P0 (done)
 

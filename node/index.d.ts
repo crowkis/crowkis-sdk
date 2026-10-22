@@ -134,6 +134,7 @@ export class CrowkisClient {
   ping(): Promise<boolean>;
   get(key: string | Buffer | Uint8Array): Promise<Buffer | null>;
   set(key: string | Buffer | Uint8Array, value: string | Buffer | Uint8Array, options?: { ttl?: number }): Promise<void>;
+  /** A `NOTSTORED <reason>` reply does not reject: it emits a `CrowkisWarning` once per reason. */
   cset(query: string | Buffer | Uint8Array, response: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<void>;
   cget(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<Buffer | null>;
   cgetHit(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<CacheHit | null>;

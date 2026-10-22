@@ -88,6 +88,12 @@ else:
     cache.store("what's the refund timeline?", "5–7 business days.", ttl=3600)
 ```
 
+`ttl` is in seconds; `None` or `0` sends no lifetime, so the server applies its default
+lifetime for that kind of question. An answer holding personal details its
+question does not name is never served, so the server does not keep it: the call returns as
+usual and the `crowkis` logger warns once per reason. Store such an answer with
+`template=True` and `{slot}` placeholders to cache its shape.
+
 ## Streaming
 
 Serve a cached answer in chunks so a hit feels like live model output:

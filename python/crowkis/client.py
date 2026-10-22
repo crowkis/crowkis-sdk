@@ -46,6 +46,7 @@ MEMEXTRACT_MAX_CLAUSES = 64
 MEMEXTRACT_PART_BYTES = 60 * 1024
 MEMEXTRACT_PART_CLAUSES = 40
 _CLAUSE_END = re.compile(r"(?<=[\n.!?])")
+NOT_STORED_REASONS_KEPT = 64
 BUSY_DEFAULT_RETRY_SECONDS = 0.05
 BUSY_MAX_RETRY_SECONDS = 2.0
 
@@ -485,6 +486,7 @@ class CrowkisClient:
         self.on_error = on_error
         self._pool: List[_Conn] = []
         self._pool_lock = threading.Lock()
+        self._not_stored_said: set = set()
         self._slots = threading.BoundedSemaphore(self.pool_size)
 
     def __repr__(self) -> str:
@@ -561,6 +563,19 @@ class CrowkisClient:
             handler(error)
         except Exception:
             pass
+
+    def _note_not_stored(self, reply: Any) -> None:
+        """CSET may answer `NOTSTORED <reason>`: accepted, deliberately not kept.
+        Said once per reason, not raised."""
+        if not (isinstance(reply, str) and reply.startswith("NOTSTORED")):
+            return
+        reason = reply[len("NOTSTORED") :].strip() or "no reason given"
+        if reason in self._not_stored_said:
+            return
+        # ponytail: reasons are the server's fixed texts; the cap only bounds a misbehaving one.
+        if len(self._not_stored_said) < NOT_STORED_REASONS_KEPT:
+            self._not_stored_said.add(reason)
+        _LOG.warning("crowkis answer not stored: %s", reason)
 
     def _backoff(self, attempt: int) -> float:
         delay = self.backoff_base * (2 ** attempt)
@@ -677,7 +692,7 @@ class CrowkisClient:
             args += ["TEMPLATE"]
         if segment:
             args += ["SEGMENT", segment]
-        self.execute(*args)
+        self._note_not_stored(self.execute(*args))
 
     def cget(
         self,
@@ -1907,7 +1922,7 @@ class AsyncCrowkisClient(CrowkisClient):
             args += ["IMAGE", image_payload]
         if kwargs.get("segment"):
             args += ["SEGMENT", kwargs["segment"]]
-        await self.execute_async(*args)
+        self._note_not_stored(await self.execute_async(*args))
 
     async def get_or_compute_async(
         self,

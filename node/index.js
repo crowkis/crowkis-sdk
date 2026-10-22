@@ -251,6 +251,18 @@ function extractParts(text) {
   return parts;
 }
 
+const notStoredWarned = new Set();
+
+// CSET answers `NOTSTORED <reason>` when it kept nothing; the caller still has
+// its answer, so this is a warning, once per reason, never the answer itself.
+function warnNotStored(reply) {
+  if (typeof reply !== "string" || !reply.startsWith("NOTSTORED")) return;
+  const reason = reply.slice("NOTSTORED".length).trim();
+  if (notStoredWarned.has(reason)) return;
+  notStoredWarned.add(reason);
+  process.emitWarning(`crowkis: an answer was not cached: ${reason}`, "CrowkisWarning");
+}
+
 const NO_SERVER_TOKEN = /called without any password configured/i;
 
 function tokenChunks(text, chunkTokens = 4) {
@@ -438,7 +450,7 @@ class CrowkisClient {
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
     if (options.segment) args.push("SEGMENT", options.segment);
-    await this.execute(...args);
+    warnNotStored(await this.execute(...args));
   }
 
   async cget(query, options = {}) {

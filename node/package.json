@@ -78,6 +78,7 @@
     "livekit.d.ts",
     "chat.d.ts",
     "session.d.ts",
+    "src/understanding/wordRules.js",
     "README.md"
   ],
   "scripts": {

@@ -7,7 +7,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 |---|---|---|---|---|
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
-| P2 runtime components, TurnCore | 1-2 windows | in progress: runtime done; TurnCore next (paused at 90% for the 5-hour reset) | `91529cc`, `b261b6d`, `c12d137` | ~40 min so far |
+| P2 runtime components, TurnCore | 1-2 windows | built; reviews running | `91529cc`, `b261b6d`, `c12d137`, `c561c3e` | ~1 h 10 min |
 | P3 Chat on the same core | 1-2 windows | | | |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
@@ -65,7 +65,13 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `CacheLookup` (the one place a lookup fails open; the budget is read per lookup), Node `deadline.js`
   (`within`, `LATE`), `TurnPairing` (turn numbers, barge-in, the per-turn shareable flag; Python keeps
   `session._turn_lock` as its lock). Unit tests for each; golden decisions identical; frameworks pass.
-- Next: `TurnCore` owns the decide/record flow; `VoiceSession` / `AsyncVoiceSession` become facades.
+- `TurnCore` (Template Method; `turns/turn_core.py`, `src/turns/turnCore.js`) owns decide and record, with
+  the rules, classifier, rewriter, turn pairing and lookup injected; `VoiceSession` keeps the transcript,
+  fillers, audio, counters and the public API and delegates (`AsyncVoiceSession` already wraps it).
+  `TurnDecision` / `_Outcome` live in `turns/decision` (re-exported). `voice.py` ~3,100 -> ~1,430 lines,
+  `voice.js` -> ~1,240.
+- Suites: Python 694 passed, Node 46/46 files, twice; Pipecat 26, LiveKit Python 23, LiveKit JS 41.
+  Real server: as after P1, only "a reworded question hits" fails (it fails on `0594148` too).
 - Owner change 2026-10-22: the 5-hour stop line is 97% (stop at a clean point, wait for the reset with a
   background timer, then continue).
 

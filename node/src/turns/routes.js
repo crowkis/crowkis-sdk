@@ -9,4 +9,6 @@ const PERSONAL = "personal";
 const TOOLS = "tools";
 const AGENT = "agent";
 
-module.exports = { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT };
+const FILLER = "filler";
+
+module.exports = { AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT };

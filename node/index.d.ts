@@ -210,6 +210,7 @@ export class CrowkisClient {
   // Agent memory (also through `@crowkis/client/memory`); each replies with the server's answer.
   cmemset(agent: string, fact: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
   cmemget(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
+  /** Long text is sent in parts under the server's caps; the facts stored come back as one list. */
   cmemextract(agent: string, conversation: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
   cmemhistory(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
   cmemforget(agent: string, options?: { query?: string; user?: string; threshold?: number; tenant?: string }): Promise<unknown>;

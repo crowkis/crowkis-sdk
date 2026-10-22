@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import random
+import re
 import socket
 import threading
 import time
@@ -38,6 +39,13 @@ class CrowkisError(Exception):
 _LOG = logging.getLogger("crowkis")
 
 MAX_LINE_BYTES = 512 * 1024
+# CMEMEXTRACT refuses text over 64 KiB or yielding over 64 facts (at most one
+# per clause, the server splitting on the same ends as below).
+MEMEXTRACT_MAX_BYTES = 64 * 1024
+MEMEXTRACT_MAX_CLAUSES = 64
+MEMEXTRACT_PART_BYTES = 60 * 1024
+MEMEXTRACT_PART_CLAUSES = 40
+_CLAUSE_END = re.compile(r"(?<=[\n.!?])")
 BUSY_DEFAULT_RETRY_SECONDS = 0.05
 BUSY_MAX_RETRY_SECONDS = 2.0
 
@@ -278,6 +286,57 @@ def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
     words = text.split()
     for idx in range(0, len(words), chunk_tokens):
         yield " ".join(words[idx : idx + chunk_tokens])
+
+
+def _cut(piece: str) -> List[str]:
+    """A clause longer than one part, cut under the byte limit on character
+    boundaries, at the last space when there is one."""
+    data = piece.encode("utf-8")
+    out: List[str] = []
+    start = 0
+    while len(data) - start > MEMEXTRACT_PART_BYTES:
+        end = start + MEMEXTRACT_PART_BYTES
+        while data[end] & 0xC0 == 0x80:
+            end -= 1
+        space = data.rfind(b" ", start, end)
+        if space > start:
+            end = space + 1
+        out.append(data[start:end].decode("utf-8"))
+        start = end
+    out.append(data[start:].decode("utf-8"))
+    return out
+
+
+def _memextract_parts(text: str) -> List[str]:
+    """`text` as one part when the server takes it whole, else in order as parts of
+    at most 40 clauses and 60 KiB; joined they are `text` again."""
+    clauses = _CLAUSE_END.split(text)
+    if len(text.encode("utf-8")) <= MEMEXTRACT_MAX_BYTES and len(clauses) <= MEMEXTRACT_MAX_CLAUSES:
+        return [text]
+    parts: List[str] = []
+    part, part_bytes, part_clauses = "", 0, 0
+    for clause in clauses:
+        for piece in _cut(clause):
+            size = len(piece.encode("utf-8"))
+            if part and (part_clauses >= MEMEXTRACT_PART_CLAUSES or part_bytes + size > MEMEXTRACT_PART_BYTES):
+                parts.append(part)
+                part, part_bytes, part_clauses = "", 0, 0
+            part += piece
+            part_bytes += size
+            part_clauses += 1
+    if part:
+        parts.append(part)
+    return parts
+
+
+def _combined_facts(replies: List[Any]) -> Any:
+    if len(replies) == 1:
+        return replies[0]
+    facts: List[Any] = []
+    for reply in replies:
+        if isinstance(reply, list):
+            facts.extend(reply)
+    return facts
 
 
 def _scope(
@@ -928,7 +987,12 @@ class CrowkisClient:
         tenant: Optional[str] = None,
         topic: Optional[str] = None,
     ) -> Any:
-        return self.execute(*self._args_cmemextract(agent, conversation, user=user, ex=ex, tenant=tenant, topic=topic))
+        """Long text goes as several calls, in order, under the server's limits;
+        the facts come back as one list."""
+        return _combined_facts([
+            self.execute(*self._args_cmemextract(agent, part, user=user, ex=ex, tenant=tenant, topic=topic))
+            for part in _memextract_parts(conversation)
+        ])
 
 
     def _args_cmemhistory(
@@ -1760,7 +1824,10 @@ class AsyncCrowkisClient(CrowkisClient):
         return await self.execute_async(*self._args_cmemget(agent, query, **kwargs))
 
     async def cmemextract_async(self, agent: str, conversation: str, **kwargs: Any) -> Any:
-        return await self.execute_async(*self._args_cmemextract(agent, conversation, **kwargs))
+        return _combined_facts([
+            await self.execute_async(*self._args_cmemextract(agent, part, **kwargs))
+            for part in _memextract_parts(conversation)
+        ])
 
     async def cmemhistory_async(self, agent: str, query: str, **kwargs: Any) -> Any:
         return await self.execute_async(*self._args_cmemhistory(agent, query, **kwargs))

@@ -202,6 +202,55 @@ function busyRetryMs(error) {
   return Math.min(Math.max(Number(digits[1]), 1), 2000);
 }
 
+// The server refuses CMEMEXTRACT over 65,536 bytes or 64 facts, and finds at
+// most one fact per sentence; a part stays well under both.
+const EXTRACT_MAX_BYTES = 60 * 1024;
+const EXTRACT_MAX_SENTENCES = 40;
+
+// Sentence ends are the server's: . ! ? and new lines. A sentence over the byte
+// cap is cut at character boundaries.
+function extractParts(text) {
+  const units = [];
+  for (const sentence of String(text).split(/(?<=[\n.!?])/)) {
+    if (Buffer.byteLength(sentence) < EXTRACT_MAX_BYTES) {
+      units.push(sentence);
+      continue;
+    }
+    let cut = "";
+    let bytes = 0;
+    for (const ch of sentence) {
+      const size = Buffer.byteLength(ch);
+      if (bytes + size >= EXTRACT_MAX_BYTES) {
+        units.push(cut);
+        cut = "";
+        bytes = 0;
+      }
+      cut += ch;
+      bytes += size;
+    }
+    if (cut) units.push(cut);
+  }
+  const parts = [];
+  let part = "";
+  let bytes = 0;
+  let sentences = 0;
+  for (const unit of units) {
+    const size = Buffer.byteLength(unit);
+    const counts = /[^\s.!?]/.test(unit);
+    if (part && (bytes + size >= EXTRACT_MAX_BYTES || (counts && sentences >= EXTRACT_MAX_SENTENCES))) {
+      parts.push(part);
+      part = "";
+      bytes = 0;
+      sentences = 0;
+    }
+    part += unit;
+    bytes += size;
+    if (counts) sentences += 1;
+  }
+  if (part) parts.push(part);
+  return parts;
+}
+
 const NO_SERVER_TOKEN = /called without any password configured/i;
 
 function tokenChunks(text, chunkTokens = 4) {
@@ -584,13 +633,22 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
+  // Long text goes in parts, in order, under the server's caps; the facts each
+  // part stored come back as one list. A refused part stops the rest.
   async cmemextract(agent, conversation, { user, ex, tenant } = {}) {
     await this._hello3();
-    const args = ["CMEMEXTRACT", agent, conversation];
-    if (user) args.push("USER", user);
-    if (ex !== undefined) args.push("EX", String(ex));
-    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
-    return this.execute(...args);
+    const options = [];
+    if (user) options.push("USER", user);
+    if (ex !== undefined) options.push("EX", String(ex));
+    if (this._tenant({ tenant })) options.push("TENANT", this._tenant({ tenant }));
+    const parts = extractParts(conversation);
+    if (parts.length <= 1) return this.execute("CMEMEXTRACT", agent, conversation, ...options);
+    const facts = [];
+    for (const part of parts) {
+      const stored = await this.execute("CMEMEXTRACT", agent, part, ...options);
+      if (Array.isArray(stored)) facts.push(...stored);
+    }
+    return facts;
   }
 
   async cmemhistory(agent, query, { user, k, tenant } = {}) {

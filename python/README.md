@@ -126,6 +126,9 @@ mem.remember("Alice prefers email over phone")
 mem.recall("how should I contact Alice?")   # semantic recall
 ```
 
+`mem.extract(transcript)` takes text of any length: long text is sent in parts the server
+accepts (under 64 KiB and 64 facts each), in order, and the facts come back as one list.
+
 ## Chat apps
 
 A chat turn often depends on what the user said earlier ("I'm allergic to peanuts", then

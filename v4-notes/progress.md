@@ -8,7 +8,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
-| P3 Chat on the same core | 1-2 windows | built; final review running | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
+| P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 
@@ -57,6 +57,16 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   reaches the LLM) in both languages, and fails the same way on the pre-P1 commit `0594148`, so it is not
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
+
+## P3 done (2026-10-22); work stopped (owner: no P4 today)
+
+- Final review (code + privacy) of `3bae579..cfda1ad`: no blockers. Logged nits, not fixed: unused imports and
+  stray blank lines in `session.py` / `session.js` (and Node's unused `LOOKUP_COUNTS`), a JSDoc comment above
+  `handle()` that belongs to `recordAnswer`, `CacheLookup`'s late-path `.catch` on a non-standard thenable, and
+  the lookup-deadline reason saying "voice budget" on Chat's lookups (left: reason text is public behaviour).
+- Suites: Python 704 passed / 77 skipped, Node 49/49 files, twice; golden identical. Real server: only the
+  pre-existing "a reworded question hits" fails.
+- Next when the owner restarts: P4 (pluggable understanding), after the weekly reset.
 
 ## Where the work stopped, and how to continue (2026-10-22, ~19:00 IST)
 

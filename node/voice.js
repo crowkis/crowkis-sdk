@@ -449,6 +449,8 @@ class VoiceSession {
       speed = "1",
       audioFormat = "default",
       bytesPerSecond,
+      classifier = null,
+      rewriter = null,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -520,9 +522,9 @@ class VoiceSession {
     this._tainted = false;
     // The checks of the three SDK stages, read through this call's view of the session.
     this._rules = RuleSet.voice(this._fillers);
-    // How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
-    this._classifier = new WordRuleClassifier();
-    this._rewriter = new NoRewrite();
+    // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
+    this._classifier = classifier || new WordRuleClassifier();
+    this._rewriter = rewriter || new NoRewrite();
     this._call = new SessionCall(this);
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),
@@ -1108,6 +1110,7 @@ const TEXT_ONLY_VOICE = "crowkis:text-only";
 const SESSION_OPTIONS = new Set([
   "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
   "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
+  "classifier", "rewriter",
 ]);
 
 /**

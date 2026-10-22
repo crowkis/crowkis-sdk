@@ -535,6 +535,26 @@ export interface VoiceSessionOptions {
    * and the slot names.
    */
   shareTemplates?: boolean;
+  /** How a turn is read (personal, depends on the call). Defaults to the word rules. */
+  classifier?: Classifier;
+  /** The stand-alone question a turn is looked up and saved under. Defaults to no rewrite. */
+  rewriter?: Rewriter;
+}
+
+/** What a classifier says about one turn. */
+export interface Reading {
+  readonly isPersonal: boolean;
+  readonly isContextDependent: boolean;
+}
+
+/** Reads a turn: whether it is about the caller's own records or depends on the call. */
+export interface Classifier {
+  classify(text: string): Reading;
+}
+
+/** Rewrites a turn into a stand-alone question, or returns null to keep the caller's words. */
+export interface Rewriter {
+  rewrite(text: string, reading: Reading): string | null;
 }
 
 export interface VoiceStats {

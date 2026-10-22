@@ -69,10 +69,10 @@ usage before every step; small commits; golden identical; both suites green at e
 Steps (each its own commit, both languages):
 1. [done] Typed `Hit` (deferred from P2): `turns/hit.py` / `src/turns/hit.js` value object built once from the agent's
    hit dict in the lookup; hit rules read its fields instead of `hit.get(...)`. No behaviour change.
-2. [next] `Classifier` / `Rewriter` slots wired through: `VoiceSession(..., classifier=None, rewriter=None)` and
+2. [done] `Classifier` / `Rewriter` slots wired through: `VoiceSession(..., classifier=None, rewriter=None)` and
    `voice_session(...)` / `async_voice_session(...)` / Node `voiceSession(...)` pass them through (defaults:
    `WordRuleClassifier`, `NoRewrite`, so nothing changes). Adapters need no edits (options pass through).
-3. The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
+3. [next] The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
    `PrivateChain` read the turn's reading, or treat a turn as personal if either the reading or the word rules
    say so (never less private). Golden identical with the default classifier.
 4. `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus

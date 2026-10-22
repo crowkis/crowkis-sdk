@@ -78,6 +78,12 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `turns/chat_core.py` / `src/turns/chatCore.js`, with a `ChatHost` Protocol (state, counts, fillers, mode,
   hooks, emit, open/cancelled turns) the session implements through an adapter, like `SessionHost`. Then P3
   reviews (code + privacy), real-server conformance, and mark P3 done.
+  **Step (3) Python done** (commit after `2268883`): `turns/chat_core.py` (`ChatCore`, owns its lookup, rule
+  chains and turns), `turns/chat_host.py` (`ChatHost` Protocol; `CallSession` implements it: `fillers`,
+  `emit`, `prompt_key` added as public members), `turns/turn_result.py`, `FILLER` in `turns/routes`, the
+  helpers in `understanding/chat_details.py`; everything re-exported from `session.py`; `CallSession._lookup`
+  kept as a delegate (two tests call it). **Next: the same in Node** (`node/session.js` -> `src/turns/chatCore.js`,
+  `chatHost` typedef, `turnResult.js`, `understanding/chatDetails.js`), then reviews, real server, P3 done.
 - **Owner decision (2026-10-22): option (b).** Chat keeps waiting for its writes, and only the lookup deadline
   moves to `CacheLookup`, so Chat's outcomes do not change. Chat's `BoundedWrite` (with the new `slow_write`
   outcome) is **deferred to P5 item 3**, as an opt-in behaviour change with failing-first tests.

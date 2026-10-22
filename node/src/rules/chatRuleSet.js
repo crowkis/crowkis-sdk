@@ -2,8 +2,8 @@
 
 const { RuleChain, UnknownRule, ruleNames } = require("./chain.js");
 const {
-  AboutSomeone, IdentifyingDetails, LostDetail, NoQuestion, NotGeneral, StatedFacts, TaskStep, UncertainFrame, Ungrounded,
-  UnresolvedReference, UrgentTurn,
+  AboutSomeone, IdentifyingDetails, LostDetail, NoQuestion, NotGeneral, QuestionNamesCaller, StatedFacts, TaskStep,
+  ToldDetailDropped, UncertainFrame, Ungrounded, UnresolvedReference, UntaggedName, UrgentTurn,
 } = require("./question/index.js");
 const {
   ActionClaim, AttributeNotInKey, ChatEmptyAnswer, ChatNonAnswer, ChatPromptDetails, IdentifyingAnswer, PrivateWord,
@@ -23,6 +23,14 @@ class ChatRuleSet {
   constructor({ decisive, frame, question }) {
     Object.assign(this, { decisive, frame, question });
     Object.freeze(this);
+  }
+
+  /**
+   * The checks a session runs once the rule checker would share a question, on what the chat has
+   * learnt (names, told details): the first objection keeps the turn with the agent.
+   */
+  static sharedQuestionChain() {
+    return new RuleChain([new QuestionNamesCaller(), new ToldDetailDropped(), new UntaggedName()]);
   }
 
   /**

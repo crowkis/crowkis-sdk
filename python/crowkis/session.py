@@ -28,14 +28,17 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .callstate import IDENTITIES, CallState, word_digest
+from .callstate import IDENTITIES, CallState
 from .rules.chat_rule_set import ChatRuleSet
+from .rules.question import UrgentWords
 from .turns.chat_answer import ChatAnswer
+from .turns.chat_turn import ChatTurn
+from .understanding.frame_words import _CALENDAR, _DAYS  # noqa: F401
 from .understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
-from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _is_non_answer as is_non_answer, _repeats_prompt_details, _tells_about_caller, _urgent, _words
-from .turn import NOT_GENERAL_TYPES, TurnFrame
+from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _tells_about_caller, _words
+from .turn import TurnFrame
 from .understand import ReplayUnderstander, Understander
-from .verify import _FUNCTION, _NUMWORDS, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
+from .verify import _FUNCTION, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
 
 FILLER = "filler"
 # Phrases a name follows ("my name is sarah", "call me raj", "this is priya"). "I'm" is not
@@ -44,14 +47,11 @@ _NAME_LEADS = (("name", "is"), ("call", "me"), ("this", "is"))
 # "I'm Sarah" / "i am sarah, ...": the word after is a name when capitalised, or when the phrase ends
 # with it; in a turn telling a fact only when "and" or a comma follows ("I'm diabetic." is the fact).
 _SELF_INTRO = re.compile(r"\b[Ii](?:['’]m| am|m)\s+([^\W\d_]+)(\s*(?:[,.!?;]|$)|\s+(?:and|from|here|calling|speaking)\b)?")
-_DAYS = "monday tuesday wednesday thursday friday saturday sunday".split()
 # Words a person's name follows ("my colleague JOSE", "my son Arjun", "my teacher Mr Smith"): after
 # my/our/his/her/their/your, the next capitalised word is a name whatever the model tagged it as.
 _RELATIONS = frozenset("colleague coworker friend son daughter wife husband partner mother mom mum father dad brother sister boss manager kid child baby grandma grandpa grandmother grandfather uncle aunt cousin neighbour neighbor roommate girlfriend boyfriend fiance fiancee teacher doctor client customer".split())
 _POSSESSIVE = frozenset("my our his her their your s".split())  # "s": "my wife's sister PRIYA"
 _TITLES = frozenset("mr mrs ms miss dr sir madam".split())
-_CALENDAR = frozenset("january february march april may june july august september october november december".split()
-                      + _DAYS + [d + "s" for d in _DAYS])
 
 
 def _names(text: str, frame: Optional[TurnFrame] = None, fact: bool = True) -> List[str]:
@@ -211,6 +211,9 @@ class CallSession:
         self.state = CallState()
         # Why an answer to a shared question is not saved: Chat's save rules (save_check).
         self._save_rules = ChatRuleSet.save_chain()
+        # Checked once the rule checker would share: names and details this chat learnt; urgent words.
+        self._shared_question_rules = ChatRuleSet.shared_question_chain()
+        self._urgent_words = UrgentWords()
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self._next = 1
@@ -262,14 +265,15 @@ class CallSession:
         if frame.language and _instructs(text, words):
             self.state.language = frame.language  # "reply only in Hindi": kept for the rest of the chat
         verdict = self.checker.check(frame, text, self.state)
-        if verdict.shared and self._carries_private_word(verdict.question):
-            verdict = Verdict(False, AGENT, ["V5_private_word"])
-        elif verdict.shared and self._drops_a_detail(verdict.question):
-            verdict = Verdict(False, AGENT, ["V7_lost_detail"])
-        elif verdict.shared and self._names_someone_untagged(verdict.question, frame):
-            verdict = Verdict(False, AGENT, ["V5_untagged_name"])
-        if verdict.route != URGENT and about_caller and _urgent(words):
-            verdict = Verdict(False, URGENT, ["V1_urgent_fixed"])  # never left to the model alone
+        chat_turn = ChatTurn(frame, text, self.state)
+        if verdict.shared:
+            objection = self._shared_question_rules.first_objection(chat_turn)
+            if objection is not None:
+                verdict = Verdict(False, AGENT, [objection.reason])
+        if verdict.route != URGENT and about_caller:
+            objection = self._urgent_words.check(chat_turn)
+            if objection is not None:
+                verdict = Verdict(False, objection.route, [objection.reason])  # never left to the model alone
         self.state.apply(frame, shared=verdict.shared)
         self.state.note_private((_private_words(text, frame) if not verdict.shared else []) + names)
         self.counts[verdict.route] += 1
@@ -324,33 +328,6 @@ class CallSession:
             messages.insert(0, {"role": "system", "content": " ".join(notes)})
         return self._open_turn(TurnResult(tid, SHARED, frame=frame, verdict=verdict, messages=messages,
                                           reason="cache miss"))
-
-    def _carries_private_word(self, question: Optional[str]) -> bool:
-        """The shared question says what named the caller earlier ("for sarah")."""
-        return any(self.state.is_name(w) for w in _words(question or ""))
-
-    def _names_someone_untagged(self, question: Optional[str], frame: TurnFrame) -> bool:
-        """A word in the shared question with a capital ("Priya", "PRIYA", "McKenzie"), or in a script
-        without capitals, that the understanding model did not tag as a place, thing or topic, that is
-        no month or day, and that no earlier shared turn of this chat said. Fixed code cannot tell
-        "Priya" from "France" or "SSO"; the model's tag can (it is asked to tag every one)."""
-        allowed = {w for e in frame.entities if not e.identifying and e.type not in NOT_GENERAL_TYPES
-                   for w in _words(e.text)}
-        allowed |= _CALENDAR | set(_words(self.state.active_question or "")) | set(_words(self.state.last_reply))
-        flagged = set()
-        for i, word in enumerate(re.findall(r"[^\W\d_]+", question or "")):
-            low = word.lower()
-            if word == "I" or (i == 0 and low in _FUNCTION):  # "What ...", "How ..."
-                continue
-            if any(unicodedata.category(c) in ("Lu", "Lt", "Lo") for c in word):
-                flagged.add(low)
-        return any(w not in allowed and word_digest(w) not in self.state.details for w in flagged)
-
-    def _drops_a_detail(self, question: Optional[str]) -> bool:
-        """A place, month or number the caller told ("Goa in December") is missing from the question."""
-        words = _words(question or "")
-        asked = {word_digest(w) for w in words} | {word_digest(_NUMWORDS.get(w, w)) for w in words}  # "three" is "3"
-        return any(d not in asked for d in self.state.details)
 
     def record_answer(self, result: TurnResult, answer: str, *, mentions: tuple = (),
                       task: Optional[str] = None) -> str:

@@ -1,0 +1,35 @@
+{
+ "rule": "UrgentWords",
+ "stage": "question",
+ "subject": "chat",
+ "about": "v4: when Chat's check UrgentWords objects (run once the rule checker would share); run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a caller in an emergency",
+   "say": "my father collapsed and is not breathing",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V1_urgent_fixed",
+   "route": "urgent"
+  },
+  {
+   "name": "an ordinary question",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?"
+   },
+   "state": {},
+   "objects": false
+  }
+ ]
+}

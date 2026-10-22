@@ -58,7 +58,13 @@ function looksIdentifying(question) {
   return false;
 }
 
+const DAYS = "monday tuesday wednesday thursday friday saturday sunday".split(" ");
+const CALENDAR = new Set([..."january february march april may june july august september october november december".split(" "),
+  ...DAYS, ...DAYS.map((d) => d + "s")]);
+
 module.exports = {
+  CALENDAR,
+  DAYS,
   FUNCTION,
   NUMWORDS,
   UNITS,

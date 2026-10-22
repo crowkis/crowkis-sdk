@@ -71,3 +71,8 @@ def _looks_identifying(question: str) -> bool:
         if not re.match(r"\s*" + _UNITS, low[match.end(): match.end() + 12]):
             return True  # a long number that is not a quantity: an order ID, account, phone...
     return False
+
+
+_DAYS = "monday tuesday wednesday thursday friday saturday sunday".split()
+_CALENDAR = frozenset("january february march april may june july august september october november december".split()
+                      + _DAYS + [d + "s" for d in _DAYS])

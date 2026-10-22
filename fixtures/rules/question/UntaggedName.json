@@ -1,0 +1,40 @@
+{
+ "rule": "UntaggedName",
+ "stage": "question",
+ "subject": "chat",
+ "about": "v4: when Chat's check UntaggedName objects (run once the rule checker would share); run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a capitalised word nobody tagged",
+   "say": "is priya open on weekends",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Is Priya open on weekends?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V5_untagged_name"
+  },
+  {
+   "name": "the model tagged it a place",
+   "say": "is priya open on weekends",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Is Priya open on weekends?",
+    "entities": [
+     {
+      "type": "place",
+      "text": "Priya"
+     }
+    ]
+   },
+   "state": {},
+   "objects": false
+  }
+ ]
+}

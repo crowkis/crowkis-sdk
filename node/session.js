@@ -8,17 +8,20 @@
 // personal (agent + tools; shapes only phrase verified values) | tools | agent. Never cached
 // except shared. Sits next to VoiceSession; existing users are unaffected.
 
-const { CallState, IDENTITIES, wordDigest } = require("./callstate.js");
+const { CallState, IDENTITIES } = require("./callstate.js");
 const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("./src/understanding/answerPatterns.js");
 const { ChatRuleSet } = require("./src/rules/chatRuleSet.js");
 const { ChatAnswer } = require("./src/turns/chatAnswer.js");
+const { ChatTurn } = require("./src/turns/chatTurn.js");
+const { UrgentWords } = require("./src/rules/question/index.js");
+const { CALENDAR } = require("./src/understanding/frameWords.js");
 const {
-  _isNonAnswer: isNonAnswer, _tellsAboutCaller: tellsAboutCaller, _instructs: instructs, _urgent: urgent,
-  _wordsOf: wordsOf, _properNouns: properNouns, _repeatsPromptDetails: repeatsPromptDetails,
+  _tellsAboutCaller: tellsAboutCaller, _instructs: instructs,
+  _wordsOf: wordsOf, _properNouns: properNouns,
   _PII_PLACEHOLDER: PII_PLACEHOLDER,
 } = require("./voice.js");
-const { NOT_GENERAL_TYPES, TurnFrame } = require("./turn.js");
-const { _FUNCTION: FUNCTION, _NUMWORDS: NUMWORDS, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
+const { TurnFrame } = require("./turn.js");
+const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
 
 const FILLER = "filler";
 // Phrases a name follows ("my name is sarah", "call me raj", "this is priya"). "I'm" is not one
@@ -32,9 +35,6 @@ const SELF_INTRO = /\b[Ii](?:['\u2019]m| am|m)\s+(\p{L}+)(\s*(?:[,.!?;]|$)|\s+(?
 const RELATIONS = new Set("colleague coworker friend son daughter wife husband partner mother mom mum father dad brother sister boss manager kid child baby grandma grandpa grandmother grandfather uncle aunt cousin neighbour neighbor roommate girlfriend boyfriend fiance fiancee teacher doctor client customer".split(" "));
 const POSSESSIVE = new Set("my our his her their your s".split(" ")); // "s": "my wife's sister PRIYA"
 const TITLES = new Set("mr mrs ms miss dr sir madam".split(" "));
-const DAYS = "monday tuesday wednesday thursday friday saturday sunday".split(" ");
-const CALENDAR = new Set([..."january february march april may june july august september october november december".split(" "),
-  ...DAYS, ...DAYS.map((d) => d + "s")]);
 
 // What names the caller in a turn: emails, long numbers, a name after "my name is", what the
 // understanding model tagged as identifying, and, in a turn that is not telling a fact, any name it
@@ -181,6 +181,9 @@ class CallSession {
     this.state = new CallState();
     // Why an answer to a shared question is not saved: Chat's save rules (saveCheck).
     this._saveRules = ChatRuleSet.saveChain();
+    // Checked once the rule checker would share: names and details this chat learnt; urgent words.
+    this._sharedQuestionRules = ChatRuleSet.sharedQuestionChain();
+    this._urgentWords = new UrgentWords();
     this._fillers = new Map(Object.entries(fillers || {}).map(([k, v]) => [norm(k), v]));
     this._shapes = new Map();
     this._nextId = 1;
@@ -231,11 +234,14 @@ class CallSession {
     this.state.noteNames(said);
     if (frame.language && instructs(t, words)) this.state.language = frame.language; // kept for the rest of the chat
     let verdict = this.checker.check(frame, t, this.state);
-    if (verdict.shared && this._carriesPrivateWord(verdict.question)) verdict = new Verdict(false, AGENT, ["V5_private_word"]);
-    else if (verdict.shared && this._dropsADetail(verdict.question)) verdict = new Verdict(false, AGENT, ["V7_lost_detail"]);
-    else if (verdict.shared && this._namesSomeoneUntagged(verdict.question, frame)) verdict = new Verdict(false, AGENT, ["V5_untagged_name"]);
-    if (verdict.route !== URGENT && aboutCaller && urgent(words)) {
-      verdict = new Verdict(false, URGENT, ["V1_urgent_fixed"]); // never left to the model alone
+    const chatTurn = new ChatTurn(frame, t, this.state);
+    if (verdict.shared) {
+      const objection = this._sharedQuestionRules.firstObjection(chatTurn);
+      if (objection) verdict = new Verdict(false, AGENT, [objection.reason]);
+    }
+    if (verdict.route !== URGENT && aboutCaller) {
+      const objection = this._urgentWords.check(chatTurn);
+      if (objection) verdict = new Verdict(false, objection.route, [objection.reason]); // never left to the model alone
     }
     this.state.apply(frame, { shared: verdict.shared });
     // A turn that is not telling a fact may still give a name ("hi i'm sarah"); a fact turn keeps
@@ -287,34 +293,6 @@ class CallSession {
   }
 
   /** The agent answered `result`. Saves when allowed, updates the call state. Returns the outcome. */
-  /** A word in the shared question with a capital ("Priya", "PRIYA", "McKenzie"), or in a script without
-   * capitals, that the understanding model did not tag as a place, thing or topic, that is no month or day,
-   * and that no earlier shared turn of this chat said. Fixed code cannot tell "Priya" from "France" or
-   * "SSO"; the model's tag can (it is asked to tag every one). */
-  _namesSomeoneUntagged(question, frame) {
-    const allowed = new Set(frame.entities.filter((e) => !e.identifying && !NOT_GENERAL_TYPES.has(e.type)).flatMap((e) => wordsOf(e.text)));
-    for (const w of [...CALENDAR, ...wordsOf(this.state.activeQuestion || ""), ...wordsOf(this.state.lastReply)]) allowed.add(w);
-    const flagged = new Set();
-    (String(question || "").match(/\p{L}+/gu) || []).forEach((word, i) => {
-      const low = word.toLowerCase();
-      if (word === "I" || (i === 0 && FUNCTION.has(low))) return; // "What ...", "How ..."
-      if (/[\p{Lu}\p{Lt}\p{Lo}]/u.test(word)) flagged.add(low);
-    });
-    return [...flagged].some((w) => !allowed.has(w) && !this.state.details.includes(wordDigest(w)));
-  }
-
-  /** A place, month or number the caller told ("Goa in December") is missing from the question. */
-  _dropsADetail(question) {
-    const words = wordsOf(question || "");
-    const asked = new Set([...words.map(wordDigest), ...words.map((w) => wordDigest(NUMWORDS[w] || w))]); // "three" is "3"
-    return this.state.details.some((d) => !asked.has(d));
-  }
-
-  /** The shared question says what named the caller earlier ("for sarah"). */
-  _carriesPrivateWord(question) {
-    return wordsOf(question || "").some((w) => this.state.isName(w));
-  }
-
   async recordAnswer(result, answer, { mentions = [], task = null } = {}) {
     const outcome = await this._record(result, answer, mentions, task);
     this._emit({ type: "answer", turnId: result.turnId, route: result.route, outcome, key: result.verdict ? result.verdict.key : null });

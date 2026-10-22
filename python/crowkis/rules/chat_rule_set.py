@@ -21,12 +21,16 @@ from .question import (
     LostDetail,
     NoQuestion,
     NotGeneral,
+    QuestionNamesCaller,
     StatedFacts,
     TaskStep,
+    ToldDetailDropped,
     UncertainFrame,
     Ungrounded,
     UnresolvedReference,
+    UntaggedName,
     UrgentTurn,
+    UrgentWords,
 )
 
 V7 = "V7_LostOrDropped"
@@ -43,6 +47,12 @@ class ChatRuleSet:
     decisive: RuleChain
     frame: RuleChain
     question: RuleChain
+
+    @staticmethod
+    def shared_question_chain() -> RuleChain:
+        """The checks a session runs once the rule checker would share a question, on what the chat
+        has learnt (names, told details): the first objection keeps the turn with the agent."""
+        return RuleChain([QuestionNamesCaller(), ToldDetailDropped(), UntaggedName()])
 
     @staticmethod
     def save_chain() -> RuleChain:

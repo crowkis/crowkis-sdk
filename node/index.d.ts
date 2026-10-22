@@ -157,6 +157,8 @@ export class CrowkisClient {
   cvoicestat(counts: Record<string, number>, options?: { tenant?: string }): Promise<unknown>;
   /** Remove expired keys now; the number removed. */
   sweep(): Promise<number>;
+  /** One page of cache keys; the cursor is a number string and "0" ends the scan. */
+  cscan(cursor?: string | number, options?: { match?: string; count?: number; intent?: string; tenant?: string }): Promise<{ cursor: string; keys: Buffer[] }>;
   /** TENANT is sent only when passed, as cpromptSet/cpromptGet send none. */
   cpromptDel(name: string, options?: { tenant?: string }): Promise<boolean>;
   cpromptRollback(name: string, version: number, options?: { tenant?: string }): Promise<number>;

@@ -889,6 +889,7 @@ class CrowkisClient {
     if (options.match) args.push("MATCH", options.match);
     if (options.count != null) args.push("COUNT", String(options.count));
     if (options.intent) args.push("INTENT", options.intent);
+    if (this._tenant(options)) args.push("TENANT", this._tenant(options));
     const value = await this.execute(...args);
     if (Array.isArray(value) && value.length === 2) {
       const next = Buffer.isBuffer(value[0]) ? value[0].toString() : String(value[0]);

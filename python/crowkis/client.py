@@ -1267,7 +1267,10 @@ class CrowkisClient:
         match: Optional[str] = None,
         count: Optional[int] = None,
         intent: Optional[str] = None,
+        tenant: Optional[str] = None,
     ) -> Tuple[str, List[bytes]]:
+        """One page of one tenant's keys. The cursor is opaque: pass back the one
+        returned until it is "0"."""
         args: List[BytesLike] = ["CSCAN", str(cursor)]
         if match is not None:
             args += ["MATCH", match]
@@ -1275,6 +1278,8 @@ class CrowkisClient:
             args += ["COUNT", str(count)]
         if intent is not None:
             args += ["INTENT", intent]
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
         value = self.execute(*args)
         if isinstance(value, list) and len(value) == 2:
             nxt = value[0].decode() if isinstance(value[0], bytes) else str(value[0])

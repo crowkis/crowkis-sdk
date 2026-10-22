@@ -45,20 +45,34 @@ class Store {
   async close() {}
 }
 
+// The fixture names VoiceSession's options as Python does.
+const OPTION_NAMES = { share_templates: "shareTemplates", short_turns: "shortTurns" };
+const BUDGET_MS = 50;
+const SLOW_SERVER_MS = 500;
+
+function nodeOptions(options = {}) {
+  return Object.fromEntries(Object.entries(options).map(([name, value]) => [OPTION_NAMES[name] || name, value]));
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function sessionOn(store, options = {}) {
   return new VoiceSession(new Agent("caller", { client: store }), { voice: "v", ...options });
 }
 
 async function lastDecision(testCase) {
   const store = new Store(testCase.refuse ? new Error("write refused") : null);
-  const session = sessionOn(store, testCase.options || {});
+  const session = sessionOn(store, nodeOptions(testCase.options));
   const last = testCase.turns.length - 1;
   let decision = null;
   for (let index = 0; index <= last; index += 1) {
     decision = await session.decide(testCase.turns[index]);
     if (decision.needsModel) {
-      const keep = Boolean(testCase.private) && index === last;
-      decision = await session.record(decision, testCase.replies[index], { private: keep });
+      const isLast = index === last;
+      decision = await session.record(decision, testCase.replies[index], {
+        private: Boolean(testCase.private) && isLast,
+        system: isLast && testCase.system ? testCase.system : null,
+      });
     }
   }
   return decision;
@@ -91,6 +105,37 @@ test("the hit guards are named", async () => {
   store.shared.set("what is your refund policy", "See https://example.com/refunds for details.");
   const decision = await sessionOn(store).decide("what is your refund policy");
   assert.deepStrictEqual([decision.action, decision.rule], ["infer", "ScreenOnlyAnswer"]);
+});
+
+test("a late lookup is named", async () => {
+  const store = new Store();
+  const lookup = store.cgetHit.bind(store);
+  store.cgetHit = async (...args) => {
+    await sleep(SLOW_SERVER_MS);
+    return lookup(...args);
+  };
+  const decision = await sessionOn(store, { latencyBudgetMs: BUDGET_MS }).decide("what is your refund policy");
+  assert.strictEqual(decision.rule, "LookupDeadline");
+});
+
+test("a write past the budget is named", async () => {
+  const store = new Store();
+  const write = store.cset.bind(store);
+  store.cset = async (...args) => {
+    await sleep(SLOW_SERVER_MS);
+    return write(...args);
+  };
+  const session = sessionOn(store, { latencyBudgetMs: BUDGET_MS });
+  const decision = await session.record(await session.decide("what is your refund policy"), "Refunds take five business days.");
+  assert.strictEqual(decision.saveRule, "BoundedWrite");
+  await sleep(SLOW_SERVER_MS);
+});
+
+test("a streamed answer talked over is interrupted", async () => {
+  const session = sessionOn(new Store());
+  const response = await session.respond("what is your refund policy", () => ["Refunds take ", "five days."]);
+  for await (const _ of response) session.cancel();
+  assert.strictEqual(response.decision.saveRule, "Interrupted");
 });
 
 test("an unreachable cache is named", async () => {

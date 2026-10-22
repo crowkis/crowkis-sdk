@@ -330,6 +330,7 @@ class CrowkisVoice:
         decision._recorded, decision._said = True, None
         outcome = await asyncio.to_thread(core._record_model_turn, question, answer, turn=decision.turn, **extra)
         decision.stored = outcome in ("saved", "template")
+        decision.save_rule = None if decision.stored else outcome.rule
         decision.text = answer
         await clips.settle(answer, await asyncio.to_thread(_clip_allowed, core, outcome))
 

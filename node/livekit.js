@@ -196,12 +196,13 @@ function withCrowkis(agent, { crowkis = null, options = {} } = {}) {
   };
   const save = async (turn, answer) => {
     const core = crowkisSession();
-    const { outcome } = await core._record(turn.question, answer, {
+    const { outcome, rule } = await core._record(turn.question, answer, {
       turn: turn.decision.turn,
       ...(turn.instructions ? { instructions: turn.instructions } : {}),
     });
     turn.decision._recorded = true;
     turn.decision._said = null;
+    turn.decision.saveRule = outcome === "saved" || outcome === "template" ? null : rule || null;
     await clipCache().settle(answer, await clipAllowed(outcome));
     return outcome;
   };

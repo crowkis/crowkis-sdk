@@ -1,336 +1,837 @@
 {
  "calls": {
-  "Unicode, Hinglish and numbers #1": [
-   {
-    "key": "refund kitne din mein milta hai",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "refund kitne din mein milta hai",
-    "sees": [
-     "user: refund kitne din mein milta hai"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "Unicode, Hinglish and numbers #2": [
-   {
-    "key": "refund kitne din mein milta hai",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "refund kitne din mein milta hai",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Paanch din mein milta hai."
-   }
-  ],
-  "Unicode, Hinglish and numbers #3": [
-   {
-    "key": "¿cuál es el horario de atención de la tienda?",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "¿cuál es el horario de atención de la tienda?",
-    "sees": [
-     "user: ¿cuál es el horario de atención de la tienda?"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "Unicode, Hinglish and numbers #4": [
-   {
-    "key": "¿cuál es el horario de atención de la tienda?",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "¿cuál es el horario de atención de la tienda?",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Abrimos de 9 a 18 h, de lunes a sábado."
-   }
-  ],
-  "Unicode, Hinglish and numbers #5": [
-   {
-    "key": "do you ship orders of 2,500 units or more",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "do you ship orders of 2,500 units or more",
-    "sees": [
-     "user: do you ship orders of 2,500 units or more"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "Unicode, Hinglish and numbers #6": [
-   {
-    "key": "do you ship orders of 2,500 units or more",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "do you ship orders of 2,500 units or more",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Yes, orders of 2,500 units ship free."
-   }
-  ],
-  "a barge-in mid-answer is never recorded and never served #1": [
-   {
-    "key": "how do I reset my password",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "how do I reset my password",
-    "sees": [
-     "user: how do I reset my password"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "a barge-in mid-answer is never recorded and never served #2": [
-   {
-    "key": "how do I reset my password",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "how do I reset my password",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Open settings, then security, then reset."
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #1": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": [
-     "user: what is your refund policy"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #2": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Refunds take five business days."
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #3": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Refunds take five business days."
-   }
-  ],
-  "a private turn is never shared with a second caller #1": [
-   {
-    "key": null,
-    "needs_model": true,
-    "outcome": "not_shared",
-    "reason": "V3_not_general;V3_no_question",
-    "route": "personal",
-    "say": "my order 48213 has not arrived where is it",
-    "sees": null,
-    "segment": null
-   }
-  ],
-  "a private turn is never shared with a second caller #2": [
-   {
-    "key": null,
-    "needs_model": true,
-    "outcome": "not_shared",
-    "reason": "V3_not_general;V3_no_question",
-    "route": "personal",
-    "say": "my order 48213 has not arrived where is it",
-    "sees": null,
-    "segment": null
-   }
-  ],
-  "a reworded question hits #1": [
-   {
-    "key": "how do I turn on dark mode",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "how do I turn on dark mode",
-    "sees": [
-     "user: how do I turn on dark mode"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "a reworded question hits #2": [
-   {
-    "key": "how can I turn on dark mode",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "how can I turn on dark mode",
-    "sees": [
-     "user: how can I turn on dark mode"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "a tool-call turn is never cached #1": [
-   {
-    "key": null,
-    "needs_model": true,
-    "outcome": "not_shared",
-    "reason": "V3_not_general;V3_no_question",
-    "route": "personal",
-    "say": "what is the weather in paris today",
-    "sees": null,
-    "segment": null
-   }
-  ],
-  "a tool-call turn is never cached #2": [
-   {
-    "key": null,
-    "needs_model": true,
-    "outcome": "not_shared",
-    "reason": "V3_not_general;V3_no_question",
-    "route": "personal",
-    "say": "what is the weather in paris today",
-    "sees": null,
-    "segment": null
-   }
-  ],
-  "an audio cache error: the cached text is still served #1": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Refunds take five business days."
-   }
-  ],
-  "an audio cache error: the cached text is still served #2": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Refunds take five business days."
-   }
-  ],
-  "an audio cache error: the cached text is still served #3": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": false,
-    "reason": "cache hit",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": null,
-    "segment": "kb=1;lang=und;channel=chat",
-    "text": "Refunds take five business days."
-   }
-  ],
-  "concurrent calls are each served from the cache #1": [
-   {
-    "key": "what are your opening hours",
-    "needs_model": true,
-    "outcome": "saved",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "what are your opening hours",
-    "sees": [
-     "user: what are your opening hours"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ],
-  "the server down: the bot still answers within the budget #1": [
-   {
-    "key": "what is your refund policy",
-    "needs_model": true,
-    "outcome": "refused:write_failed",
-    "reason": "cache miss",
-    "route": "shared",
-    "say": "what is your refund policy",
-    "sees": [
-     "user: what is your refund policy"
-    ],
-    "segment": "kb=1;lang=und;channel=chat"
-   }
-  ]
+  "Unicode, Hinglish and numbers #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "refund kitne din mein milta hai",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "refund kitne din mein milta hai",
+     "sees": [
+      "user: refund kitne din mein milta hai"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "refund kitne din mein milta hai",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "refund kitne din mein milta hai",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Paanch din mein milta hai."
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #3": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "¿cuál es el horario de atención de la tienda?",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "¿cuál es el horario de atención de la tienda?",
+     "sees": [
+      "user: ¿cuál es el horario de atención de la tienda?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #4": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "¿cuál es el horario de atención de la tienda?",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "¿cuál es el horario de atención de la tienda?",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Abrimos de 9 a 18 h, de lunes a sábado."
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #5": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "do you ship orders of 2,500 units or more",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "do you ship orders of 2,500 units or more",
+     "sees": [
+      "user: do you ship orders of 2,500 units or more"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #6": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "do you ship orders of 2,500 units or more",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "do you ship orders of 2,500 units or more",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Yes, orders of 2,500 units ship free."
+    }
+   ]
+  },
+  "a barge-in mid-answer is never recorded and never served #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 1,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "how do I reset my password",
+     "needs_model": true,
+     "outcome": "cancelled",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "how do I reset my password",
+     "sees": [
+      "user: how do I reset my password"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "a barge-in mid-answer is never recorded and never served #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "how do I reset my password",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "how do I reset my password",
+     "sees": [
+      "user: how do I reset my password"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #3": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "a private turn is never shared with a second caller #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 1,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 0,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": null,
+     "needs_model": true,
+     "outcome": "not_shared",
+     "reason": "V3_not_general;V3_no_question",
+     "route": "personal",
+     "say": "my order 48213 has not arrived where is it",
+     "sees": null,
+     "segment": null
+    }
+   ]
+  },
+  "a private turn is never shared with a second caller #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 1,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 0,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": null,
+     "needs_model": true,
+     "outcome": "not_shared",
+     "reason": "V3_not_general;V3_no_question",
+     "route": "personal",
+     "say": "my order 48213 has not arrived where is it",
+     "sees": null,
+     "segment": null
+    }
+   ]
+  },
+  "a reworded question hits #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "how do I turn on dark mode",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "how do I turn on dark mode",
+     "sees": [
+      "user: how do I turn on dark mode"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "a reworded question hits #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "how can I turn on dark mode",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "how can I turn on dark mode",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Open settings and pick a theme."
+    }
+   ]
+  },
+  "a tool-call turn is never cached #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 1,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 0,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": null,
+     "needs_model": true,
+     "outcome": "not_shared",
+     "reason": "V3_not_general;V3_no_question",
+     "route": "personal",
+     "say": "what is the weather in paris today",
+     "sees": null,
+     "segment": null
+    }
+   ]
+  },
+  "a tool-call turn is never cached #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 1,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 0,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": null,
+     "needs_model": true,
+     "outcome": "not_shared",
+     "reason": "V3_not_general;V3_no_question",
+     "route": "personal",
+     "say": "what is the weather in paris today",
+     "sees": null,
+     "segment": null
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #2": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #3": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 1,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": null,
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "concurrent calls are each served from the cache #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 0,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 0,
+    "saved": 1,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what are your opening hours",
+     "needs_model": true,
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "what are your opening hours",
+     "sees": [
+      "user: what are your opening hours"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  },
+  "the server down: the bot still answers within the budget #1": {
+   "stats": {
+    "agent": 0,
+    "cancelled": 0,
+    "fallback_used": 0,
+    "filler": 0,
+    "hits": 0,
+    "lookup_errors": 1,
+    "lookup_timeouts": 0,
+    "personal": 0,
+    "save_refused": 1,
+    "saved": 0,
+    "shared": 1,
+    "sharing_off": 0,
+    "task": 0,
+    "tools": 0,
+    "tools_answered": 0,
+    "understand_errors": 0,
+    "understand_timeouts": 0,
+    "urgent": 0
+   },
+   "turns": [
+    {
+     "key": "what is your refund policy",
+     "needs_model": true,
+     "outcome": "refused:write_failed",
+     "reason": "cache miss",
+     "route": "shared",
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
+    }
+   ]
+  }
  },
- "writes": [
-  [
-   "kb=1;lang=und;channel=chat",
-   "what is your refund policy",
-   "Refunds take five business days.",
-   false
+ "writes": {
+  "Unicode, Hinglish and numbers": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "refund kitne din mein milta hai",
+    "Paanch din mein milta hai.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "¿cuál es el horario de atención de la tienda?",
+    "Abrimos de 9 a 18 h, de lunes a sábado.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "do you ship orders of 2,500 units or more",
+    "Yes, orders of 2,500 units ship free.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "how do I turn on dark mode",
-   "Open settings and pick a theme.",
-   false
+  "a barge-in mid-answer is never recorded and never served": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "how do I reset my password",
+    "Go to settings and choose security.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "how can I turn on dark mode",
-   "Wrong: the cache was not used.",
-   false
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "what is your refund policy",
+    "Refunds take five business days.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "how do I reset my password",
-   "Open settings, then security, then reset.",
-   false
+  "a private turn is never shared with a second caller": [],
+  "a reworded question hits": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "how do I turn on dark mode",
+    "Open settings and pick a theme.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "refund kitne din mein milta hai",
-   "Paanch din mein milta hai.",
-   false
+  "a tool-call turn is never cached": [],
+  "an audio cache error: the cached text is still served": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "what is your refund policy",
+    "Refunds take five business days.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "¿cuál es el horario de atención de la tienda?",
-   "Abrimos de 9 a 18 h, de lunes a sábado.",
-   false
+  "concurrent calls are each served from the cache": [
+   [
+    "kb=1;lang=und;channel=chat",
+    "what are your opening hours",
+    "Wrong: the cache was not used.",
+    false
+   ]
   ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "do you ship orders of 2,500 units or more",
-   "Yes, orders of 2,500 units ship free.",
-   false
-  ],
-  [
-   "kb=1;lang=und;channel=chat",
-   "what are your opening hours",
-   "Wrong: the cache was not used.",
-   false
-  ]
- ]
+  "the server down: the bot still answers within the budget": []
+ }
 }

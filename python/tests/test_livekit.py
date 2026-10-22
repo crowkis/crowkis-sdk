@@ -126,6 +126,21 @@ class LiveKitTests(unittest.TestCase):
         self.assertEqual(store.writes, [])
         self.assertEqual(store.tool_writes, [])
 
+    def test_a_recorded_turn_names_its_save_rule(self):
+        """v4 P0: a LiveKit turn's decision names the save rule that kept it, as record() does."""
+        for said, reply, save_rule in ((QUESTION, ANSWER, None),
+                                       ("my order 48213 has not arrived where is it",
+                                        "Order 48213 left the depot this morning.", "PersonalTemplate")):
+            with self.subTest(said=said):
+                fakes = Fakes(reply=reply)
+                agent, _, session = _agent(fakes)
+                decisions = []
+                decide = session.decide
+                session.decide = lambda text: decisions.append(decide(text)) or decisions[-1]
+                with _patched(fakes):
+                    asyncio.run(_turn(agent, _ctx(("user", said))))
+                self.assertEqual([d.save_rule for d in decisions], [save_rule])
+
     def test_an_answer_built_from_a_tool_stays_in_the_call(self):
         fakes = Fakes(reply="It is sunny in Paris.", tool_first=True)
         agent, store, session = _agent(fakes)

@@ -1,340 +1,832 @@
 {
  "calls": {
-  "Unicode, Hinglish and numbers #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "refund kitne din mein milta hai",
-    "sees": [
-     "user: refund kitne din mein milta hai"
-    ],
-    "stored": true
-   }
-  ],
-  "Unicode, Hinglish and numbers #2": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "refund kitne din mein milta hai",
-    "sees": null,
-    "text": "Paanch din mein milta hai."
-   }
-  ],
-  "Unicode, Hinglish and numbers #3": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "¿cuál es el horario de atención de la tienda?",
-    "sees": [
-     "user: ¿cuál es el horario de atención de la tienda?"
-    ],
-    "stored": true
-   }
-  ],
-  "Unicode, Hinglish and numbers #4": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "¿cuál es el horario de atención de la tienda?",
-    "sees": null,
-    "text": "Abrimos de 9 a 18 h, de lunes a sábado."
-   }
-  ],
-  "Unicode, Hinglish and numbers #5": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "do you ship orders of 2,500 units or more",
-    "sees": [
-     "user: do you ship orders of 2,500 units or more"
-    ],
-    "stored": true
-   }
-  ],
-  "Unicode, Hinglish and numbers #6": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "do you ship orders of 2,500 units or more",
-    "sees": null,
-    "text": "Yes, orders of 2,500 units ship free."
-   }
-  ],
-  "a barge-in mid-answer is never recorded and never served #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "how do I reset my password",
-    "sees": [
-     "user: how do I reset my password"
-    ],
-    "stored": true
-   }
-  ],
-  "a barge-in mid-answer is never recorded and never served #2": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "how do I reset my password",
-    "sees": null,
-    "text": "Open settings, then security, then reset."
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "what is your refund policy",
-    "sees": [
-     "user: what is your refund policy"
-    ],
-    "stored": true
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #2": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "what is your refund policy",
-    "sees": null,
-    "text": "Refunds take five business days."
-   }
-  ],
-  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #3": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "what is your refund policy",
-    "sees": null,
-    "text": "Refunds take five business days."
-   }
-  ],
-  "a private turn is never shared with a second caller #1": [
-   {
-    "action": "infer",
-    "cacheable": false,
-    "not_stored": "about this caller, with no declared value to make a shared answer shape from",
-    "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
-    "rule": "OwnRecords",
-    "save_rule": "PersonalTemplate",
-    "say": "my order 48213 has not arrived where is it",
-    "sees": null,
-    "stored": false
-   }
-  ],
-  "a private turn is never shared with a second caller #2": [
-   {
-    "action": "infer",
-    "cacheable": false,
-    "not_stored": "about this caller, with no declared value to make a shared answer shape from",
-    "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
-    "rule": "OwnRecords",
-    "save_rule": "PersonalTemplate",
-    "say": "my order 48213 has not arrived where is it",
-    "sees": null,
-    "stored": false
-   }
-  ],
-  "a reworded question hits #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "how do I turn on dark mode",
-    "sees": [
-     "user: how do I turn on dark mode"
-    ],
-    "stored": true
-   }
-  ],
-  "a reworded question hits #2": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "how can I turn on dark mode",
-    "sees": [
-     "user: how can I turn on dark mode"
-    ],
-    "stored": true
-   }
-  ],
-  "a tool-call turn is never cached #1": [
-   {
-    "action": "infer",
-    "cacheable": false,
-    "not_stored": "about this caller, with no declared value to make a shared answer shape from",
-    "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
-    "rule": "OwnRecords",
-    "save_rule": "PersonalTemplate",
-    "say": "what is the weather in paris today",
-    "sees": null,
-    "stored": false
-   }
-  ],
-  "a tool-call turn is never cached #2": [
-   {
-    "action": "infer",
-    "cacheable": false,
-    "not_stored": "about this caller, with no declared value to make a shared answer shape from",
-    "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
-    "rule": "OwnRecords",
-    "save_rule": "PersonalTemplate",
-    "say": "what is the weather in paris today",
-    "sees": null,
-    "stored": false
-   }
-  ],
-  "an audio cache error: the cached text is still served #1": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "what is your refund policy",
-    "sees": null,
-    "text": "Refunds take five business days."
-   }
-  ],
-  "an audio cache error: the cached text is still served #2": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "what is your refund policy",
-    "sees": null,
-    "text": "Refunds take five business days."
-   }
-  ],
-  "an audio cache error: the cached text is still served #3": [
-   {
-    "action": "serve",
-    "cacheable": false,
-    "reason": "confident cache hit",
-    "rule": null,
-    "say": "what is your refund policy",
-    "sees": null,
-    "text": "Refunds take five business days."
-   }
-  ],
-  "concurrent calls are each served from the cache #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "",
-    "reason": "confidence below the spoken-answer bar of 0.92",
-    "rule": "ConfidenceBar",
-    "save_rule": null,
-    "say": "what are your opening hours",
-    "sees": [
-     "user: what are your opening hours"
-    ],
-    "stored": true
-   }
-  ],
-  "the server down: the bot still answers within the budget #1": [
-   {
-    "action": "infer",
-    "cacheable": true,
-    "not_stored": "the server refused the write: crowkis server down",
-    "reason": "cache unavailable (ConnectionRefusedError); asking the model",
-    "rule": "CacheUnavailable",
-    "save_rule": "WriteRefused",
-    "say": "what is your refund policy",
-    "sees": [
-     "user: what is your refund policy"
-    ],
-    "stored": false
-   }
-  ]
+  "Unicode, Hinglish and numbers #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "refund kitne din mein milta hai",
+     "sees": [
+      "user: refund kitne din mein milta hai"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "refund kitne din mein milta hai",
+     "sees": null,
+     "text": "Paanch din mein milta hai."
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #3": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "¿cuál es el horario de atención de la tienda?",
+     "sees": [
+      "user: ¿cuál es el horario de atención de la tienda?"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #4": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "¿cuál es el horario de atención de la tienda?",
+     "sees": null,
+     "text": "Abrimos de 9 a 18 h, de lunes a sábado."
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #5": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "do you ship orders of 2,500 units or more",
+     "sees": [
+      "user: do you ship orders of 2,500 units or more"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "Unicode, Hinglish and numbers #6": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "do you ship orders of 2,500 units or more",
+     "sees": null,
+     "text": "Yes, orders of 2,500 units ship free."
+    }
+   ]
+  },
+  "a barge-in mid-answer is never recorded and never served #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 1,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "the caller moved on before this answer was complete",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": "Interrupted",
+     "say": "how do I reset my password",
+     "sees": [
+      "user: how do I reset my password"
+     ],
+     "stored": false
+    }
+   ]
+  },
+  "a barge-in mid-answer is never recorded and never served #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "how do I reset my password",
+     "sees": [
+      "user: how do I reset my password"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what is your refund policy",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #3": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what is your refund policy",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "a private turn is never shared with a second caller #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 1,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "PersonalTemplate",
+     "say": "my order 48213 has not arrived where is it",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "a private turn is never shared with a second caller #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 1,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "PersonalTemplate",
+     "say": "my order 48213 has not arrived where is it",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "a reworded question hits #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "how do I turn on dark mode",
+     "sees": [
+      "user: how do I turn on dark mode"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "a reworded question hits #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "how can I turn on dark mode",
+     "sees": null,
+     "text": "Open settings and pick a theme."
+    }
+   ]
+  },
+  "a tool-call turn is never cached #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 1,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "kept to this call: the answer was built from a tool's result",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "ToolResult",
+     "say": "what is the weather in paris today",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "a tool-call turn is never cached #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 1,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "kept to this call: the answer was built from a tool's result",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "ToolResult",
+     "say": "what is the weather in paris today",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #2": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what is your refund policy",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "an audio cache error: the cached text is still served #3": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what is your refund policy",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "concurrent calls are each served from the cache #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what are your opening hours",
+     "sees": null,
+     "text": "We are open nine to five, Monday to Friday."
+    }
+   ]
+  },
+  "the server down: the bot still answers within the budget #1": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 1,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 1,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "the server refused the write: crowkis server down",
+     "reason": "cache unavailable (ConnectionRefusedError); asking the model",
+     "rule": "CacheUnavailable",
+     "save_rule": "WriteRefused",
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "stored": false
+    }
+   ]
+  }
  },
- "writes": [
-  [
-   "",
-   "what is your refund policy",
-   "Refunds take five business days.",
-   false
+ "writes": {
+  "Unicode, Hinglish and numbers": [
+   [
+    "",
+    "refund kitne din mein milta hai",
+    "Paanch din mein milta hai.",
+    false
+   ],
+   [
+    "",
+    "¿cuál es el horario de atención de la tienda?",
+    "Abrimos de 9 a 18 h, de lunes a sábado.",
+    false
+   ],
+   [
+    "",
+    "do you ship orders of 2,500 units or more",
+    "Yes, orders of 2,500 units ship free.",
+    false
+   ]
   ],
-  [
-   "",
-   "how do I turn on dark mode",
-   "Open settings and pick a theme.",
-   false
+  "a barge-in mid-answer is never recorded and never served": [
+   [
+    "",
+    "how do I reset my password",
+    "Go to settings and choose security.",
+    false
+   ]
   ],
-  [
-   "",
-   "how can I turn on dark mode",
-   "Wrong: the cache was not used.",
-   false
+  "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS": [
+   [
+    "",
+    "what is your refund policy",
+    "Refunds take five business days.",
+    false
+   ]
   ],
-  [
-   "",
-   "how do I reset my password",
-   "Open settings, then security, then reset.",
-   false
+  "a private turn is never shared with a second caller": [],
+  "a reworded question hits": [
+   [
+    "",
+    "how do I turn on dark mode",
+    "Open settings and pick a theme.",
+    false
+   ]
   ],
-  [
-   "",
-   "refund kitne din mein milta hai",
-   "Paanch din mein milta hai.",
-   false
+  "a tool-call turn is never cached": [],
+  "an audio cache error: the cached text is still served": [
+   [
+    "",
+    "what is your refund policy",
+    "Refunds take five business days.",
+    false
+   ]
   ],
-  [
-   "",
-   "¿cuál es el horario de atención de la tienda?",
-   "Abrimos de 9 a 18 h, de lunes a sábado.",
-   false
-  ],
-  [
-   "",
-   "do you ship orders of 2,500 units or more",
-   "Yes, orders of 2,500 units ship free.",
-   false
-  ],
-  [
-   "",
-   "what are your opening hours",
-   "Wrong: the cache was not used.",
-   false
-  ]
- ]
+  "concurrent calls are each served from the cache": [],
+  "the server down: the bot still answers within the budget": []
+ }
 }

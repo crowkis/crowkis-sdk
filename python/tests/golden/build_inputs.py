@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from crowkis.voice import _asks, _is_context_dependent, _is_personal, _urgent, _words
 
@@ -87,32 +87,79 @@ def stress_calls(tests_dir: Path, suite: str) -> List[Dict]:
 
 
 def conformance_calls() -> List[Dict]:
-    """The conformance scenarios as calls on one store per scenario; the fault modes that
-    depend on timing (slow) are left out, a server that is down is kept."""
+    """The conformance scenarios, each on its own store (with its seed and reworded questions);
+    the fault mode that depends on timing (slow) is left out, a server that is down is kept."""
     scenarios = json.loads(CONFORMANCE.read_text("utf-8"))["scenarios"]
     calls = []
     for scenario in scenarios:
         if scenario.get("server") == "slow":
             continue
+        seed = [{"question": question, "answer": answer} for question, answer in (scenario.get("seed") or {}).items()]
         for index, call in enumerate(scenario["calls"]):
-            turns = [{"say": turn["say"], "reply": "".join(turn.get("reply") or []) or FALLBACK_REPLY}
+            turns = [{"say": turn["say"], "reply": "".join(turn.get("reply") or []) or FALLBACK_REPLY,
+                      "tool": bool(turn.get("tool")), "barge_in": "barge_in_after" in turn}
                      for turn in call]
-            calls.append({"id": f"{scenario['name']} #{index + 1}", "scenario": scenario["name"],
+            calls.append({"id": f"{scenario['name']} #{index + 1}", "store": scenario["name"],
+                          "seed": seed, "aliases": scenario.get("aliases") or {},
                           "down": scenario.get("server") == "down", "turns": turns})
     return calls
+
+
+def _guard_call(name: str, seed: List[Dict], say: str, *, aliases: Optional[Dict[str, str]] = None,
+                options: Optional[Dict] = None, engine: bool = False, reply: str = FALLBACK_REPLY) -> Dict:
+    return {"id": name, "store": name, "seed": seed, "aliases": aliases or {}, "engine": engine,
+            "options": options or {}, "turns": [{"say": say, "reply": reply}]}
+
+
+REFUNDS = "what is your refund policy"
+REFUNDS_REWORDED = "how do refunds work at your shop"
+REFUND_ANSWER = "Refunds take five business days."
+SHORT = "opening hours"
+ORDER = "when will my order arrive"
+
+
+def hit_guard_calls() -> List[Dict]:
+    """One call per hit rule (and the save rules a stored shape or a declared value reach), on a
+    store seeded with the cached answer and its flags. Hand-written: the stress calls rarely hit."""
+    commitment = [{"question": REFUNDS, "answer": REFUND_ANSWER, "commitment": True}]
+    return [
+        _guard_call("commitment, same words", commitment, REFUNDS),
+        _guard_call("commitment, reworded", commitment, REFUNDS_REWORDED, aliases={REFUNDS_REWORDED: REFUNDS}),
+        _guard_call("commitment, reworded, served by choice", commitment, REFUNDS_REWORDED,
+                    aliases={REFUNDS_REWORDED: REFUNDS}, options={"commitments": "serve"}),
+        _guard_call("an answer written for a screen",
+                    [{"question": REFUNDS, "answer": "See https://example.com/refunds for details."}], REFUNDS),
+        _guard_call("a server placeholder in the answer",
+                    [{"question": REFUNDS, "answer": "We emailed pii_email_a1b2 the refund receipt."}], REFUNDS),
+        _guard_call("a short turn, not vouched", [{"question": SHORT, "answer": "Nine to five."}], SHORT,
+                    options={"short_turns": True}, engine=True),
+        _guard_call("a short turn, vouched", [{"question": SHORT, "answer": "Nine to five.", "vouched": True}],
+                    SHORT, options={"short_turns": True}, engine=True),
+        _guard_call("a shape with a slot this call has no value for",
+                    [{"question": ORDER, "answer": "Your order arrives on {eta}.", "template": True}], ORDER,
+                    options={"values": {"name": "Asha"}}),
+        _guard_call("a shape filled with this call's value",
+                    [{"question": ORDER, "answer": "Your order arrives on {eta}.", "template": True}], ORDER,
+                    options={"values": {"eta": "Tuesday"}}),
+        _guard_call("a personal answer stored as a shape", [], ORDER,
+                    options={"values": {"eta": "Tuesday"}, "share_templates": True},
+                    reply="Your order arrives on Tuesday."),
+        _guard_call("an answer holding a declared value", [], "how do I reset my password",
+                    options={"values": {"code": "4471"}}, reply="Your code is 4471, use it on the reset page."),
+    ]
 
 
 def main(testing_scripts: str) -> None:
     tests_dir = Path(testing_scripts) / "demo" / "voice-agent" / "tests"
     suites = {"stress-v1": stress_calls(tests_dir, "v1"), "stress-v2": stress_calls(tests_dir, "v2"),
-              "conformance": conformance_calls()}
+              "conformance": conformance_calls(), "hit-guards": hit_guard_calls()}
     phrases = [case["phrase"] for case in json.loads(PHRASES.read_text("utf-8"))["phrases"]]
     said = {turn["say"] for calls in suites.values() for call in calls for turn in call["turns"]}
     texts = sorted(said | set(phrases))
     inputs = {
         "about": "Frozen input of the golden decision files (v4 P0), built by python/tests/golden/build_inputs.py "
                  "from the v1/v2 voice stress cases, replies recorded in earlier runs, and "
-                 "fixtures/adapter-conformance.json. frames: a stand-in understanding frame per turn text "
+                 "fixtures/adapter-conformance.json, plus hand-written hit-guard calls. frames: a stand-in understanding frame per turn text "
                  "(and per rule phrase), for Chat.",
         "suites": suites,
         "frames": {text: stand_in_frame(text) for text in texts},

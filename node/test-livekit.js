@@ -117,6 +117,25 @@ test("a miss, then a hit spoken from the cache with its audio", { skip }, async 
   assert.strictEqual(store.toolWrites[0][0].format, "pcm16-16000");
 });
 
+test("a recorded turn names its save rule (v4 P0)", { skip }, async () => {
+  const cases = [
+    [QUESTION, ANSWER, null],
+    ["my order 48213 has not arrived where is it", "Order 48213 left the depot this morning.", "PersonalTemplate"],
+  ];
+  for (const [said, reply, saveRule] of cases) {
+    const { agent, session } = make({ reply });
+    const decisions = [];
+    const decide = session.decide.bind(session);
+    session.decide = async (text) => {
+      const decision = await decide(text);
+      decisions.push(decision);
+      return decision;
+    };
+    await turn(agent, ctx([["user", said]]));
+    assert.deepStrictEqual(decisions.map((d) => d.saveRule), [saveRule], said);
+  }
+});
+
 test("the model reads the instructions and only the question", { skip }, async () => {
   const { agent, fakes } = make();
   await turn(agent, ctx([["user", "I am Priya, account 4471."], ["assistant", "Hello Priya."], ["user", QUESTION]]));

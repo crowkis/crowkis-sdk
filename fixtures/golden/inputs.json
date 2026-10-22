@@ -1,5 +1,5 @@
 {
- "about": "Frozen input of the golden decision files (v4 P0), built by python/tests/golden/build_inputs.py from the v1/v2 voice stress cases, replies recorded in earlier runs, and fixtures/adapter-conformance.json. frames: a stand-in understanding frame per turn text (and per rule phrase), for Chat.",
+ "about": "Frozen input of the golden decision files (v4 P0), built by python/tests/golden/build_inputs.py from the v1/v2 voice stress cases, replies recorded in earlier runs, and fixtures/adapter-conformance.json, plus hand-written hit-guard calls. frames: a stand-in understanding frame per turn text (and per rule phrase), for Chat.",
  "suites": {
   "stress-v1": [
    {
@@ -5135,243 +5135,574 @@
   "conformance": [
    {
     "id": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #1",
-    "scenario": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "store": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Refunds take five business days."
+      "reply": "Refunds take five business days.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #2",
-    "scenario": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "store": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS #3",
-    "scenario": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "store": "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a reworded question hits #1",
-    "scenario": "a reworded question hits",
+    "store": "a reworded question hits",
+    "seed": [],
+    "aliases": {
+     "how can I turn on dark mode": "how do I turn on dark mode"
+    },
     "down": false,
     "turns": [
      {
       "say": "how do I turn on dark mode",
-      "reply": "Open settings and pick a theme."
+      "reply": "Open settings and pick a theme.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a reworded question hits #2",
-    "scenario": "a reworded question hits",
+    "store": "a reworded question hits",
+    "seed": [],
+    "aliases": {
+     "how can I turn on dark mode": "how do I turn on dark mode"
+    },
     "down": false,
     "turns": [
      {
       "say": "how can I turn on dark mode",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a barge-in mid-answer is never recorded and never served #1",
-    "scenario": "a barge-in mid-answer is never recorded and never served",
+    "store": "a barge-in mid-answer is never recorded and never served",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "how do I reset my password",
-      "reply": "Open settings, then security, then reset."
+      "reply": "Open settings, then security, then reset.",
+      "tool": false,
+      "barge_in": true
      }
     ]
    },
    {
     "id": "a barge-in mid-answer is never recorded and never served #2",
-    "scenario": "a barge-in mid-answer is never recorded and never served",
+    "store": "a barge-in mid-answer is never recorded and never served",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "how do I reset my password",
-      "reply": "Go to settings and choose security."
+      "reply": "Go to settings and choose security.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a private turn is never shared with a second caller #1",
-    "scenario": "a private turn is never shared with a second caller",
+    "store": "a private turn is never shared with a second caller",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "my order 48213 has not arrived where is it",
-      "reply": "Order 48213 left the depot this morning."
+      "reply": "Order 48213 left the depot this morning.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a private turn is never shared with a second caller #2",
-    "scenario": "a private turn is never shared with a second caller",
+    "store": "a private turn is never shared with a second caller",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "my order 48213 has not arrived where is it",
-      "reply": "Let me look that up for you."
+      "reply": "Let me look that up for you.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a tool-call turn is never cached #1",
-    "scenario": "a tool-call turn is never cached",
+    "store": "a tool-call turn is never cached",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is the weather in paris today",
-      "reply": "It is sunny in Paris."
+      "reply": "It is sunny in Paris.",
+      "tool": true,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "a tool-call turn is never cached #2",
-    "scenario": "a tool-call turn is never cached",
+    "store": "a tool-call turn is never cached",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is the weather in paris today",
-      "reply": "It is raining in Paris."
+      "reply": "It is raining in Paris.",
+      "tool": true,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "the server down: the bot still answers within the budget #1",
-    "scenario": "the server down: the bot still answers within the budget",
+    "store": "the server down: the bot still answers within the budget",
+    "seed": [],
+    "aliases": {},
     "down": true,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Refunds take five business days."
+      "reply": "Refunds take five business days.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "an audio cache error: the cached text is still served #1",
-    "scenario": "an audio cache error: the cached text is still served",
+    "store": "an audio cache error: the cached text is still served",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Refunds take five business days."
+      "reply": "Refunds take five business days.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "an audio cache error: the cached text is still served #2",
-    "scenario": "an audio cache error: the cached text is still served",
+    "store": "an audio cache error: the cached text is still served",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "an audio cache error: the cached text is still served #3",
-    "scenario": "an audio cache error: the cached text is still served",
+    "store": "an audio cache error: the cached text is still served",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what is your refund policy",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #1",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "refund kitne din mein milta hai",
-      "reply": "Paanch din mein milta hai."
+      "reply": "Paanch din mein milta hai.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #2",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "refund kitne din mein milta hai",
-      "reply": "Wrong."
+      "reply": "Wrong.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #3",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "¿cuál es el horario de atención de la tienda?",
-      "reply": "Abrimos de 9 a 18 h, de lunes a sábado."
+      "reply": "Abrimos de 9 a 18 h, de lunes a sábado.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #4",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "¿cuál es el horario de atención de la tienda?",
-      "reply": "Wrong."
+      "reply": "Wrong.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #5",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "do you ship orders of 2,500 units or more",
-      "reply": "Yes, orders of 2,500 units ship free."
+      "reply": "Yes, orders of 2,500 units ship free.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "Unicode, Hinglish and numbers #6",
-    "scenario": "Unicode, Hinglish and numbers",
+    "store": "Unicode, Hinglish and numbers",
+    "seed": [],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "do you ship orders of 2,500 units or more",
-      "reply": "Wrong."
+      "reply": "Wrong.",
+      "tool": false,
+      "barge_in": false
      }
     ]
    },
    {
     "id": "concurrent calls are each served from the cache #1",
-    "scenario": "concurrent calls are each served from the cache",
+    "store": "concurrent calls are each served from the cache",
+    "seed": [
+     {
+      "question": "what are your opening hours",
+      "answer": "We are open nine to five, Monday to Friday."
+     }
+    ],
+    "aliases": {},
     "down": false,
     "turns": [
      {
       "say": "what are your opening hours",
-      "reply": "Wrong: the cache was not used."
+      "reply": "Wrong: the cache was not used.",
+      "tool": false,
+      "barge_in": false
+     }
+    ]
+   }
+  ],
+  "hit-guards": [
+   {
+    "id": "commitment, same words",
+    "store": "commitment, same words",
+    "seed": [
+     {
+      "question": "what is your refund policy",
+      "answer": "Refunds take five business days.",
+      "commitment": true
+     }
+    ],
+    "aliases": {},
+    "engine": false,
+    "options": {},
+    "turns": [
+     {
+      "say": "what is your refund policy",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "commitment, reworded",
+    "store": "commitment, reworded",
+    "seed": [
+     {
+      "question": "what is your refund policy",
+      "answer": "Refunds take five business days.",
+      "commitment": true
+     }
+    ],
+    "aliases": {
+     "how do refunds work at your shop": "what is your refund policy"
+    },
+    "engine": false,
+    "options": {},
+    "turns": [
+     {
+      "say": "how do refunds work at your shop",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "commitment, reworded, served by choice",
+    "store": "commitment, reworded, served by choice",
+    "seed": [
+     {
+      "question": "what is your refund policy",
+      "answer": "Refunds take five business days.",
+      "commitment": true
+     }
+    ],
+    "aliases": {
+     "how do refunds work at your shop": "what is your refund policy"
+    },
+    "engine": false,
+    "options": {
+     "commitments": "serve"
+    },
+    "turns": [
+     {
+      "say": "how do refunds work at your shop",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "an answer written for a screen",
+    "store": "an answer written for a screen",
+    "seed": [
+     {
+      "question": "what is your refund policy",
+      "answer": "See https://example.com/refunds for details."
+     }
+    ],
+    "aliases": {},
+    "engine": false,
+    "options": {},
+    "turns": [
+     {
+      "say": "what is your refund policy",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a server placeholder in the answer",
+    "store": "a server placeholder in the answer",
+    "seed": [
+     {
+      "question": "what is your refund policy",
+      "answer": "We emailed pii_email_a1b2 the refund receipt."
+     }
+    ],
+    "aliases": {},
+    "engine": false,
+    "options": {},
+    "turns": [
+     {
+      "say": "what is your refund policy",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a short turn, not vouched",
+    "store": "a short turn, not vouched",
+    "seed": [
+     {
+      "question": "opening hours",
+      "answer": "Nine to five."
+     }
+    ],
+    "aliases": {},
+    "engine": true,
+    "options": {
+     "short_turns": true
+    },
+    "turns": [
+     {
+      "say": "opening hours",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a short turn, vouched",
+    "store": "a short turn, vouched",
+    "seed": [
+     {
+      "question": "opening hours",
+      "answer": "Nine to five.",
+      "vouched": true
+     }
+    ],
+    "aliases": {},
+    "engine": true,
+    "options": {
+     "short_turns": true
+    },
+    "turns": [
+     {
+      "say": "opening hours",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a shape with a slot this call has no value for",
+    "store": "a shape with a slot this call has no value for",
+    "seed": [
+     {
+      "question": "when will my order arrive",
+      "answer": "Your order arrives on {eta}.",
+      "template": true
+     }
+    ],
+    "aliases": {},
+    "engine": false,
+    "options": {
+     "values": {
+      "name": "Asha"
+     }
+    },
+    "turns": [
+     {
+      "say": "when will my order arrive",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a shape filled with this call's value",
+    "store": "a shape filled with this call's value",
+    "seed": [
+     {
+      "question": "when will my order arrive",
+      "answer": "Your order arrives on {eta}.",
+      "template": true
+     }
+    ],
+    "aliases": {},
+    "engine": false,
+    "options": {
+     "values": {
+      "eta": "Tuesday"
+     }
+    },
+    "turns": [
+     {
+      "say": "when will my order arrive",
+      "reply": "Here is the answer."
+     }
+    ]
+   },
+   {
+    "id": "a personal answer stored as a shape",
+    "store": "a personal answer stored as a shape",
+    "seed": [],
+    "aliases": {},
+    "engine": false,
+    "options": {
+     "values": {
+      "eta": "Tuesday"
+     },
+     "share_templates": true
+    },
+    "turns": [
+     {
+      "say": "when will my order arrive",
+      "reply": "Your order arrives on Tuesday."
+     }
+    ]
+   },
+   {
+    "id": "an answer holding a declared value",
+    "store": "an answer holding a declared value",
+    "seed": [],
+    "aliases": {},
+    "engine": false,
+    "options": {
+     "values": {
+      "code": "4471"
+     }
+    },
+    "turns": [
+     {
+      "say": "how do I reset my password",
+      "reply": "Your code is 4471, use it on the reset page."
      }
     ]
    }
@@ -9990,6 +10321,13 @@
    "question": "how do I turn on dark mode",
    "question_type": "other"
   },
+  "how do refunds work at your shop": {
+   "kind": "general",
+   "subject": "none",
+   "confidence": 0.9,
+   "question": "how do refunds work at your shop",
+   "question_type": "policy"
+  },
   "my name is priya": {
    "kind": "personal",
    "subject": "self",
@@ -9997,6 +10335,11 @@
   },
   "my order 48213 has not arrived where is it": {
    "kind": "personal",
+   "subject": "self",
+   "confidence": 0.9
+  },
+  "opening hours": {
+   "kind": "dialogue",
    "subject": "self",
    "confidence": 0.9
   },
@@ -10049,6 +10392,11 @@
    "confidence": 0.9,
    "question": "what is your refund policy",
    "question_type": "policy"
+  },
+  "when will my order arrive": {
+   "kind": "personal",
+   "subject": "self",
+   "confidence": 0.9
   },
   "¿cuál es el horario de atención de la tienda?": {
    "kind": "general",

@@ -1,0 +1,430 @@
+{
+ "calls": {
+  "a personal answer stored as a shape": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
+     "say": "when will my order arrive",
+     "sees": null,
+     "stored": true
+    }
+   ]
+  },
+  "a server placeholder in the answer": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "the cached answer holds a placeholder the server put in place of a caller's detail; reading it aloud is worse than a model call",
+     "rule": "PiiPlaceholder",
+     "save_rule": null,
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "a shape filled with this call's value": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "when will my order arrive",
+     "sees": null,
+     "text": "Your order arrives on Tuesday."
+    }
+   ]
+  },
+  "a shape with a slot this call has no value for": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 1,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 1,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "reason": "the shared answer shape has a slot this call has no value for; speaking a half-filled answer is worse than a model call",
+     "rule": "TemplateSlotMissing",
+     "save_rule": "PersonalTemplate",
+     "say": "when will my order arrive",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "a short turn, not vouched": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 1,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": false,
+     "not_stored": "kept to this call: the answer depends on what this caller said",
+     "reason": "a short turn is only answered from cache once the answer has been judged to stand on its own, and this one has not",
+     "rule": "ShortTurnUnvouched",
+     "save_rule": "NotShareable",
+     "say": "opening hours",
+     "sees": null,
+     "stored": false
+    }
+   ]
+  },
+  "a short turn, vouched": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "opening hours",
+     "sees": null,
+     "text": "Nine to five."
+    }
+   ]
+  },
+  "an answer holding a declared value": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 1,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "kept to this call: the answer contains a value declared for this call",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": "DeclaredValue",
+     "say": "how do I reset my password",
+     "sees": [
+      "user: how do I reset my password"
+     ],
+     "stored": false
+    }
+   ]
+  },
+  "an answer written for a screen": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 1
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "the cached answer was written for a screen (a link, code or markup)",
+     "rule": "ScreenOnlyAnswer",
+     "save_rule": null,
+     "say": "what is your refund policy",
+     "sees": [
+      "user: what is your refund policy"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "commitment, reworded": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 1,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 1,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 0,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "infer",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "the cached answer is a commitment (a price, a refund, a policy) and commitments='exact' does not allow speaking this match",
+     "rule": "CommitmentRewording",
+     "save_rule": null,
+     "say": "how do refunds work at your shop",
+     "sees": [
+      "user: how do refunds work at your shop"
+     ],
+     "stored": true
+    }
+   ]
+  },
+  "commitment, reworded, served by choice": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "how do refunds work at your shop",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  },
+  "commitment, same words": {
+   "stats": {
+    "answered_by_filler": 0,
+    "audio_unavailable": 0,
+    "barge_ins": 0,
+    "cache_unavailable": 0,
+    "commitments_sent_to_model": 0,
+    "different_question": 0,
+    "empty_answers": 0,
+    "failed_writes": 0,
+    "missed_latency_budget": 0,
+    "model_calls": 0,
+    "not_shareable": 0,
+    "refused_to_share_a_private_answer": 0,
+    "refused_too_short": 0,
+    "served_from_cache": 1,
+    "slow_writes": 0,
+    "turns": 1,
+    "uncacheable_personal": 0,
+    "unspeakable_answers": 0
+   },
+   "turns": [
+    {
+     "action": "serve",
+     "cacheable": false,
+     "reason": "confident cache hit",
+     "rule": null,
+     "say": "what is your refund policy",
+     "sees": null,
+     "text": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ "writes": {
+  "a personal answer stored as a shape": [
+   [
+    "",
+    "when will my order arrive",
+    "Your order arrives on {eta}.",
+    true
+   ]
+  ],
+  "a server placeholder in the answer": [
+   [
+    "",
+    "what is your refund policy",
+    "Here is the answer.",
+    false
+   ]
+  ],
+  "a shape filled with this call's value": [],
+  "a shape with a slot this call has no value for": [],
+  "a short turn, not vouched": [],
+  "a short turn, vouched": [],
+  "an answer holding a declared value": [],
+  "an answer written for a screen": [
+   [
+    "",
+    "what is your refund policy",
+    "Here is the answer.",
+    false
+   ]
+  ],
+  "commitment, reworded": [
+   [
+    "",
+    "how do refunds work at your shop",
+    "Here is the answer.",
+    false
+   ]
+  ],
+  "commitment, reworded, served by choice": [],
+  "commitment, same words": []
+ }
+}

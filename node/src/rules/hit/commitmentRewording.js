@@ -3,7 +3,7 @@
 // The CommitmentRewording rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { COMMITMENTS } = require("../../understanding/wordRules/index.js");
+const { COMMITMENT_POLICIES } = require("./commitmentPolicy.js");
 const { COUNTER } = require("../../runtime/stats.js");
 
 /**
@@ -21,7 +21,7 @@ class CommitmentRewording {
 
   check(cached) {
     const commitments = cached.turn.call.commitments;
-    if (!cached.hit.commitment || COMMITMENTS[commitments](cached.hit)) return null;
+    if (!cached.hit.commitment || COMMITMENT_POLICIES[commitments](cached.hit)) return null;
     const reason =
       "the cached answer is a commitment (a price, a refund, a policy) and " +
       `commitments="${commitments}" does not allow speaking this match`;

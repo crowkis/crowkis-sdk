@@ -4,6 +4,7 @@ const { RuleChain } = require("../rules/chain.js");
 const { CONTEXT_BOUND_THRESHOLD } = require("../understanding/wordRules/index.js");
 const { COUNTER } = require("../runtime/stats.js");
 const { CachedAnswer } = require("./cachedAnswer.js");
+const { Hit } = require("./hit.js");
 const { TurnDecision } = require("./decision.js");
 const { ModelAnswer } = require("./modelAnswer.js");
 const { VoiceTurn } = require("./voiceTurn.js");
@@ -82,7 +83,7 @@ class TurnCore {
     const { hit, verdict: lookupVerdict } = await this._lookup(turn, started);
     if (lookupVerdict) return this._infer(lookupVerdict);
 
-    const cached = new CachedAnswer(turn, hit, started);
+    const cached = new CachedAnswer(turn, Hit.fromAgent(hit), started);
     verdict = this._rules.hit.firstObjection(cached);
     if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._infer(verdict, hit.confidence);

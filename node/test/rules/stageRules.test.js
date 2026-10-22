@@ -15,6 +15,7 @@ const { TurnFrame } = require("../../turn.js");
 const { CachedAnswer } = require("../../src/turns/cachedAnswer.js");
 const { ChatAnswer } = require("../../src/turns/chatAnswer.js");
 const { ChatTurn } = require("../../src/turns/chatTurn.js");
+const { Hit } = require("../../src/turns/hit.js");
 const { Verdict: ChatVerdict } = require("../../verify.js");
 const { ModelAnswer } = require("../../src/turns/modelAnswer.js");
 const { VoiceTurn } = require("../../src/turns/voiceTurn.js");
@@ -47,7 +48,7 @@ function subject(testCase, call) {
   }
   const turn = new VoiceTurn(testCase.say, call, new WordRuleClassifier().classify(testCase.say.trim()));
   if (testCase.stage === "question") return turn;
-  if (testCase.stage === "hit") return new CachedAnswer(turn, testCase.hit, performance.now());
+  if (testCase.stage === "hit") return new CachedAnswer(turn, Hit.fromAgent(testCase.hit), performance.now());
   return new ModelAnswer(testCase.say, testCase.answer, call.key, call, {
     private: Boolean(testCase.private), instructions: testCase.instructions || null,
     cacheable: testCase.cacheable === undefined ? true : testCase.cacheable,

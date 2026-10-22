@@ -137,6 +137,7 @@
     "src/runtime/stats.js",
     "src/runtime/turnPairing.js",
     "src/turns/cachedAnswer.js",
+    "src/turns/channel.js",
     "src/turns/chatAnswer.js",
     "src/turns/chatTurn.js",
     "src/turns/decision.js",

@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Protocol, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, Set, Tuple
+
+if TYPE_CHECKING:
+    from .channel import Channel
 
 
 class VoiceCall(Protocol):
     """The call as the rules see it: its settings and what it has heard so far. Rules read it
     and never reach into the session; the one change they make is ``mark_tainted``."""
+
+    @property
+    def channel(self) -> "Channel":
+        """What the call's channel can do (spoken, audio, ...)."""
 
     @property
     def tainted(self) -> bool:

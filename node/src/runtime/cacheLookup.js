@@ -12,13 +12,18 @@ const { COUNTER } = require("./stats.js");
  * null or undefined waits as long as the cache takes.
  */
 class CacheLookup {
+  // Voice refuses a hit that came back after the budget; Chat never did, and keeps that.
+  constructor({ refuseLateHits = true } = {}) {
+    this._refuseLateHits = refuseLateHits;
+  }
+
   async find(ask, started, budgetMs) {
     try {
       const lookup = ask();
       const budgeted = budgetMs !== undefined && budgetMs !== null;
       const hit = budgeted ? await within(budgetMs, lookup) : await lookup;
       // Cut off a slow lookup, and refuse one that finished after the budget.
-      if (hit === LATE || (budgeted && performance.now() - started > budgetMs)) {
+      if (hit === LATE || (this._refuseLateHits && budgeted && performance.now() - started > budgetMs)) {
         lookup.catch(() => {});
         const reason = `lookup passed the ${budgetMs}ms voice budget; a late hit is worse than a fast miss`;
         return { hit: null, verdict: new Verdict("LookupDeadline", reason, [COUNTER.OVER_BUDGET, COUNTER.INFERRED]) };

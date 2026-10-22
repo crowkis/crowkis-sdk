@@ -10,6 +10,7 @@ from crowkis.callstate import CallState
 from crowkis.turn import TurnFrame
 from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
 from crowkis.turns.chat_answer import ChatAnswer
+from crowkis.turns.channel import CHAT, REALTIME, VOICE
 from crowkis.turns.chat_turn import ChatTurn
 from crowkis.verify import Verdict as ChatVerdict
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
@@ -19,6 +20,7 @@ from fake_call import FakeCall
 RULE_FILES = sorted((Path(__file__).resolve().parents[3] / "fixtures" / "rules").glob("*/*.json"))
 CASES = [dict(case, rule=data["rule"], stage=data["stage"], subject=data.get("subject", "voice"))
          for data in (json.loads(path.read_text("utf-8")) for path in RULE_FILES) for case in data["cases"]]
+CHANNELS = {"voice": VOICE, "chat": CHAT, "realtime": REALTIME}
 RULES = {name: getattr(stage, name) for stage in (question, hit, save) for name in stage.__all__}
 
 
@@ -43,7 +45,10 @@ class StageRuleTests(unittest.TestCase):
     def test_every_rule_objects_exactly_when_its_cases_say(self):
         for case in CASES:
             with self.subTest(rule=case["rule"], case=case["name"]):
-                call = FakeCall(**case.get("call", {}))
+                settings = dict(case.get("call", {}))
+                if "channel" in settings:
+                    settings["channel"] = CHANNELS[settings["channel"]]
+                call = FakeCall(**settings)
                 verdict = RULES[case["rule"]](**case.get("rule_args", {})).check(subject(case, call))
                 self.assertEqual(verdict is not None, case["objects"])
                 if verdict is not None:

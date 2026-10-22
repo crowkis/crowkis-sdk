@@ -19,7 +19,7 @@ class ScreenOnlyAnswer {
   }
 
   check(cached) {
-    if (speakable(cached.answer)) return null;
+    if (!cached.turn.call.channel.spoken || speakable(cached.answer)) return null;
     return new Verdict(this.name, SCREEN_REASON, [COUNTER.UNSPEAKABLE, COUNTER.INFERRED]);
   }
 }

@@ -12,12 +12,12 @@ SCREEN_REASON = "the cached answer was written for a screen (a link, code or mar
 
 
 class ScreenOnlyAnswer:
-    """An answer written for a screen (a link, code or markup) is not spoken."""
+    """On a spoken channel, an answer written for a screen (a link, code or markup) is not spoken."""
 
     name = "ScreenOnlyAnswer"
     floor = False
 
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
-        if _speakable(cached.answer):
+        if not cached.turn.call.channel.spoken or _speakable(cached.answer):
             return None
         return Verdict(self.name, SCREEN_REASON, (Counter.UNSPEAKABLE, Counter.INFERRED))

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
+from crowkis.turns.channel import VOICE, Channel
+
 
 @dataclass
 class FakeCall:
@@ -22,6 +24,7 @@ class FakeCall:
     key: Optional[str] = "the key"
     another_question: bool = False
     identifiers: Set[str] = field(default_factory=set)
+    channel: Channel = VOICE
 
     def mark_tainted(self) -> None:
         self.tainted = True

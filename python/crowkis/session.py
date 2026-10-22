@@ -24,12 +24,15 @@ import concurrent.futures
 import copy
 import re
 import string
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .callstate import IDENTITIES, CallState
 from .rules.chat_rule_set import ChatRuleSet
+from .runtime.cache_lookup import CacheLookup
+from .turns.channel import CHAT
 from .rules.question import UrgentWords
 from .turns.chat_answer import ChatAnswer
 from .turns.chat_turn import ChatTurn
@@ -111,6 +114,8 @@ def _private_words(text: str, frame: Optional[TurnFrame] = None) -> List[str]:
 MODES = ("full", "replay_only", "off")
 Message = Dict[str, str]
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-call")
+# Chat's counter for each way a lookup fails open.
+_LOOKUP_COUNTS = {"LookupDeadline": "lookup_timeouts", "CacheUnavailable": "lookup_errors"}
 _UNDERSTAND = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-understand")
 _TRIM = string.punctuation + string.whitespace
 # A reply to a private turn is kept between turns only to follow the conversation: names,
@@ -210,6 +215,9 @@ class CallSession:
         self.set_mode(mode)
         self.state = CallState()
         # Why an answer to a shared question is not saved: Chat's save rules (save_check).
+        # A chat: what it can do, and its lookup inside the budget (a late hit is still served, as before).
+        self.channel = CHAT
+        self._cache_lookup = CacheLookup(_LOOKUPS, refuse_late_hits=False)
         self._save_rules = ChatRuleSet.save_chain()
         # Checked once the rule checker would share: names and details this chat learnt; urgent words.
         self._shared_question_rules = ChatRuleSet.shared_question_chain()
@@ -472,18 +480,11 @@ class CallSession:
         return TurnFrame.from_dict(None)
 
     def _lookup(self, key: str, segment: Optional[str]) -> Optional[str]:
-        call = lambda: self.agent.ask(key, serve_above=self.serve_above,  # noqa: E731
-                                      cheap_above=min(0.6, self.serve_above), segment=segment)
-        try:
-            if self.latency_budget_ms is None:
-                hit = call()
-            else:
-                hit = _LOOKUPS.submit(call).result(timeout=self.latency_budget_ms / 1000.0)
-        except concurrent.futures.TimeoutError:
-            self.counts["lookup_timeouts"] += 1
-            return None
-        except Exception:  # noqa: BLE001 - an unreachable cache means "ask the model"
-            self.counts["lookup_errors"] += 1
+        ask = lambda: self.agent.ask(key, serve_above=self.serve_above,  # noqa: E731
+                                     cheap_above=min(0.6, self.serve_above), segment=segment)
+        hit, verdict = self._cache_lookup.find(ask, time.monotonic(), self.latency_budget_ms)
+        if verdict is not None:
+            self.counts[_LOOKUP_COUNTS[verdict.rule]] += 1
             return None
         if hit.get("route") == "cache" and hit.get("answer"):
             # A placeholder the server put in place of someone's detail is never served.

@@ -11,6 +11,10 @@
 const { CallState, IDENTITIES } = require("./callstate.js");
 const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("./src/understanding/answerPatterns.js");
 const { ChatRuleSet } = require("./src/rules/chatRuleSet.js");
+const { CacheLookup } = require("./src/runtime/cacheLookup.js");
+const { CHAT } = require("./src/turns/channel.js");
+// Chat's counter for each way a lookup fails open.
+const LOOKUP_COUNTS = { LookupDeadline: "lookup_timeouts", CacheUnavailable: "lookup_errors" };
 const { ChatAnswer } = require("./src/turns/chatAnswer.js");
 const { ChatTurn } = require("./src/turns/chatTurn.js");
 const { UrgentWords } = require("./src/rules/question/index.js");
@@ -176,6 +180,9 @@ class CallSession {
     this.setMode(mode);
     this.state = new CallState();
     // Why an answer to a shared question is not saved: Chat's save rules (saveCheck).
+    // A chat: what it can do, and its lookup inside the budget (a late hit is still served, as before).
+    this.channel = CHAT;
+    this._cacheLookup = new CacheLookup({ refuseLateHits: false });
     this._saveRules = ChatRuleSet.saveChain();
     // Checked once the rule checker would share: names and details this chat learnt; urgent words.
     this._sharedQuestionRules = ChatRuleSet.sharedQuestionChain();
@@ -395,19 +402,17 @@ class CallSession {
   }
 
   async _lookup(key, segment) {
-    try {
-      const hit = await within(this.agent.ask(key, {
-        serveAbove: this.serveAbove, cheapAbove: Math.min(0.6, this.serveAbove), ...(segment ? { segment } : {}),
-      }),
-        this.latencyBudgetMs);
-      if (hit === TIMEOUT) { this.counts.lookup_timeouts += 1; return null; }
-      if (!(hit && hit.route === "cache" && hit.answer)) return null;
-      // A placeholder the server put in place of someone's detail is never served.
-      return PII_PLACEHOLDER.test(hit.answer) ? null : hit.answer;
-    } catch {
-      this.counts.lookup_errors += 1;
+    const ask = () => this.agent.ask(key, {
+      serveAbove: this.serveAbove, cheapAbove: Math.min(0.6, this.serveAbove), ...(segment ? { segment } : {}),
+    });
+    const { hit, verdict } = await this._cacheLookup.find(ask, performance.now(), this.latencyBudgetMs);
+    if (verdict) {
+      this.counts[LOOKUP_COUNTS[verdict.rule]] += 1;
       return null;
     }
+    if (!(hit && hit.route === "cache" && hit.answer)) return null;
+    // A placeholder the server put in place of someone's detail is never served.
+    return PII_PLACEHOLDER.test(hit.answer) ? null : hit.answer;
   }
 
   _emit(event) {

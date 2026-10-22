@@ -30,6 +30,21 @@
     "commitment": false
    },
    "objects": false
+  },
+  {
+   "name": "a link on a channel that is not spoken (chat)",
+   "say": "what is your refund policy",
+   "hit": {
+    "route": "cache",
+    "answer": "See https://example.com/refunds for details.",
+    "exact": false,
+    "vouched": false,
+    "commitment": false
+   },
+   "call": {
+    "channel": "chat"
+   },
+   "objects": false
   }
  ]
 }

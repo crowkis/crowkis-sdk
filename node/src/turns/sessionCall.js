@@ -1,5 +1,7 @@
 "use strict";
 
+const { VOICE } = require("./channel.js");
+
 /**
  * Adapter: the call a VoiceSession offers its rules (the VoiceCall interface: its settings and
  * what it has heard so far). It only forwards to the session's own settings and checks, so the
@@ -8,6 +10,10 @@
 class SessionCall {
   constructor(session) {
     this._session = session;
+  }
+
+  get channel() {
+    return VOICE;
   }
 
   get tainted() {

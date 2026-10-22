@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from .channel import VOICE, Channel
+
 
 class SessionCall:
     """Adapter: the VoiceCall a VoiceSession offers its rules. It only forwards to the
@@ -11,6 +13,10 @@ class SessionCall:
 
     def __init__(self, session: Any) -> None:
         self._session = session
+
+    @property
+    def channel(self) -> Channel:
+        return VOICE
 
     @property
     def tainted(self) -> bool:

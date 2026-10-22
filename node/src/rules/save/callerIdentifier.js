@@ -3,7 +3,7 @@
 // The CallerIdentifier rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { repeatsIdentifier } = require("../../understanding/wordRules.js");
+const { repeatsIdentifier } = require("../../understanding/wordRules/index.js");
 
 const PRIVATE = "private";
 

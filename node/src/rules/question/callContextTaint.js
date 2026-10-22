@@ -3,7 +3,7 @@
 // The CallContextTaint rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { setsContext } = require("../../understanding/wordRules.js");
+const { setsContext } = require("../../understanding/wordRules/index.js");
 
 const TAINTED_REASON =
   "the caller has told this call something a later answer may depend on " +

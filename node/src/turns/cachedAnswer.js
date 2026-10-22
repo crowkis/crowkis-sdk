@@ -1,6 +1,6 @@
 "use strict";
 
-const { fill } = require("../understanding/wordRules.js");
+const { fill } = require("../understanding/wordRules/index.js");
 
 /**
  * What the cache returned for a turn. `started` is when the lookup began (performance.now()).

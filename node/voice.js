@@ -288,7 +288,7 @@ const {
   unfinished,
   isNonAnswer,
   answersAfterBut,
-} = require("./src/understanding/wordRules.js");
+} = require("./src/understanding/wordRules/index.js");
 
 function questionKey(tenant, answer) {
   const trimmed = String(answer).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); // as Python's strip(" \t\r\n")

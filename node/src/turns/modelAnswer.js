@@ -1,6 +1,6 @@
 "use strict";
 
-const { isNonAnswer, isPersonal } = require("../understanding/wordRules.js");
+const { isNonAnswer, isPersonal } = require("../understanding/wordRules/index.js");
 
 /**
  * What the model said to a turn, with what is known about that turn when it is recorded.

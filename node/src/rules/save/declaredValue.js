@@ -3,7 +3,7 @@
 // The DeclaredValue rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { leaks } = require("../../understanding/wordRules.js");
+const { leaks } = require("../../understanding/wordRules/index.js");
 
 const PRIVATE = "private";
 

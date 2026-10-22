@@ -3,7 +3,7 @@
 // The CommitmentRewording rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { COMMITMENTS } = require("../../understanding/wordRules.js");
+const { COMMITMENTS } = require("../../understanding/wordRules/index.js");
 
 /**
  * A commitment (a price, a refund, a policy) is spoken only as the call's `commitments` setting

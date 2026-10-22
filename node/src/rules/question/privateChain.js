@@ -3,7 +3,7 @@
 // The PrivateChain rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { privateChain } = require("../../understanding/wordRules.js");
+const { privateChain } = require("../../understanding/wordRules/index.js");
 
 const PRIVATE_CHAIN_REASON =
   "a follow-up to a private turn of this call: its answer depends on what " +

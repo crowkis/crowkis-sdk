@@ -3,7 +3,7 @@
 // The PersonalTemplate rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { unfinished } = require("../../understanding/wordRules.js");
+const { unfinished } = require("../../understanding/wordRules/index.js");
 
 const PRIVATE = "private";
 

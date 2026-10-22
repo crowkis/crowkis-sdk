@@ -3,7 +3,7 @@
 // The PromptCallerDetails rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { repeatsPromptDetails } = require("../../understanding/wordRules.js");
+const { repeatsPromptDetails } = require("../../understanding/wordRules/index.js");
 
 const PRIVATE = "private";
 

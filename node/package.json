@@ -114,7 +114,16 @@
     "src/turns/voiceTurn.js",
     "src/understanding/noRewrite.js",
     "src/understanding/wordRuleClassifier.js",
-    "src/understanding/wordRules.js",
+    "src/understanding/wordRules/answers.js",
+    "src/understanding/wordRules/callContext.js",
+    "src/understanding/wordRules/followUp.js",
+    "src/understanding/wordRules/identifiers.js",
+    "src/understanding/wordRules/index.js",
+    "src/understanding/wordRules/personal.js",
+    "src/understanding/wordRules/phrases.js",
+    "src/understanding/wordRules/promptDetails.js",
+    "src/understanding/wordRules/text.js",
+    "src/understanding/wordRules/urgent.js",
     "README.md"
   ],
   "scripts": {

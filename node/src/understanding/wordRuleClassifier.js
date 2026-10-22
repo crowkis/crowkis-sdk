@@ -1,6 +1,6 @@
 "use strict";
 
-const { isContextDependent, isPersonal } = require("./wordRules.js");
+const { isContextDependent, isPersonal } = require("./wordRules/index.js");
 
 /** What the word rules make of one turn's words. Each reading is worked out once, when a rule first needs it. */
 class WordReading {

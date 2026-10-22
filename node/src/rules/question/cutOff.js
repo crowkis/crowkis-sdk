@@ -3,7 +3,7 @@
 // The CutOff rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { unfinished } = require("../../understanding/wordRules.js");
+const { unfinished } = require("../../understanding/wordRules/index.js");
 
 /**
  * A cut-off question ("do you deliver on") is close in meaning to a full one but asks something

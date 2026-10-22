@@ -3,7 +3,7 @@
 // The PiiPlaceholder rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { PII_PLACEHOLDER } = require("../../understanding/wordRules.js");
+const { PII_PLACEHOLDER } = require("../../understanding/wordRules/index.js");
 
 const PLACEHOLDER_REASON =
   "the cached answer holds a placeholder the server put in place of a caller's detail; " +

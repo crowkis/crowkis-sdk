@@ -66,6 +66,16 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `RuleSet`. Per-rule fixtures stay `fixtures/rules/<stage>/<Rule>.json`; one fixture-driven test per
   language runs every rule file (`tests/rules/test_stage_rules.py`, `node/test/rules/stageRules.test.js`).
   Applied in a follow-up commit, since the grouped files had already been committed.
+- 2026-10-22, owner request (CLAUDE.md §4, no helpers module): `understanding/word_rules.py` is split by
+  theme into the package `understanding/word_rules/` (Node `src/understanding/wordRules/`): `text`
+  (shared primitives), `phrases` (word tables more than one theme reads), `urgent`, `personal`,
+  `identifiers`, `follow_up`, `call_context`, `answers`, `prompt_details`. **Chosen: option 1 (split by
+  theme)**, because it moves every statement verbatim (checked by AST in Python, line by line in Node) with
+  no change in logic, so it is safe inside a no-behaviour-change phase; imports point one way
+  (`text` <- `phrases` <- the themes). Option 2 (detectors behind `WordRuleClassifier` with a typed result)
+  changes how every rule reads a turn and belongs with P4, where the classifier slot becomes pluggable.
+  The package `__init__` / `index.js` re-exports every name, so `crowkis.voice._x` and
+  `crowkis.understanding.word_rules._x` keep working; word lists stay named constants.
 
 ## Notes and follow-ups
 

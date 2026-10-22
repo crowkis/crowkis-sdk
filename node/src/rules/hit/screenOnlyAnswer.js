@@ -3,7 +3,7 @@
 // The ScreenOnlyAnswer rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { speakable } = require("../../understanding/wordRules.js");
+const { speakable } = require("../../understanding/wordRules/index.js");
 
 const SCREEN_REASON = "the cached answer was written for a screen (a link, code or markup)";
 

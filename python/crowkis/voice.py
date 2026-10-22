@@ -23,6 +23,7 @@ from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
 from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
+from .understanding.slots import Classifier, Rewriter
 from .understanding.word_rule_classifier import WordRuleClassifier
 from .understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.voice.<name> keeps working
     _private_chain,
@@ -494,6 +495,8 @@ class VoiceSession:
         speed: str = "1",
         audio_format: str = "default",
         bytes_per_second: Optional[int] = None,
+        classifier: Optional[Classifier] = None,
+        rewriter: Optional[Rewriter] = None,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -568,8 +571,8 @@ class VoiceSession:
         # The checks of the three SDK stages, read through this call's view of the session.
         self._rules = RuleSet.voice(self._fillers)
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
-        self._classifier = WordRuleClassifier()
-        self._rewriter = NoRewrite()
+        self._classifier = classifier if classifier is not None else WordRuleClassifier()
+        self._rewriter = rewriter if rewriter is not None else NoRewrite()
         self._call = SessionCall(self)
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)

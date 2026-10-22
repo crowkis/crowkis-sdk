@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { unfinished } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 /**
  * A cut-off question ("do you deliver on") is close in meaning to a full one but asks something
@@ -20,7 +21,7 @@ class CutOff {
 
   check(turn) {
     if (!unfinished(turn.text)) return null;
-    return new Verdict(this.name, "the turn was cut off mid-question", ["refusedShort"]);
+    return new Verdict(this.name, "the turn was cut off mid-question", [COUNTER.REFUSED_SHORT]);
   }
 }
 

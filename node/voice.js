@@ -10,6 +10,8 @@ const { CacheLookup } = require("./src/runtime/cacheLookup.js");
 const { TurnPairing } = require("./src/runtime/turnPairing.js");
 const { TurnDecision } = require("./src/turns/decision.js");
 const { TurnCore } = require("./src/turns/turnCore.js");
+const { SessionHost } = require("./src/turns/sessionHost.js");
+const { Stats } = require("./src/runtime/stats.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
@@ -487,6 +489,8 @@ class VoiceSession {
     this.shareTemplates = Boolean(shareTemplates);
     this.values = Object.create(null);
     this.transcript = [];
+    // The counters stats() reports; each public counter property reads and writes one of them.
+    this._stats = new Stats();
     this.served = 0;
     this.inferred = 0;
     this.filled = 0;
@@ -515,21 +519,20 @@ class VoiceSession {
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
     // The checks of the three SDK stages, read through this call's view of the session.
-    this._rules = RuleSet.voice();
+    this._rules = RuleSet.voice(this._fillers);
     // How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
     this._classifier = new WordRuleClassifier();
     this._rewriter = new NoRewrite();
     this._call = new SessionCall(this);
-    this._ruleCounts = new Map();
     // Writes wait at most twice the budget; the cap is read when a write starts.
-    this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (name) => { this[name] += 1; },
+    this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),
       (message) => console.warn(message));
     // Lookups run inside the budget the call has when it looks up.
     this._cacheLookup = new CacheLookup();
     // The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
-    this._core = new TurnCore(this, {
+    this._core = new TurnCore(new SessionHost(this), {
       rules: this._rules, call: this._call, pairing: this._pairing, cacheLookup: this._cacheLookup,
-      classifier: this._classifier, rewriter: this._rewriter,
+      classifier: this._classifier, rewriter: this._rewriter, stats: this._stats,
     });
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
@@ -732,7 +735,7 @@ class VoiceSession {
     decision.text = spoken;
     decision.stored = false;
     decision.saveRule = "Interrupted";
-    this._ruleCounts.set("Interrupted", (this._ruleCounts.get("Interrupted") || 0) + 1);
+    this._stats.countRule("Interrupted");
     decision.notStored = "the caller moved on before this answer was complete";
     decision.reason = `${decision.reason}; not stored: ${decision.notStored}`;
   }
@@ -853,7 +856,7 @@ class VoiceSession {
   // The same, with why an answer was not stored, in words, and the rule that decided it.
   async _record(callerSaid, modelSaid, options = {}) {
     const recorded = await this._core.record(callerSaid, modelSaid, options);
-    if (recorded.rule) this._ruleCounts.set(recorded.rule, (this._ruleCounts.get(recorded.rule) || 0) + 1);
+    if (recorded.rule) this._stats.countRule(recorded.rule);
     return recorded;
   }
 
@@ -924,7 +927,7 @@ class VoiceSession {
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
       // How often each rule decided a turn or kept an answer, by the rule's name.
-      rules: Object.fromEntries([...this._ruleCounts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
+      rules: this._stats.ruleCounts(),
     };
   }
 
@@ -1190,6 +1193,9 @@ function voiceSession(options = {}) {
   session._textOnly = textOnly;
   return session;
 }
+
+// The public counters (session.filled, ...) read and write the session's Stats.
+Stats.defineCounterProperties(VoiceSession.prototype);
 
 module.exports = {
   VoiceSession,

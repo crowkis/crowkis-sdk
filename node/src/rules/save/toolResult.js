@@ -3,6 +3,7 @@
 // The ToolResult rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const KEPT = "kept";
 
@@ -18,7 +19,7 @@ class ToolResult {
 
   check(answer) {
     if (!answer.private) return null;
-    return new Verdict(this.name, "kept to this call: the answer was built from a tool's result", ["notShareable"], KEPT);
+    return new Verdict(this.name, "kept to this call: the answer was built from a tool's result", [COUNTER.NOT_SHAREABLE], KEPT);
   }
 }
 

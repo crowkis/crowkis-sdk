@@ -3,6 +3,7 @@
 // The TooShort rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 /**
  * A turn too short to match on meaning ("thank you") is not looked up, unless short turns are
@@ -20,7 +21,7 @@ class TooShort {
   // Asks the server only when it must (a short turn, short turns on): then a promise.
   check(turn) {
     if (!turn.isShort) return null;
-    const verdict = new Verdict(this.name, "transcript too short to match safely", ["refusedShort"]);
+    const verdict = new Verdict(this.name, "transcript too short to match safely", [COUNTER.REFUSED_SHORT]);
     if (!turn.call.shortTurns) return verdict;
     return Promise.resolve(turn.call.engineVouches()).then((vouches) => (vouches ? null : verdict));
   }

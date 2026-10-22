@@ -3,6 +3,7 @@
 // The FollowUpWithoutContext rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const NO_KEY_REASON =
   "the utterance only has meaning against an earlier turn and this call " +
@@ -20,7 +21,7 @@ class FollowUpWithoutContext {
 
   check(turn) {
     if (turn.key !== null) return null;
-    return new Verdict(this.name, NO_KEY_REASON, ["inferred"]);
+    return new Verdict(this.name, NO_KEY_REASON, [COUNTER.INFERRED]);
   }
 }
 

@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { COMMITMENTS } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 /**
  * A commitment (a price, a refund, a policy) is spoken only as the call's `commitments` setting
@@ -24,7 +25,7 @@ class CommitmentRewording {
     const reason =
       "the cached answer is a commitment (a price, a refund, a policy) and " +
       `commitments="${commitments}" does not allow speaking this match`;
-    return new Verdict(this.name, reason, ["heldCommitments", "inferred"]);
+    return new Verdict(this.name, reason, [COUNTER.HELD_COMMITMENTS, COUNTER.INFERRED]);
   }
 }
 

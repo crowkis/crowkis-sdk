@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional
 
 from ..turns import Verdict
 from .write_workers import WriteWorkers
+from .stats import Counter
 
 SLOW_WRITE = "slow_write"
 NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server"
@@ -39,20 +40,20 @@ class BoundedWriter:
                 future = self._workers.submit(store, *args, **kwargs)
                 self._workers.pending.add(future)
         if full:
-            self._count("slow_writes")
+            self._count(Counter.SLOW_WRITES)
             self._log.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
             return Verdict("BoundedWrite", NOT_WRITTEN_REASON, (), SLOW_WRITE)
         self._workers.hand_over(future)
         try:
             future.result(timeout=deadline_s)
         except concurrent.futures.TimeoutError:
-            self._count("slow_writes")
+            self._count(Counter.SLOW_WRITES)
             future.add_done_callback(self._late)
             return Verdict("BoundedWrite", NOT_CONFIRMED_REASON, (), SLOW_WRITE)
         return None
 
     def _late(self, future: concurrent.futures.Future) -> None:
         if future.exception() is not None:
-            self._count("learn_errors")
+            self._count(Counter.LEARN_ERRORS)
             self._log.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
                               type(future.exception()).__name__)

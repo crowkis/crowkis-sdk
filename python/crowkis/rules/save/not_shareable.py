@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import ModelAnswer, Verdict
+from ...runtime.stats import Counter
 
 KEPT = "kept"
 
@@ -19,4 +20,4 @@ class NotShareable:
         if answer.cacheable:
             return None
         return Verdict(self.name, "kept to this call: the answer depends on what this caller said",
-                       ("not_shareable",), KEPT)
+                       (Counter.NOT_SHAREABLE,), KEPT)

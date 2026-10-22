@@ -12,6 +12,7 @@ from .not_general import NotGeneral
 from .own_records import OwnRecords
 from .private_chain import PrivateChain
 from .question_names_caller import QuestionNamesCaller
+from .registered_filler import RegisteredFiller
 from .stated_facts import StatedFacts
 from .task_step import TaskStep
 from .told_detail_dropped import ToldDetailDropped
@@ -23,4 +24,4 @@ from .untagged_name import UntaggedName
 from .urgent_turn import UrgentTurn
 from .urgent_words import UrgentWords
 
-__all__ = ["AboutSomeone", "CallContextTaint", "CutOff", "EmptyTurn", "FollowUpWithoutContext", "IdentifyingDetails", "LostDetail", "NoQuestion", "NotGeneral", "OwnRecords", "PrivateChain", "QuestionNamesCaller", "StatedFacts", "TaskStep", "ToldDetailDropped", "TooShort", "UncertainFrame", "Ungrounded", "UnresolvedReference", "UntaggedName", "UrgentTurn", "UrgentWords"]
+__all__ = ["AboutSomeone", "CallContextTaint", "CutOff", "EmptyTurn", "FollowUpWithoutContext", "IdentifyingDetails", "LostDetail", "NoQuestion", "NotGeneral", "OwnRecords", "PrivateChain", "QuestionNamesCaller", "RegisteredFiller", "StatedFacts", "TaskStep", "ToldDetailDropped", "TooShort", "UncertainFrame", "Ungrounded", "UnresolvedReference", "UntaggedName", "UrgentTurn", "UrgentWords"]

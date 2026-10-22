@@ -3,6 +3,7 @@
 // The DifferentQuestion rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const DIFFERENT_QUESTION_REASON =
   "the cached answer was saved for a different question (it asks about something " +
@@ -24,7 +25,7 @@ class DifferentQuestion {
     if (turn.isPersonal || cached.hit.exact) return null;
     const spentMs = performance.now() - cached.started;
     return Promise.resolve(turn.call.answersAnotherQuestion(turn.key, cached.answer, spentMs)).then((another) =>
-      (another ? new Verdict(this.name, DIFFERENT_QUESTION_REASON, ["differentQuestion", "inferred"]) : null));
+      (another ? new Verdict(this.name, DIFFERENT_QUESTION_REASON, [COUNTER.DIFFERENT_QUESTION, COUNTER.INFERRED]) : null));
   }
 }
 

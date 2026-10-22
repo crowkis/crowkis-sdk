@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
 from ...understanding.word_rules import _private_chain
+from ...runtime.stats import Counter
 
 PRIVATE_CHAIN_REASON = (
     "a follow-up to a private turn of this call: its answer depends on "
@@ -24,4 +25,4 @@ class PrivateChain:
         follows_private = turn.is_context_dependent and _private_chain(turn.call.chain() or [], turn.call.min_words)
         if not (follows_private or turn.call.after_urgent(turn.text)):
             return None
-        return Verdict(self.name, PRIVATE_CHAIN_REASON, ("refused_private", "inferred"))
+        return Verdict(self.name, PRIVATE_CHAIN_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

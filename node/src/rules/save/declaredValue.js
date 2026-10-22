@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { leaks } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const PRIVATE = "private";
 
@@ -20,7 +21,7 @@ class DeclaredValue {
   check(answer) {
     if (!leaks(answer.answer, answer.call.values)) return null;
     return new Verdict(this.name, "kept to this call: the answer contains a value declared for this call",
-      ["notShareable"], PRIVATE);
+      [COUNTER.NOT_SHAREABLE], PRIVATE);
   }
 }
 

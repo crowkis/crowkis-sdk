@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { repeatsPromptDetails } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const PRIVATE = "private";
 
@@ -25,7 +26,7 @@ class PromptCallerDetails {
       return null;
     }
     return new Verdict(this.name, "kept to this call: the answer repeats a detail about the caller from the system prompt",
-      ["notShareable"], PRIVATE);
+      [COUNTER.NOT_SHAREABLE], PRIVATE);
   }
 }
 

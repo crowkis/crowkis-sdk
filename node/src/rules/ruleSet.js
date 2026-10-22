@@ -6,32 +6,34 @@ const {
   TemplateSlotMissing,
 } = require("./hit/index.js");
 const {
-  CallContextTaint, CutOff, EmptyTurn, FollowUpWithoutContext, OwnRecords, PrivateChain, TooShort,
+  CallContextTaint, CutOff, EmptyTurn, FollowUpWithoutContext, OwnRecords, PrivateChain, RegisteredFiller, TooShort,
 } = require("./question/index.js");
 const {
   CallerIdentifier, DeclaredValue, EmptyAnswer, NoKey, NonAnswer, NotShareable, PersonalTemplate, PromptCallerDetails,
   TaintedCall, ToolResult,
 } = require("./save/index.js");
 
-const CHAINS = ["beforeFiller", "question", "hit", "answerGiven", "beforeSharing", "sharing"];
+const CHAINS = ["beforeFiller", "filler", "question", "hit", "answerGiven", "beforeSharing", "sharing"];
 
 /**
  * The rules of the three SDK stages, as chains in the order a turn meets them. Stage 1
- * (question) runs `beforeFiller` and then `question`, around the registered fillers. Stage 2
+ * (question) runs `beforeFiller`, then `filler` (a registered filler answers the turn itself), then
+ * `question`. Stage 2
  * (hit) runs `hit` on a hit. Stage 3 (save) runs `answerGiven`, then `beforeSharing` once the
  * turn is in the transcript, then `personal` for a personal turn (whose answer may become a
  * shared shape) or `sharing` for any other. Immutable.
  */
 class RuleSet {
-  constructor({ beforeFiller, question, hit, answerGiven, beforeSharing, personal, sharing }) {
-    Object.assign(this, { beforeFiller, question, hit, answerGiven, beforeSharing, personal, sharing });
+  constructor({ beforeFiller, filler, question, hit, answerGiven, beforeSharing, personal, sharing }) {
+    Object.assign(this, { beforeFiller, filler, question, hit, answerGiven, beforeSharing, personal, sharing });
     Object.freeze(this);
   }
 
-  /** The voice defaults: today's rules, in today's order. */
-  static voice() {
+  /** The voice defaults: today's rules, in today's order; `fillers` is the session's live Map of registered fillers. */
+  static voice(fillers = new Map()) {
     return new RuleSet({
       beforeFiller: new RuleChain([new EmptyTurn()]),
+      filler: new RuleChain([new RegisteredFiller({ fillers })]),
       question: new RuleChain([new CallContextTaint(), new TooShort(), new CutOff(), new OwnRecords(),
         new FollowUpWithoutContext(), new PrivateChain()]),
       hit: new RuleChain([new ConfidenceBar(), new TemplateSlotMissing(), new PiiPlaceholder(), new DifferentQuestion(),

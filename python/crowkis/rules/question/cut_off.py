@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
 from ...understanding.word_rules import _unfinished
+from ...runtime.stats import Counter
 
 
 class CutOff:
@@ -18,4 +19,4 @@ class CutOff:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if not _unfinished(turn.text):
             return None
-        return Verdict(self.name, "the turn was cut off mid-question", ("refused_short",))
+        return Verdict(self.name, "the turn was cut off mid-question", (Counter.REFUSED_SHORT,))

@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { setsContext } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const TAINTED_REASON =
   "the caller has told this call something a later answer may depend on " +
@@ -27,7 +28,7 @@ class CallContextTaint {
   check(turn) {
     if (!(turn.call.tainted || setsContext(turn.text))) return null;
     turn.call.markTainted();
-    return new Verdict(this.name, TAINTED_REASON, ["refusedPrivate", "inferred"]);
+    return new Verdict(this.name, TAINTED_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }
 }
 

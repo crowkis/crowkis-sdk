@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import ModelAnswer, Verdict
 from ...understanding.word_rules import _repeats_prompt_details
+from ...runtime.stats import Counter
 
 PRIVATE = "private"
 
@@ -22,4 +23,4 @@ class PromptCallerDetails:
                 answer.answer, answer.text, answer.instructions, answer.call.agent_key()):
             return None
         return Verdict(self.name, "kept to this call: the answer repeats a detail about the caller "
-                                  "from the system prompt", ("not_shareable",), PRIVATE)
+                                  "from the system prompt", (Counter.NOT_SHAREABLE,), PRIVATE)

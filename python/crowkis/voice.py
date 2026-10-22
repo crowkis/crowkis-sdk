@@ -17,8 +17,10 @@ from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 from .rules import RuleSet
 from .runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
+from .runtime.stats import Counter, CounterField, Stats
 from .turns import SessionCall
 from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
+from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -457,6 +459,24 @@ class VoiceResponse:
 
 class VoiceSession:
 
+    served = CounterField(Counter.SERVED)
+    filled = CounterField(Counter.FILLED)
+    inferred = CounterField(Counter.INFERRED)
+    refused_short = CounterField(Counter.REFUSED_SHORT)
+    refused_private = CounterField(Counter.REFUSED_PRIVATE)
+    uncacheable_personal = CounterField(Counter.UNCACHEABLE_PERSONAL)
+    over_budget = CounterField(Counter.OVER_BUDGET)
+    barge_ins = CounterField(Counter.BARGE_INS)
+    lookup_errors = CounterField(Counter.LOOKUP_ERRORS)
+    learn_errors = CounterField(Counter.LEARN_ERRORS)
+    slow_writes = CounterField(Counter.SLOW_WRITES)
+    different_question = CounterField(Counter.DIFFERENT_QUESTION)
+    not_shareable = CounterField(Counter.NOT_SHAREABLE)
+    held_commitments = CounterField(Counter.HELD_COMMITMENTS)
+    unspeakable = CounterField(Counter.UNSPEAKABLE)
+    empty_answers = CounterField(Counter.EMPTY_ANSWERS)
+    audio_unavailable = CounterField(Counter.AUDIO_UNAVAILABLE)
+
     def __init__(
         self,
         agent: Agent,
@@ -514,6 +534,8 @@ class VoiceSession:
         self.share_templates = share_templates
         self.values: Dict[str, str] = {}
         self.transcript: List[Dict[str, str]] = []
+        # The counters stats() reports; each public counter attribute reads and writes one of them.
+        self._stats = Stats()
         self.served = 0
         self.inferred = 0
         self.filled = 0
@@ -546,19 +568,19 @@ class VoiceSession:
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = self._pairing.lock
         # The checks of the three SDK stages, read through this call's view of the session.
-        self._rules = RuleSet.voice()
+        self._rules = RuleSet.voice(self._fillers)
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
         self._classifier = WordRuleClassifier()
         self._rewriter = NoRewrite()
         self._call = SessionCall(self)
-        self._rule_counts: collections.Counter = collections.Counter()
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)
         # Lookups run on the shared pool, inside the budget the call has when it looks up.
         self._cache_lookup = CacheLookup(_LOOKUPS)
         # The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
-        self._core = TurnCore(self, rules=self._rules, call=self._call, pairing=self._pairing,
-                              cache_lookup=self._cache_lookup, classifier=self._classifier, rewriter=self._rewriter)
+        self._core = TurnCore(SessionHost(self), rules=self._rules, call=self._call, pairing=self._pairing,
+                              cache_lookup=self._cache_lookup, classifier=self._classifier, rewriter=self._rewriter,
+                              stats=self._stats)
         if values:
             self.set_values(**values)
         if fillers:
@@ -778,7 +800,7 @@ class VoiceSession:
         decision.text = spoken
         decision.stored = False
         decision.save_rule = "Interrupted"
-        self._rule_counts["Interrupted"] += 1
+        self._stats.count_rule("Interrupted")
         decision.not_stored = "the caller moved on before this answer was complete"
         decision.reason = f"{decision.reason}; not stored: {decision.not_stored}"
 
@@ -851,8 +873,8 @@ class VoiceSession:
         return None if verdict is None else _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
 
     def _count(self, name: str) -> None:
-        with _COUNT_LOCK:
-            setattr(self, name, getattr(self, name) + 1)
+        """Add to a counter a background write and a turn may both update (locked in Stats)."""
+        self._stats.add(name)
 
     def _said_identifiers(self) -> set:
         """The ID-like values this caller said earlier in the call: its earlier turns in
@@ -901,7 +923,7 @@ class VoiceSession:
         """
         outcome = self._core.record(caller_said, model_said, turn=turn, private=private, instructions=instructions)
         if outcome.rule is not None:
-            self._rule_counts[outcome.rule] += 1
+            self._stats.count_rule(outcome.rule)
         return outcome
 
     def injections(self) -> List[Dict[str, str]]:
@@ -935,7 +957,7 @@ class VoiceSession:
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),
             # How often each rule decided a turn or kept an answer, by the rule's name.
-            "rules": dict(sorted(self._rule_counts.items())),
+            "rules": self._stats.rule_counts(),
         }
 
     def _reportable(self) -> Dict[str, int]:

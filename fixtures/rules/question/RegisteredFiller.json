@@ -1,0 +1,32 @@
+{
+ "rule": "RegisteredFiller",
+ "stage": "question",
+ "about": "v4: when the operational rule RegisteredFiller answers a turn itself (a registered filler), run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a registered filler",
+   "say": "Hello!",
+   "rule_args": {
+    "fillers": {
+     "hello": "Hi, how can I help?"
+    }
+   },
+   "objects": true,
+   "counts": [
+    "filled"
+   ],
+   "reason": "registered filler, answered without a lookup or a model",
+   "route": "filler"
+  },
+  {
+   "name": "no filler for it",
+   "say": "what is your refund policy",
+   "rule_args": {
+    "fillers": {
+     "hello": "Hi, how can I help?"
+    }
+   },
+   "objects": false
+  }
+ ]
+}

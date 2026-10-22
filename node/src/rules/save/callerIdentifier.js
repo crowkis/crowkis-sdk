@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { repeatsIdentifier } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const PRIVATE = "private";
 
@@ -23,7 +24,7 @@ class CallerIdentifier {
   check(answer) {
     if (!repeatsIdentifier(answer.answer, answer.call.saidIdentifiers())) return null;
     return new Verdict(this.name, "kept to this call: the answer repeats a number or ID this caller said",
-      ["notShareable"], PRIVATE);
+      [COUNTER.NOT_SHAREABLE], PRIVATE);
   }
 }
 

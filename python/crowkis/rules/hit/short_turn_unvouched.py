@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
+from ...runtime.stats import Counter
 
 SHORT_TURN_REASON = (
     "a short turn is only answered from cache once the answer has been "
@@ -21,4 +22,4 @@ class ShortTurnUnvouched:
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         if not cached.turn.is_short or (cached.hit.get("vouched") and cached.hit.get("exact")):
             return None
-        return Verdict(self.name, SHORT_TURN_REASON, ("inferred",))
+        return Verdict(self.name, SHORT_TURN_REASON, (Counter.INFERRED,))

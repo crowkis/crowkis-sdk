@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
 from ...understanding.word_rules import _PII_PLACEHOLDER
+from ...runtime.stats import Counter
 
 PLACEHOLDER_REASON = (
     "the cached answer holds a placeholder the server put in place of a "
@@ -22,4 +23,4 @@ class PiiPlaceholder:
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         if not _PII_PLACEHOLDER.search(cached.answer):
             return None
-        return Verdict(self.name, PLACEHOLDER_REASON, ("refused_private", "inferred"))
+        return Verdict(self.name, PLACEHOLDER_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
 from ...understanding.word_rules import _sets_context
+from ...runtime.stats import Counter
 
 TAINTED_REASON = (
     "the caller has told this call something a later answer may depend on "
@@ -26,4 +27,4 @@ class CallContextTaint:
         if not (turn.call.tainted or _sets_context(turn.text)):
             return None
         turn.call.mark_tainted()
-        return Verdict(self.name, TAINTED_REASON, ("refused_private", "inferred"))
+        return Verdict(self.name, TAINTED_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

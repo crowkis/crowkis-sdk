@@ -2,6 +2,7 @@
 
 const { Verdict } = require("../turns/verdict.js");
 const { LATE, within } = require("./deadline.js");
+const { COUNTER } = require("./stats.js");
 
 /**
  * The one place a lookup fails open: a hard deadline (a slow or hung cache never holds a live call
@@ -20,13 +21,13 @@ class CacheLookup {
       if (hit === LATE || (budgeted && performance.now() - started > budgetMs)) {
         lookup.catch(() => {});
         const reason = `lookup passed the ${budgetMs}ms voice budget; a late hit is worse than a fast miss`;
-        return { hit: null, verdict: new Verdict("LookupDeadline", reason, ["overBudget", "inferred"]) };
+        return { hit: null, verdict: new Verdict("LookupDeadline", reason, [COUNTER.OVER_BUDGET, COUNTER.INFERRED]) };
       }
       return { hit, verdict: null };
     } catch (error) {
       // An unreachable or refusing cache means "ask the model", never silence.
       const reason = `cache unavailable (${error && error.name}); asking the model`;
-      return { hit: null, verdict: new Verdict("CacheUnavailable", reason, ["lookupErrors", "inferred"]) };
+      return { hit: null, verdict: new Verdict("CacheUnavailable", reason, [COUNTER.LOOKUP_ERRORS, COUNTER.INFERRED]) };
     }
   }
 }

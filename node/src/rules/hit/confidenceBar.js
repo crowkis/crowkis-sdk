@@ -3,6 +3,7 @@
 // The ConfidenceBar rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const CACHE_ROUTE = "cache";
 
@@ -18,7 +19,7 @@ class ConfidenceBar {
 
   check(cached) {
     if (cached.hit.route === CACHE_ROUTE) return null;
-    return new Verdict(this.name, `confidence below the spoken-answer bar of ${cached.turn.call.serveAbove}`, ["inferred"]);
+    return new Verdict(this.name, `confidence below the spoken-answer bar of ${cached.turn.call.serveAbove}`, [COUNTER.INFERRED]);
   }
 }
 

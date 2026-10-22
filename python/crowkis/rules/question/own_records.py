@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
+from ...runtime.stats import Counter
 
 OWN_RECORDS_REASON = (
     "the caller asked about their own records and this session has no "
@@ -24,4 +25,4 @@ class OwnRecords:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if not turn.is_personal or turn.call.values:
             return None
-        return Verdict(self.name, OWN_RECORDS_REASON, ("refused_private", "inferred"))
+        return Verdict(self.name, OWN_RECORDS_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

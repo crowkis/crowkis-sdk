@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { PII_PLACEHOLDER } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const PLACEHOLDER_REASON =
   "the cached answer holds a placeholder the server put in place of a caller's detail; " +
@@ -21,7 +22,7 @@ class PiiPlaceholder {
 
   check(cached) {
     if (!PII_PLACEHOLDER.test(cached.answer)) return null;
-    return new Verdict(this.name, PLACEHOLDER_REASON, ["refusedPrivate", "inferred"]);
+    return new Verdict(this.name, PLACEHOLDER_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }
 }
 

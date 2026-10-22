@@ -7,6 +7,7 @@ import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from ..turns import Verdict
+from .stats import Counter
 
 MS_PER_SECOND = 1000.0
 
@@ -30,13 +31,13 @@ class CacheLookup:
                 hit = self._pool.submit(ask).result(timeout=budget_ms / MS_PER_SECOND)
         except concurrent.futures.TimeoutError:
             return None, Verdict("LookupDeadline", f"lookup passed the {budget_ms}ms voice budget; "
-                                                   "a late hit is worse than a fast miss", ("over_budget", "inferred"))
+                                                   "a late hit is worse than a fast miss", (Counter.OVER_BUDGET, Counter.INFERRED))
         except Exception as exc:  # noqa: BLE001 — an unreachable cache means "ask the model"
             return None, Verdict("CacheUnavailable", f"cache unavailable ({type(exc).__name__}); asking the model",
-                                 ("lookup_errors", "inferred"))
+                                 (Counter.LOOKUP_ERRORS, Counter.INFERRED))
         took_ms = (time.monotonic() - started) * MS_PER_SECOND
         if budget_ms is not None and took_ms > budget_ms:
             return hit, Verdict("LookupDeadline", f"lookup took {took_ms:.1f}ms, past the {budget_ms}ms "
                                                   "voice budget; a late hit is worse than a fast miss",
-                                ("over_budget", "inferred"))
+                                (Counter.OVER_BUDGET, Counter.INFERRED))
         return hit, None

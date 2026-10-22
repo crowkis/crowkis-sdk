@@ -1,6 +1,7 @@
 "use strict";
 
 const { Verdict } = require("../turns/verdict.js");
+const { COUNTER } = require("./stats.js");
 
 const SLOW_WRITE = "slow_write";
 const NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server";
@@ -28,7 +29,7 @@ class BoundedWriter {
    */
   async write(store, deadlineMs) {
     if (this._pending.size >= this._maxPending()) {
-      this._count("slowWrites");
+      this._count(COUNTER.SLOW_WRITES);
       this._warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
       return new Verdict("BoundedWrite", NOT_WRITTEN_REASON, [], SLOW_WRITE);
     }
@@ -37,7 +38,7 @@ class BoundedWriter {
     const tracked = write
       .catch((error) => {
         if (!late) return; // before the turn stopped waiting: thrown to the caller, counted there
-        this._count("learnErrors");
+        this._count(COUNTER.LEARN_ERRORS);
         this._warn(`crowkis voice: a write that passed the latency budget then failed (${(error && error.name) || "Error"})`);
       })
       .finally(() => this._pending.delete(tracked));
@@ -53,7 +54,7 @@ class BoundedWriter {
       );
     });
     if (finished) return null;
-    this._count("slowWrites");
+    this._count(COUNTER.SLOW_WRITES);
     return new Verdict("BoundedWrite", NOT_CONFIRMED_REASON, [], SLOW_WRITE);
   }
 }

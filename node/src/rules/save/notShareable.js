@@ -3,6 +3,7 @@
 // The NotShareable rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const KEPT = "kept";
 
@@ -18,7 +19,7 @@ class NotShareable {
 
   check(answer) {
     if (answer.cacheable) return null;
-    return new Verdict(this.name, "kept to this call: the answer depends on what this caller said", ["notShareable"], KEPT);
+    return new Verdict(this.name, "kept to this call: the answer depends on what this caller said", [COUNTER.NOT_SHAREABLE], KEPT);
   }
 }
 

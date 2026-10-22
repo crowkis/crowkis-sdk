@@ -44,6 +44,7 @@ class VoiceRuleSetTests(unittest.TestCase):
     def test_the_voice_defaults_are_todays_rules_in_todays_order(self):
         rules = RuleSet.voice()
         self.assertEqual(rules.before_filler.names, ("EmptyTurn",))
+        self.assertEqual(rules.filler.names, ("RegisteredFiller",))
         self.assertEqual(rules.question.names, ("CallContextTaint", "TooShort", "CutOff", "OwnRecords",
                                                 "FollowUpWithoutContext", "PrivateChain"))
         self.assertEqual(rules.hit.names, ("ConfidenceBar", "TemplateSlotMissing", "PiiPlaceholder",

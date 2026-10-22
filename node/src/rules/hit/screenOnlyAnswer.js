@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { speakable } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const SCREEN_REASON = "the cached answer was written for a screen (a link, code or markup)";
 
@@ -19,7 +20,7 @@ class ScreenOnlyAnswer {
 
   check(cached) {
     if (speakable(cached.answer)) return null;
-    return new Verdict(this.name, SCREEN_REASON, ["unspeakable", "inferred"]);
+    return new Verdict(this.name, SCREEN_REASON, [COUNTER.UNSPEAKABLE, COUNTER.INFERRED]);
   }
 }
 

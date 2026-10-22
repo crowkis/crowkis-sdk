@@ -15,6 +15,7 @@ module.exports = {
   ...require("./ownRecords.js"),
   ...require("./privateChain.js"),
   ...require("./questionNamesCaller.js"),
+  ...require("./registeredFiller.js"),
   ...require("./statedFacts.js"),
   ...require("./taskStep.js"),
   ...require("./toldDetailDropped.js"),

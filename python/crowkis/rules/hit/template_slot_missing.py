@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
+from ...runtime.stats import Counter
 
 SLOT_MISSING_REASON = (
     "the shared answer shape has a slot this call has no value "
@@ -21,4 +22,4 @@ class TemplateSlotMissing:
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         if not cached.turn.is_personal or cached.answer is not None:
             return None
-        return Verdict(self.name, SLOT_MISSING_REASON, ("refused_private", "inferred"))
+        return Verdict(self.name, SLOT_MISSING_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

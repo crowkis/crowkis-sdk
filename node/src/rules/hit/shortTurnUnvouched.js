@@ -3,6 +3,7 @@
 // The ShortTurnUnvouched rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const SHORT_TURN_REASON =
   "a short turn is only answered from cache once the answer has been " +
@@ -20,7 +21,7 @@ class ShortTurnUnvouched {
 
   check(cached) {
     if (!cached.turn.isShort || (cached.hit.vouched && cached.hit.exact)) return null;
-    return new Verdict(this.name, SHORT_TURN_REASON, ["inferred"]);
+    return new Verdict(this.name, SHORT_TURN_REASON, [COUNTER.INFERRED]);
   }
 }
 

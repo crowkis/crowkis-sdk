@@ -5,15 +5,23 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
-from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD, _normalise
+from ..runtime.cache_lookup import CacheLookup
+from ..runtime.stats import Counter, Stats
+from ..runtime.turn_pairing import TurnPairing
+from ..understanding.slots import Classifier, Rewriter
+from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .cached_answer import CachedAnswer
 from .decision import TurnDecision, _Outcome
 from .model_answer import ModelAnswer
 from .turn_host import TurnHost
+from .voice_call import VoiceCall
 from .verdict import Verdict
 from .voice_turn import VoiceTurn
+
+if TYPE_CHECKING:
+    from ..rules.rule_set import RuleSet
 
 _LOG = logging.getLogger("crowkis")
 
@@ -23,13 +31,14 @@ class TurnCore:
     question rules, a filler, the lookup inside the budget, the hit rules, serve. record(): pair the
     answer with its turn, the save rules, a shared shape for a personal answer, the bounded write.
 
-    The steps' parts are injected (the rules, the classifier and rewriter, the turn pairing, the
-    lookup, the call as the rules see it); ``host`` (TurnHost) is the session that owns the call's transcript,
-    fillers, audio, counters and the agent the answers are written through."""
+    The steps' parts are injected: the rules, the classifier and rewriter, the turn pairing, the
+    lookup, the call as the rules see it, and the counters (``stats``); ``host`` (TurnHost) is the
+    session's transcript, settings, audio and writes."""
 
-    def __init__(self, host: TurnHost, *, rules: Any, call: Any, pairing: Any, cache_lookup: Any, classifier: Any,
-                 rewriter: Any) -> None:
+    def __init__(self, host: TurnHost, *, rules: "RuleSet", call: VoiceCall, pairing: TurnPairing,
+                 cache_lookup: CacheLookup, classifier: Classifier, rewriter: Rewriter, stats: Stats) -> None:
         self._host = host
+        self._stats = stats
         self._rules = rules
         self._call = call
         self._pairing = pairing
@@ -48,19 +57,9 @@ class TurnCore:
         if verdict is not None:
             return self._infer(verdict)
 
-        filler = self._host._fillers.get(_normalise(turn.text))
+        filler = self._rules.filler.first_objection(turn)
         if filler is not None:
-            self._host.filled += 1
-            decision = TurnDecision(
-                "filler",
-                text=filler,
-                audio=self._host._voiced(filler),
-                confidence=1.0,
-                reason="registered filler, answered without a lookup or a model",
-                rule="RegisteredFiller",
-            )
-            decision._audio_shareable = True
-            return decision
+            return self._filler(filler)
 
         verdict = self._rules.question.first_objection(turn)
         if verdict is not None:
@@ -76,13 +75,13 @@ class TurnCore:
         if verdict is not None:
             return self._infer(verdict, confidence=hit["confidence"])
 
-        self._host.served += 1
+        self._stats.add(Counter.SERVED)
         self._host.transcript.append({"role": "user", "content": caller_said})
         self._host.transcript.append({"role": "assistant", "content": cached.answer})
         decision = TurnDecision(
             "serve",
             text=cached.answer,
-            audio=self._host._voiced(cached.answer, cacheable=not turn.is_personal),
+            audio=self._host.voiced(cached.answer, cacheable=not turn.is_personal),
             confidence=hit["confidence"],
             reason="confident cache hit",
         )
@@ -104,12 +103,20 @@ class TurnCore:
     def _infer(self, verdict: Verdict, *, confidence: float = 0.0) -> TurnDecision:
         """The model answers this turn: ``verdict`` says which rule decided so, and why."""
         self._count_verdict(verdict)
-        self._host._rule_counts[verdict.rule] += 1
+        self._stats.count_rule(verdict.rule)
         return TurnDecision("infer", confidence=confidence, reason=verdict.reason, rule=verdict.rule)
 
+    def _filler(self, verdict: Verdict) -> TurnDecision:
+        """A registered filler answers the turn at once (its audio may be shared)."""
+        self._count_verdict(verdict)
+        decision = TurnDecision(verdict.route, text=verdict.answer, audio=self._host.voiced(verdict.answer),
+                                confidence=1.0, reason=verdict.reason, rule=verdict.rule)
+        decision._audio_shareable = True
+        return decision
+
     def _count_verdict(self, verdict: Verdict) -> None:
-        for name in verdict.counts:
-            setattr(self._host, name, getattr(self._host, name) + 1)
+        for counter in verdict.counts:
+            self._stats.add(counter)
 
     def record(self, caller_said: str, model_said: str, *, turn: Optional[int], private: bool,
                instructions: Optional[str]) -> "_Outcome":
@@ -125,7 +132,7 @@ class TurnCore:
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return self._kept(verdict)
-        answer = answer.keyed(self._host._context_key(caller_said, answer.text))
+        answer = answer.keyed(self._host.context_key(caller_said, answer.text))
         self._host.transcript.append({"role": "user", "content": caller_said})
         self._host.transcript.append({"role": "assistant", "content": model_said})
         verdict = self._rules.before_sharing.first_objection(answer)
@@ -137,13 +144,13 @@ class TurnCore:
             verdict = self._rules.sharing.first_objection(answer)
             if verdict is not None:
                 return self._kept(verdict)
-            slow = self._host._learn(answer.key, model_said, ttl=self._host.ttl)
-            self._host._last_stored = answer.key
+            slow = self._host.learn(answer.key, model_said, ttl=self._host.ttl)
+            self._host.note_stored(answer.key)
             if slow is None:  # a slow server gets no extra write
-                self._host._keep_question(answer.key, model_said)
+                self._host.keep_question(answer.key, model_said)
             return slow or _Outcome("saved")
         except Exception as error:  # noqa: BLE001 — a refused write must not end a call
-            self._host.learn_errors += 1
+            self._stats.add(Counter.LEARN_ERRORS)
             why = f"the server refused the write: {str(error) or type(error).__name__}"
             _LOG.warning("crowkis voice answer not stored, %s", why)
             return _Outcome("refused", why, rule="WriteRefused")
@@ -153,7 +160,7 @@ class TurnCore:
         personal = self._rules.personal
         verdict = personal.check(answer)
         if verdict is None:
-            templated = self._host._learn_personal(answer.key, answer.answer)
+            templated = self._host.learn_personal(answer.key, answer.answer)
             if isinstance(templated, _Outcome):
                 return templated  # slow_write: the shape was not confirmed written
             if templated:

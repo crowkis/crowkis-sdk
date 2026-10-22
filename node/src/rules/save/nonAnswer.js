@@ -3,6 +3,7 @@
 // The NonAnswer rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const NON_ANSWER = "non_answer";
 
@@ -18,7 +19,7 @@ class NonAnswer {
 
   check(answer) {
     if (!answer.isNonAnswer) return null;
-    return new Verdict(this.name, "not saved: the answer asks back or does not answer", ["notShareable"], NON_ANSWER);
+    return new Verdict(this.name, "not saved: the answer asks back or does not answer", [COUNTER.NOT_SHAREABLE], NON_ANSWER);
   }
 }
 

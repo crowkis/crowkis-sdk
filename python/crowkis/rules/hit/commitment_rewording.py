@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
 from ...understanding.word_rules import _COMMITMENTS
+from ...runtime.stats import Counter
 
 
 class CommitmentRewording:
@@ -21,4 +22,4 @@ class CommitmentRewording:
             return None
         reason = ("the cached answer is a commitment (a price, a refund, a policy) and "
                   f"commitments={commitments!r} does not allow speaking this match")
-        return Verdict(self.name, reason, ("held_commitments", "inferred"))
+        return Verdict(self.name, reason, (Counter.HELD_COMMITMENTS, Counter.INFERRED))

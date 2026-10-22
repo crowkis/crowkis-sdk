@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
+from ...runtime.stats import Counter
 
 
 class EmptyTurn:
@@ -16,4 +17,4 @@ class EmptyTurn:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if turn.text:
             return None
-        return Verdict(self.name, "empty transcript", ("refused_short",))
+        return Verdict(self.name, "empty transcript", (Counter.REFUSED_SHORT,))

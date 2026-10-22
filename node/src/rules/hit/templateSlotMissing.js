@@ -3,6 +3,7 @@
 // The TemplateSlotMissing rule (stage 2, hit).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const SLOT_MISSING_REASON =
   "the shared answer shape has a slot this call has no value for; " +
@@ -20,7 +21,7 @@ class TemplateSlotMissing {
 
   check(cached) {
     if (!cached.turn.isPersonal || cached.answer !== null) return null;
-    return new Verdict(this.name, SLOT_MISSING_REASON, ["refusedPrivate", "inferred"]);
+    return new Verdict(this.name, SLOT_MISSING_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }
 }
 

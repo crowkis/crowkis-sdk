@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
-from typing import Sequence
+from typing import Mapping, Optional, Sequence
 
 from .chain import FloorRuleLocked, RuleChain, UnknownRule, rule_names
 from .hit import (
@@ -15,7 +15,16 @@ from .hit import (
     ShortTurnUnvouched,
     TemplateSlotMissing,
 )
-from .question import CallContextTaint, CutOff, EmptyTurn, FollowUpWithoutContext, OwnRecords, PrivateChain, TooShort
+from .question import (
+    CallContextTaint,
+    CutOff,
+    EmptyTurn,
+    FollowUpWithoutContext,
+    OwnRecords,
+    PrivateChain,
+    RegisteredFiller,
+    TooShort,
+)
 from .save import (
     CallerIdentifier,
     DeclaredValue,
@@ -34,12 +43,13 @@ from .save import (
 class RuleSet:
     """The rules of the three SDK stages, as chains in the order a turn meets them.
 
-    Stage 1 (question) runs ``before_filler`` and then ``question``, around the registered
-    fillers. Stage 2 (hit) runs ``hit`` on a hit. Stage 3 (save) runs ``answer_given``, then
+    Stage 1 (question) runs ``before_filler``, then ``filler`` (a registered filler answers the turn
+    itself), then ``question``. Stage 2 (hit) runs ``hit`` on a hit. Stage 3 (save) runs ``answer_given``, then
     ``before_sharing`` once the turn is in the transcript, then ``personal`` for a personal
     turn (whose answer may become a shared shape) or ``sharing`` for any other."""
 
     before_filler: RuleChain
+    filler: RuleChain
     question: RuleChain
     hit: RuleChain
     answer_given: RuleChain
@@ -48,10 +58,12 @@ class RuleSet:
     sharing: RuleChain
 
     @classmethod
-    def voice(cls) -> "RuleSet":
-        """The voice defaults: today's rules, in today's order."""
+    def voice(cls, fillers: Optional[Mapping[str, str]] = None) -> "RuleSet":
+        """The voice defaults: today's rules, in today's order; ``fillers`` is the session's live map
+        of registered fillers (none when not given)."""
         return cls(
             before_filler=RuleChain([EmptyTurn()]),
+            filler=RuleChain([RegisteredFiller({} if fillers is None else fillers)]),
             question=RuleChain([CallContextTaint(), TooShort(), CutOff(), OwnRecords(), FollowUpWithoutContext(),
                                 PrivateChain()]),
             hit=RuleChain([ConfidenceBar(), TemplateSlotMissing(), PiiPlaceholder(), DifferentQuestion(),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
+from ...runtime.stats import Counter
 
 NO_KEY_REASON = (
     "the utterance only has meaning against an earlier turn and this "
@@ -21,4 +22,4 @@ class FollowUpWithoutContext:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if turn.key is not None:
             return None
-        return Verdict(self.name, NO_KEY_REASON, ("inferred",))
+        return Verdict(self.name, NO_KEY_REASON, (Counter.INFERRED,))

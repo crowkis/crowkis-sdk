@@ -74,7 +74,7 @@ test("every rule has cases both ways", () => {
     const outcomes = new Set(CASES.filter((c) => c.rule === name).map((c) => c.objects));
     assert.deepStrictEqual([...outcomes].sort(), [false, true], name);
   }
-  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 46);
+  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 47);
 });
 
 test("the taint rule marks the call", async () => {

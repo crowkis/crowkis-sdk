@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import ModelAnswer, Verdict
+from ...runtime.stats import Counter
 
 NON_ANSWER = "non_answer"
 
@@ -18,4 +19,4 @@ class EmptyAnswer:
     def check(self, answer: ModelAnswer) -> Optional[Verdict]:
         if (answer.answer or "").strip():
             return None
-        return Verdict(self.name, "the model returned an empty answer", ("empty_answers",), NON_ANSWER)
+        return Verdict(self.name, "the model returned an empty answer", (Counter.EMPTY_ANSWERS,), NON_ANSWER)

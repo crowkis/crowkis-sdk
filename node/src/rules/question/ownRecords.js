@@ -3,6 +3,7 @@
 // The OwnRecords rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const OWN_RECORDS_REASON =
   "the caller asked about their own records and this session has no values " +
@@ -25,7 +26,7 @@ class OwnRecords {
 
   check(turn) {
     if (!turn.isPersonal || turn.call.hasValues) return null;
-    return new Verdict(this.name, OWN_RECORDS_REASON, ["refusedPrivate", "inferred"]);
+    return new Verdict(this.name, OWN_RECORDS_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }
 }
 

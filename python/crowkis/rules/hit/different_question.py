@@ -6,6 +6,7 @@ import time
 from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
+from ...runtime.stats import Counter
 
 MS_PER_SECOND = 1000.0
 DIFFERENT_QUESTION_REASON = (
@@ -27,4 +28,4 @@ class DifferentQuestion:
         spent_ms = (time.monotonic() - cached.started) * MS_PER_SECOND
         if not turn.call.answers_another_question(turn.key, cached.answer, spent_ms):
             return None
-        return Verdict(self.name, DIFFERENT_QUESTION_REASON, ("different_question", "inferred"))
+        return Verdict(self.name, DIFFERENT_QUESTION_REASON, (Counter.DIFFERENT_QUESTION, Counter.INFERRED))

@@ -4,6 +4,7 @@
 
 const { Verdict } = require("../../turns/verdict.js");
 const { privateChain } = require("../../understanding/wordRules/index.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const PRIVATE_CHAIN_REASON =
   "a follow-up to a private turn of this call: its answer depends on what " +
@@ -25,7 +26,7 @@ class PrivateChain {
   check(turn) {
     const followsPrivate = turn.isContextDependent && privateChain(turn.call.chain() || [], turn.call.minWords);
     if (!(followsPrivate || turn.call.afterUrgent(turn.text))) return null;
-    return new Verdict(this.name, PRIVATE_CHAIN_REASON, ["refusedPrivate", "inferred"]);
+    return new Verdict(this.name, PRIVATE_CHAIN_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }
 }
 

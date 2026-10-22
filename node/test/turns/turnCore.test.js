@@ -7,6 +7,7 @@ const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { VoiceSession } = require("../../voice.js");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
+const { SessionHost } = require("../../src/turns/sessionHost.js");
 const { TurnCore } = require("../../src/turns/turnCore.js");
 
 class Store {
@@ -40,9 +41,10 @@ class Store {
 const sessionOn = (store) => new VoiceSession(new Agent("caller", { client: store }), { voice: "v" });
 
 function coreWithout(session, names) {
-  return new TurnCore(session, {
+  return new TurnCore(new SessionHost(session), {
     rules: RuleSet.voice().without(names), call: session._call, pairing: session._pairing,
     cacheLookup: session._cacheLookup, classifier: session._classifier, rewriter: session._rewriter,
+    stats: session._stats,
   });
 }
 

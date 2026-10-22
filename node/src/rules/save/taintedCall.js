@@ -3,6 +3,7 @@
 // The TaintedCall rule (stage 3, save).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { COUNTER } = require("../../runtime/stats.js");
 
 const KEPT = "kept";
 
@@ -19,7 +20,7 @@ class TaintedCall {
   check(answer) {
     if (!answer.call.tainted) return null;
     return new Verdict(this.name, "kept to this call: the caller told it something the answer may depend on",
-      ["notShareable"], KEPT);
+      [COUNTER.NOT_SHAREABLE], KEPT);
   }
 }
 

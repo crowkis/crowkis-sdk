@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import Verdict, VoiceTurn
+from ...runtime.stats import Counter
 
 
 class TooShort:
@@ -17,4 +18,4 @@ class TooShort:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if not turn.is_short or (turn.call.short_turns and turn.call.engine_vouches()):
             return None
-        return Verdict(self.name, "transcript too short to match safely", ("refused_short",))
+        return Verdict(self.name, "transcript too short to match safely", (Counter.REFUSED_SHORT,))

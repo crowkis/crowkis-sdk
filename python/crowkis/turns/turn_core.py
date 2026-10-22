@@ -13,6 +13,7 @@ from ..runtime.turn_pairing import TurnPairing
 from ..understanding.slots import Classifier, Rewriter
 from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .cached_answer import CachedAnswer
+from .hit import Hit
 from .decision import TurnDecision, _Outcome
 from .model_answer import ModelAnswer
 from .turn_host import TurnHost
@@ -70,7 +71,7 @@ class TurnCore:
         if verdict is not None:
             return self._infer(verdict, confidence=hit["confidence"] if hit else 0.0)
 
-        cached = CachedAnswer(turn, hit, started)
+        cached = CachedAnswer(turn, Hit.from_agent(hit), started)
         verdict = self._rules.hit.first_objection(cached)
         if verdict is not None:
             return self._infer(verdict, confidence=hit["confidence"])

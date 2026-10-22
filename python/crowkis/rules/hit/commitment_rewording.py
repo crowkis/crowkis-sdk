@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ...turns import CachedAnswer, Verdict
-from ...understanding.word_rules import _COMMITMENTS
+from .commitment_policy import COMMITMENT_POLICIES
 from ...runtime.stats import Counter
 
 
@@ -18,7 +18,7 @@ class CommitmentRewording:
 
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         commitments = cached.turn.call.commitments
-        if not cached.hit.get("commitment") or _COMMITMENTS[commitments](cached.hit):
+        if not cached.hit.commitment or COMMITMENT_POLICIES[commitments](cached.hit):
             return None
         reason = ("the cached answer is a commitment (a price, a refund, a policy) and "
                   f"commitments={commitments!r} does not allow speaking this match")

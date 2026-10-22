@@ -23,7 +23,7 @@ class DifferentQuestion:
 
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         turn = cached.turn
-        if turn.is_personal or cached.hit.get("exact"):
+        if turn.is_personal or cached.hit.exact:
             return None
         spent_ms = (time.monotonic() - cached.started) * MS_PER_SECOND
         if not turn.call.answers_another_question(turn.key, cached.answer, spent_ms):

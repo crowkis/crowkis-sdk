@@ -12,6 +12,7 @@ from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
 from crowkis.turns.chat_answer import ChatAnswer
 from crowkis.turns.channel import CHAT, REALTIME, VOICE
 from crowkis.turns.chat_turn import ChatTurn
+from crowkis.turns.hit import Hit
 from crowkis.verify import Verdict as ChatVerdict
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
@@ -36,7 +37,7 @@ def subject(case, call):
     if case["stage"] == "question":
         return turn
     if case["stage"] == "hit":
-        return CachedAnswer(turn, case["hit"], time.monotonic())
+        return CachedAnswer(turn, Hit.from_agent(case["hit"]), time.monotonic())
     return ModelAnswer(case["say"], case["answer"], call.key, call, private=case.get("private", False),
                        instructions=case.get("instructions"), cacheable=case.get("cacheable", True))
 

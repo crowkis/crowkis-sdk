@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from ..understanding.word_rules import _fill
+from .hit import Hit
 from .voice_turn import VoiceTurn
 
 
@@ -13,7 +14,7 @@ class CachedAnswer:
     """What the cache returned for a turn. ``started`` is when the lookup began
     (``time.monotonic()``)."""
 
-    def __init__(self, turn: VoiceTurn, hit: Dict[str, Any], started: float) -> None:
+    def __init__(self, turn: VoiceTurn, hit: Hit, started: float) -> None:
         self.turn = turn
         self.hit = hit
         self.started = started
@@ -23,5 +24,5 @@ class CachedAnswer:
         """The text to speak: for a personal turn, the shared answer shape filled with this
         call's values, or None when a slot has no value. Read only for a confident hit."""
         if self.turn.is_personal:
-            return _fill(self.hit["answer"], self.turn.call.values)
-        return self.hit["answer"]
+            return _fill(self.hit.answer, self.turn.call.values)
+        return self.hit.answer

@@ -20,6 +20,6 @@ class ShortTurnUnvouched:
     floor = False
 
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
-        if not cached.turn.is_short or (cached.hit.get("vouched") and cached.hit.get("exact")):
+        if not cached.turn.is_short or (cached.hit.vouched and cached.hit.exact):
             return None
         return Verdict(self.name, SHORT_TURN_REASON, (Counter.INFERRED,))

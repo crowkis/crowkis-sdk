@@ -6,8 +6,8 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | Phase | Plan estimate | Status | Commits | Time spent |
 |---|---|---|---|---|
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
-| P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501` | ~1 h 10 min |
-| P2 runtime components, TurnCore | 1-2 windows | next | | |
+| P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
+| P2 runtime components, TurnCore | 1-2 windows | next; paused for the 5-hour usage reset (80% at 17:43, resets 17:50 IST) | | |
 | P3 Chat on the same core | 1-2 windows | | | |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |

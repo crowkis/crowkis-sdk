@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from ..runtime.cache_lookup import CacheLookup
 from ..runtime.stats import Counter, Stats
 from ..runtime.turn_pairing import TurnPairing
+from ..understanding.personal_readings import PersonalReadings
 from ..understanding.slots import Classifier, Rewriter
 from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .cached_answer import CachedAnswer
@@ -32,12 +33,14 @@ class TurnCore:
     question rules, a filler, the lookup inside the budget, the hit rules, serve. record(): pair the
     answer with its turn, the save rules, a shared shape for a personal answer, the bounded write.
 
-    The steps' parts are injected: the rules, the classifier and rewriter, the turn pairing, the
+    The steps' parts are injected: the rules, the classifier and rewriter (with the call's personal
+    readings, which remember what the classifier read), the turn pairing, the
     lookup, the call as the rules see it, and the counters (``stats``); ``host`` (TurnHost) is the
     session's transcript, settings, audio and writes."""
 
     def __init__(self, host: TurnHost, *, rules: "RuleSet", call: VoiceCall, pairing: TurnPairing,
-                 cache_lookup: CacheLookup, classifier: Classifier, rewriter: Rewriter, stats: Stats) -> None:
+                 cache_lookup: CacheLookup, classifier: Classifier, rewriter: Rewriter,
+                 personal_readings: PersonalReadings, stats: Stats) -> None:
         self._host = host
         self._stats = stats
         self._rules = rules
@@ -46,6 +49,7 @@ class TurnCore:
         self._cache_lookup = cache_lookup
         self._classifier = classifier
         self._rewriter = rewriter
+        self._personal_readings = personal_readings
 
     def decide(self, caller_said: str) -> TurnDecision:
         """What this turn needs: a filler, a cached answer, or the model (and which rule said so)."""
@@ -53,6 +57,7 @@ class TurnCore:
 
         text = (caller_said or "").strip()
         reading = self._classifier.classify(text)
+        self._personal_readings.note(text, reading)
         turn = VoiceTurn(caller_said, self._call, reading, self._rewriter.rewrite(text, reading))
         verdict = self._rules.before_filler.first_objection(turn)
         if verdict is not None:

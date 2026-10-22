@@ -40,6 +40,9 @@ class VoiceCall(Protocol):
     def commitments(self) -> str:
         """How a cached commitment (a price, a refund, a policy) may be spoken."""
 
+    def is_personal(self, text: str) -> bool:
+        """A turn of this call is about the caller's own records, by its reading or the word rules."""
+
     def mark_tainted(self) -> None:
         """Remember that the caller has told this call something."""
 

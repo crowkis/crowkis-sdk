@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import Optional
 
-from ..understanding.word_rules import _is_non_answer, _is_personal
+from ..understanding.word_rules import _is_non_answer
 from .voice_call import VoiceCall
 
 
@@ -34,8 +34,8 @@ class ModelAnswer:
 
     @cached_property
     def is_personal(self) -> bool:
-        """The turn was about the caller's own records."""
-        return _is_personal(self.text)
+        """The turn was about the caller's own records, by its reading or by the word rules."""
+        return self.call.is_personal(self.text)
 
     @cached_property
     def is_non_answer(self) -> bool:

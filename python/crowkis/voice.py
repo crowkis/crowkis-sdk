@@ -23,6 +23,7 @@ from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
 from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
+from .understanding.personal_readings import PersonalReadings
 from .understanding.slots import Classifier, Rewriter
 from .understanding.word_rule_classifier import WordRuleClassifier
 from .understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.voice.<name> keeps working
@@ -573,6 +574,8 @@ class VoiceSession:
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
         self._classifier = classifier if classifier is not None else WordRuleClassifier()
         self._rewriter = rewriter if rewriter is not None else NoRewrite()
+        # Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
+        self._personal_readings = PersonalReadings()
         self._call = SessionCall(self)
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)
@@ -581,7 +584,7 @@ class VoiceSession:
         # The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
         self._core = TurnCore(SessionHost(self), rules=self._rules, call=self._call, pairing=self._pairing,
                               cache_lookup=self._cache_lookup, classifier=self._classifier, rewriter=self._rewriter,
-                              stats=self._stats)
+                              personal_readings=self._personal_readings, stats=self._stats)
         if values:
             self.set_values(**values)
         if fillers:
@@ -628,7 +631,8 @@ class VoiceSession:
         """
         text = (caller_said or "").strip()
         if (
-            self._tainted or len(text.split()) < self.min_words or _is_personal(text) or _lookup_only(text)
+            self._tainted or len(text.split()) < self.min_words or self._personal_readings.is_personal(text)
+            or _lookup_only(text)
             or self._after_urgent(text) or _unfinished(text)
         ):
             return None, False
@@ -639,7 +643,7 @@ class VoiceSession:
                 return None, False
             return [{"role": "user", "content": caller_said}], True
         chain = self._chain()
-        if chain is None or _private_chain(chain, self.min_words):
+        if chain is None or self._personal_readings.chain_is_private(chain, self.min_words):
             return None, False
         return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
 

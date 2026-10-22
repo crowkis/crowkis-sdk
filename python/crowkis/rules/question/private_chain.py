@@ -22,7 +22,9 @@ class PrivateChain:
     floor = False
 
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
-        follows_private = turn.is_context_dependent and _private_chain(turn.call.chain() or [], turn.call.min_words)
+        chain = turn.call.chain() or []
+        follows_private = turn.is_context_dependent and (
+            _private_chain(chain, turn.call.min_words) or any(turn.call.is_personal(earlier) for earlier in chain))
         if not (follows_private or turn.call.after_urgent(turn.text)):
             return None
         return Verdict(self.name, PRIVATE_CHAIN_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))

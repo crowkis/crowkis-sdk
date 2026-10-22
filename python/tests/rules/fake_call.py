@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
 from crowkis.turns.channel import VOICE, Channel
+from crowkis.understanding.word_rules import _is_personal
 
 
 @dataclass
@@ -25,6 +26,10 @@ class FakeCall:
     another_question: bool = False
     identifiers: Set[str] = field(default_factory=set)
     channel: Channel = VOICE
+    read_personal: Set[str] = field(default_factory=set)
+
+    def is_personal(self, text: str) -> bool:
+        return text.strip() in self.read_personal or _is_personal(text)
 
     def mark_tainted(self) -> None:
         self.tainted = True

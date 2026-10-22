@@ -28,7 +28,7 @@ class VoiceTurn:
     @property
     def is_personal(self) -> bool:
         """About the caller's own records, or otherwise never shared."""
-        return self.reading.is_personal
+        return self.reading.is_personal or self.call.is_personal(self.text)
 
     @property
     def is_context_dependent(self) -> bool:

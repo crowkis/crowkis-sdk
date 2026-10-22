@@ -11,7 +11,7 @@ from test_voice_stress_bugs import Store, session_on
 def core_without(session, names):
     return TurnCore(SessionHost(session), rules=RuleSet.voice().without(names), call=session._call,
                     pairing=session._pairing, cache_lookup=session._cache_lookup, classifier=session._classifier,
-                    rewriter=session._rewriter, stats=session._stats)
+                    rewriter=session._rewriter, personal_readings=session._personal_readings, stats=session._stats)
 
 
 class TurnCoreTests(unittest.TestCase):

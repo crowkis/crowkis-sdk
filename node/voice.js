@@ -1962,12 +1962,17 @@ function answersAfterBut(lead) {
 const STORED = new Set(["saved", "template"]);
 
 class TurnDecision {
-  constructor(action, { text = null, audio = null, confidence = 0, reason = "" } = {}) {
+  constructor(action, { text = null, audio = null, confidence = 0, reason = "", rule = null } = {}) {
     this.action = action;
     this.text = text;
     this.audio = audio;
     this.confidence = confidence;
     this.reason = reason;
+    // The rule behind the action (null for a confident hit), and after record() the rule
+    // that kept the answer out of the cache (null when it was stored). Names are the v4
+    // rule names, so a decision can be traced to the one check that made it.
+    this.rule = rule;
+    this.saveRule = null;
     // For a model turn: what the model must read, and whether its answer is shared.
     // null means "the whole call", and then the answer is never shared.
     this.messages = null;
@@ -2285,7 +2290,7 @@ class VoiceSession {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     if (!text) {
       this.refusedShort += 1;
-      return new TurnDecision("infer", { reason: "empty transcript" });
+      return new TurnDecision("infer", { reason: "empty transcript", rule: "EmptyTurn" });
     }
 
     const filler = this._fillers.get(normalise(text));
@@ -2296,6 +2301,7 @@ class VoiceSession {
         audio: await this._voiced(filler),
         confidence: 1,
         reason: "registered filler, answered without a lookup or a model",
+        rule: "RegisteredFiller",
       });
       decision._audioShareable = true;
       return decision;
@@ -2310,6 +2316,7 @@ class VoiceSession {
           "the caller has told this call something a later answer may depend on " +
           "(a condition, an age, a plan, an instruction, a step in their own task); " +
           "a shared answer to the bare question could be wrong for them",
+        rule: "CallContextTaint",
       });
     }
 
@@ -2322,6 +2329,7 @@ class VoiceSession {
       this.refusedShort += 1;
       return new TurnDecision("infer", {
         reason: "transcript too short to match safely",
+        rule: "TooShort",
       });
     }
 
@@ -2329,7 +2337,7 @@ class VoiceSession {
     // but asks something else: never served a stored answer, never stored.
     if (unfinished(text)) {
       this.refusedShort += 1;
-      return new TurnDecision("infer", { reason: "the turn was cut off mid-question" });
+      return new TurnDecision("infer", { reason: "the turn was cut off mid-question", rule: "CutOff" });
     }
 
     const personal = isPersonal(text);
@@ -2341,6 +2349,7 @@ class VoiceSession {
           "the caller asked about their own records and this session has no values " +
           "to fill a shared answer shape with, so nothing can be answered from " +
           "cache without one caller's answer reaching the next",
+        rule: "OwnRecords",
       });
     }
 
@@ -2352,6 +2361,7 @@ class VoiceSession {
         reason:
           "the utterance only has meaning against an earlier turn and this call " +
           "has none, so no cache key can be built for it",
+        rule: "FollowUpWithoutContext",
       });
     }
     if ((contextBound && privateChain(this._chain() || [], this.minWords)) || this._afterUrgent(text)) {
@@ -2361,6 +2371,7 @@ class VoiceSession {
         reason:
           "a follow-up to a private turn of this call: its answer depends on what " +
           "this caller said, so it is never answered from a shared cache",
+        rule: "PrivateChain",
       });
     }
 
@@ -2384,6 +2395,7 @@ class VoiceSession {
           reason:
             `lookup passed the ${this.latencyBudgetMs}ms voice budget; ` +
             "a late hit is worse than a fast miss",
+          rule: "LookupDeadline",
         });
       }
     } catch (error) {
@@ -2392,6 +2404,7 @@ class VoiceSession {
       this.inferred += 1;
       return new TurnDecision("infer", {
         reason: `cache unavailable (${error && error.name}); asking the model`,
+        rule: "CacheUnavailable",
       });
     }
 
@@ -2400,6 +2413,7 @@ class VoiceSession {
       return new TurnDecision("infer", {
         confidence: hit.confidence,
         reason: `confidence below the spoken-answer bar of ${this.serveAbove}`,
+        rule: "ConfidenceBar",
       });
     }
 
@@ -2414,6 +2428,7 @@ class VoiceSession {
           reason:
             "the shared answer shape has a slot this call has no value for; " +
             "speaking a half-filled answer is worse than a model call",
+          rule: "TemplateSlotMissing",
         });
       }
     }
@@ -2426,6 +2441,7 @@ class VoiceSession {
         reason:
           "the cached answer holds a placeholder the server put in place of a caller's detail; " +
           "reading it aloud is worse than a model call",
+        rule: "PiiPlaceholder",
       });
     }
 
@@ -2437,13 +2453,15 @@ class VoiceSession {
         reason:
           "the cached answer was saved for a different question (it asks about something " +
           "this one does not); a model call is better than a wrong answer",
+        rule: "DifferentQuestion",
       });
     }
 
     const held = this._held(hit, answer, short);
     if (held) {
       this.inferred += 1;
-      return new TurnDecision("infer", { confidence: hit.confidence, reason: held });
+      const [rule, reason] = held;
+      return new TurnDecision("infer", { confidence: hit.confidence, reason, rule });
     }
 
     this.served += 1;
@@ -2470,24 +2488,26 @@ class VoiceSession {
     return answer === LATE ? false : answer;
   }
 
-  /** Why a confident hit still goes to the model, if it does. */
+  /** Which rule sends a confident hit to the model, and why, as [rule, reason], if one does. */
   _held(hit, answer, short) {
     if (short && !(hit.vouched && hit.exact)) {
-      return (
+      return [
+        "ShortTurnUnvouched",
         "a short turn is only answered from cache once the answer has been " +
-        "judged to stand on its own, and this one has not"
-      );
+        "judged to stand on its own, and this one has not",
+      ];
     }
     if (hit.commitment && !COMMITMENTS[this.commitments](hit)) {
       this.heldCommitments += 1;
-      return (
+      return [
+        "CommitmentRewording",
         "the cached answer is a commitment (a price, a refund, a policy) and " +
-        `commitments="${this.commitments}" does not allow speaking this match`
-      );
+        `commitments="${this.commitments}" does not allow speaking this match`,
+      ];
     }
     if (!speakable(answer)) {
       this.unspeakable += 1;
-      return "the cached answer was written for a screen (a link, code or markup)";
+      return ["ScreenOnlyAnswer", "the cached answer was written for a screen (a link, code or markup)"];
     }
     return null;
   }
@@ -2563,12 +2583,13 @@ class VoiceSession {
     const said = decision._said;
     decision._said = null;
     decision.text = answer;
-    const { outcome, why: reason } = await this._record(said, answer, {
+    const { outcome, why: reason, rule } = await this._record(said, answer, {
       turn: decision.turn,
       private: keep,
       instructions: system,
     });
     decision.stored = STORED.has(outcome);
+    decision.saveRule = decision.stored ? null : rule || null;
     const why = decision.stored ? "" : reason || outcome;
     decision.notStored = why;
     if (!(typeof decision.text === "string" && decision.text.trim())) {
@@ -2618,6 +2639,7 @@ class VoiceSession {
     decision._said = null;
     decision.text = spoken;
     decision.stored = false;
+    decision.saveRule = "Interrupted";
     decision.notStored = "the caller moved on before this answer was complete";
     decision.reason = `${decision.reason}; not stored: ${decision.notStored}`;
   }
@@ -2693,7 +2715,7 @@ class VoiceSession {
     if (pendingWrites.size >= WRITES_MAX) {
       this.slowWrites += 1;
       console.warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
-      return { outcome: "slow_write", why: "not written: too many writes are waiting on a slow server" };
+      return { outcome: "slow_write", why: "not written: too many writes are waiting on a slow server", rule: "BoundedWrite" };
     }
     let late = false; // set by the timer itself, so an error at any later moment is counted here
     const write = Promise.resolve().then(() => this.agent.learn(...args));
@@ -2717,7 +2739,7 @@ class VoiceSession {
     });
     if (finished) return null;
     this.slowWrites += 1;
-    return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background" };
+    return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background", rule: "BoundedWrite" };
   }
 
   // The ID-like values this caller said earlier in the call: its earlier turns in the
@@ -2759,9 +2781,9 @@ class VoiceSession {
 
   // The same, with why an answer was not stored, in words.
   async _record(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
-    const outcome = (word, why = "") => ({ outcome: word, why });
+    const outcome = (word, why = "", rule = null) => ({ outcome: word, why, rule });
     if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
-      return outcome("interrupted", "the caller moved on before this answer was complete");
+      return outcome("interrupted", "the caller moved on before this answer was complete", "Interrupted");
     }
     this._open = false;
     const expected = turn === undefined || turn === null ? this._turn : turn;
@@ -2770,22 +2792,22 @@ class VoiceSession {
     const cacheable = shareable[1] && shareable[0] === expected;
     if (!(typeof modelSaid === "string" && modelSaid.trim())) {
       this.emptyAnswers += 1;
-      return outcome("non_answer", "the model returned an empty answer");
+      return outcome("non_answer", "the model returned an empty answer", "EmptyAnswer");
     }
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const keyed = this._contextKey(callerSaid, text);
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on");
+    if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on", "NoKey");
     if (keep) {
       this.notShareable += 1;
-      return outcome("kept", "kept to this call: the answer was built from a tool's result");
+      return outcome("kept", "kept to this call: the answer was built from a tool's result", "ToolResult");
     }
     if (instructions && repeatsPromptDetails(modelSaid, text, instructions, this._agentKey())) {
       // The model read a system prompt that names this caller, and its answer repeats
       // that: right for this caller only, never a shared answer or template.
       this.notShareable += 1;
-      return outcome("private", "kept to this call: the answer repeats a detail about the caller from the system prompt");
+      return outcome("private", "kept to this call: the answer repeats a detail about the caller from the system prompt", "PromptCallerDetails");
     }
     try {
       if (isPersonal(text)) {
@@ -2794,29 +2816,29 @@ class VoiceSession {
           if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
           if (templated) return outcome("template");
         }
-        return outcome("private", "about this caller, with no declared value to make a shared answer shape from");
+        return outcome("private", "about this caller, with no declared value to make a shared answer shape from", "PersonalTemplate");
       }
       if (this._tainted) {
         this.notShareable += 1;
-        return outcome("kept", "kept to this call: the caller told it something the answer may depend on");
+        return outcome("kept", "kept to this call: the caller told it something the answer may depend on", "TaintedCall");
       }
       if (!cacheable) {
         this.notShareable += 1;
-        return outcome("kept", "kept to this call: the answer depends on what this caller said");
+        return outcome("kept", "kept to this call: the answer depends on what this caller said", "NotShareable");
       }
       if (leaks(modelSaid, this.values)) {
         this.notShareable += 1;
-        return outcome("private", "kept to this call: the answer contains a value declared for this call");
+        return outcome("private", "kept to this call: the answer contains a value declared for this call", "DeclaredValue");
       }
       if (repeatsIdentifier(modelSaid, this._saidIdentifiers())) {
         // Its model read only the question, so this can only come from an app that sent
         // it the whole call: never share it.
         this.notShareable += 1;
-        return outcome("private", "kept to this call: the answer repeats a number or ID this caller said");
+        return outcome("private", "kept to this call: the answer repeats a number or ID this caller said", "CallerIdentifier");
       }
       if (isNonAnswer(modelSaid)) {
         this.notShareable += 1;
-        return outcome("non_answer", "not saved: the answer asks back or does not answer");
+        return outcome("non_answer", "not saved: the answer asks back or does not answer", "NonAnswer");
       }
       const slow = await this._learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
@@ -2826,7 +2848,8 @@ class VoiceSession {
       this.learnErrors += 1;
       return outcome(
         "refused",
-        `the server refused the write: ${(error && error.message) || (error && error.name) || String(error)}`
+        `the server refused the write: ${(error && error.message) || (error && error.name) || String(error)}`,
+        "WriteRefused"
       );
     }
   }

@@ -1,0 +1,19 @@
+{
+  "about": "v4 P0: every voice decision names the rule that made it. `rule` is the question or hit rule behind decide()'s action (null for a confident hit), `save_rule` the save rule behind record()'s outcome (null when the answer was stored). Each case is one call on a fresh store: every turn is decided and, when it needs the model, recorded with its reply; the expectations are for the last turn. `refuse`: the store refuses every write. `private`: the last answer is recorded as built from a tool's result. Rule names are the v4 plan's (sdk-docs/v4-refactor-plan.md, section 4). Checked by python/tests/test_decision_rules.py and node/test-decision-rules.js.",
+  "cases": [
+    {"name": "empty turn", "turns": [""], "replies": ["Here is the answer."], "rule": "EmptyTurn", "save_rule": "NotShareable"},
+    {"name": "registered filler", "turns": ["hello"], "replies": [null], "options": {"fillers": {"hello": "Hi, how can I help?"}}, "action": "filler", "rule": "RegisteredFiller", "save_rule": null},
+    {"name": "the caller told the call something", "turns": ["I am allergic to peanuts", "is pad thai safe to eat"], "replies": ["Here is the answer.", "Here is the answer."], "rule": "CallContextTaint", "save_rule": "TaintedCall"},
+    {"name": "too short", "turns": ["ok thanks"], "replies": ["You're welcome."], "rule": "TooShort", "save_rule": "PersonalTemplate"},
+    {"name": "cut off", "turns": ["do you deliver on"], "replies": ["Here is the answer."], "rule": "CutOff", "save_rule": "NotShareable"},
+    {"name": "own records", "turns": ["my order 48213 has not arrived where is it"], "replies": ["Here is the answer."], "rule": "OwnRecords", "save_rule": "PersonalTemplate"},
+    {"name": "follow-up with nothing before it", "turns": ["and what about that"], "replies": ["Here is the answer."], "rule": "FollowUpWithoutContext", "save_rule": "NoKey"},
+    {"name": "an empty answer", "turns": ["what is your refund policy"], "replies": [""], "rule": "ConfidenceBar", "save_rule": "EmptyAnswer"},
+    {"name": "a miss", "turns": ["what is your refund policy"], "replies": ["Refunds take five business days."], "rule": "ConfidenceBar", "save_rule": null},
+    {"name": "a confident hit", "turns": ["what is your refund policy", "what is your refund policy"], "replies": ["Refunds take five business days.", null], "action": "serve", "rule": null, "save_rule": null},
+    {"name": "an answer that asks back", "turns": ["what is your refund policy"], "replies": ["Could you tell me which order you mean?"], "rule": "ConfidenceBar", "save_rule": "NonAnswer"},
+    {"name": "an answer with a declared value", "turns": ["how do I reset my password"], "replies": ["Your code is 4471, use it on the reset page."], "options": {"values": {"code": "4471"}}, "rule": "ConfidenceBar", "save_rule": "DeclaredValue"},
+    {"name": "a tool's result", "turns": ["what is your refund policy"], "replies": ["Refunds take five business days."], "private": true, "rule": "ConfidenceBar", "save_rule": "ToolResult"},
+    {"name": "a refused write", "turns": ["what is your refund policy"], "replies": ["Refunds take five business days."], "refuse": true, "rule": "ConfidenceBar", "save_rule": "WriteRefused"}
+  ]
+}

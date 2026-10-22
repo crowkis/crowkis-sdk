@@ -426,6 +426,7 @@ export interface TurnDecisionOptions {
   audio?: Buffer | null;
   confidence?: number;
   reason?: string;
+  rule?: string | null;
 }
 
 export class TurnDecision {
@@ -436,6 +437,10 @@ export class TurnDecision {
   readonly audio: Buffer | null;
   readonly confidence: number;
   readonly reason: string;
+  /** The v4 rule behind the action, e.g. "CutOff" or "ConfidenceBar"; null for a confident hit. */
+  readonly rule: string | null;
+  /** After `answer()` / `record()`: the v4 save rule that kept the answer out of the cache, e.g. "TaintedCall"; null when it was stored. */
+  saveRule: string | null;
   /** For a model turn: the messages the model must read. null means the whole call. */
   messages: TranscriptTurn[] | null;
   /** Whether the model's answer to this turn is shared with later callers. */

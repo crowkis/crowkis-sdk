@@ -12,7 +12,7 @@ import string
 import threading
 import time
 import weakref
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
@@ -2064,13 +2064,16 @@ _STORED = frozenset({"saved", "template"})
 
 class _Outcome(str):
     """An outcome word ("saved", "kept", ...) that also says, in ``why``, why an answer
-    was not stored. Compares and serialises as the plain word."""
+    was not stored, and in ``rule`` which save rule decided it. Compares and serialises as
+    the plain word."""
 
     why: str
+    rule: Optional[str]
 
-    def __new__(cls, word: str, why: str = "") -> "_Outcome":
+    def __new__(cls, word: str, why: str = "", rule: Optional[str] = None) -> "_Outcome":
         outcome = super().__new__(cls, word)
         outcome.why = why
+        outcome.rule = rule
         return outcome
 
 
@@ -2084,12 +2087,18 @@ class TurnDecision:
         audio: Optional[bytes] = None,
         confidence: float = 0.0,
         reason: str = "",
+        rule: Optional[str] = None,
     ) -> None:
         self.action = action
         self.text = text
         self.audio = audio
         self.confidence = confidence
         self.reason = reason
+        # The rule behind the action (None for a confident hit), and after record() the
+        # rule that kept the answer out of the cache (None when it was stored). Names are
+        # the v4 rule names, so a decision can be traced to the one check that made it.
+        self.rule = rule
+        self.save_rule: Optional[str] = None
         # For a model turn: what the model must read, and whether its answer is shared.
         # None means "the whole call", and then the answer is never shared.
         self.messages: Optional[List[Dict[str, str]]] = None
@@ -2416,7 +2425,7 @@ class VoiceSession:
         text = (caller_said or "").strip()
         if not text:
             self.refused_short += 1
-            return TurnDecision("infer", reason="empty transcript")
+            return TurnDecision("infer", reason="empty transcript", rule="EmptyTurn")
 
         filler = self._fillers.get(_normalise(text))
         if filler is not None:
@@ -2427,6 +2436,7 @@ class VoiceSession:
                 audio=self._voiced(filler),
                 confidence=1.0,
                 reason="registered filler, answered without a lookup or a model",
+                rule="RegisteredFiller",
             )
             decision._audio_shareable = True
             return decision
@@ -2442,6 +2452,7 @@ class VoiceSession:
                     "(a condition, an age, a plan, an instruction, a step in their own task); "
                     "a shared answer to the bare question could be wrong for them"
                 ),
+                rule="CallContextTaint",
             )
 
         # "Thank you" or "hello" is too short to match on meaning. With
@@ -2451,13 +2462,13 @@ class VoiceSession:
         short = len(text.split()) < self.min_words
         if short and not (self.short_turns and self._engine_vouches()):
             self.refused_short += 1
-            return TurnDecision("infer", reason="transcript too short to match safely")
+            return TurnDecision("infer", reason="transcript too short to match safely", rule="TooShort")
 
         # A cut-off question ("do you deliver on") is near a full one ("...on Sundays") in meaning
         # but asks something else: never served a stored answer, never stored.
         if _unfinished(text):
             self.refused_short += 1
-            return TurnDecision("infer", reason="the turn was cut off mid-question")
+            return TurnDecision("infer", reason="the turn was cut off mid-question", rule="CutOff")
 
         personal = _is_personal(text)
         if personal and not self.values:
@@ -2470,6 +2481,7 @@ class VoiceSession:
                     "values to fill a shared answer shape with, so nothing can be "
                     "answered from cache without one caller's answer reaching the next"
                 ),
+                rule="OwnRecords",
             )
 
         context_bound = _is_context_dependent(text)
@@ -2482,6 +2494,7 @@ class VoiceSession:
                     "the utterance only has meaning against an earlier turn and this "
                     "call has none, so no cache key can be built for it"
                 ),
+                rule="FollowUpWithoutContext",
             )
         if (context_bound and _private_chain(self._chain() or [], self.min_words)) or self._after_urgent(text):
             self.refused_private += 1
@@ -2492,6 +2505,7 @@ class VoiceSession:
                     "a follow-up to a private turn of this call: its answer depends on "
                     "what this caller said, so it is never answered from a shared cache"
                 ),
+                rule="PrivateChain",
             )
 
         started = time.monotonic()
@@ -2518,11 +2532,13 @@ class VoiceSession:
                     f"lookup passed the {self.latency_budget_ms}ms voice budget; "
                     "a late hit is worse than a fast miss"
                 ),
+                rule="LookupDeadline",
             )
         except Exception as exc:  # noqa: BLE001 — an unreachable cache means "ask the model"
             self.lookup_errors += 1
             self.inferred += 1
-            return TurnDecision("infer", reason=f"cache unavailable ({type(exc).__name__}); asking the model")
+            return TurnDecision("infer", reason=f"cache unavailable ({type(exc).__name__}); asking the model",
+                                rule="CacheUnavailable")
         took_ms = (time.monotonic() - started) * 1000.0
         # Cut off a slow lookup above, and refuse one that finished after the budget.
         if self.latency_budget_ms is not None and took_ms > self.latency_budget_ms:
@@ -2535,6 +2551,7 @@ class VoiceSession:
                     f"lookup took {took_ms:.1f}ms, past the {self.latency_budget_ms}ms "
                     "voice budget; a late hit is worse than a fast miss"
                 ),
+                rule="LookupDeadline",
             )
 
         if hit["route"] != "cache":
@@ -2543,6 +2560,7 @@ class VoiceSession:
                 "infer",
                 confidence=hit["confidence"],
                 reason=f"confidence below the spoken-answer bar of {self.serve_above}",
+                rule="ConfidenceBar",
             )
 
         answer = hit["answer"]
@@ -2558,6 +2576,7 @@ class VoiceSession:
                         "the shared answer shape has a slot this call has no value "
                         "for; speaking a half-filled answer is worse than a model call"
                     ),
+                    rule="TemplateSlotMissing",
                 )
 
         if _PII_PLACEHOLDER.search(answer):
@@ -2570,6 +2589,7 @@ class VoiceSession:
                     "the cached answer holds a placeholder the server put in place of a "
                     "caller's detail; reading it aloud is worse than a model call"
                 ),
+                rule="PiiPlaceholder",
             )
 
         if not personal and not hit.get("exact") and self._answers_another_question(
@@ -2583,12 +2603,14 @@ class VoiceSession:
                     "the cached answer was saved for a different question (it asks about "
                     "something this one does not); a model call is better than a wrong answer"
                 ),
+                rule="DifferentQuestion",
             )
 
         held = self._held(hit, answer, short)
         if held:
             self.inferred += 1
-            return TurnDecision("infer", confidence=hit["confidence"], reason=held)
+            rule, reason = held
+            return TurnDecision("infer", confidence=hit["confidence"], reason=reason, rule=rule)
 
         self.served += 1
         self.transcript.append({"role": "user", "content": caller_said})
@@ -2613,22 +2635,22 @@ class VoiceSession:
         except concurrent.futures.TimeoutError:
             return False
 
-    def _held(self, hit: dict, answer: str, short: bool) -> Optional[str]:
-        """Why a confident hit still goes to the model, if it does."""
+    def _held(self, hit: dict, answer: str, short: bool) -> Optional[Tuple[str, str]]:
+        """Which rule sends a confident hit to the model, and why, if one does."""
         if short and not (hit.get("vouched") and hit.get("exact")):
-            return (
+            return "ShortTurnUnvouched", (
                 "a short turn is only answered from cache once the answer has been "
                 "judged to stand on its own, and this one has not"
             )
         if hit.get("commitment") and not _COMMITMENTS[self.commitments](hit):
             self.held_commitments += 1
-            return (
+            return "CommitmentRewording", (
                 "the cached answer is a commitment (a price, a refund, a policy) and "
                 f"commitments={self.commitments!r} does not allow speaking this match"
             )
         if not _speakable(answer):
             self.unspeakable += 1
-            return "the cached answer was written for a screen (a link, code or markup)"
+            return "ScreenOnlyAnswer", "the cached answer was written for a screen (a link, code or markup)"
         return None
 
     def cancel(self) -> bool:
@@ -2723,6 +2745,7 @@ class VoiceSession:
         decision.text = answer
         outcome = self._record_model_turn(said, answer, turn=decision.turn, private=private, instructions=system)
         decision.stored = outcome in _STORED
+        decision.save_rule = None if decision.stored else outcome.rule
         why = "" if decision.stored else (outcome.why or str(outcome))
         decision.not_stored = why
         if not (decision.text or "").strip():
@@ -2780,6 +2803,7 @@ class VoiceSession:
         decision._said = None
         decision.text = spoken
         decision.stored = False
+        decision.save_rule = "Interrupted"
         decision.not_stored = "the caller moved on before this answer was complete"
         decision.reason = f"{decision.reason}; not stored: {decision.not_stored}"
 
@@ -2859,7 +2883,7 @@ class VoiceSession:
         if full:
             self._count("slow_writes")
             _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
-            return _Outcome("slow_write", "not written: too many writes are waiting on a slow server")
+            return _Outcome("slow_write", "not written: too many writes are waiting on a slow server", rule="BoundedWrite")
         future.add_done_callback(_write_done)
         try:
             future.result(timeout=2 * self.latency_budget_ms / 1000)
@@ -2867,7 +2891,7 @@ class VoiceSession:
             self._count("slow_writes")
             future.add_done_callback(self._late_write)
             return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
-                                          "budget, so the write finishes in the background")
+                                          "budget, so the write finishes in the background", rule="BoundedWrite")
         return None
 
     def _count(self, name: str) -> None:
@@ -2925,28 +2949,28 @@ class VoiceSession:
         with self._turn_lock:
             expected = self._turn if turn is None else turn
             if self._cancelled or expected != self._turn:
-                return _Outcome("interrupted", "the caller moved on before this answer was complete")
+                return _Outcome("interrupted", "the caller moved on before this answer was complete", rule="Interrupted")
             self._open = False
             shareable, self._shareable = self._shareable, (0, False)
         cacheable = shareable[1] and shareable[0] == expected and not private
         if not (model_said or "").strip():
             self.empty_answers += 1
-            return _Outcome("non_answer", "the model returned an empty answer")
+            return _Outcome("non_answer", "the model returned an empty answer", rule="EmptyAnswer")
         text = (caller_said or "").strip()
         keyed = self._context_key(caller_said, text)
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
         if keyed is None:
-            return _Outcome("not_saved", "a follow-up with no earlier turn to key it on")
+            return _Outcome("not_saved", "a follow-up with no earlier turn to key it on", rule="NoKey")
         if private:
             self.not_shareable += 1
-            return _Outcome("kept", "kept to this call: the answer was built from a tool's result")
+            return _Outcome("kept", "kept to this call: the answer was built from a tool's result", rule="ToolResult")
         if instructions and _repeats_prompt_details(model_said, text, instructions, self._agent_key()):
             # The model read a system prompt that names this caller, and its answer repeats
             # that: right for this caller only, never a shared answer or template.
             self.not_shareable += 1
             return _Outcome("private", "kept to this call: the answer repeats a detail about the caller "
-                                       "from the system prompt")
+                                       "from the system prompt", rule="PromptCallerDetails")
         try:
             if _is_personal(text):
                 if not self._tainted and not _is_non_answer(model_said) and not _unfinished(text):
@@ -2955,24 +2979,24 @@ class VoiceSession:
                         return templated  # slow_write: the shape was not confirmed written
                     if templated:
                         return _Outcome("template")
-                return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from")
+                return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from", rule="PersonalTemplate")
             if self._tainted:
                 self.not_shareable += 1
-                return _Outcome("kept", "kept to this call: the caller told it something the answer may depend on")
+                return _Outcome("kept", "kept to this call: the caller told it something the answer may depend on", rule="TaintedCall")
             if not cacheable:
                 self.not_shareable += 1
-                return _Outcome("kept", "kept to this call: the answer depends on what this caller said")
+                return _Outcome("kept", "kept to this call: the answer depends on what this caller said", rule="NotShareable")
             if _leaks(model_said, self.values):
                 self.not_shareable += 1
-                return _Outcome("private", "kept to this call: the answer contains a value declared for this call")
+                return _Outcome("private", "kept to this call: the answer contains a value declared for this call", rule="DeclaredValue")
             if _repeats_identifier(model_said, self._said_identifiers()):
                 # Its model read only the question, so this can only come from an app
                 # that sent it the whole call: never share it.
                 self.not_shareable += 1
-                return _Outcome("private", "kept to this call: the answer repeats a number or ID this caller said")
+                return _Outcome("private", "kept to this call: the answer repeats a number or ID this caller said", rule="CallerIdentifier")
             if _is_non_answer(model_said):
                 self.not_shareable += 1
-                return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
+                return _Outcome("non_answer", "not saved: the answer asks back or does not answer", rule="NonAnswer")
             slow = self._learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
             if slow is None:  # a slow server gets no extra write
@@ -2982,7 +3006,7 @@ class VoiceSession:
             self.learn_errors += 1
             why = f"the server refused the write: {str(error) or type(error).__name__}"
             _LOG.warning("crowkis voice answer not stored, %s", why)
-            return _Outcome("refused", why)
+            return _Outcome("refused", why, rule="WriteRefused")
 
     def injections(self) -> List[Dict[str, str]]:
         return list(self.transcript)

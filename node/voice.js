@@ -9,6 +9,8 @@ const { CachedAnswer } = require("./src/turns/cachedAnswer.js");
 const { ModelAnswer } = require("./src/turns/modelAnswer.js");
 const { SessionCall } = require("./src/turns/sessionCall.js");
 const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
+const { CacheLookup } = require("./src/runtime/cacheLookup.js");
+const { LATE, within } = require("./src/runtime/deadline.js");
 const { Verdict } = require("./src/turns/verdict.js");
 const { VoiceTurn } = require("./src/turns/voiceTurn.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
@@ -299,16 +301,6 @@ function questionKey(tenant, answer) {
 
 const tenantOf = (agent) => (agent && (agent.tenant || (agent.client && agent.client.tenant))) || null;
 
-// A hard deadline: a slow or hung cache must never hold a live call past its budget.
-function within(ms, promise) {
-  let timer;
-  const late = new Promise((resolve) => {
-    timer = setTimeout(() => resolve(LATE), ms);
-  });
-  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
-}
-
-const LATE = Symbol("late");
 
 // Writes a turn stopped waiting for (past twice the latency budget), finishing in the background.
 // At most WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
@@ -603,6 +595,8 @@ class VoiceSession {
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (name) => { this[name] += 1; },
       (message) => console.warn(message));
+    // Lookups run inside the budget the call has when it looks up.
+    this._cacheLookup = new CacheLookup();
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
     if (values) this.setValues(values);
@@ -725,27 +719,13 @@ class VoiceSession {
   // The cache's hit for a turn, within the latency budget, or a Verdict when the cache was too
   // slow or could not be reached (the model answers then).
   async _lookup(turn, started) {
-    try {
-      const lookup = this.agent.ask(turn.key, {
-        serveAbove: this.serveAbove,
-        cheapAbove: Math.min(0.6, this.serveAbove),
-        template: turn.isPersonal,
-        threshold: turn.isContextDependent || turn.isShort ? CONTEXT_BOUND_THRESHOLD : undefined,
-      });
-      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
-      const hit = budgeted ? await within(this.latencyBudgetMs, lookup) : await lookup;
-      // Cut off a slow lookup, and refuse one that finished after the budget.
-      if (hit === LATE || (budgeted && performance.now() - started > this.latencyBudgetMs)) {
-        lookup.catch(() => {});
-        const reason = `lookup passed the ${this.latencyBudgetMs}ms voice budget; a late hit is worse than a fast miss`;
-        return { hit: null, verdict: new Verdict("LookupDeadline", reason, ["overBudget", "inferred"]) };
-      }
-      return { hit, verdict: null };
-    } catch (error) {
-      // An unreachable or refusing cache means "ask the model", never silence.
-      const reason = `cache unavailable (${error && error.name}); asking the model`;
-      return { hit: null, verdict: new Verdict("CacheUnavailable", reason, ["lookupErrors", "inferred"]) };
-    }
+    const ask = () => this.agent.ask(turn.key, {
+      serveAbove: this.serveAbove,
+      cheapAbove: Math.min(0.6, this.serveAbove),
+      template: turn.isPersonal,
+      threshold: turn.isContextDependent || turn.isShort ? CONTEXT_BOUND_THRESHOLD : undefined,
+    });
+    return this._cacheLookup.find(ask, started, this.latencyBudgetMs);
   }
 
   // The model answers this turn: `verdict` says which rule decided so, and why.

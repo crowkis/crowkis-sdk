@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 from .rules import RuleSet
-from .runtime import BoundedWriter, WriteWorkers
+from .runtime import BoundedWriter, CacheLookup, WriteWorkers
 from .turns import CachedAnswer, ModelAnswer, SessionCall, Verdict, VoiceTurn
 from .understanding.no_rewrite import NoRewrite
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -847,6 +847,8 @@ class VoiceSession:
         self._rule_counts: collections.Counter = collections.Counter()
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)
+        # Lookups run on the shared pool, inside the budget the call has when it looks up.
+        self._cache_lookup = CacheLookup(_LOOKUPS)
         if values:
             self.set_values(**values)
         if fillers:
@@ -975,26 +977,7 @@ class VoiceSession:
             template=turn.is_personal,
             threshold=_CONTEXT_BOUND_THRESHOLD if turn.is_context_dependent or turn.is_short else None,
         )
-        try:
-            if self.latency_budget_ms is None:
-                hit = lookup()
-            else:
-                # A hard deadline, not a check after the fact: a slow or hung
-                # cache must never hold a live call past its budget.
-                hit = _LOOKUPS.submit(lookup).result(timeout=self.latency_budget_ms / 1000.0)
-        except concurrent.futures.TimeoutError:
-            return None, Verdict("LookupDeadline", f"lookup passed the {self.latency_budget_ms}ms voice budget; "
-                                                   "a late hit is worse than a fast miss", ("over_budget", "inferred"))
-        except Exception as exc:  # noqa: BLE001 — an unreachable cache means "ask the model"
-            return None, Verdict("CacheUnavailable", f"cache unavailable ({type(exc).__name__}); asking the model",
-                                 ("lookup_errors", "inferred"))
-        took_ms = (time.monotonic() - started) * 1000.0
-        # Cut off a slow lookup above, and refuse one that finished after the budget.
-        if self.latency_budget_ms is not None and took_ms > self.latency_budget_ms:
-            return hit, Verdict("LookupDeadline", f"lookup took {took_ms:.1f}ms, past the {self.latency_budget_ms}ms "
-                                                  "voice budget; a late hit is worse than a fast miss",
-                                ("over_budget", "inferred"))
-        return hit, None
+        return self._cache_lookup.find(lookup, started, self.latency_budget_ms)
 
     def _infer(self, verdict: Verdict, *, confidence: float = 0.0) -> TurnDecision:
         """The model answers this turn: ``verdict`` says which rule decided so, and why."""

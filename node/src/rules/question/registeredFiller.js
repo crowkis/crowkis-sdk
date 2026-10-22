@@ -15,6 +15,7 @@ const FILLER_REASON = "registered filler, answered without a lookup or a model";
  */
 class RegisteredFiller {
   constructor({ fillers = new Map() } = {}) {
+    // The session passes its own Map, read live; a plain object (in tests) is copied once.
     this._fillers = fillers instanceof Map ? fillers : new Map(Object.entries(fillers));
   }
 

@@ -71,7 +71,7 @@ class TurnCore {
     if (verdict) return this._infer(verdict);
 
     const filler = this._rules.filler.firstObjection(turn);
-    if (filler) return this._filler(filler);
+    if (filler) return await this._filler(filler);
 
     verdict = this._rules.question.firstObjection(turn);
 

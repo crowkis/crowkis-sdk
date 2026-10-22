@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from ..runtime.stats import Counter
 
 
 @dataclass(frozen=True)
@@ -19,7 +22,7 @@ class Verdict:
 
     rule: str
     reason: str
-    counts: Tuple[Any, ...] = ()
+    counts: Tuple[Union["Counter", str], ...] = ()
     outcome: Optional[str] = None
     route: Optional[str] = None
     answer: Optional[str] = None

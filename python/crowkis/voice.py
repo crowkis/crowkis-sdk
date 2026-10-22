@@ -341,8 +341,6 @@ _WRITES = WriteWorkers(_WRITE_WORKERS)
 _PENDING_WRITES = _WRITES.pending
 _submit_write = _WRITES.submit
 _wait_for_writes = _WRITES.wait
-# Counters a write worker and a turn may both update.
-_COUNT_LOCK = threading.Lock()
 
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.

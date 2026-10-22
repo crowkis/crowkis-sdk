@@ -58,6 +58,16 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
+## Where the work stopped (2026-10-22, ~19:00 IST)
+
+- Stopped at a clean point: everything committed (last code commit `5382d42`, notes after it), Python 702
+  passed / 77 skipped and Node 48/48 files, golden decisions identical.
+- Why: the weekly limit is at 85% and rising about 14 points an hour; P3's last piece (CallSession / Chat
+  on the shared core) could take it past 95%. The weekly limit resets 2026-10-23 13:00 UTC; the owner
+  restarts the work.
+- Waiting on an owner decision for that piece: Chat's writes stay unbounded (proposed; only the lookup
+  deadline moves to CacheLookup), or Chat gets bounded writes with a new `slow_write` outcome.
+
 ## P2 follow-ups (owner request, 2026-10-22, done before resuming P3)
 
 - `Stats` (`runtime/stats.py`, `src/runtime/stats.js`): the session's counters and per-rule counts, injected

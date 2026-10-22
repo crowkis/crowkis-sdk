@@ -7,7 +7,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 |---|---|---|---|---|
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
-| P2 runtime components, TurnCore | 1-2 windows | next; paused for the 5-hour usage reset (80% at 17:43, resets 17:50 IST) | | |
+| P2 runtime components, TurnCore | 1-2 windows | in progress: runtime done; TurnCore next (paused at 90% for the 5-hour reset) | `91529cc`, `b261b6d`, `c12d137` | ~40 min so far |
 | P3 Chat on the same core | 1-2 windows | | | |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
@@ -57,6 +57,17 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   reaches the LLM) in both languages, and fails the same way on the pre-P1 commit `0594148`, so it is not
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
+
+## P2 (in progress)
+
+- Done: `runtime/` in both languages: `WriteWorkers` + `BoundedWriter` (bounded writes; old module names
+  `_PENDING_WRITES`, `_submit_write`, `_wait_for_writes`, `_WRITES_MAX`, Node `_setWritesMax` still work),
+  `CacheLookup` (the one place a lookup fails open; the budget is read per lookup), Node `deadline.js`
+  (`within`, `LATE`), `TurnPairing` (turn numbers, barge-in, the per-turn shareable flag; Python keeps
+  `session._turn_lock` as its lock). Unit tests for each; golden decisions identical; frameworks pass.
+- Next: `TurnCore` owns the decide/record flow; `VoiceSession` / `AsyncVoiceSession` become facades.
+- Owner change 2026-10-22: the 5-hour stop line is 97% (stop at a clean point, wait for the reset with a
+  background timer, then continue).
 
 ## Owner changes to the plan
 

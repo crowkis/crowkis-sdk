@@ -32,8 +32,10 @@ const isPending = (value) => Boolean(value) && typeof value.then === "function";
  * without a break, as they did before the chains.
  */
 class RuleChain {
-  constructor(rules) {
+  constructor(rules, { name = "", floor = false } = {}) {
     this._rules = Object.freeze([...rules]);
+    this.name = name;
+    this.floor = floor;
   }
 
   get names() {
@@ -63,6 +65,26 @@ class RuleChain {
     return null;
   }
 
+  /** This chain as one rule (Composite): its first objection. */
+  check(subject) {
+    return this.firstObjection(subject);
+  }
+
+  /** Every rule's objection to `subject`, in order. Chat's rules answer at once. */
+  allObjections(subject) {
+    const found = [];
+    for (const rule of this._rules) {
+      const verdict = rule.check(subject);
+      if (verdict) found.push(verdict);
+    }
+    return found;
+  }
+
+  /** Every rule's name, the rules of chains inside this one included. */
+  get allNames() {
+    return this._rules.flatMap((rule) => (rule instanceof RuleChain ? [rule.name, ...rule.allNames] : [rule.name]));
+  }
+
   /** Whether firstObjection() gave a promise rather than its answer. */
   static isPending(value) {
     return isPending(value);
@@ -75,7 +97,9 @@ class RuleChain {
     if (locked.length && !unsafe) {
       throw new FloorRuleLocked(`floor rules cannot be turned off without unsafe: true: ${locked.join(", ")}`);
     }
-    return new RuleChain(this._rules.filter((rule) => !names.includes(rule.name)));
+    const kept = this._rules.filter((rule) => !names.includes(rule.name))
+      .map((rule) => (rule instanceof RuleChain ? rule.without(names, { unsafe }) : rule));
+    return new RuleChain(kept, { name: this.name, floor: this.floor });
   }
 }
 

@@ -11,11 +11,13 @@ class Verdict:
     """What a rule says when it objects.
 
     ``rule`` names the rule (in decisions, logs and ``stats()``), ``reason`` says why in words,
-    ``counts`` are the session counters it adds to (the names ``stats()`` reports today), and
-    ``outcome`` is, for a save rule, what happened to the answer ("kept", "private", ...).
+    ``counts`` are the session counters it adds to (the names ``stats()`` reports today),
+    ``outcome`` is, for a save rule, what happened to the answer ("kept", "private", ...), and
+    ``route`` is, for a Chat question rule that decides alone, where the turn goes ("urgent", "task").
     """
 
     rule: str
     reason: str
     counts: Tuple[str, ...] = ()
     outcome: Optional[str] = None
+    route: Optional[str] = None

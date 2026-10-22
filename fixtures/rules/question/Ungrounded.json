@@ -1,0 +1,34 @@
+{
+ "rule": "Ungrounded",
+ "stage": "question",
+ "subject": "chat",
+ "about": "v4: when Chat's question rule Ungrounded objects, on a frame and a chat state; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a word nobody said",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy for visitors?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V6_ungrounded:visitors"
+  },
+  {
+   "name": "every word grounded",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?"
+   },
+   "state": {},
+   "objects": false
+  }
+ ]
+}

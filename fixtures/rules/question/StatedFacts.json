@@ -1,0 +1,42 @@
+{
+ "rule": "StatedFacts",
+ "stage": "question",
+ "subject": "chat",
+ "about": "v4: when Chat's question rule StatedFacts objects, on a frame and a chat state; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a stated fact dropped",
+   "say": "is pad thai safe",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Is pad thai safe?"
+   },
+   "state": {
+    "stated": [
+     "I am allergic to peanuts"
+    ]
+   },
+   "objects": true,
+   "counts": [],
+   "reason": "V7_lost:I am allergic to peanuts"
+  },
+  {
+   "name": "the stated fact carried",
+   "say": "is pad thai safe",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Is pad thai safe with peanuts?"
+   },
+   "state": {
+    "stated": [
+     "I am allergic to peanuts"
+    ]
+   },
+   "objects": false
+  }
+ ]
+}

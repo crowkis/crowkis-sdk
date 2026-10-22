@@ -1,0 +1,40 @@
+{
+ "rule": "AboutSomeone",
+ "stage": "question",
+ "subject": "chat",
+ "about": "v4: when Chat's question rule AboutSomeone objects, on a frame and a chat state; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "an owned record",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?",
+    "entities": [
+     {
+      "type": "owned_record",
+      "text": "my order"
+     }
+    ]
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V4_about_someone"
+  },
+  {
+   "name": "no one in particular",
+   "say": "what is your refund policy",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?"
+   },
+   "state": {},
+   "objects": false
+  }
+ ]
+}

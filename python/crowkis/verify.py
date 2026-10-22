@@ -28,7 +28,9 @@ from typing import Dict, List, Optional
 from .callstate import CallState
 from .turn import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
 
-URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT = "urgent", "task", "shared", "personal", "tools", "agent"
+from .rules.chat_rule_set import ChatRuleSet
+from .turns.chat_turn import ChatTurn
+from .turns.routes import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT  # noqa: F401 - re-exported
 
 # Default expiry per question type, in seconds. None = until the knowledge version changes.
 DEFAULT_TTL: Dict[str, Optional[int]] = {
@@ -40,71 +42,24 @@ DEFAULT_TTL: Dict[str, Optional[int]] = {
     "other": 3600,
 }
 
-# Words any question may use without them appearing in the turn: grammar, question words and
-# ordinary request verbs. Not a list about meaning; it never decides kind or privacy.
-_FUNCTION = frozenset("""a an the and or but if of to in on at for from by with about into over under after before
-during than then so as is are was were be been being am do does did done doing have has had having can could will
-would shall should may might must i you we they it its this that these those there here what which who whom whose
-when where why how much many long often any some each every all no not yes my your our their me us them per same
-other another own just only also more most less least very please get got getting give make take need want use used
-using apply applying offer offers offered available availability allowed allow include includes included work works
-working cost costs charge charged charges price pricing fee fees option options way ways happen happens like
-differ different one two three four five six seven eight nine ten first second third time times day days
-tell find found look looking show give know serve serves served recommend suggest
-someone somebody anyone person people year years old aged""".split())
-
-_WORD = re.compile(r"[a-z0-9]+")
-# Facts that tailor an answer to the caller: what they have, how old, where and when.
-# Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from
-# fixed code; a place or time in an earlier shared question is only its topic ("France").
-_TOLD_TYPES = frozenset({"condition"})
-_NUMWORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
-             "eight": "8", "nine": "9", "ten": "10"}
-_UNITS = r"(rupees?|rs|inr|dollars?|usd|items?|people|persons?|days?|weeks?|months?|years?|hours?|kg|gb|inch(es)?|%)"
-_EMAIL = re.compile(r"\S+@\S+|\bat\s+(gmail|yahoo|hotmail|outlook)\b", re.I)
-_PHONE = re.compile(r"\b\d{10}\b|\(\d{3}\)\s*\d{3}-\d{4}")
-_LONG_DIGITS = re.compile(r"\d(?:[\s-]?\d){4,}")
-
-
-def _toks(text: str) -> List[str]:
-    return [_NUMWORDS.get(w, w) for w in _WORD.findall((text or "").lower())]
-
-
-def _stem(word: str) -> str:
-    """Crude, symmetric word-form normaliser: expires/expire, removing/remove, qualifies/qualify."""
-    for suffix in ("ing", "ed", "es", "s"):
-        if len(word) > 4 and word.endswith(suffix):
-            word = word[: -len(suffix)]
-            break
-    if len(word) > 6 and word.endswith("ic"):  # allergic/allergy, diabetic/diabetes; not topic, music
-        word = word[:-2]
-    if len(word) > 3 and word.endswith("e"):
-        word = word[:-1]
-    if len(word) > 3 and word.endswith(("y", "i")):
-        word = word[:-1]
-    return word
-
-
-# Neutral words a stand-alone rewrite may add although the user did not say them ("how many people
-# live there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could
-# change what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
-_QUESTION_WORDS = frozenset("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split())
-_REFERRING = frozenset("it its they them their there here this that those these he she him his her".split())
-_CONTRACTION = frozenset("s t d m re ll ve".split())  # "what's" -> "what", "s": "s" names nothing
-_CLAUSE_START = frozenset("i we you he she they it my our your his her their me".split())
-# Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
-# penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
-_GENERIC_FACT = frozenset(_stem(w) for w in "allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split())
-
-
-def _looks_identifying(question: str) -> bool:
-    if _EMAIL.search(question) or _PHONE.search(question):
-        return True
-    low = question.lower()
-    for match in _LONG_DIGITS.finditer(low):
-        if not re.match(r"\s*" + _UNITS, low[match.end(): match.end() + 12]):
-            return True  # a long number that is not a quantity: an order ID, account, phone...
-    return False
+from .understanding.frame_words import (  # noqa: F401 - re-exported
+    _FUNCTION,
+    _WORD,
+    _TOLD_TYPES,
+    _NUMWORDS,
+    _UNITS,
+    _EMAIL,
+    _PHONE,
+    _LONG_DIGITS,
+    _toks,
+    _stem,
+    _QUESTION_WORDS,
+    _REFERRING,
+    _CONTRACTION,
+    _CLAUSE_START,
+    _GENERIC_FACT,
+    _looks_identifying,
+)
 
 
 @dataclass
@@ -122,7 +77,7 @@ class Verdict:
 
 
 class RuleChecker:
-    """Applies V1-V10 to a frame and builds the key for a shareable turn.
+    """Applies V1-V10 (ChatRuleSet) to a frame and builds the key for a shareable turn.
 
     ``confidence_floor`` should be calibrated per business on real calls (a fixed number is
     only the starting point). ``ttl`` maps question types to expiry in seconds.
@@ -136,48 +91,29 @@ class RuleChecker:
         self.ttl = dict(DEFAULT_TTL, **(ttl or {}))
         self.knowledge_version = str(knowledge_version)
         self.channel = " ".join(str(channel).split()).lower() or "chat"
+        # V1-V10 as rules (rules/question), in the three groups this checker runs; rebuilt if the
+        # public confidence_floor is changed later, as the old inline check read it on every turn.
+        self._rules = ChatRuleSet.chat(self.confidence_floor)
+        self._rules_floor = self.confidence_floor
 
     # --- the rules --------------------------------------------------------------------
 
     def check(self, frame: TurnFrame, turn: str, state: CallState) -> Verdict:
-        reasons: List[str] = []
-        if frame.urgent:
-            return Verdict(False, URGENT, ["V1_urgent"])
-        if frame.task_step or self._answers_agent_during_task(turn, state):
-            return Verdict(False, TASK, ["V9_task_step"])
-        if frame.abstain or frame.confidence < self.confidence_floor:
-            reasons.append("V2_uncertain")
-        if frame.kind != "general" or frame.subject != "none":
-            reasons.append("V3_not_general")
-        if any(e.type in NOT_GENERAL_TYPES for e in frame.entities):
-            reasons.append("V4_about_someone")
-        question = frame.question
-        if not question:
-            reasons.append("V3_no_question")
+        if self._rules_floor != self.confidence_floor:
+            self._rules = ChatRuleSet.chat(self.confidence_floor)
+            self._rules_floor = self.confidence_floor
+        chat_turn = ChatTurn(frame, turn, state)
+        decisive = self._rules.decisive.first_objection(chat_turn)
+        if decisive is not None:
+            return Verdict(False, decisive.route, [decisive.reason])
+        reasons = [v.reason for v in self._rules.frame.all_objections(chat_turn)]
         if reasons:
             return Verdict(False, self._route_for(frame), reasons)
-
-        low = question.lower()
-        if any(t.lower() in low for t in frame.identifying_texts) or _looks_identifying(question):
-            reasons.append("V5_identifying")
-        added = self._ungrounded(question, turn, state)
-        if added:
-            reasons.append("V6_ungrounded:" + ",".join(added[:3]))
-        # The model says the turn leans on the chat ("how far is it from London?") but the turn or its
-        # question says "it" and the question names nothing new from the chat (a neutral "population"
-        # names nothing; "Who is their president?" -> "Who is the president?" dropped it): the
-        # reference was not resolved. A rewrite that resolved it ("Is it safe to eat pad thai in
-        # Thailand?") keeps a filler "it" and is fine.
-        qwords, said = set(_toks(question)), set(_toks(turn))
-        named = {w for w in qwords - said if w not in _FUNCTION and w not in _QUESTION_WORDS and w not in _CONTRACTION}
-        if frame.uses_state and (qwords | said) & _REFERRING and not named:
-            reasons.append("V10_unresolved")
-        lost = self._lost_detail(frame, question) or self._dropped_statement(state, question)
-        if lost:
-            reasons.append("V7_lost:" + lost)
+        reasons = [v.reason for v in self._rules.question.all_objections(chat_turn)]
         if reasons:
             return Verdict(False, AGENT, reasons)
 
+        question = frame.question
         attrs = self._key_attributes(frame, state, question)
         # A language the caller asked for wins over the language this turn happens to be in.
         language = state.language or frame.language
@@ -186,62 +122,12 @@ class RuleChecker:
                        self.build_segment(attrs, language, told=self._tailoring(frame, state, question)))
 
     @staticmethod
-    def _answers_agent_during_task(turn: str, state: CallState) -> bool:
-        """While a task is running, a reply to the agent's own question is a step of it."""
-        return state.task != "none" and state.last_reply.rstrip().endswith("?") and "?" not in (turn or "")
-
-    @staticmethod
     def _route_for(frame: TurnFrame) -> str:
         if frame.kind in ("personal", "sensitive"):
             return PERSONAL
         if frame.kind in ("live", "action"):
             return TOOLS
         return AGENT
-
-    @staticmethod
-    def _ungrounded(question: str, turn: str, state: CallState) -> List[str]:
-        source = set(_toks(turn))
-        for text in state.grounding_sources():
-            source.update(_toks(text))
-        stems = {_stem(w) for w in source}
-        return [w for w in _toks(question) if w not in _FUNCTION and w not in source and _stem(w) not in stems
-                and w not in _QUESTION_WORDS]
-
-    @staticmethod
-    def _lost_detail(frame: TurnFrame, question: str) -> Optional[str]:
-        qstems = {_stem(w) for w in _toks(question)}
-        attr_text = " ".join(f"{a.value} {a.normalised}" for a in frame.attributes.values()).lower()
-        for e in frame.entities:
-            if e.answer_relevant and not e.identifying and e.type in DETAIL_TYPES:
-                words = [w for w in _toks(e.text) if w not in _FUNCTION]
-                if words and not any(_stem(w) in qstems for w in words) and not any(w in attr_text for w in words):
-                    return e.text
-        return None
-
-    @staticmethod
-    def _dropped_statement(state: CallState, question: str) -> Optional[str]:
-        """A fact the caller stated in this chat that the question does not carry. Fixed code,
-        so the allergy case never rests on the model having tagged the allergy: the question
-        must keep at least one content word of each such turn. A turn with no readable word
-        (another script) cannot be checked, so it keeps the question private."""
-        qstems = {_stem(w) for w in _toks(question)}
-        for turn in state.stated:
-            words = [w for w in _toks(turn) if w not in _FUNCTION and (len(w) > 2 or w.isdigit())]
-            # "allergies" alone does not carry "allergic to penicillin": the specific word must be there.
-            words = [w for w in words if _stem(w) not in _GENERIC_FACT] or words
-            if not words or not any(_stem(w) in qstems for w in words):
-                return turn
-            # Every item of a list is carried: "penicillin and peanuts" is not "peanuts".
-            toks = _toks(turn)
-            for i, w in enumerate(toks):
-                # "and I live alone" starts a new clause; it is not a list.
-                if w in ("and", "or") and (i + 1 == len(toks) or toks[i + 1] not in _CLAUSE_START):
-                    for side in (reversed(toks[:i]), toks[i + 1:]):
-                        item = next((x for x in side if x not in _FUNCTION), None)
-                        if item and (len(item) > 2 or item.isdigit()) and _stem(item) not in _GENERIC_FACT \
-                                and _stem(item) not in qstems:
-                            return turn
-        return None
 
     @staticmethod
     def _tailoring(frame: TurnFrame, state: CallState, question: str) -> Optional[str]:

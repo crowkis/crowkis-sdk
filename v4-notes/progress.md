@@ -8,7 +8,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
-| P3 Chat on the same core | 1-2 windows | in progress: Chat's rules done and reviewed; sessions on the shared core next | `817f642`, `3a9c2d3`, `2fc5d7d` | ~1 h so far |
+| P3 Chat on the same core | 1-2 windows | built; final review running | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 
@@ -78,6 +78,9 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `turns/chat_core.py` / `src/turns/chatCore.js`, with a `ChatHost` Protocol (state, counts, fillers, mode,
   hooks, emit, open/cancelled turns) the session implements through an adapter, like `SessionHost`. Then P3
   reviews (code + privacy), real-server conformance, and mark P3 done.
+  **Step (3) Node done** in `cfda1ad` (`src/turns/chatCore.js`, `turnResult.js`, `understanding/chatDetails.js`).
+  Suites: Python 704 passed, Node 49/49, golden identical. Real server: only "a reworded question hits" fails,
+  as on `0594148`. Remaining: the final P3 review's findings, then mark P3 done (owner: then stop, no P4).
   **Step (3) Python done** (commit after `2268883`): `turns/chat_core.py` (`ChatCore`, owns its lookup, rule
   chains and turns), `turns/chat_host.py` (`ChatHost` Protocol; `CallSession` implements it: `fillers`,
   `emit`, `prompt_key` added as public members), `turns/turn_result.py`, `FILLER` in `turns/routes`, the

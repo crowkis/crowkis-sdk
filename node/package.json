@@ -92,6 +92,8 @@
     "src/turns/sessionCall.js",
     "src/turns/verdict.js",
     "src/turns/voiceTurn.js",
+    "src/understanding/noRewrite.js",
+    "src/understanding/wordRuleClassifier.js",
     "src/understanding/wordRules.js",
     "README.md"
   ],

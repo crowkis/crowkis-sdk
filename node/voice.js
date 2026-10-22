@@ -9,6 +9,8 @@ const { ModelAnswer } = require("./src/turns/modelAnswer.js");
 const { SessionCall } = require("./src/turns/sessionCall.js");
 const { Verdict } = require("./src/turns/verdict.js");
 const { VoiceTurn } = require("./src/turns/voiceTurn.js");
+const { NoRewrite } = require("./src/understanding/noRewrite.js");
+const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -591,6 +593,9 @@ class VoiceSession {
     this._tainted = false;
     // The checks of the three SDK stages, read through this call's view of the session.
     this._rules = RuleSet.voice();
+    // How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
+    this._classifier = new WordRuleClassifier();
+    this._rewriter = new NoRewrite();
     this._call = new SessionCall(this);
     this._ruleCounts = new Map();
     // Caller turns _heard() has already checked (history is re-read every turn).
@@ -664,7 +669,9 @@ class VoiceSession {
     this._open = true;
     this._cancelled = false;
 
-    const turn = new VoiceTurn(callerSaid, this._call);
+    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
+    const reading = this._classifier.classify(text);
+    const turn = new VoiceTurn(callerSaid, this._call, reading, this._rewriter.rewrite(text, reading));
     let verdict = await this._rules.beforeFiller.firstObjection(turn);
     if (verdict) return this._infer(verdict);
 

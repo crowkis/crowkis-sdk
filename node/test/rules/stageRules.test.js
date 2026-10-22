@@ -17,6 +17,7 @@ const save = require("../../src/rules/save/answer.js");
 const { CachedAnswer } = require("../../src/turns/cachedAnswer.js");
 const { ModelAnswer } = require("../../src/turns/modelAnswer.js");
 const { VoiceTurn } = require("../../src/turns/voiceTurn.js");
+const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { FakeCall } = require("./fakeCall.js");
 
 const RULES_DIR = path.join(__dirname, "..", "..", "..", "fixtures", "rules");
@@ -30,7 +31,7 @@ const CASES = fs.readdirSync(RULES_DIR).sort().flatMap((stage) =>
 const pythonName = (name) => name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
 function subject(testCase, call) {
-  const turn = new VoiceTurn(testCase.say, call);
+  const turn = new VoiceTurn(testCase.say, call, new WordRuleClassifier().classify(testCase.say.trim()));
   if (testCase.stage === "question") return turn;
   if (testCase.stage === "hit") return new CachedAnswer(turn, testCase.hit, performance.now());
   return new ModelAnswer(testCase.say, testCase.answer, call.key, call, {
@@ -62,6 +63,7 @@ test("every rule has cases both ways", () => {
 
 test("the taint rule marks the call", async () => {
   const call = new FakeCall();
-  await new privacy.CallContextTaint().check(new VoiceTurn("I am allergic to peanuts", call));
+  const said = "I am allergic to peanuts";
+  await new privacy.CallContextTaint().check(new VoiceTurn(said, call, new WordRuleClassifier().classify(said)));
   assert.strictEqual(call.tainted, true);
 });

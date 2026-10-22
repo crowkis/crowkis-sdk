@@ -18,6 +18,8 @@ from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 from .rules import RuleSet
 from .turns import CachedAnswer, ModelAnswer, SessionCall, Verdict, VoiceTurn
+from .understanding.no_rewrite import NoRewrite
+from .understanding.word_rule_classifier import WordRuleClassifier
 from .understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.voice.<name> keeps working
     _private_chain,
     _ACTION_LEADS,
@@ -873,6 +875,9 @@ class VoiceSession:
         self._turn_lock = threading.RLock()
         # The checks of the three SDK stages, read through this call's view of the session.
         self._rules = RuleSet.voice()
+        # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
+        self._classifier = WordRuleClassifier()
+        self._rewriter = NoRewrite()
         self._call = SessionCall(self)
         self._rule_counts: collections.Counter = collections.Counter()
         if values:
@@ -945,7 +950,9 @@ class VoiceSession:
         self._open = True
         self._cancelled = False
 
-        turn = VoiceTurn(caller_said, self._call)
+        text = (caller_said or "").strip()
+        reading = self._classifier.classify(text)
+        turn = VoiceTurn(caller_said, self._call, reading, self._rewriter.rewrite(text, reading))
         verdict = self._rules.before_filler.first_objection(turn)
         if verdict is not None:
             return self._infer(verdict)

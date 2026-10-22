@@ -1,16 +1,17 @@
 "use strict";
 
-const { isContextDependent, isPersonal } = require("../understanding/wordRules.js");
-
 /**
- * What the caller said in one turn, the call it belongs to, and what the word rules make of it.
- * Each reading is worked out once, when a rule first needs it.
+ * What the caller said in one turn, the call it belongs to, and how it was understood: `reading`
+ * is the classifier's (personal, a follow-up) and `rewritten` the rewriter's stand-alone
+ * question, or null to key the turn on the caller's words.
  */
 class VoiceTurn {
-  constructor(said, call) {
+  constructor(said, call, reading, rewritten = null) {
     this.said = said;
     this.text = typeof said === "string" ? said.trim() : "";
     this.call = call;
+    this.reading = reading;
+    this.rewritten = rewritten;
     this._read = new Map();
   }
 
@@ -26,17 +27,17 @@ class VoiceTurn {
 
   /** About the caller's own records, or otherwise never shared. */
   get isPersonal() {
-    return this._once("isPersonal", () => isPersonal(this.text));
+    return this.reading.isPersonal;
   }
 
   /** Only means something next to the turn before it. */
   get isContextDependent() {
-    return this._once("isContextDependent", () => isContextDependent(this.text));
+    return this.reading.isContextDependent;
   }
 
-  /** The cache key: the caller's words, or the chain a follow-up leans on; null without one. */
+  /** The cache key: the rewritten question, else the caller's words or the chain a follow-up leans on; null without one. */
   get key() {
-    return this._once("key", () => this.call.contextKey(this.said, this.text));
+    return this._once("key", () => (this.rewritten !== null ? this.rewritten : this.call.contextKey(this.said, this.text)));
   }
 }
 

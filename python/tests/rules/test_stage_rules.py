@@ -9,6 +9,7 @@ from crowkis.rules.hit import guards
 from crowkis.rules.question import floor, follow_up, operational, policy, privacy
 from crowkis.rules.save import answer as save
 from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
+from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from fake_call import FakeCall
 
@@ -30,7 +31,7 @@ RULES = {
 
 
 def subject(case, call):
-    turn = VoiceTurn(case["say"], call)
+    turn = VoiceTurn(case["say"], call, WordRuleClassifier().classify(case["say"].strip()))
     if case["stage"] == "question":
         return turn
     if case["stage"] == "hit":
@@ -58,7 +59,8 @@ class StageRuleTests(unittest.TestCase):
 
     def test_the_taint_rule_marks_the_call(self):
         call = FakeCall()
-        privacy.CallContextTaint().check(VoiceTurn("I am allergic to peanuts", call))
+        said = "I am allergic to peanuts"
+        privacy.CallContextTaint().check(VoiceTurn(said, call, WordRuleClassifier().classify(said)))
         self.assertTrue(call.tainted)
 
 

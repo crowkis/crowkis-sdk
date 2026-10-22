@@ -7,6 +7,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { CrowkisClient } = require("../../index.js");
+const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { VoiceSession, voiceSession } = require("../../voice.js");
 
 class Store {
@@ -42,6 +43,19 @@ class AlwaysPersonal {
   }
 }
 
+// The word rules, except that one turn is read as personal.
+class ReadsPersonal {
+  constructor(personalTurn) {
+    this._personalTurn = personalTurn;
+  }
+
+  classify(text) {
+    const reading = new WordRuleClassifier().classify(text);
+    if (text !== this._personalTurn) return reading;
+    return { isPersonal: true, isContextDependent: reading.isContextDependent };
+  }
+}
+
 class Rewords {
   rewrite() {
     return "what is the refund policy";
@@ -70,6 +84,30 @@ test("the factory passes them through", () => {
   const session = voiceSession({ client: new CrowkisClient({ port: 1 }), classifier, rewriter });
   assert.strictEqual(session._classifier, classifier);
   assert.strictEqual(session._rewriter, rewriter);
+});
+
+test("a turn the classifier reads personal is never shared", async () => {
+  const store = new Store();
+  const session = sessionOn(store, { classifier: new AlwaysPersonal() });
+  const decision = await session.decide("what is your refund policy");
+  assert.strictEqual(decision.messages, null);
+  assert.strictEqual(decision.cacheable, false);
+  await session.record(decision, "Refunds take five business days.");
+  assert.strictEqual(store.shared.has("what is your refund policy"), false);
+});
+
+test("a follow-up to a turn the classifier read personal is private", async () => {
+  const session = sessionOn(new Store(), { classifier: new ReadsPersonal("what does the gold plan cost") });
+  await session.record(await session.decide("what does the gold plan cost"), "The gold plan costs 499 a month.");
+  const decision = await session.decide("and how long will that take");
+  assert.strictEqual(decision.rule, "PrivateChain");
+  assert.strictEqual(decision.cacheable, false);
+});
+
+test("must still work: a follow-up to a general turn is shared", async () => {
+  const session = sessionOn(new Store(), { classifier: new ReadsPersonal("something else entirely") });
+  await session.record(await session.decide("what does the gold plan cost"), "The gold plan costs 499 a month.");
+  assert.strictEqual((await session.decide("and how long will that take")).cacheable, true);
 });
 
 test("must still work: the defaults are the word rules", async () => {

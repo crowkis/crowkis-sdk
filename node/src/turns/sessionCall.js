@@ -44,6 +44,10 @@ class SessionCall {
     return this._session.commitments;
   }
 
+  isPersonal(text) {
+    return this._session._personalReadings.isPersonal(text);
+  }
+
   markTainted() {
     this._session._tainted = true;
   }

@@ -27,7 +27,7 @@ class VoiceTurn {
 
   /** About the caller's own records, or otherwise never shared. */
   get isPersonal() {
-    return this.reading.isPersonal;
+    return this.reading.isPersonal || this.call.isPersonal(this.text);
   }
 
   /** Only means something next to the turn before it. */

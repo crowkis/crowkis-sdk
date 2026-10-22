@@ -24,7 +24,9 @@ class PrivateChain {
   }
 
   check(turn) {
-    const followsPrivate = turn.isContextDependent && privateChain(turn.call.chain() || [], turn.call.minWords);
+    const chain = turn.call.chain() || [];
+    const followsPrivate = turn.isContextDependent &&
+      (privateChain(chain, turn.call.minWords) || chain.some((earlier) => turn.call.isPersonal(earlier)));
     if (!(followsPrivate || turn.call.afterUrgent(turn.text))) return null;
     return new Verdict(this.name, PRIVATE_CHAIN_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
   }

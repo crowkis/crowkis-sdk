@@ -62,6 +62,10 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 
 ## P4 (in progress; owner started it 2026-10-22 ~19:15 IST)
 
+**Stopped 2026-10-22 (owner: stop for the day; no timer).** Steps 1-3 are committed, both suites green
+(Python 711 passed, Node 50/50, each run twice), golden files untouched. Restart after the weekly reset
+(2026-10-23 13:00 UTC) with step 4. Usage at the stop: 5-hour about 90%, weekly 91%.
+
 Stop lines: 97% on the 5-hour limit (then a background timer to its reset, 17:20 UTC, and continue while the
 weekly allows) and 97% weekly (then stop, no timer; the owner restarts after 2026-10-23 13:00 UTC). Check
 usage before every step; small commits; golden identical; both suites green at every commit.
@@ -72,10 +76,15 @@ Steps (each its own commit, both languages):
 2. [done] `Classifier` / `Rewriter` slots wired through: `VoiceSession(..., classifier=None, rewriter=None)` and
    `voice_session(...)` / `async_voice_session(...)` / Node `voiceSession(...)` pass them through (defaults:
    `WordRuleClassifier`, `NoRewrite`, so nothing changes). Adapters need no edits (options pass through).
-3. [next] The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
+3. [done] The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
    `PrivateChain` read the turn's reading, or treat a turn as personal if either the reading or the word rules
    say so (never less private). Golden identical with the default classifier.
-4. `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
+   Built as `understanding/personal_readings.py` / `src/understanding/personalReadings.js` (`PersonalReadings`:
+   `note`, `is_personal`, `chain_is_private`), one per session, injected into `TurnCore` (`personal_readings=`),
+   offered to rules as `VoiceCall.is_personal(text)`. `TurnCore`'s constructor gained a required
+   `personal_readings` argument; `tests/turns/test_turn_core.py` / `turnCore.test.js` pass it (setup only).
+   Not yet reviewed: the code + privacy review of steps 2-3 belongs to step 6.
+4. [next] `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
    `ReplayRewriter` (exact repeats) and `BudgetedUnderstanding` (Decorator: the channel budget; late or failed
    means the word rules decide, never "share anyway"; counts `understand_timeouts` / `understand_errors`).
    `LLMUnderstander` keeps working as both slots for Chat.

@@ -4,6 +4,7 @@
 // does (min_words, short_turns, ...); every check answers what the test set.
 
 const { CHAT, REALTIME, VOICE } = require("../../src/turns/channel.js");
+const { isPersonal } = require("../../src/understanding/wordRules/index.js");
 
 const CHANNELS = { voice: VOICE, chat: CHAT, realtime: REALTIME };
 
@@ -17,7 +18,7 @@ class FakeCall {
     Object.assign(this, {
       tainted: false, values: {}, minWords: 3, shortTurns: false, serveAbove: 0.92, commitments: "exact",
       vouches: false, earlier: [], urgentBefore: false, key: "the key", anotherQuestion: false, identifiers: [],
-      channel: VOICE,
+      channel: VOICE, readPersonal: new Set(),
     });
     for (const [name, value] of Object.entries(settings)) this[SETTING_NAMES[name] || name] = value;
     if (typeof this.channel === "string") this.channel = CHANNELS[this.channel];
@@ -25,6 +26,10 @@ class FakeCall {
 
   get hasValues() {
     return Object.keys(this.values).length > 0;
+  }
+
+  isPersonal(text) {
+    return this.readPersonal.has(text.trim()) || isPersonal(text);
   }
 
   markTainted() {

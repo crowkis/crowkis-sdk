@@ -156,6 +156,7 @@
     "src/understanding/chatDetails.js",
     "src/understanding/frameWords.js",
     "src/understanding/noRewrite.js",
+    "src/understanding/personalReadings.js",
     "src/understanding/wordRuleClassifier.js",
     "src/understanding/wordRules/answers.js",
     "src/understanding/wordRules/callContext.js",

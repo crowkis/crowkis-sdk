@@ -14,6 +14,7 @@ const { SessionHost } = require("./src/turns/sessionHost.js");
 const { Stats } = require("./src/runtime/stats.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
+const { PersonalReadings } = require("./src/understanding/personalReadings.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
@@ -525,6 +526,8 @@ class VoiceSession {
     // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
     this._classifier = classifier || new WordRuleClassifier();
     this._rewriter = rewriter || new NoRewrite();
+    // Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
+    this._personalReadings = new PersonalReadings();
     this._call = new SessionCall(this);
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),
@@ -534,7 +537,8 @@ class VoiceSession {
     // The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
     this._core = new TurnCore(new SessionHost(this), {
       rules: this._rules, call: this._call, pairing: this._pairing, cacheLookup: this._cacheLookup,
-      classifier: this._classifier, rewriter: this._rewriter, stats: this._stats,
+      classifier: this._classifier, rewriter: this._rewriter, personalReadings: this._personalReadings,
+      stats: this._stats,
     });
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
@@ -584,7 +588,8 @@ class VoiceSession {
   _modelMessages(callerSaid) {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     if (
-      this._tainted || text.split(/\s+/).filter(Boolean).length < this.minWords || isPersonal(text) || lookupOnly(text) ||
+      this._tainted || text.split(/\s+/).filter(Boolean).length < this.minWords ||
+      this._personalReadings.isPersonal(text) || lookupOnly(text) ||
       this._afterUrgent(text) || unfinished(text)
     ) {
       return [null, false];
@@ -596,7 +601,7 @@ class VoiceSession {
       return [[{ role: "user", content: callerSaid }], true];
     }
     const chain = this._chain();
-    if (chain === null || privateChain(chain, this.minWords)) return [null, false];
+    if (chain === null || this._personalReadings.chainIsPrivate(chain, this.minWords)) return [null, false];
     return [[...chain, callerSaid].map((turn) => ({ role: "user", content: turn })), true];
   }
 

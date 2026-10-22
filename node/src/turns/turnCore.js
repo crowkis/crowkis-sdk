@@ -34,6 +34,8 @@ const { VoiceTurn } = require("./voiceTurn.js");
  * @property {import("../runtime/cacheLookup.js").CacheLookup} cacheLookup
  * @property {{ classify: (text: string) => { isPersonal: boolean, isContextDependent: boolean } }} classifier
  * @property {{ rewrite: (text: string, reading: object) => string|null }} rewriter
+ * @property {import("../understanding/personalReadings.js").PersonalReadings} personalReadings
+ *   the turns the classifier read as personal in this call
  * @property {import("../runtime/stats.js").Stats} stats
  */
 
@@ -50,7 +52,7 @@ class TurnCore {
    * @param {TurnHost} host
    * @param {TurnCoreParts} parts
    */
-  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, stats }) {
+  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, personalReadings, stats }) {
     this._host = host;
     this._stats = stats;
     this._rules = rules;
@@ -59,6 +61,7 @@ class TurnCore {
     this._cacheLookup = cacheLookup;
     this._classifier = classifier;
     this._rewriter = rewriter;
+    this._personalReadings = personalReadings;
   }
 
   async decide(callerSaid) {
@@ -66,6 +69,7 @@ class TurnCore {
 
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const reading = this._classifier.classify(text);
+    this._personalReadings.note(text, reading);
     const turn = new VoiceTurn(callerSaid, this._call, reading, this._rewriter.rewrite(text, reading));
     let verdict = this._rules.beforeFiller.firstObjection(turn);
     if (RuleChain.isPending(verdict)) verdict = await verdict;

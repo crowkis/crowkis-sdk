@@ -1,6 +1,6 @@
 "use strict";
 
-const { isNonAnswer, isPersonal } = require("../understanding/wordRules/index.js");
+const { isNonAnswer } = require("../understanding/wordRules/index.js");
 
 /**
  * What the model said to a turn, with what is known about that turn when it is recorded.
@@ -33,9 +33,9 @@ class ModelAnswer {
     return this._read.get(name);
   }
 
-  /** The turn was about the caller's own records. */
+  /** The turn was about the caller's own records, by its reading or by the word rules. */
   get isPersonal() {
-    return this._once("isPersonal", () => isPersonal(this.text));
+    return this._once("isPersonal", () => this.call.isPersonal(this.text));
   }
 
   /** The answer asks back or does not answer. */

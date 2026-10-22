@@ -27,7 +27,22 @@ RUNS = {
     "v1": ["20261016-160921"],
     "v2": ["20261021-165200-partial", "20261022-070930-partial"],
 }
+# Contact details in the stress cases that look real are swapped for obviously fake ones of
+# the same shape, so the fixtures never carry a real-looking number or address.
+FAKE_CONTACTS = {
+    "98200 55117": "90000 11111",
+    "98111 40404": "90000 22222",
+    "99887 76655": "90000 33333",
+    "harpreet.gill@yahoo.in": "harpreet.gill@example.com",
+    "rahul@gmail.com": "rahul@example.com",
+}
 POLICY_WORDS = frozenset({"refund", "refunds", "policy", "return", "returns", "warranty", "fee", "fees", "price", "cost"})
+
+
+def fake_contacts(text: str) -> str:
+    for real_looking, fake in FAKE_CONTACTS.items():
+        text = text.replace(real_looking, fake)
+    return text
 
 
 def stand_in_frame(text: str) -> Dict:
@@ -65,7 +80,7 @@ def stress_calls(tests_dir: Path, suite: str) -> List[Dict]:
     calls = []
     for conversation in cases["conversations"]:
         known = replies.get(conversation["id"], {})
-        turns = [{"say": turn["say"], "reply": known.get(n, FALLBACK_REPLY)}
+        turns = [{"say": fake_contacts(turn["say"]), "reply": fake_contacts(known.get(n, FALLBACK_REPLY))}
                  for n, turn in enumerate(conversation["turns"], start=1)]
         calls.append({"id": conversation["id"], "turns": turns})
     return calls

@@ -58,6 +58,20 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
+## P2 follow-ups (owner request, 2026-10-22, done before resuming P3)
+
+- `Stats` (`runtime/stats.py`, `src/runtime/stats.js`): the session's counters and per-rule counts, injected
+  into `TurnCore` and the writer; counter names are an enum (`Counter`) / constants (`COUNTER`) carried by
+  rules. The public counters (`session.filled`, ...) read and write it (a descriptor in Python, prototype
+  accessors in Node), so their names, values and `stats()` are unchanged.
+- `TurnCore` reaches nothing private: it uses `TurnHost` (transcript, agent, settings, audio, writes), which
+  `SessionHost` adapts, and `Stats` for counters. Its constructor takes typed collaborators (`RuleSet`,
+  `VoiceCall`, `TurnPairing`, `CacheLookup`, `Classifier` / `Rewriter` from `understanding/slots`, `Stats`).
+- Registered fillers are the `RegisteredFiller` rule (stage 1, operational) in `RuleSet.filler`.
+- Commit `c709e34`; golden identical; slow-server and barge-in tests unchanged; frameworks pass.
+- Left for P4 as planned: rules reading the classifier's reading instead of private `word_rules` functions,
+  and a typed `Hit` instead of the raw hit dict.
+
 ## P3 (in progress)
 
 - Done: every Chat check is a rule class, one per file, in `rules/question` and `rules/save` (both languages):
@@ -69,6 +83,10 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `all_objections` (Chat reports every objection) and nesting (V7 is "lost detail, else dropped fact").
   Golden Chat decisions identical; per-rule fixtures for all 46 rules.
 - "Chat..." names mark rules whose voice twin has different code today; P5's merged save check joins them.
+- P3 reviews (code, privacy): no blockers. To fix before P3 ends: a nested group named in `without()` must not
+  drop a floor rule inside it; `NotGeneral` becomes a floor rule; Node `allObjections` fails loudly on a
+  promise; nits (dead `escapeRe`, unused imports in `verify.js`, an 8+-word V6 case, a multi-reason
+  `RuleChecker.check` case, a fake-looking phone number in a fixture).
 - Left: `CallSession` / `Chat` on the shared turn core with a `ChatChannel` profile, and Chat's writes through
   `BoundedWriter` and lookups through `CacheLookup`, without changing its outcomes.
 

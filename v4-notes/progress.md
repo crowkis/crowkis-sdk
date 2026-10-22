@@ -8,7 +8,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
-| P3 Chat on the same core | 1-2 windows | in progress: Chat's rules done; sessions on the shared core next | `817f642`, `3a9c2d3`, `2fc5d7d` | ~1 h so far |
+| P3 Chat on the same core | 1-2 windows | in progress: Chat's rules done and reviewed; sessions on the shared core next | `817f642`, `3a9c2d3`, `2fc5d7d` | ~1 h so far |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 
@@ -69,6 +69,10 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `VoiceCall`, `TurnPairing`, `CacheLookup`, `Classifier` / `Rewriter` from `understanding/slots`, `Stats`).
 - Registered fillers are the `RegisteredFiller` rule (stage 1, operational) in `RuleSet.filler`.
 - Commit `c709e34`; golden identical; slow-server and barge-in tests unchanged; frameworks pass.
+- Review of the cleanup: no blockers; nits fixed in `5382d42`. Visible for anyone who dumps a session: the
+  counters are no longer the session's own attributes (`vars(session)`, `Object.keys`, `JSON.stringify` no
+  longer list them; reading and writing them works as before). `RegisteredFiller` can now be named in
+  `RuleSet.without` (it was not a rule before).
 - Left for P4 as planned: rules reading the classifier's reading instead of private `word_rules` functions,
   and a typed `Hit` instead of the raw hit dict.
 

@@ -7,8 +7,8 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 |---|---|---|---|---|
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
-| P2 runtime components, TurnCore | 1-2 windows | built; reviews running | `91529cc`, `b261b6d`, `c12d137`, `c561c3e` | ~1 h 10 min |
-| P3 Chat on the same core | 1-2 windows | | | |
+| P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
+| P3 Chat on the same core | 1-2 windows | next | | |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 
@@ -58,7 +58,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
-## P2 (in progress)
+## P2 (done)
 
 - Done: `runtime/` in both languages: `WriteWorkers` + `BoundedWriter` (bounded writes; old module names
   `_PENDING_WRITES`, `_submit_write`, `_wait_for_writes`, `_WRITES_MAX`, Node `_setWritesMax` still work),
@@ -72,6 +72,8 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `voice.js` -> ~1,240.
 - Suites: Python 694 passed, Node 46/46 files, twice; Pipecat 26, LiveKit Python 23, LiveKit JS 41.
   Real server: as after P1, only "a reworded question hits" fails (it fails on `0594148` too).
+- Reviews: code review and privacy review, no blockers. Fixed: Node `_lookup` no longer adds await steps;
+  the core's host contract is written down (`TurnHost`); the pending-write and lock nits.
 - Owner change 2026-10-22: the 5-hour stop line is 97% (stop at a clean point, wait for the reset with a
   background timer, then continue).
 
@@ -95,6 +97,11 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   `crowkis.understanding.word_rules._x` keep working; word lists stay named constants.
 
 ## Notes and follow-ups
+
+- Pre-existing (privacy review, P2): the "refused" warning logs `str(error)`, the server's error text,
+  which could echo a key; logging only the error type would be safer. Not changed (log text is behaviour).
+- Pre-existing: `TurnPairing.start()` and the `open` / `cancelled` flags set by `record_private_turn` run
+  outside the lock, as the old fields did.
 
 - For P4: `_model_messages`, `ModelAnswer.is_personal` and `PrivateChain`'s chain still call the word rules
   directly, not the turn's classifier reading. Before a classifier slot is public, route them through the

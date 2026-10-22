@@ -8,7 +8,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P0 safety net | 1 window | done (2026-10-22) | `1b4c4cc`, `e5c44aa`, `b8f592a`, `79ea0e6` | ~1 h 15 min |
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
-| P3 Chat on the same core | 1-2 windows | next | | |
+| P3 Chat on the same core | 1-2 windows | in progress: Chat's rules done; sessions on the shared core next | `817f642`, `3a9c2d3`, `2fc5d7d` | ~1 h so far |
 | P4 pluggable understanding | 1-2 windows | | | |
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 
@@ -57,6 +57,20 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   reaches the LLM) in both languages, and fails the same way on the pre-P1 commit `0594148`, so it is not
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
+
+## P3 (in progress)
+
+- Done: every Chat check is a rule class, one per file, in `rules/question` and `rules/save` (both languages):
+  V1-V10 (`UrgentTurn`, `TaskStep`, `UncertainFrame`, `NotGeneral`, `AboutSomeone`, `NoQuestion`,
+  `IdentifyingDetails`, `Ungrounded`, `UnresolvedReference`, `LostDetail`, `StatedFacts`), the session's
+  checks once a question would be shared (`QuestionNamesCaller`, `ToldDetailDropped`, `UntaggedName`,
+  `UrgentWords`) and `save_check` (`ChatEmptyAnswer`, `ChatNonAnswer`, `IdentifyingAnswer`, `ActionClaim`,
+  `AttributeNotInKey`, `PrivateWord`, `ChatPromptDetails`), run by `ChatRuleSet`. `RuleChain` gained
+  `all_objections` (Chat reports every objection) and nesting (V7 is "lost detail, else dropped fact").
+  Golden Chat decisions identical; per-rule fixtures for all 46 rules.
+- "Chat..." names mark rules whose voice twin has different code today; P5's merged save check joins them.
+- Left: `CallSession` / `Chat` on the shared turn core with a `ChatChannel` profile, and Chat's writes through
+  `BoundedWriter` and lookups through `CacheLookup`, without changing its outcomes.
 
 ## P2 (done)
 

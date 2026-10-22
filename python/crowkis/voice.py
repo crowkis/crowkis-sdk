@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 from .rules import RuleSet
-from .runtime import BoundedWriter, CacheLookup, WriteWorkers
+from .runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
 from .turns import CachedAnswer, ModelAnswer, SessionCall, Verdict, VoiceTurn
 from .understanding.no_rewrite import NoRewrite
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -824,20 +824,15 @@ class VoiceSession:
         # The question the latest stored answer was stored under.
         self._last_stored: Optional[str] = None
         self._fillers: Dict[str, str] = {}
-        self._open = False
-        self._cancelled = False
-        self._turn_mark = 0
-        self._turn = 0
-        # (turn, whether that turn's answer may be shared): read with the turn it
-        # belongs to, so a turn decided meanwhile never lends its flag.
-        self._shareable = (0, False)
+        # Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
+        self._pairing = TurnPairing()
         # Set once the caller tells the call something a later answer may depend on;
         # from then on nothing in this call is looked up or shared.
         self._tainted = False
         # Caller turns _heard() has already checked (history is re-read every turn).
         self._heard_texts: set = set()
         # Turn number and flag change together: two decide() calls never share a turn.
-        self._turn_lock = threading.RLock()
+        self._turn_lock = self._pairing.lock
         # The checks of the three SDK stages, read through this call's view of the session.
         self._rules = RuleSet.voice()
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
@@ -874,18 +869,14 @@ class VoiceSession:
             self.register_filler(trigger, response)
 
     def decide(self, caller_said: str) -> TurnDecision:
-        with self._turn_lock:
-            self._turn += 1
-            turn = self._turn
+        turn = self._pairing.begin()
         decision = self._decide(caller_said)
         decision.turn = turn
         decision._session = weakref.ref(self)
         if decision.needs_model:
             decision._said = caller_said
             decision.messages, decision.cacheable = self._model_messages(caller_said)
-        with self._turn_lock:
-            if turn == self._turn:  # a newer turn's flag is never overwritten by an older one
-                self._shareable = (turn, decision.cacheable)
+        self._pairing.offer(turn, decision.cacheable)
         return decision
 
     def _model_messages(self, caller_said: str):
@@ -915,9 +906,7 @@ class VoiceSession:
         return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
 
     def _decide(self, caller_said: str) -> TurnDecision:
-        self._turn_mark = len(self.transcript)
-        self._open = True
-        self._cancelled = False
+        self._pairing.start(len(self.transcript))
 
         text = (caller_said or "").strip()
         reading = self._classifier.classify(text)
@@ -1002,14 +991,12 @@ class VoiceSession:
     def cancel(self) -> bool:
         # Under the turn lock, like decide() and recording: a save finishing on another
         # thread never adds to the transcript while it is being trimmed.
-        with self._turn_lock:
-            if not self._open:
-                return False
-            self._open = False
-            self._cancelled = True
-            self.barge_ins += 1
-            del self.transcript[self._turn_mark:]
-            return True
+        return self._pairing.cancel(self._talked_over)
+
+    def _talked_over(self, mark: int) -> None:
+        """The open turn was cancelled: count the barge-in, drop the turn from the transcript."""
+        self.barge_ins += 1
+        del self.transcript[mark:]
 
     def answer(
         self,
@@ -1136,8 +1123,7 @@ class VoiceSession:
 
     def _moved_on(self, decision: TurnDecision) -> bool:
         """The caller talked over this turn, or a newer turn has been decided."""
-        with self._turn_lock:
-            return self._cancelled or decision.turn != self._turn
+        return self._pairing.moved_on(decision.turn)
 
     def _interrupted(self, decision: TurnDecision, spoken: str) -> None:
         """A streamed turn the caller talked over: report it, store and keep nothing.
@@ -1161,15 +1147,13 @@ class VoiceSession:
         model): it cannot be given ``decision.messages``, so nothing it says is shared.
         """
         self._heard(caller_said)
-        if self._cancelled:
+        if self._pairing.cancelled:
             return
-        self._open = False
+        self._pairing.open = False
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
-        with self._turn_lock:
-            if self._shareable[1]:
-                self.not_shareable += 1
-            self._shareable = (0, False)
+        if self._pairing.drop_shareable():
+            self.not_shareable += 1
 
     def _keep_question(self, question: str, answer: str) -> None:
         """Note, in the background, that ``answer`` was saved for ``question``. A
@@ -1277,14 +1261,12 @@ class VoiceSession:
     def _record_answer(self, caller_said: str, model_said: str, *, turn: Optional[int], private: bool,
                        instructions: Optional[str]) -> "_Outcome":
         """_record_model_turn without the per-rule count: the save chains, then the write."""
-        with self._turn_lock:
-            expected = self._turn if turn is None else turn
-            if self._cancelled or expected != self._turn:
-                return _Outcome("interrupted", "the caller moved on before this answer was complete", rule="Interrupted")
-            self._open = False
-            shareable, self._shareable = self._shareable, (0, False)
+        settled = self._pairing.settle(turn)
+        if settled is None:
+            return _Outcome("interrupted", "the caller moved on before this answer was complete", rule="Interrupted")
+        _, shareable = settled
         answer = ModelAnswer(caller_said, model_said, None, self._call, private=private, instructions=instructions,
-                             cacheable=shareable[1] and shareable[0] == expected and not private)
+                             cacheable=shareable and not private)
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return self._kept(verdict)
@@ -1607,7 +1589,8 @@ def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
             keyed = session._context_key(caller_said, (caller_said or "").strip()) or caller_said
             session._tainted = session._tainted or _sets_context((caller_said or "").strip())
             _, cacheable = session._model_messages(caller_said)
-            session._shareable = (session._turn, cacheable and not _carries_call_context(agent_said, keyed, earlier))
+            pairing = session._pairing
+            pairing.offer(pairing.turn, cacheable and not _carries_call_context(agent_said, keyed, earlier))
             session._record_model_turn(caller_said, agent_said)
             earlier.append(caller_said)
             totals["turns"] += 1

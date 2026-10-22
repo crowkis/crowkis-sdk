@@ -10,6 +10,7 @@ const { ModelAnswer } = require("./src/turns/modelAnswer.js");
 const { SessionCall } = require("./src/turns/sessionCall.js");
 const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
 const { CacheLookup } = require("./src/runtime/cacheLookup.js");
+const { TurnPairing } = require("./src/runtime/turnPairing.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
 const { Verdict } = require("./src/turns/verdict.js");
 const { VoiceTurn } = require("./src/turns/voiceTurn.js");
@@ -574,14 +575,8 @@ class VoiceSession {
     // The question the latest stored answer was stored under.
     this._lastStored = null;
     this._fillers = new Map();
-    this._open = false;
-    this._cancelled = false;
-    this._turnMark = 0;
-    this._turn = 0;
-    // [turn, whether that turn's answer may be shared]: read with the turn it belongs
-    // to, so a decide() that finishes after a newer one never lends the newer turn its
-    // flag (two decide() calls in flight at once). Same as Python's _shareable.
-    this._shareable = [0, false];
+    // Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
+    this._pairing = new TurnPairing();
     // Set once the caller tells the call something a later answer may depend on;
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
@@ -626,8 +621,7 @@ class VoiceSession {
   }
 
   async decide(callerSaid) {
-    this._turn += 1;
-    const turn = this._turn;
+    const turn = this._pairing.begin();
     const decision = await this._decide(callerSaid);
     decision.turn = turn;
     decision._session = new WeakRef(this);
@@ -635,8 +629,7 @@ class VoiceSession {
       decision._said = callerSaid;
       [decision.messages, decision.cacheable] = this._modelMessages(callerSaid);
     }
-    // A newer turn's flag is never overwritten by an older one.
-    if (turn === this._turn) this._shareable = [turn, decision.cacheable];
+    this._pairing.offer(turn, decision.cacheable);
     return decision;
   }
 
@@ -664,9 +657,7 @@ class VoiceSession {
   }
 
   async _decide(callerSaid) {
-    this._turnMark = this.transcript.length;
-    this._open = true;
-    this._cancelled = false;
+    this._pairing.start(this.transcript.length);
 
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     const reading = this._classifier.classify(text);
@@ -751,12 +742,10 @@ class VoiceSession {
   }
 
   cancel() {
-    if (!this._open) return false;
-    this._open = false;
-    this._cancelled = true;
-    this.bargeIns += 1;
-    this.transcript.length = this._turnMark;
-    return true;
+    return this._pairing.cancel((mark) => {
+      this.bargeIns += 1;
+      this.transcript.length = mark;
+    });
   }
 
   // Run one caller turn end to end: cache, or the model, then remember the answer.
@@ -866,7 +855,7 @@ class VoiceSession {
 
   // The caller talked over this turn, or a newer turn has been decided.
   _movedOn(decision) {
-    return this._cancelled || decision.turn !== this._turn;
+    return this._pairing.movedOn(decision.turn);
   }
 
   // A streamed turn the caller talked over: report it, store and keep nothing. Not an
@@ -888,12 +877,11 @@ class VoiceSession {
   // given decision.messages, so nothing it says is shared.
   recordPrivateTurn(callerSaid, modelSaid) {
     this._heard(callerSaid);
-    if (this._cancelled) return;
-    this._open = false;
+    if (this._pairing.cancelled) return;
+    this._pairing.open = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (this._shareable[1]) this.notShareable += 1;
-    this._shareable = [0, false];
+    if (this._pairing.dropShareable()) this.notShareable += 1;
   }
 
   // Note, in the background, that `answer` was saved for `question`. A failure only means a
@@ -1002,16 +990,9 @@ class VoiceSession {
   // _record without the per-rule count: the save chains, then the write.
   async _recordAnswer(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
     const outcome = (word, why = "", rule = null) => ({ outcome: word, why, rule });
-    if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
-      return outcome("interrupted", "the caller moved on before this answer was complete", "Interrupted");
-    }
-    this._open = false;
-    const expected = turn === undefined || turn === null ? this._turn : turn;
-    const shareable = this._shareable;
-    this._shareable = [0, false];
-    let answer = new ModelAnswer(callerSaid, modelSaid, null, this._call, {
-      private: keep, instructions, cacheable: shareable[1] && shareable[0] === expected,
-    });
+    const settled = this._pairing.settle(turn);
+    if (!settled) return outcome("interrupted", "the caller moved on before this answer was complete", "Interrupted");
+    let answer = new ModelAnswer(callerSaid, modelSaid, null, this._call, { private: keep, instructions, cacheable: settled[1] });
     let verdict = this._rules.answerGiven.firstObjection(answer);
     if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._kept(verdict);
@@ -1260,10 +1241,10 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
       const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
       const keyed = session._contextKey(callerSaid, text) || callerSaid;
       session._tainted = session._tainted || setsContext(text);
-      session._shareable = [
-        session._turn,
+      session._pairing.offer(
+        session._pairing.turn,
         session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier),
-      ];
+      );
       await session._recordModelTurn(callerSaid, agentSaid);
       earlier.push(callerSaid);
       totals.turns += 1;

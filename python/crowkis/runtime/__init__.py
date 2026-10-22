@@ -2,6 +2,7 @@
 
 from .bounded_writer import BoundedWriter
 from .cache_lookup import CacheLookup
+from .turn_pairing import TurnPairing
 from .write_workers import WriteWorkers
 
-__all__ = ["BoundedWriter", "CacheLookup", "WriteWorkers"]
+__all__ = ["BoundedWriter", "CacheLookup", "TurnPairing", "WriteWorkers"]

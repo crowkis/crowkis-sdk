@@ -8,6 +8,7 @@ const { RuleSet } = require("./src/rules/ruleSet.js");
 const { CachedAnswer } = require("./src/turns/cachedAnswer.js");
 const { ModelAnswer } = require("./src/turns/modelAnswer.js");
 const { SessionCall } = require("./src/turns/sessionCall.js");
+const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
 const { Verdict } = require("./src/turns/verdict.js");
 const { VoiceTurn } = require("./src/turns/voiceTurn.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
@@ -599,6 +600,9 @@ class VoiceSession {
     this._rewriter = new NoRewrite();
     this._call = new SessionCall(this);
     this._ruleCounts = new Map();
+    // Writes wait at most twice the budget; the cap is read when a write starts.
+    this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (name) => { this[name] += 1; },
+      (message) => console.warn(message));
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
     if (values) this.setValues(values);
@@ -967,34 +971,8 @@ class VoiceSession {
       await this.agent.learn(...args);
       return null;
     }
-    if (pendingWrites.size >= WRITES_MAX) {
-      this.slowWrites += 1;
-      console.warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
-      return { outcome: "slow_write", why: "not written: too many writes are waiting on a slow server", rule: "BoundedWrite" };
-    }
-    let late = false; // set by the timer itself, so an error at any later moment is counted here
-    const write = Promise.resolve().then(() => this.agent.learn(...args));
-    const tracked = write
-      .catch((error) => {
-        if (!late) return; // before the turn stopped waiting: thrown to the caller, counted there
-        this.learnErrors += 1;
-        console.warn(`crowkis voice: a write that passed the latency budget then failed (${(error && error.name) || "Error"})`);
-      })
-      .finally(() => pendingWrites.delete(tracked));
-    pendingWrites.add(tracked);
-    const finished = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        late = true;
-        resolve(false);
-      }, 2 * this.latencyBudgetMs);
-      write.then(
-        () => { clearTimeout(timer); resolve(true); },
-        (error) => { clearTimeout(timer); if (!late) reject(error); }
-      );
-    });
-    if (finished) return null;
-    this.slowWrites += 1;
-    return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background", rule: "BoundedWrite" };
+    const verdict = await this._writer.write(() => this.agent.learn(...args), 2 * this.latencyBudgetMs);
+    return verdict ? { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule } : null;
   }
 
   // The ID-like values this caller said earlier in the call: its earlier turns in the

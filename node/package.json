@@ -107,6 +107,7 @@
     "src/rules/save/promptCallerDetails.js",
     "src/rules/save/taintedCall.js",
     "src/rules/save/toolResult.js",
+    "src/runtime/boundedWriter.js",
     "src/turns/cachedAnswer.js",
     "src/turns/modelAnswer.js",
     "src/turns/sessionCall.js",

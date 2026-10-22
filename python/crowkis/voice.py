@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 from .agent import Agent, _store_later, _voice_addon_missing
 from .client import CrowkisClient, CrowkisError
 from .rules import RuleSet
+from .runtime import BoundedWriter, WriteWorkers
 from .turns import CachedAnswer, ModelAnswer, SessionCall, Verdict, VoiceTurn
 from .understanding.no_rewrite import NoRewrite
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -533,50 +534,14 @@ _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_pre
 # it (a hung server) a new answer is not written at all.
 _WRITE_WORKERS = 16
 _WRITES_MAX = 256
-_WRITE_QUEUE: "queue.Queue" = queue.Queue()
-_PENDING_WRITES: set = set()
-_PENDING_LOCK = threading.Lock()
-_write_workers_started = False
+# The process-wide write workers every session shares; their pending set and waiter keep the
+# old names, which tests read.
+_WRITES = WriteWorkers(_WRITE_WORKERS)
+_PENDING_WRITES = _WRITES.pending
+_submit_write = _WRITES.submit
+_wait_for_writes = _WRITES.wait
 # Counters a write worker and a turn may both update.
 _COUNT_LOCK = threading.Lock()
-
-
-def _write_worker() -> None:
-    while True:
-        future, fn, args, kwargs = _WRITE_QUEUE.get()
-        try:
-            if future.set_running_or_notify_cancel():
-                try:
-                    future.set_result(fn(*args, **kwargs))
-                except BaseException as err:  # noqa: BLE001 - handed to the waiting turn
-                    future.set_exception(err)
-        finally:
-            _WRITE_QUEUE.task_done()
-
-
-def _submit_write(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> "concurrent.futures.Future":
-    global _write_workers_started
-    if not _write_workers_started:
-        for n in range(_WRITE_WORKERS):
-            threading.Thread(target=_write_worker, name=f"crowkis-voice-write-{n}", daemon=True).start()
-        _write_workers_started = True
-    future: "concurrent.futures.Future" = concurrent.futures.Future()
-    _WRITE_QUEUE.put((future, fn, args, kwargs))
-    return future
-
-
-def _wait_for_writes() -> None:
-    """For tests: every write handed to the background has finished."""
-    with _PENDING_LOCK:
-        pending = list(_PENDING_WRITES)
-    concurrent.futures.wait(pending)
-    if _write_workers_started:
-        _WRITE_QUEUE.join()  # and everything else on the write workers (question records)
-
-
-def _write_done(future: "concurrent.futures.Future") -> None:
-    with _PENDING_LOCK:
-        _PENDING_WRITES.discard(future)
 
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.
@@ -880,6 +845,8 @@ class VoiceSession:
         self._rewriter = NoRewrite()
         self._call = SessionCall(self)
         self._rule_counts: collections.Counter = collections.Counter()
+        # Writes wait at most twice the budget; the cap is read when a write starts.
+        self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)
         if values:
             self.set_values(**values)
         if fillers:
@@ -1262,44 +1229,20 @@ class VoiceSession:
         return bool(questions) and all(_different_specifics(asked, q) for q in questions)
 
     def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
-        """agent.learn(), waited for no longer than twice the latency budget: a slow server
-        never stalls the turn after a miss. A write still running then finishes in the
-        background (an error it ends with is counted). An error before that is raised, as
-        before. Without a budget it is waited for, as it always was.
+        """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter).
+        Without a budget it is waited for, as it always was.
 
         None when the write is done; otherwise the ``slow_write`` outcome to report (still
         running, or not written at all because too many writes wait on a slow server)."""
         if self.latency_budget_ms is None:
             self.agent.learn(*args, **kwargs)
             return None
-        with _PENDING_LOCK:
-            full = len(_PENDING_WRITES) >= _WRITES_MAX
-            if not full:
-                future = _submit_write(self.agent.learn, *args, **kwargs)
-                _PENDING_WRITES.add(future)
-        if full:
-            self._count("slow_writes")
-            _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
-            return _Outcome("slow_write", "not written: too many writes are waiting on a slow server", rule="BoundedWrite")
-        future.add_done_callback(_write_done)
-        try:
-            future.result(timeout=2 * self.latency_budget_ms / 1000)
-        except concurrent.futures.TimeoutError:
-            self._count("slow_writes")
-            future.add_done_callback(self._late_write)
-            return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
-                                          "budget, so the write finishes in the background", rule="BoundedWrite")
-        return None
+        verdict = self._writer.write(self.agent.learn, *args, deadline_s=2 * self.latency_budget_ms / 1000, **kwargs)
+        return None if verdict is None else _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
 
     def _count(self, name: str) -> None:
         with _COUNT_LOCK:
             setattr(self, name, getattr(self, name) + 1)
-
-    def _late_write(self, future: "concurrent.futures.Future") -> None:
-        if future.exception() is not None:
-            self._count("learn_errors")
-            _LOG.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
-                         type(future.exception()).__name__)
 
     def _said_identifiers(self) -> set:
         """The ID-like values this caller said earlier in the call: its earlier turns in

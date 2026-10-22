@@ -60,6 +60,29 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
+## P4 (in progress; owner started it 2026-10-22 ~19:15 IST)
+
+Stop lines: 97% on the 5-hour limit (then a background timer to its reset, 17:20 UTC, and continue while the
+weekly allows) and 97% weekly (then stop, no timer; the owner restarts after 2026-10-23 13:00 UTC). Check
+usage before every step; small commits; golden identical; both suites green at every commit.
+
+Steps (each its own commit, both languages):
+1. Typed `Hit` (deferred from P2): `turns/hit.py` / `src/turns/hit.js` value object built once from the agent's
+   hit dict in the lookup; hit rules read its fields instead of `hit.get(...)`. No behaviour change.
+2. `Classifier` / `Rewriter` slots wired through: `VoiceSession(..., classifier=None, rewriter=None)` and
+   `voice_session(...)` / `async_voice_session(...)` / Node `voiceSession(...)` pass them through (defaults:
+   `WordRuleClassifier`, `NoRewrite`, so nothing changes). Adapters need no edits (options pass through).
+3. The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
+   `PrivateChain` read the turn's reading, or treat a turn as personal if either the reading or the word rules
+   say so (never less private). Golden identical with the default classifier.
+4. `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
+   `ReplayRewriter` (exact repeats) and `BudgetedUnderstanding` (Decorator: the channel budget; late or failed
+   means the word rules decide, never "share anyway"; counts `understand_timeouts` / `understand_errors`).
+   `LLMUnderstander` keeps working as both slots for Chat.
+5. `channel=` profiles in the factories; v4 conformance scenarios with an understander in
+   `fixtures/adapter-conformance.json` (Pipecat, LiveKit Python, LiveKit JS).
+6. Reviews (code + privacy), real-server check, mark P4 done.
+
 ## P3 done (2026-10-22); work stopped (owner: no P4 today)
 
 - Final review (code + privacy) of `3bae579..cfda1ad`: no blockers. Logged nits, not fixed: unused imports and

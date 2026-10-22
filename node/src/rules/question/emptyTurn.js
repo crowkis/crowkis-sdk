@@ -1,6 +1,6 @@
 "use strict";
 
-// Operational question rules: turns there is nothing to look up for.
+// The EmptyTurn rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
 

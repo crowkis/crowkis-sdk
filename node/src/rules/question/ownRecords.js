@@ -1,6 +1,6 @@
 "use strict";
 
-// Floor question rules: they cannot be turned off without an explicit unsafe flag.
+// The OwnRecords rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
 

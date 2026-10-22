@@ -5,9 +5,7 @@ import time
 import unittest
 from pathlib import Path
 
-from crowkis.rules.hit import guards
-from crowkis.rules.question import floor, follow_up, operational, policy, privacy
-from crowkis.rules.save import answer as save
+from crowkis.rules import hit, question, save
 from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
@@ -16,18 +14,7 @@ from fake_call import FakeCall
 RULE_FILES = sorted((Path(__file__).resolve().parents[3] / "fixtures" / "rules").glob("*/*.json"))
 CASES = [dict(case, rule=data["rule"], stage=data["stage"])
          for data in (json.loads(path.read_text("utf-8")) for path in RULE_FILES) for case in data["cases"]]
-RULES = {
-    "EmptyTurn": operational.EmptyTurn, "CallContextTaint": privacy.CallContextTaint,
-    "PrivateChain": privacy.PrivateChain, "TooShort": policy.TooShort, "CutOff": policy.CutOff,
-    "OwnRecords": floor.OwnRecords, "FollowUpWithoutContext": follow_up.FollowUpWithoutContext,
-    "ConfidenceBar": guards.ConfidenceBar, "TemplateSlotMissing": guards.TemplateSlotMissing,
-    "PiiPlaceholder": guards.PiiPlaceholder, "DifferentQuestion": guards.DifferentQuestion,
-    "ShortTurnUnvouched": guards.ShortTurnUnvouched, "CommitmentRewording": guards.CommitmentRewording,
-    "ScreenOnlyAnswer": guards.ScreenOnlyAnswer, "EmptyAnswer": save.EmptyAnswer, "NoKey": save.NoKey,
-    "ToolResult": save.ToolResult, "PromptCallerDetails": save.PromptCallerDetails,
-    "PersonalTemplate": save.PersonalTemplate, "TaintedCall": save.TaintedCall, "NotShareable": save.NotShareable,
-    "DeclaredValue": save.DeclaredValue, "CallerIdentifier": save.CallerIdentifier, "NonAnswer": save.NonAnswer,
-}
+RULES = {name: getattr(stage, name) for stage in (question, hit, save) for name in stage.__all__}
 
 
 def subject(case, call):
@@ -60,7 +47,7 @@ class StageRuleTests(unittest.TestCase):
     def test_the_taint_rule_marks_the_call(self):
         call = FakeCall()
         said = "I am allergic to peanuts"
-        privacy.CallContextTaint().check(VoiceTurn(said, call, WordRuleClassifier().classify(said)))
+        question.CallContextTaint().check(VoiceTurn(said, call, WordRuleClassifier().classify(said)))
         self.assertTrue(call.tainted)
 
 

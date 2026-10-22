@@ -1,4 +1,4 @@
-"""Question rules about follow-ups."""
+"""The FollowUpWithoutContext rule (stage 1, question)."""
 
 from __future__ import annotations
 

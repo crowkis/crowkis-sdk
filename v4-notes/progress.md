@@ -58,6 +58,15 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
+## Owner changes to the plan
+
+- 2026-10-22, plan §3.5: **one rule per file** inside its stage folder, the file named after the class
+  (`rules/question/cut_off.py` -> `CutOff`; Node `src/rules/question/cutOff.js`), replacing the theme files
+  (`guards.py`, `answer.py`, `floor.py`, ...). Each stage's `__init__.py` / `index.js` exports its rules for
+  `RuleSet`. Per-rule fixtures stay `fixtures/rules/<stage>/<Rule>.json`; one fixture-driven test per
+  language runs every rule file (`tests/rules/test_stage_rules.py`, `node/test/rules/stageRules.test.js`).
+  Applied in a follow-up commit, since the grouped files had already been committed.
+
 ## Notes and follow-ups
 
 - For P4: `_model_messages`, `ModelAnswer.is_personal` and `PrivateChain`'s chain still call the word rules

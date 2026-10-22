@@ -4,16 +4,14 @@ const { FloorRuleLocked, RuleChain, UnknownRule, ruleNames } = require("./chain.
 const {
   CommitmentRewording, ConfidenceBar, DifferentQuestion, PiiPlaceholder, ScreenOnlyAnswer, ShortTurnUnvouched,
   TemplateSlotMissing,
-} = require("./hit/guards.js");
-const { OwnRecords } = require("./question/floor.js");
-const { FollowUpWithoutContext } = require("./question/followUp.js");
-const { EmptyTurn } = require("./question/operational.js");
-const { CutOff, TooShort } = require("./question/policy.js");
-const { CallContextTaint, PrivateChain } = require("./question/privacy.js");
+} = require("./hit/index.js");
+const {
+  CallContextTaint, CutOff, EmptyTurn, FollowUpWithoutContext, OwnRecords, PrivateChain, TooShort,
+} = require("./question/index.js");
 const {
   CallerIdentifier, DeclaredValue, EmptyAnswer, NoKey, NonAnswer, NotShareable, PersonalTemplate, PromptCallerDetails,
   TaintedCall, ToolResult,
-} = require("./save/answer.js");
+} = require("./save/index.js");
 
 const CHAINS = ["beforeFiller", "question", "hit", "answerGiven", "beforeSharing", "sharing"];
 

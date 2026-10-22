@@ -1,6 +1,6 @@
 "use strict";
 
-// Question rules about follow-ups.
+// The FollowUpWithoutContext rule (stage 1, question).
 
 const { Verdict } = require("../../turns/verdict.js");
 

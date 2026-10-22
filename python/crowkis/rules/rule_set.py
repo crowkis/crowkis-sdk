@@ -6,7 +6,7 @@ from dataclasses import dataclass, fields, replace
 from typing import Sequence
 
 from .chain import FloorRuleLocked, RuleChain, UnknownRule, rule_names
-from .hit.guards import (
+from .hit import (
     CommitmentRewording,
     ConfidenceBar,
     DifferentQuestion,
@@ -15,12 +15,8 @@ from .hit.guards import (
     ShortTurnUnvouched,
     TemplateSlotMissing,
 )
-from .question.floor import OwnRecords
-from .question.follow_up import FollowUpWithoutContext
-from .question.operational import EmptyTurn
-from .question.policy import CutOff, TooShort
-from .question.privacy import CallContextTaint, PrivateChain
-from .save.answer import (
+from .question import CallContextTaint, CutOff, EmptyTurn, FollowUpWithoutContext, OwnRecords, PrivateChain, TooShort
+from .save import (
     CallerIdentifier,
     DeclaredValue,
     EmptyAnswer,

@@ -7,13 +7,9 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
-const guards = require("../../src/rules/hit/guards.js");
-const floor = require("../../src/rules/question/floor.js");
-const followUp = require("../../src/rules/question/followUp.js");
-const operational = require("../../src/rules/question/operational.js");
-const policy = require("../../src/rules/question/policy.js");
-const privacy = require("../../src/rules/question/privacy.js");
-const save = require("../../src/rules/save/answer.js");
+const hit = require("../../src/rules/hit/index.js");
+const question = require("../../src/rules/question/index.js");
+const save = require("../../src/rules/save/index.js");
 const { CachedAnswer } = require("../../src/turns/cachedAnswer.js");
 const { ModelAnswer } = require("../../src/turns/modelAnswer.js");
 const { VoiceTurn } = require("../../src/turns/voiceTurn.js");
@@ -21,7 +17,7 @@ const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifi
 const { FakeCall } = require("./fakeCall.js");
 
 const RULES_DIR = path.join(__dirname, "..", "..", "..", "fixtures", "rules");
-const RULES = { ...guards, ...floor, ...followUp, ...operational, ...policy, ...privacy, ...save };
+const RULES = { ...question, ...hit, ...save };
 const CASES = fs.readdirSync(RULES_DIR).sort().flatMap((stage) =>
   fs.readdirSync(path.join(RULES_DIR, stage)).sort().flatMap((file) => {
     const data = JSON.parse(fs.readFileSync(path.join(RULES_DIR, stage, file), "utf8"));
@@ -64,6 +60,6 @@ test("every rule has cases both ways", () => {
 test("the taint rule marks the call", async () => {
   const call = new FakeCall();
   const said = "I am allergic to peanuts";
-  await new privacy.CallContextTaint().check(new VoiceTurn(said, call, new WordRuleClassifier().classify(said)));
+  await new question.CallContextTaint().check(new VoiceTurn(said, call, new WordRuleClassifier().classify(said)));
   assert.strictEqual(call.tainted, true);
 });

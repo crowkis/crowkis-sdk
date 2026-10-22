@@ -6,7 +6,6 @@ import hashlib
 import inspect
 import json
 import logging
-import queue
 import re
 import string
 import threading
@@ -290,50 +289,9 @@ _REPORT_MAX = 1_000_000
 _LOG = logging.getLogger("crowkis")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 _QUESTIONS_KEPT = 8
 # How long a question record lives when the answer has no TTL of its own.
 _QUESTION_TTL = 30 * 24 * 3600
-
-
-
-
-
-
 
 
 def _question_key(tenant: Optional[str], answer: str) -> str:
@@ -345,115 +303,9 @@ def _tenant_of(agent: Any) -> Optional[str]:
     return getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # --- Turns whose answer must never be shared ------------------------------------------
 # Kept word for word with the Node SDK (voice.js). Each group fails closed: a
 # match means "answer fresh, never cache".
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # A system prompt can carry one caller's details ("The caller is Asha Rao, account 99812").
@@ -467,61 +319,6 @@ def _tenant_of(agent: Any) -> Optional[str]:
 # 2. Before that (the first call an agent makes in this process, or a prompt that has
 #    never changed): the sentences of the prompt that are about a person. The capitalised
 #    words (names), email words and numbers in them are caller details.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
@@ -548,10 +345,6 @@ _COUNT_LOCK = threading.Lock()
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.
 _STORED = frozenset({"saved", "template"})
-
-
-
-
 
 
 class VoiceResponse:
@@ -827,10 +620,6 @@ class VoiceSession:
             return None, False
         return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
 
-
-
-
-
     def _engine_vouches(self) -> bool:
         """Whether the server judges what it caches, asked inside this call's
         budget: a slow answer is a no for this turn, and is there for the next."""
@@ -1005,8 +794,9 @@ class VoiceSession:
         self._pairing.open = False
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
-        if self._pairing.drop_shareable():
-            self.not_shareable += 1
+        with self._turn_lock:
+            if self._pairing.drop_shareable():
+                self.not_shareable += 1
 
     def _keep_question(self, question: str, answer: str) -> None:
         """Note, in the background, that ``answer`` was saved for ``question``. A
@@ -1113,9 +903,6 @@ class VoiceSession:
         if outcome.rule is not None:
             self._rule_counts[outcome.rule] += 1
         return outcome
-
-
-
 
     def injections(self) -> List[Dict[str, str]]:
         return list(self.transcript)

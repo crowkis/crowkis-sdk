@@ -30,9 +30,7 @@ class WriteWorkers:
         return future
 
     def hand_over(self, future: concurrent.futures.Future) -> None:
-        """A write that keeps running after its turn; it leaves ``pending`` when it ends."""
-        with self.pending_lock:
-            self.pending.add(future)
+        """A write already in ``pending`` (added with its cap check) leaves it when it ends."""
         future.add_done_callback(self._finished)
 
     def wait(self) -> None:

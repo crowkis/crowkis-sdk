@@ -13,7 +13,9 @@ class TurnPairing:
     Every decided turn gets a number (``begin``); the open turn can be cancelled (barge-in); a
     turn's answer may be shared only if the latest decision for that same turn said so
     (``offer``) and nothing moved on before it is recorded (``settle``). One re-entrant lock
-    guards it all, and the session records under the same lock (``lock``)."""
+    (``lock``, which the session also records under) guards numbering, offering, cancelling and
+    settling; ``start`` and the ``open`` / ``cancelled`` flags are set by the session's own turn
+    steps, as before."""
 
     NOTHING_SHARED: Tuple[int, bool] = (0, False)
 

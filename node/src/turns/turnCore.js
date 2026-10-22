@@ -8,6 +8,21 @@ const { ModelAnswer } = require("./modelAnswer.js");
 const { VoiceTurn } = require("./voiceTurn.js");
 
 /**
+ * What TurnCore uses of the session that hosts it (the call's own state and services).
+ * @typedef {object} TurnHost
+ * @property {object[]} transcript the call's turns so far
+ * @property {Map<string, string>} _fillers registered fillers, by normalised trigger
+ * @property {(text: string, options?: object) => Promise<Buffer|null>} _voiced audio for a spoken answer
+ * @property {Map<string, number>} _ruleCounts per-rule counts for stats()
+ * @property {(...args: any[]) => Promise<object|null>} _learn the bounded write of a shared answer
+ * @property {(key: string, answer: string) => Promise<boolean|object>} _learnPersonal a shared shape
+ * @property {(key: string, answer: string) => void} _keepQuestion the question an answer was saved for
+ * @property {(said: string, text: string) => string|null} _contextKey the cache key of a turn
+ * @property {object} agent the agent lookups and writes go through
+ * Also: serveAbove, latencyBudgetMs, ttl, _lastStored, and the stats() counters (filled, served, ...).
+ */
+
+/**
  * Template Method: the fixed steps of a voice turn. decide(): open the turn, understand it, the
  * question rules, a filler, the lookup inside the budget, the hit rules, serve. record(): pair the
  * answer with its turn, the save rules, a shared shape for a personal answer, the bounded write.
@@ -79,7 +94,8 @@ class TurnCore {
 
   // The cache's hit for a turn, within the latency budget, or a Verdict when the cache was too
   // slow or could not be reached (the model answers then).
-  async _lookup(turn, started) {
+  // Not async: the lookup's own promise is awaited by decide(), with no extra step between.
+  _lookup(turn, started) {
     const ask = () => this._host.agent.ask(turn.key, {
       serveAbove: this._host.serveAbove,
       cheapAbove: Math.min(0.6, this._host.serveAbove),

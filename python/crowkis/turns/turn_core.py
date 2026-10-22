@@ -11,6 +11,7 @@ from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD, _normalise
 from .cached_answer import CachedAnswer
 from .decision import TurnDecision, _Outcome
 from .model_answer import ModelAnswer
+from .turn_host import TurnHost
 from .verdict import Verdict
 from .voice_turn import VoiceTurn
 
@@ -23,10 +24,10 @@ class TurnCore:
     answer with its turn, the save rules, a shared shape for a personal answer, the bounded write.
 
     The steps' parts are injected (the rules, the classifier and rewriter, the turn pairing, the
-    lookup, the call as the rules see it); ``host`` is the session that owns the call's transcript,
+    lookup, the call as the rules see it); ``host`` (TurnHost) is the session that owns the call's transcript,
     fillers, audio, counters and the agent the answers are written through."""
 
-    def __init__(self, host: Any, *, rules: Any, call: Any, pairing: Any, cache_lookup: Any, classifier: Any,
+    def __init__(self, host: TurnHost, *, rules: Any, call: Any, pairing: Any, cache_lookup: Any, classifier: Any,
                  rewriter: Any) -> None:
         self._host = host
         self._rules = rules

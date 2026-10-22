@@ -595,10 +595,6 @@ class VoiceSession {
     return [[...chain, callerSaid].map((turn) => ({ role: "user", content: turn })), true];
   }
 
-
-
-
-
   /**
    * Whether the server judges what it caches, asked inside this call's budget:
    * a slow answer is a no for this turn, and is there for the next.
@@ -808,6 +804,7 @@ class VoiceSession {
       await this.agent.learn(...args);
       return null;
     }
+    // One more await than before the writer moved out (its own async step); nothing runs between.
     const verdict = await this._writer.write(() => this.agent.learn(...args), 2 * this.latencyBudgetMs);
     return verdict ? { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule } : null;
   }
@@ -831,6 +828,10 @@ class VoiceSession {
     if (setsContext(text)) this._tainted = true;
   }
 
+  _decide(callerSaid) {
+    return this._core.decide(callerSaid);
+  }
+
   // Record the model's answer to the turn decide() last handled, and cache it if
   // allowed. Only an answer written from decision.messages reaches this, so it is
   // shared exactly when decide() said it may be. `turn` is the decision's turn: an
@@ -845,10 +846,6 @@ class VoiceSession {
   // "refused" (the write failed), "slow_write" (a session with a latency budget stopped
   // waiting for the write: not confirmed) or "interrupted" (talked over, or the caller
   // moved on before it was complete).
-  _decide(callerSaid) {
-    return this._core.decide(callerSaid);
-  }
-
   async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
     return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
@@ -859,9 +856,6 @@ class VoiceSession {
     if (recorded.rule) this._ruleCounts.set(recorded.rule, (this._ruleCounts.get(recorded.rule) || 0) + 1);
     return recorded;
   }
-
-
-
 
   injections() {
     return this.transcript.slice();

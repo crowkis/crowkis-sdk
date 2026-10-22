@@ -73,6 +73,11 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   into `ChatCore` (Template Method beside the voice `TurnCore`, typed parts, a `ChatHost` interface the session
   implements), `CallSession` delegating. One core class for both channels needs Chat's steps generalised and is
   left to P5 (noted for the owner).
+  **Status:** steps (1) and (2) done in `ac43e2c` (golden identical, Python 704, Node 49/49). Next: step (3)
+  `ChatCore`: move `CallSession.handle` / `_record` (and `_understand`, `_lookup`) into
+  `turns/chat_core.py` / `src/turns/chatCore.js`, with a `ChatHost` Protocol (state, counts, fillers, mode,
+  hooks, emit, open/cancelled turns) the session implements through an adapter, like `SessionHost`. Then P3
+  reviews (code + privacy), real-server conformance, and mark P3 done.
 - **Owner decision (2026-10-22): option (b).** Chat keeps waiting for its writes, and only the lookup deadline
   moves to `CacheLookup`, so Chat's outcomes do not change. Chat's `BoundedWrite` (with the new `slow_write`
   outcome) is **deferred to P5 item 3**, as an opt-in behaviour change with failing-first tests.

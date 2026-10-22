@@ -5,6 +5,9 @@ const {
   AboutSomeone, IdentifyingDetails, LostDetail, NoQuestion, NotGeneral, StatedFacts, TaskStep, UncertainFrame, Ungrounded,
   UnresolvedReference, UrgentTurn,
 } = require("./question/index.js");
+const {
+  ActionClaim, AttributeNotInKey, ChatEmptyAnswer, ChatNonAnswer, ChatPromptDetails, IdentifyingAnswer, PrivateWord,
+} = require("./save/index.js");
 
 const V7 = "V7_LostOrDropped";
 const CHAINS = ["decisive", "frame", "question"];
@@ -20,6 +23,15 @@ class ChatRuleSet {
   constructor({ decisive, frame, question }) {
     Object.assign(this, { decisive, frame, question });
     Object.freeze(this);
+  }
+
+  /**
+   * Chat's save rules, in saveCheck's order: the first objection is why an answer to a shared
+   * question is not saved.
+   */
+  static saveChain() {
+    return new RuleChain([new ChatEmptyAnswer(), new ChatNonAnswer(), new IdentifyingAnswer(), new ActionClaim(),
+      new AttributeNotInKey(), new PrivateWord(), new ChatPromptDetails()]);
   }
 
   /** Chat's rules today, in today's order. */

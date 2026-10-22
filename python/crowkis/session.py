@@ -29,6 +29,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .callstate import IDENTITIES, CallState, word_digest
+from .rules.chat_rule_set import ChatRuleSet
+from .turns.chat_answer import ChatAnswer
+from .understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
 from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _is_non_answer as is_non_answer, _repeats_prompt_details, _tells_about_caller, _urgent, _words
 from .turn import NOT_GENERAL_TYPES, TurnFrame
 from .understand import ReplayUnderstander, Understander
@@ -110,8 +113,6 @@ Message = Dict[str, str]
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-call")
 _UNDERSTAND = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-understand")
 _TRIM = string.punctuation + string.whitespace
-_EMAIL = re.compile(r"\S+@\S+")
-_LONG_DIGITS = re.compile(r"\d(?:[\s-]?\d){5,}")
 # A reply to a private turn is kept between turns only to follow the conversation: names,
 # emails and numbers in it are masked first (any word with a capital, a digit, or a letter of a
 # script without case).
@@ -123,10 +124,6 @@ def _masked(reply: Any) -> str:
     return _REPLY_WORD.sub(lambda m: "_" if "@" in m.group() or any(
         unicodedata.category(c) in _MASKED for c in m.group()) else m.group(), str(reply or ""))
 # A first-person claim that something was done. A cached answer must never claim an action.
-_ACTION_CLAIM = re.compile(
-    r"\b(i\s*(have|'ve)|i\s+just|we\s*(have|'ve))\s+(cancel+ed|booked|refunded|processed|changed|updated|"
-    r"reset|sent|placed|scheduled|reserved|blocked|deleted|removed|added|issued)\b"
-    r"|\b(has|have)\s+been\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted)\b", re.I)
 
 
 @dataclass
@@ -212,6 +209,8 @@ class CallSession:
         self.mode = "full"
         self.set_mode(mode)
         self.state = CallState()
+        # Why an answer to a shared question is not saved: Chat's save rules (save_check).
+        self._save_rules = ChatRuleSet.save_chain()
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self._next = 1
@@ -422,32 +421,10 @@ class CallSession:
 
     def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None) -> Optional[str]:
         """Why an answer to a shared question must not be saved, or None."""
-        text = " ".join((answer or "").split())
-        if not text:
-            return "empty"
-        if is_non_answer(text):
-            return "non_answer"
-        if _EMAIL.search(text) or _LONG_DIGITS.search(text):
-            return "identifying"
-        if frame is not None and any(t.lower() in text.lower() for t in frame.identifying_texts):
-            return "identifying"
-        if _ACTION_CLAIM.search(text):
-            return "action_claim"
-        for name, attr in self.state.attributes.items():
-            pattern = r"\b" + re.escape(attr.value) + r"\b" if attr.value else None
-            # A value the question itself says ("the capital of France") is part of what was asked.
-            if name not in verdict.attributes and pattern and re.search(pattern, text, re.I) \
-                    and not re.search(pattern, verdict.question or "", re.I):
-                return "attribute_not_in_key"
-        # A word that identified the caller in a turn that was not shared ("Sarah", "55512")
-        # is never in a shared answer, unless the shared question itself has it.
-        asked = set(_words(verdict.question or ""))
-        if any(w not in asked and self.state.is_private(w) for w in _words(text)):
-            return "private_word"
-        if self.instructions and _repeats_prompt_details(text, verdict.question or "", self.instructions,
-                                                         self._prompt_key()):
-            return "prompt_detail"
-        return None
+        chat_answer = ChatAnswer(" ".join((answer or "").split()), verdict, frame, self.state,
+                                 instructions=self.instructions, prompt_key=self._prompt_key())
+        objection = self._save_rules.first_objection(chat_answer)
+        return None if objection is None else objection.reason
 
     def _prompt_key(self) -> tuple:
         """Which system prompts this call's is compared with: the same agent's on the same

@@ -1,0 +1,40 @@
+{
+ "rule": "PrivateWord",
+ "stage": "save",
+ "subject": "chat_answer",
+ "about": "v4: when Chat's save rule PrivateWord objects, on an answer to a shared question; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a word that named the user",
+   "answer": "Sarah, refunds take five days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {
+    "private_words": [
+     "d233633d9524e84c"
+    ]
+   },
+   "instructions": "",
+   "objects": true,
+   "counts": [],
+   "reason": "private_word"
+  },
+  {
+   "name": "no private word",
+   "answer": "Refunds take five business days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {
+    "private_words": [
+     "d233633d9524e84c"
+    ]
+   },
+   "instructions": "",
+   "objects": false
+  }
+ ]
+}

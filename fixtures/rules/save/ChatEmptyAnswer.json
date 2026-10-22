@@ -1,0 +1,32 @@
+{
+ "rule": "ChatEmptyAnswer",
+ "stage": "save",
+ "subject": "chat_answer",
+ "about": "v4: when Chat's save rule ChatEmptyAnswer objects, on an answer to a shared question; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "nothing said",
+   "answer": "",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {},
+   "instructions": "",
+   "objects": true,
+   "counts": [],
+   "reason": "empty"
+  },
+  {
+   "name": "an answer",
+   "answer": "Refunds take five business days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {},
+   "instructions": "",
+   "objects": false
+  }
+ ]
+}

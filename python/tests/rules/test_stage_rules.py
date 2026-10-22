@@ -9,7 +9,9 @@ from crowkis.rules import hit, question, save
 from crowkis.callstate import CallState
 from crowkis.turn import TurnFrame
 from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
+from crowkis.turns.chat_answer import ChatAnswer
 from crowkis.turns.chat_turn import ChatTurn
+from crowkis.verify import Verdict as ChatVerdict
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from fake_call import FakeCall
@@ -21,6 +23,11 @@ RULES = {name: getattr(stage, name) for stage in (question, hit, save) for name 
 
 
 def subject(case, call):
+    if case["subject"] == "chat_answer":
+        frame = TurnFrame.from_dict(case["frame"]) if "frame" in case else None
+        return ChatAnswer(" ".join(case["answer"].split()), ChatVerdict(True, "shared", [], **case["verdict"]), frame,
+                          CallState.from_dict(case["state"]), instructions=case["instructions"],
+                          prompt_key=(None, None, "chat"))
     if case["subject"] == "chat":
         return ChatTurn(TurnFrame.from_dict(case["frame"]), case["say"], CallState.from_dict(case["state"]))
     turn = VoiceTurn(case["say"], call, WordRuleClassifier().classify(case["say"].strip()))

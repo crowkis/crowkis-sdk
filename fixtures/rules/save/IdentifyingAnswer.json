@@ -1,0 +1,58 @@
+{
+ "rule": "IdentifyingAnswer",
+ "stage": "save",
+ "subject": "chat_answer",
+ "about": "v4: when Chat's save rule IdentifyingAnswer objects, on an answer to a shared question; run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "an email",
+   "answer": "Write to help@example.com for refunds.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {},
+   "instructions": "",
+   "objects": true,
+   "counts": [],
+   "reason": "identifying"
+  },
+  {
+   "name": "a detail the frame tagged",
+   "answer": "Asha, refunds take five days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {},
+   "instructions": "",
+   "objects": true,
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is your refund policy?",
+    "entities": [
+     {
+      "type": "person_name",
+      "text": "Asha",
+      "identifying": true
+     }
+    ]
+   },
+   "counts": [],
+   "reason": "identifying"
+  },
+  {
+   "name": "nothing identifying",
+   "answer": "Refunds take five business days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {},
+   "instructions": "",
+   "objects": false
+  }
+ ]
+}

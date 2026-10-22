@@ -6,6 +6,15 @@ from dataclasses import dataclass, fields, replace
 from typing import Sequence
 
 from .chain import RuleChain, UnknownRule, rule_names
+from .save import (
+    ActionClaim,
+    AttributeNotInKey,
+    ChatEmptyAnswer,
+    ChatNonAnswer,
+    ChatPromptDetails,
+    IdentifyingAnswer,
+    PrivateWord,
+)
 from .question import (
     AboutSomeone,
     IdentifyingDetails,
@@ -34,6 +43,13 @@ class ChatRuleSet:
     decisive: RuleChain
     frame: RuleChain
     question: RuleChain
+
+    @staticmethod
+    def save_chain() -> RuleChain:
+        """Chat's save rules, in save_check's order: the first objection is why an answer to a shared
+        question is not saved."""
+        return RuleChain([ChatEmptyAnswer(), ChatNonAnswer(), IdentifyingAnswer(), ActionClaim(), AttributeNotInKey(),
+                          PrivateWord(), ChatPromptDetails()])
 
     @classmethod
     def chat(cls, confidence_floor: float) -> "ChatRuleSet":

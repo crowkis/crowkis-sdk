@@ -9,6 +9,9 @@
 // except shared. Sits next to VoiceSession; existing users are unaffected.
 
 const { CallState, IDENTITIES, wordDigest } = require("./callstate.js");
+const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("./src/understanding/answerPatterns.js");
+const { ChatRuleSet } = require("./src/rules/chatRuleSet.js");
+const { ChatAnswer } = require("./src/turns/chatAnswer.js");
 const {
   _isNonAnswer: isNonAnswer, _tellsAboutCaller: tellsAboutCaller, _instructs: instructs, _urgent: urgent,
   _wordsOf: wordsOf, _properNouns: properNouns, _repeatsPromptDetails: repeatsPromptDetails,
@@ -97,8 +100,6 @@ function privateWords(t, frame = null) {
 }
 const MODES = ["full", "replay_only", "off"];
 const TIMEOUT = Symbol("timeout");
-const EMAIL = /\S+@\S+/;
-const LONG_DIGITS = /\d(?:[\s-]?\d){5,}/;
 // A reply to a private turn is kept between turns only to follow the conversation: names, emails
 // and numbers in it are masked first (any word with a capital, a digit, or a letter of a script
 // without case).
@@ -106,10 +107,6 @@ const REPLY_WORD = /\S+@\S+|[\p{L}\p{N}_]+/gu;
 const MASKED = /[\p{Lu}\p{Lt}\p{Lo}\p{N}]/u;
 const masked = (reply) => String(reply ?? "").replace(REPLY_WORD, (w) => (w.includes("@") || MASKED.test(w) ? "_" : w));
 // A first-person claim that something was done: a cached answer must never claim an action.
-const ACTION_CLAIM = new RegExp(
-  "\\b(i\\s*(have|'ve)|i\\s+just|we\\s*(have|'ve))\\s+(cancel+ed|booked|refunded|processed|changed|updated|" +
-  "reset|sent|placed|scheduled|reserved|blocked|deleted|removed|added|issued)\\b" +
-  "|\\b(has|have)\\s+been\\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted)\\b", "i");
 
 /** Resolve within `ms`, else TIMEOUT. The late promise keeps running and is ignored. */
 function within(promiseOrValue, ms) {
@@ -182,6 +179,8 @@ class CallSession {
     this.instructions = String(instructions || "").trim();
     this.setMode(mode);
     this.state = new CallState();
+    // Why an answer to a shared question is not saved: Chat's save rules (saveCheck).
+    this._saveRules = ChatRuleSet.saveChain();
     this._fillers = new Map(Object.entries(fillers || {}).map(([k, v]) => [norm(k), v]));
     this._shapes = new Map();
     this._nextId = 1;
@@ -368,27 +367,10 @@ class CallSession {
 
   /** Why an answer to a shared question must not be saved, or null. */
   saveCheck(answer, verdict, frame = null) {
-    const t = String(answer || "").split(/\s+/).filter(Boolean).join(" ");
-    if (!t) return "empty";
-    if (isNonAnswer(t)) return "non_answer";
-    if (EMAIL.test(t) || LONG_DIGITS.test(t)) return "identifying";
-    if (frame && frame.identifyingTexts.some((x) => t.toLowerCase().includes(x.toLowerCase()))) return "identifying";
-    if (ACTION_CLAIM.test(t)) return "action_claim";
-    for (const [name, attr] of Object.entries(this.state.attributes)) {
-      const pattern = attr.value ? new RegExp(`\\b${escapeRe(attr.value)}\\b`, "i") : null;
-      // A value the question itself says ("the capital of France") is part of what was asked.
-      if (!(name in verdict.attributes) && pattern && pattern.test(t) && !pattern.test(verdict.question || "")) {
-        return "attribute_not_in_key";
-      }
-    }
-    // A word that identified the caller in a turn that was not shared ("Sarah", "55512") is never
-    // in a shared answer, unless the shared question itself has it.
-    const asked = new Set(wordsOf(verdict.question || ""));
-    if (wordsOf(t).some((w) => !asked.has(w) && this.state.isPrivate(w))) return "private_word";
-    if (this.instructions && repeatsPromptDetails(t, verdict.question || "", this.instructions, this._promptKey())) {
-      return "prompt_detail";
-    }
-    return null;
+    const chatAnswer = new ChatAnswer(String(answer || "").split(/\s+/).filter(Boolean).join(" "), verdict, frame,
+      this.state, { instructions: this.instructions, promptKey: this._promptKey() });
+    const objection = this._saveRules.firstObjection(chatAnswer);
+    return objection ? objection.reason : null;
   }
 
   // Which system prompts this call's is compared with: the same agent's on the same channel

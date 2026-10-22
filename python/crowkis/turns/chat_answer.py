@@ -1,0 +1,23 @@
+"""ChatAnswer: the model's answer to a shared Chat question, as Chat's save rules read it."""
+
+from __future__ import annotations
+
+from typing import Any, Optional, Tuple
+
+from ..callstate import CallState
+from ..turn import TurnFrame
+
+
+class ChatAnswer:
+    """The answer (``text``: its words, spaces normalised), the shared question's verdict (its
+    question and the attributes in its key), the frame of the turn, the chat's state, and the
+    system prompt the model read with ``prompt_key`` naming whose prompts it is compared with."""
+
+    def __init__(self, text: str, verdict: Any, frame: Optional[TurnFrame], state: CallState, *,
+                 instructions: str, prompt_key: Tuple) -> None:
+        self.text = text
+        self.verdict = verdict
+        self.frame = frame
+        self.state = state
+        self.instructions = instructions
+        self.prompt_key = prompt_key

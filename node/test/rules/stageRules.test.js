@@ -13,7 +13,9 @@ const save = require("../../src/rules/save/index.js");
 const { CallState } = require("../../callstate.js");
 const { TurnFrame } = require("../../turn.js");
 const { CachedAnswer } = require("../../src/turns/cachedAnswer.js");
+const { ChatAnswer } = require("../../src/turns/chatAnswer.js");
 const { ChatTurn } = require("../../src/turns/chatTurn.js");
+const { Verdict: ChatVerdict } = require("../../verify.js");
 const { ModelAnswer } = require("../../src/turns/modelAnswer.js");
 const { VoiceTurn } = require("../../src/turns/voiceTurn.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
@@ -34,6 +36,12 @@ const RULE_ARG_NAMES = { confidence_floor: "confidenceFloor" };
 const ruleArgs = (args = {}) => Object.fromEntries(Object.entries(args).map(([name, value]) => [RULE_ARG_NAMES[name] || name, value]));
 
 function subject(testCase, call) {
+  if (testCase.subject === "chat_answer") {
+    const frame = testCase.frame ? TurnFrame.fromDict(testCase.frame) : null;
+    const verdict = new ChatVerdict(true, "shared", [], testCase.verdict.question, testCase.verdict.attributes);
+    return new ChatAnswer(testCase.answer.split(/\s+/).filter(Boolean).join(" "), verdict, frame,
+      CallState.fromDict(testCase.state), { instructions: testCase.instructions, promptKey: [null, null, "chat"] });
+  }
   if (testCase.subject === "chat") {
     return new ChatTurn(TurnFrame.fromDict(testCase.frame), testCase.say, CallState.fromDict(testCase.state));
   }
@@ -66,7 +74,7 @@ test("every rule has cases both ways", () => {
     const outcomes = new Set(CASES.filter((c) => c.rule === name).map((c) => c.objects));
     assert.deepStrictEqual([...outcomes].sort(), [false, true], name);
   }
-  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 35);
+  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 42);
 });
 
 test("the taint rule marks the call", async () => {

@@ -67,7 +67,7 @@ weekly allows) and 97% weekly (then stop, no timer; the owner restarts after 202
 usage before every step; small commits; golden identical; both suites green at every commit.
 
 Steps (each its own commit, both languages):
-1. Typed `Hit` (deferred from P2): `turns/hit.py` / `src/turns/hit.js` value object built once from the agent's
+1. [Python done; Node next] Typed `Hit` (deferred from P2): `turns/hit.py` / `src/turns/hit.js` value object built once from the agent's
    hit dict in the lookup; hit rules read its fields instead of `hit.get(...)`. No behaviour change.
 2. `Classifier` / `Rewriter` slots wired through: `VoiceSession(..., classifier=None, rewriter=None)` and
    `voice_session(...)` / `async_voice_session(...)` / Node `voiceSession(...)` pass them through (defaults:

@@ -602,7 +602,8 @@ class CrowkisClient:
         segment: Optional[str] = None,
     ) -> None:
         args: List[BytesLike] = ["CSET", query, response]
-        if ttl is not None:
+        # ttl=0 sends no EX, so the server's default lifetime applies; it refuses EX 0.
+        if ttl:
             args += ["EX", str(ttl)]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
@@ -1818,7 +1819,7 @@ class AsyncCrowkisClient(CrowkisClient):
 
     async def cset_async(self, query: BytesLike, response: BytesLike, **kwargs: Any) -> None:
         args: List[BytesLike] = ["CSET", query, response]
-        if kwargs.get("ttl") is not None:
+        if kwargs.get("ttl"):
             args += ["EX", str(kwargs["ttl"])]
         tenant = kwargs.get("tenant") or self.tenant
         model = kwargs.get("model") or self.model

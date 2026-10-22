@@ -378,7 +378,8 @@ class CrowkisClient {
 
   async cset(query, response, options = {}) {
     const args = ["CSET", query, response];
-    if (options.ttl !== undefined) args.push("EX", String(options.ttl));
+    // The server refuses EX 0; a ttl of 0 (or null) sends no EX, so its default lifetime applies.
+    if (options.ttl != null && Number(options.ttl) !== 0) args.push("EX", String(options.ttl));
     if (this._tenant(options)) args.push("TENANT", this._tenant(options));
     if (this._model(options)) args.push("MODEL", this._model(options));
     if (options.modelVersion || options.model_version) {

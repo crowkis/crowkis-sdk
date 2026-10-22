@@ -11,6 +11,7 @@ export interface CrowkisClientOptions {
 }
 
 export interface CacheSetOptions {
+  /** Seconds; 0 or none sends no EX, so the server applies its default lifetime. */
   ttl?: number;
   tenant?: string;
   model?: string;

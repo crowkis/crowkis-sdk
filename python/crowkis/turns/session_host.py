@@ -35,10 +35,6 @@ class SessionHost:
     def voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         return self._session._voiced(answer, cacheable=cacheable)
 
-    @property
-    def segment(self) -> Optional[str]:
-        return self._session._segment
-
     def learn(self, key: str, answer: str, *, ttl: Optional[int]) -> Any:
         return self._session._learn(key, answer, ttl=ttl)
 

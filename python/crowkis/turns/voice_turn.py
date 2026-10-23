@@ -3,22 +3,26 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
+from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .voice_call import VoiceCall
 
 
 class VoiceTurn:
     """What the caller said in one turn, the call it belongs to, and how it was understood:
     ``reading`` is the classifier's (personal, a follow-up) and ``rewritten`` the rewriter's
-    stand-alone question, or None to key the turn on the caller's words."""
+    stand-alone question, or None to key the turn on the caller's words. ``segment`` is where the
+    call's answers are looked up (None: no segment, as before)."""
 
-    def __init__(self, said: str, call: VoiceCall, reading: Any, rewritten: Optional[str] = None) -> None:
+    def __init__(self, said: str, call: VoiceCall, reading: Any, rewritten: Optional[str] = None, *,
+                 segment: Optional[str] = None) -> None:
         self.said = said
         self.text = (said or "").strip()
         self.call = call
         self.reading = reading
         self.rewritten = rewritten
+        self.segment = segment
 
     @cached_property
     def is_short(self) -> bool:
@@ -47,3 +51,16 @@ class VoiceTurn:
         if self.rewritten is not None:
             return self.rewritten
         return self.call.context_key(self.said, self.text)
+
+    @property
+    def lookup_options(self) -> Dict[str, Any]:
+        """What the lookup sends besides the key: a template lookup for a personal turn, the stricter
+        threshold for a follow-up or a short turn, and the segment only when there is one (with an
+        understander, kb=<version>): the default lookup is as it was."""
+        options: Dict[str, Any] = {
+            "template": self.is_personal,
+            "threshold": _CONTEXT_BOUND_THRESHOLD if self.is_context_dependent or self.is_short else None,
+        }
+        if self.segment:
+            options["segment"] = self.segment
+        return options

@@ -18,8 +18,14 @@ from ..runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
 from ..runtime.stats import Counter, CounterField, Stats
 from ..turns import SessionCall
 from ..turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
+from ..turns.answered import VoiceAnswered
 from ..turns.session_host import SessionHost
 from ..turns.turn_core import TurnCore
+from ..turns.voice_pairing import VoicePairing
+from ..turns.voice_reader import VoiceReader
+from ..turns.voice_report import VoiceReport
+from ..turns.voice_saving import VoiceSaving
+from ..understanding.rewrite_check import RewriteCheck
 from ..understanding.no_rewrite import NoRewrite
 from ..turns.channel import VOICE, Channel
 from ..keys import KnowledgeSegment
@@ -600,13 +606,23 @@ class VoiceSession:
         # Lookups run on the shared pool, inside the budget the call has when it looks up.
         self._cache_lookup = CacheLookup(_LOOKUPS)
         # The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
-        self._core = TurnCore(SessionHost(self), rules=self._rules, call=self._call, pairing=self._pairing,
-                              cache_lookup=self._cache_lookup, classifier=self._classifier, rewriter=self._rewriter,
-                              call_readings=self._call_readings, stats=self._stats)
+        self._core = self._build_core(self._rules)
         if values:
             self.set_values(**values)
         if fillers:
             self.register_fillers(fillers)
+
+    def _build_core(self, rules: RuleSet) -> TurnCore:
+        """The one TurnCore with a voice call's parts (this session is their composition root):
+        ``rules`` are the question, hit and save checks."""
+        host = SessionHost(self)
+        report = VoiceReport(host, self._stats)
+        reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter, rewrite_check=RewriteCheck(),
+                             call_readings=self._call_readings, call=self._call, segment=self._segment)
+        saving = VoiceSaving(host, rules=rules, call=self._call, call_readings=self._call_readings, report=report)
+        return TurnCore(host, pairing=VoicePairing(self._pairing, host), answers=report, reader=reader,
+                        question_check=rules, cache_lookup=self._cache_lookup, hit_check=rules, report=report,
+                        saving=saving)
 
     def set_values(self, **values: object) -> None:
         for name, value in values.items():
@@ -917,7 +933,7 @@ class VoiceSession:
         ``interrupted`` (talked over, or the caller moved on before it was complete). The returned string's
         ``why`` says it in words.
         """
-        outcome = self._core.record(caller_said, model_said, turn=turn, private=private, instructions=instructions)
+        outcome = self._core.record(VoiceAnswered(caller_said, model_said, turn, private, instructions))
         if outcome.rule is not None:
             self._stats.count_rule(outcome.rule)
         return outcome

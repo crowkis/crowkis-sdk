@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
-from typing import Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
+from ..turns.cached_answer import CachedAnswer
+from ..turns.checked import Checked
+from ..turns.hit import Hit
+from ..turns.voice_turn import VoiceTurn
 from .chain import FloorRuleLocked, RuleChain, UnknownRule, rule_names
 from .hit import (
     CommitmentRewording,
@@ -49,7 +53,10 @@ class RuleSet:
     Stage 1 (question) runs ``before_filler``, then ``filler`` (a registered filler answers the turn
     itself), then ``question``. Stage 2 (hit) runs ``hit`` on a hit. Stage 3 (save) runs ``answer_given``, then
     ``before_sharing`` once the turn is in the transcript, then ``personal`` for a personal
-    turn (whose answer may become a shared shape) or ``sharing`` for any other."""
+    turn (whose answer may become a shared shape) or ``sharing`` for any other.
+
+    The set is also TurnCore's question and hit check for a voice call (``check_question``,
+    ``check_hit``): those two stages are only its rules."""
 
     before_filler: RuleChain
     filler: RuleChain
@@ -86,6 +93,20 @@ class RuleSet:
         sharing = RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoicePrivateWord(),
                              VoiceActionClaim(), NonAnswer()])
         return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()), sharing=sharing)
+
+    def check_question(self, turn: VoiceTurn) -> Checked:
+        """Stage 1: the first objection of ``before_filler``, ``filler`` (a filler answers the turn
+        itself), then ``question``."""
+        for chain in (self.before_filler, self.filler, self.question):
+            verdict = chain.first_objection(turn)
+            if verdict is not None:
+                return Checked(turn, verdict)
+        return Checked(turn)
+
+    def check_hit(self, turn: VoiceTurn, hit: Dict[str, Any], started: float) -> Checked:
+        """Stage 2: the hit as the hit rules read it, and their first objection."""
+        cached = CachedAnswer(turn, Hit.from_agent(hit), started)
+        return Checked(cached, self.hit.first_objection(cached))
 
     def without(self, names: Sequence[str], *, unsafe: bool = False) -> "RuleSet":
         """These rules with the named ones turned off; a floor rule stays on unless ``unsafe``.

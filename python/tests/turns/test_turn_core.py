@@ -2,16 +2,13 @@
 import unittest
 
 from crowkis.rules import RuleSet
-from crowkis.turns.session_host import SessionHost
-from crowkis.turns.turn_core import TurnCore
+from crowkis.turns.answered import VoiceAnswered
 
 from test_voice_stress_bugs import Store, session_on
 
 
 def core_without(session, names):
-    return TurnCore(SessionHost(session), rules=RuleSet.voice().without(names), call=session._call,
-                    pairing=session._pairing, cache_lookup=session._cache_lookup, classifier=session._classifier,
-                    rewriter=session._rewriter, call_readings=session._call_readings, stats=session._stats)
+    return session._build_core(RuleSet.voice().without(names))
 
 
 class TurnCoreTests(unittest.TestCase):
@@ -26,8 +23,8 @@ class TurnCoreTests(unittest.TestCase):
         session = session_on(store)
         core = core_without(session, [])
         session._pairing.offer(session._pairing.begin(), True)
-        outcome = core.record("what is your refund policy", "Refunds take five days.", turn=None, private=False,
-                              instructions=None)
+        outcome = core.record(VoiceAnswered("what is your refund policy", "Refunds take five days.", turn=None,
+                                            private=False, instructions=None))
         self.assertEqual(outcome, "saved")
         self.assertEqual(store.writes, [("what is your refund policy", "Refunds take five days.", False)])
 

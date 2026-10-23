@@ -1,4 +1,4 @@
-"""TurnHost: what TurnCore uses of the session that hosts it."""
+"""TurnHost: what the voice parts of TurnCore use of the session that hosts them."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional, Protocol, Union
 class TurnHost(Protocol):
     """The call's own state and services, which stay with the session: its transcript, the agent
     lookups go through, its settings, the audio for a spoken answer and the writes of an answer.
-    TurnCore uses these and nothing else of the session (the session's counters are ``Stats``)."""
+    The voice parts (VoiceReport, VoiceSaving, VoicePairing) and TurnCore (as its CallSettings) use
+    these and nothing else of the session (the session's counters are ``Stats``)."""
 
     @property
     def transcript(self) -> List[Dict[str, Any]]:
@@ -29,11 +30,6 @@ class TurnHost(Protocol):
     @property
     def ttl(self) -> Optional[int]:
         """How long a saved answer lives."""
-
-    @property
-    def segment(self) -> Optional[str]:
-        """The segment the call's answers are looked up and saved in (``kb=<version>;channel=...`` with an
-        understander), or None (no segment, as before)."""
 
     def voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         """Audio for a spoken answer, when the session caches audio."""

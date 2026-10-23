@@ -1,0 +1,35 @@
+"use strict";
+
+const { isPersonal, leaks, numbersOf, properNouns, wordsOf } = require("./wordRules/index.js");
+
+/**
+ * Specification: a rewrite keys a turn only when that cannot make the call less private. The turn
+ * must be neither personal nor a follow-up, by its reading or the word rules (a follow-up keeps its
+ * chain as the key, so the key says what the model was shown); the rewrite must not read as personal,
+ * carry a declared value, or add a number or a name the caller did not say. Anything else keeps the
+ * caller's words.
+ */
+class RewriteCheck {
+  /** The rewrite to key the turn on, or null for the caller's words. */
+  accept(text, reading, rewritten, call) {
+    if (typeof rewritten !== "string" || !rewritten.trim()) return null;
+    if (reading.isPersonal || call.isPersonal(text)) return null;
+    if (reading.isContextDependent || call.isContextDependent(text)) return null;
+    if (isPersonal(rewritten) || leaks(rewritten, call.values) || RewriteCheck._addsDetails(text, rewritten)) return null;
+    return rewritten.trim();
+  }
+
+  static _addsDetails(text, rewritten) {
+    const saidNumbers = new Set(numbersOf(text));
+    if (numbersOf(rewritten).some((number) => !saidNumbers.has(number))) return true;
+    const saidWords = new Set(wordsOf(text).map(RewriteCheck._stem));
+    return [...properNouns(rewritten)].some((name) => !saidWords.has(RewriteCheck._stem(name)));
+  }
+
+  /** A word without case or a plural "s", so "Sunday" in a rewrite matches "sundays" said. */
+  static _stem(word) {
+    return word.toLowerCase().replace(/s+$/, "");
+  }
+}
+
+module.exports = { RewriteCheck };

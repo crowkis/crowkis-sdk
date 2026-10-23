@@ -535,12 +535,12 @@ class VoiceSession {
     // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
     this._classifier = classifier || new WordRuleClassifier();
     this._rewriter = rewriter || new NoRewrite();
-    // A plugged-in model gets a budget: late or failed, the word rules read the turn (counted).
-    this._understandingBudgeted = understandBudgetMs !== null && understandBudgetMs !== undefined &&
-      Boolean(classifier || rewriter);
+    // A plugged-in model runs inside its error boundary and budget (null: no deadline); late or
+    // failed, the word rules read the turn (counted).
+    this._understandingBudgeted = Boolean(classifier || rewriter);
     if (this._understandingBudgeted) {
       const understanding = new BudgetedUnderstanding(this._classifier, this._rewriter, {
-        budgetMs: understandBudgetMs, count: (counter) => this._stats.add(counter),
+        budgetMs: understandBudgetMs ?? null, count: (counter) => this._stats.add(counter),
       });
       this._classifier = understanding;
       this._rewriter = understanding;
@@ -613,7 +613,7 @@ class VoiceSession {
     ) {
       return [null, false];
     }
-    if (!isContextDependent(text)) {
+    if (!this._callReadings.isContextDependent(text)) {
       // "Twelve years old.": a turn that neither asks nor requests anything is an
       // answer about the caller, never stored on its own.
       if (!asks(text)) return [null, false];
@@ -993,7 +993,7 @@ class VoiceSession {
   }
 
   _contextKey(callerSaid, text) {
-    if (!isContextDependent(text)) return callerSaid;
+    if (!this._callReadings.isContextDependent(text)) return callerSaid;
     const chain = this._chain();
     if (chain === null) return null;
     return [...chain, callerSaid].join(" || ");

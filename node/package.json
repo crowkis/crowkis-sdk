@@ -162,6 +162,7 @@
     "src/understanding/llmRewriter.js",
     "src/understanding/noRewrite.js",
     "src/understanding/replayRewriter.js",
+    "src/understanding/rewriteCheck.js",
     "src/understanding/wordRuleClassifier.js",
     "src/understanding/wordRules/answers.js",
     "src/understanding/wordRules/callContext.js",

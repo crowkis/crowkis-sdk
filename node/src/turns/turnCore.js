@@ -8,6 +8,7 @@ const { Hit } = require("./hit.js");
 const { TurnDecision } = require("./decision.js");
 const { ModelAnswer } = require("./modelAnswer.js");
 const { VoiceTurn } = require("./voiceTurn.js");
+const { RewriteCheck } = require("../understanding/rewriteCheck.js");
 
 /** @typedef {{ isPersonal: boolean, isContextDependent: boolean }} Reading */
 
@@ -59,7 +60,8 @@ class TurnCore {
    * @param {TurnHost} host
    * @param {TurnCoreParts} parts
    */
-  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, callReadings, stats }) {
+  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, callReadings, stats,
+    rewriteCheck = new RewriteCheck() }) {
     this._host = host;
     this._stats = stats;
     this._rules = rules;
@@ -69,6 +71,7 @@ class TurnCore {
     this._classifier = classifier;
     this._rewriter = rewriter;
     this._callReadings = callReadings;
+    this._rewriteCheck = rewriteCheck;
   }
 
   async decide(callerSaid) {
@@ -81,6 +84,7 @@ class TurnCore {
     if (isThenable(reading)) reading = await reading;
     let rewritten = this._rewriter.rewrite(text, reading);
     if (isThenable(rewritten)) rewritten = await rewritten;
+    rewritten = this._rewriteCheck.accept(text, reading, rewritten, this._call);
     this._callReadings.note(text, reading, rewritten);
     const turn = new VoiceTurn(callerSaid, this._call, reading, rewritten);
     let verdict = this._rules.beforeFiller.firstObjection(turn);

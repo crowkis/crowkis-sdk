@@ -32,7 +32,7 @@ class VoiceTurn {
 
   /** Only means something next to the turn before it. */
   get isContextDependent() {
-    return this.reading.isContextDependent;
+    return this.reading.isContextDependent || this.call.isContextDependent(this.text);
   }
 
   /** The cache key: the rewritten question, else the caller's words or the chain a follow-up leans on; null without one. */

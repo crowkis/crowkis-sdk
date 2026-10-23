@@ -22,9 +22,10 @@ class BudgetedReading {
 
 /**
  * Decorator over a classifier and a rewriter that fills both slots: the model reads and rewrites a
- * turn inside `budgetMs`. This is the one place understanding fails open: a late or failed model
- * means the word rules read the turn and it keeps the caller's words, never "share anyway". Each such
- * turn is counted (understandTimeouts, understandErrors) and logged without its words.
+ * turn inside `budgetMs` (null: no deadline). This is the one place understanding fails open: a late
+ * or failed model means the word rules read the turn and it keeps the caller's words, never "share
+ * anyway". Each such turn is counted (understandTimeouts, understandErrors) and logged without its
+ * words. A late call holds no thread in Node, so unlike Python it needs no in-flight bound.
  */
 class BudgetedUnderstanding {
   constructor(classifier, rewriter, { budgetMs, count, warn = (message) => console.warn(message), fallback = null }) {
@@ -40,7 +41,8 @@ class BudgetedUnderstanding {
   async classify(text) {
     let understood;
     try {
-      understood = await within(this._budgetMs, this._understand(text));
+      const understanding = this._understand(text);
+      understood = this._budgetMs === null ? await understanding : await within(this._budgetMs, understanding);
     } catch (error) {
       return this._fallBack(text, COUNTER.UNDERSTAND_ERRORS, `failed (${(error && error.name) || typeof error})`);
     }

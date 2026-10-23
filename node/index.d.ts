@@ -547,8 +547,18 @@ export interface VoiceSessionOptions {
 
 export type ChannelName = "voice" | "chat" | "realtime";
 
-/** A channel's capability profile (its budgets and what it can do). */
-export interface Channel {
+/**
+ * A channel's capability profile (its budgets and what it can do). Today the rules read `spoken` and
+ * the factories the budgets; `isolatesContext`, `audio` and `savesAnswers` describe the channel for
+ * the merged core.
+ */
+export class Channel {
+  constructor(profile: {
+    name: string; isolatesContext: boolean; budgetMs: number; audio: boolean; spoken: boolean;
+    savesAnswers: boolean; understandBudgetMs?: number;
+  });
+  /** A channel, or the profile with that name. */
+  static of(channel: Channel | ChannelName): Channel;
   readonly name: string;
   readonly isolatesContext: boolean;
   readonly budgetMs: number;
@@ -557,6 +567,9 @@ export interface Channel {
   readonly spoken: boolean;
   readonly savesAnswers: boolean;
 }
+export const VOICE: Channel;
+export const CHAT: Channel;
+export const REALTIME: Channel;
 
 /** What a classifier says about one turn. */
 export interface Reading {

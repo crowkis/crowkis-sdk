@@ -42,4 +42,8 @@ export const {
   LLMClassifier,
   LLMRewriter,
   ReplayRewriter,
+  Channel,
+  VOICE,
+  CHAT,
+  REALTIME,
 } = crowkis;

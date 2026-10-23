@@ -47,6 +47,10 @@ class SessionCall {
     return this._session._callReadings.isPersonal(text);
   }
 
+  isContextDependent(text) {
+    return this._session._callReadings.isContextDependent(text);
+  }
+
   markTainted() {
     this._session._tainted = true;
   }

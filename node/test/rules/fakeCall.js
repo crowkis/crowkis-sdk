@@ -4,7 +4,7 @@
 // does (min_words, short_turns, ...); every check answers what the test set.
 
 const { CHAT, REALTIME, VOICE } = require("../../src/turns/channel.js");
-const { isPersonal } = require("../../src/understanding/wordRules/index.js");
+const { isContextDependent, isPersonal } = require("../../src/understanding/wordRules/index.js");
 
 const CHANNELS = { voice: VOICE, chat: CHAT, realtime: REALTIME };
 
@@ -30,6 +30,10 @@ class FakeCall {
 
   isPersonal(text) {
     return this.readPersonal.has(text.trim()) || isPersonal(text);
+  }
+
+  isContextDependent(text) {
+    return isContextDependent(text);
   }
 
   markTainted() {

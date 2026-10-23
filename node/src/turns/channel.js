@@ -3,7 +3,9 @@
 /**
  * What a channel is able to do, as the rules and the turn steps read it (plan §3.3). Rules read
  * these fields and never branch on the channel's name. Immutable. `understandBudgetMs`: how long a
- * plugged-in classifier and rewriter may take on a turn before the word rules read it instead.
+ * plugged-in classifier and rewriter may take on a turn before the word rules read it instead. Today
+ * the rules read `spoken` and the factories the budgets; `isolatesContext`, `audio` and `savesAnswers`
+ * describe the channel for the merged core (P5).
  */
 class Channel {
   constructor({ name, isolatesContext, budgetMs, audio, spoken, savesAnswers, understandBudgetMs = 250 }) {

@@ -1325,6 +1325,18 @@ module.exports = {
   get ReplayUnderstander() {
     return require("./understand.js").ReplayUnderstander;
   },
+  get Channel() {
+    return require("./src/turns/channel.js").Channel;
+  },
+  get VOICE() {
+    return require("./src/turns/channel.js").VOICE;
+  },
+  get CHAT() {
+    return require("./src/turns/channel.js").CHAT;
+  },
+  get REALTIME() {
+    return require("./src/turns/channel.js").REALTIME;
+  },
   get WithFallback() {
     return require("./understand.js").WithFallback;
   },

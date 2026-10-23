@@ -7,7 +7,6 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
-const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { VoiceSession } = require("../../voice.js");
 
 const BUDGET_MS = 50;
@@ -116,10 +115,13 @@ test("must still work: no model, no budget, no new counts", () => {
   assert.strictEqual("understandErrors" in stats, false);
 });
 
-test("must still work: no budget runs the model as it is", () => {
-  const session = sessionOn(new Store(), { rewriter: new Rewords() });
-  assert.ok(session._classifier instanceof WordRuleClassifier);
-  assert.strictEqual("understandTimeouts" in session.stats(), false);
+// Changed by the P4 review: a model without a budget used to run with no error boundary.
+test("no budget runs the model without a deadline inside its error boundary", async () => {
+  const store = new Store();
+  store.shared.set("what is the refund policy", "Refunds take five business days.");
+  const session = sessionOn(store, { rewriter: new Rewords() });
+  assert.strictEqual((await session.decide("can you tell me about your refund policy")).action, "serve");
+  assert.strictEqual(session.stats().understandErrors, 0);
 });
 
 test("the budget must be positive", () => {

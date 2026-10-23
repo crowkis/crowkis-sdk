@@ -2,6 +2,7 @@
 import unittest
 
 from crowkis import CrowkisClient, voice_session
+from crowkis.understanding.budgeted_understanding import BudgetedUnderstanding
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on
@@ -44,8 +45,11 @@ class SlotTests(unittest.TestCase):
     def test_the_factory_passes_them_through(self):
         classifier, rewriter = AlwaysPersonal(), Rewords()
         session = voice_session(client=CrowkisClient(port=1), classifier=classifier, rewriter=rewriter)
-        self.assertIs(session._classifier, classifier)
-        self.assertIs(session._rewriter, rewriter)
+        # The factory gives a plugged-in model the understanding budget (P4 step 4).
+        self.assertIsInstance(session._classifier, BudgetedUnderstanding)
+        self.assertIs(session._rewriter, session._classifier)
+        self.assertIs(session._classifier._classifier, classifier)
+        self.assertIs(session._classifier._rewriter, rewriter)
 
     def test_a_turn_the_classifier_reads_personal_is_never_shared(self):
         store = Store()

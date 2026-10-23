@@ -255,7 +255,7 @@ def check(case, scenario: dict, store, results: List[List[Heard]]) -> None:
 
 # The SDK's shared thread pools: made once, reused by every call, bounded.
 _POOLS = {"crowkis-voice_": 32, "crowkis-voice-write": 16, "crowkis-voice-server": 64, "crowkis-voice-model": 256, "crowkis-call": 16,
-          "crowkis-understand": 16}
+          "crowkis-understand": 16, "crowkis-voice-understand": 32}
 
 
 def stray_threads(before: set) -> list:

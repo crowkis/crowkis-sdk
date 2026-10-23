@@ -23,6 +23,8 @@ from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
 from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
+from .turns.channel import VOICE
+from .understanding.budgeted_understanding import BudgetedUnderstanding
 from .understanding.call_readings import CallReadings
 from .understanding.slots import Classifier, Rewriter
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -331,6 +333,8 @@ _CHAIN_LIMIT = 6
 _HEARD_MAX = 2048
 
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
+# A plugged-in classifier and rewriter run here, inside the understanding budget.
+_UNDERSTANDING = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice-understand")
 # A write a turn stopped waiting for (past twice the latency budget) finishes on these
 # workers. Daemon threads, so a write to a hung server never holds up the program's exit
 # (a cache write lost at exit costs a later hit). At most _WRITES_MAX wait at once: past
@@ -476,6 +480,8 @@ class VoiceSession:
     unspeakable = CounterField(Counter.UNSPEAKABLE)
     empty_answers = CounterField(Counter.EMPTY_ANSWERS)
     audio_unavailable = CounterField(Counter.AUDIO_UNAVAILABLE)
+    understand_timeouts = CounterField(Counter.UNDERSTAND_TIMEOUTS)
+    understand_errors = CounterField(Counter.UNDERSTAND_ERRORS)
 
     def __init__(
         self,
@@ -498,6 +504,7 @@ class VoiceSession:
         bytes_per_second: Optional[int] = None,
         classifier: Optional[Classifier] = None,
         rewriter: Optional[Rewriter] = None,
+        understand_budget_ms: Optional[float] = None,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -509,6 +516,8 @@ class VoiceSession:
             raise ValueError(
                 f"latency_budget_ms must be positive, got {latency_budget_ms}"
             )
+        if understand_budget_ms is not None and not understand_budget_ms > 0:
+            raise ValueError(f"understand_budget_ms must be positive, got {understand_budget_ms}")
         voice = (voice or "").strip()
         if not voice:
             raise ValueError(
@@ -574,6 +583,13 @@ class VoiceSession:
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
         self._classifier = classifier if classifier is not None else WordRuleClassifier()
         self._rewriter = rewriter if rewriter is not None else NoRewrite()
+        # A plugged-in model gets a budget: late or failed, the word rules read the turn (counted).
+        self._understanding_budgeted = understand_budget_ms is not None and (
+            classifier is not None or rewriter is not None)
+        if self._understanding_budgeted:
+            understanding = BudgetedUnderstanding(self._classifier, self._rewriter, budget_ms=understand_budget_ms,
+                                                  pool=_UNDERSTANDING, count=self._stats.add)
+            self._classifier = self._rewriter = understanding
         # Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
         self._call_readings = CallReadings()
         self._call = SessionCall(self)
@@ -963,6 +979,9 @@ class VoiceSession:
             "model_calls_avoided_pct": pct(self.served + self.filled),
             # How often each rule decided a turn or kept an answer, by the rule's name.
             "rules": self._stats.rule_counts(),
+            # Turns a plugged-in model was too slow for or failed on (the word rules read them).
+            **({"understand_timeouts": self.understand_timeouts, "understand_errors": self.understand_errors}
+               if self._understanding_budgeted else {}),
         }
 
     def _reportable(self) -> Dict[str, int]:
@@ -1112,6 +1131,7 @@ def voice_session(
     tenant: Optional[str] = None,
     timeout: Optional[float] = None,
     latency_budget_ms: Optional[float] = 250,
+    understand_budget_ms: Optional[float] = VOICE.understand_budget_ms,
     **options: Any,
 ) -> VoiceSession:
     """A ready VoiceSession in one call, with defaults for live calls.
@@ -1138,6 +1158,11 @@ def voice_session(
     ``client`` uses a client you built, as it is: its server settings and timeouts are
     yours, so passing ``host``/``port``/``auth_token``/``token``/``tenant``/``timeout`` with
     it is an error, and closing the agent leaves it open.
+
+    ``classifier`` / ``rewriter`` plug in a model that reads the turn (``LLMClassifier``,
+    ``LLMRewriter``, ``ReplayRewriter``). It gets ``understand_budget_ms`` (250) per turn; late
+    or failed, the word rules read the turn. The word rules apply either way, so a model can make
+    a call more private, never less. ``None`` turns the budget off.
     """
     if timeout is not None and not timeout > 0:
         raise ValueError(f"timeout must be a positive number of seconds, got {timeout}")
@@ -1167,6 +1192,7 @@ def voice_session(
         agent,
         voice=_TEXT_ONLY_VOICE if voice is None else voice,
         latency_budget_ms=latency_budget_ms,
+        understand_budget_ms=understand_budget_ms,
         **options,
     )
     session._text_only = voice is None

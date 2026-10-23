@@ -10,7 +10,8 @@ class Channel:
     """A capability profile. Rules read these fields and never branch on the channel's name.
 
     ``isolates_context``: the model can be given only the question. ``budget_ms``: the lookup budget
-    the factories use. ``audio``: answers have cached clips. ``spoken``: answers are read aloud, so
+    the factories use. ``understand_budget_ms``: how long a plugged-in classifier and rewriter may
+    take on a turn before the word rules read it instead. ``audio``: answers have cached clips. ``spoken``: answers are read aloud, so
     screen-only answers are refused. ``saves_answers``: the channel writes answers itself."""
 
     name: str
@@ -19,6 +20,7 @@ class Channel:
     audio: bool
     spoken: bool
     saves_answers: bool
+    understand_budget_ms: int = 250
 
 
 VOICE = Channel("voice", isolates_context=True, budget_ms=250, audio=True, spoken=True, saves_answers=True)

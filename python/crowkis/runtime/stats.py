@@ -28,6 +28,8 @@ class Counter(str, Enum):
     UNSPEAKABLE = "unspeakable"
     EMPTY_ANSWERS = "empty_answers"
     AUDIO_UNAVAILABLE = "audio_unavailable"
+    UNDERSTAND_TIMEOUTS = "understand_timeouts"
+    UNDERSTAND_ERRORS = "understand_errors"
 
 
 class Stats:

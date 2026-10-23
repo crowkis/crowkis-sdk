@@ -109,7 +109,7 @@ test("speak refuses a blank voice", async () => {
 });
 
 // T9's two cases Node did not have: a filler inside a longer sentence, and the hit split.
-const { voiceSession } = require("./voice.js");
+const { voiceSession } = require("./src/channels/voiceSession.js");
 const { ConformanceStore } = require("./conformance.js");
 const voice = (options) => voiceSession({
   client: new ConformanceStore({ seed: { "what is the return policy": "Returns are free for 30 days." } }), ...options,

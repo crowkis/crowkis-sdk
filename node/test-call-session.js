@@ -6,11 +6,11 @@
 
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { TurnFrame } = require("./turn.js");
-const { CallState } = require("./callstate.js");
-const { RuleChecker, SHARED, TASK, URGENT, PERSONAL, TOOLS, AGENT } = require("./verify.js");
-const { ReplayUnderstander, LLMUnderstander, WithFallback } = require("./understand.js");
-const { CallSession, FILLER } = require("./session.js");
+const { TurnFrame } = require("./src/understanding/turnFrame.js");
+const { CallState } = require("./src/state/callState.js");
+const { RuleChecker, SHARED, TASK, URGENT, PERSONAL, TOOLS, AGENT } = require("./src/rules/ruleChecker.js");
+const { ReplayUnderstander, LLMUnderstander, WithFallback } = require("./src/understanding/understanders.js");
+const { CallSession, FILLER } = require("./src/channels/callSession.js");
 const sdk = require("./index.js");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

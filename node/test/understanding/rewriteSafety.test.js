@@ -8,7 +8,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 class Store {
   constructor() {
@@ -154,7 +154,7 @@ test("a failing model without a budget never ends the call", async (t) => {
 test("no rewrite once the caller has told the call something", async () => {
   // The classifier reads the call's facts, so its rewrite could carry one into a shared key (P5 review).
   const { FrameReading } = require("../../src/understanding/frameReading.js");
-  const { TurnFrame } = require("../../turn.js");
+  const { TurnFrame } = require("../../src/understanding/turnFrame.js");
   const sureTheTripDoesNotMatter = { classify: () => new FrameReading(TurnFrame.fromDict({
     kind: "general", subject: "none", confidence: 0.9, question: "-",
     fact_relevance: [{ fact: "place: goa", type: "trip", changes_answer: false }],

@@ -3,7 +3,7 @@
 // The ToldDetailDropped rule (stage 1, question; Chat, "V7_lost_detail", checked once the rule checker would share).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { wordDigest } = require("../../../callstate.js");
+const { wordDigest } = require("../../state/callState.js");
 const { NUMWORDS } = require("../../understanding/frameWords.js");
 const { wordsOf } = require("../../understanding/wordRules/index.js");
 

@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "decision-rules.json"), "utf8"));
 

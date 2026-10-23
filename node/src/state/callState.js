@@ -5,7 +5,7 @@
 // at turn 40; the agent's own words ("that hotel") stay resolvable. No I/O.
 
 const crypto = require("node:crypto");
-const { Attribute } = require("./turn.js");
+const { Attribute } = require("../understanding/turnFrame.js");
 
 const TASKS = ["none", "searching", "booking", "ordering", "account_action"];
 const IDENTITIES = ["anonymous", "identified", "verified"];

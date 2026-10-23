@@ -10,7 +10,7 @@ const net = require("node:net");
 const crowkis = require("./index.js");
 const { CrowkisClient } = crowkis;
 const { Agent } = require("./agent.js");
-const { VoiceSession, voiceSession } = require("./voice.js");
+const { VoiceSession, voiceSession } = require("./src/channels/voiceSession.js");
 
 const NAMES = ["CROWKIS_HOST", "CROWKIS_PORT", "CROWKIS_AUTH_TOKEN", "CROWKIS_TOKEN", "CROWKIS_TENANT", "CROWKIS_URL"];
 
@@ -99,7 +99,7 @@ test("the factory accepts exactly the options VoiceSession declares", () => {
   const dts = fs.readFileSync(require.resolve("./index.d.ts"), "utf8");
   const body = dts.slice(dts.indexOf("export interface VoiceSessionOptions {"));
   const declared = [...body.slice(0, body.indexOf("\n}")).matchAll(/^  (\w+)\??:/gm)].map((m) => m[1]);
-  const { _SESSION_OPTIONS } = require("./voice.js");
+  const { _SESSION_OPTIONS } = require("./src/channels/voiceSession.js");
   assert.deepStrictEqual(
     declared.filter((name) => !["voice", "latencyBudgetMs"].includes(name)).sort(),
     [..._SESSION_OPTIONS].sort()

@@ -5,8 +5,8 @@
 // returns; a model that drops a fact, or fails, must keep the turn private.
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { Chat, ChatConflict, MemoryStore } = require("./chat.js");
-const { TurnFrame } = require("./turn.js");
+const { Chat, ChatConflict, MemoryStore } = require("./src/channels/chat.js");
+const { TurnFrame } = require("./src/understanding/turnFrame.js");
 
 const GENERAL = { kind: "general", subject: "none", confidence: 0.9 };
 
@@ -237,7 +237,7 @@ test("a language is only ever a language tag; a segment value cannot add a field
     assert.strictEqual(TurnFrame.fromDict({ language: raw }).language, null, raw);
   }
   assert.strictEqual(TurnFrame.fromDict({ language: "pt-BR" }).language, "pt-br");
-  const { RuleChecker } = require("./verify.js");
+  const { RuleChecker } = require("./src/rules/ruleChecker.js");
   assert.strictEqual(new RuleChecker().buildSegment({ region: "goa;told=1", segment: "a=b" }, "hi"),
     "kb=1;lang=hi;region=goa_told_1;segment=a_b;channel=chat");
 });
@@ -348,7 +348,7 @@ test("a thread memory stays small whatever is said or restored", async () => {
   const chat = new Chat(new SegmentedAgent(), scripted({}), { store });
   for (let n = 0; n < 3; n++) await chat.turn("t", [{ role: "user", content: huge }], model("x ".repeat(50000)));
   assert.ok(JSON.stringify(store.load("t")[0]).length < 40000);
-  const { CallState } = require("./callstate.js");
+  const { CallState } = require("./src/state/callState.js");
   const restored = CallState.fromDict({ stated: Array(50).fill(huge), last_reply: huge, active_question: huge });
   assert.ok(JSON.stringify(restored.toDict()).length < 40000);
 });
@@ -415,7 +415,7 @@ test("only a region the question says word for word leaves the key", async () =>
 });
 
 test("memory counts characters and digits the same in every SDK", async () => {
-  const { CallState } = require("./callstate.js");
+  const { CallState } = require("./src/state/callState.js");
   assert.strictEqual(Array.from(CallState.fromDict({ last_reply: "\u{1F600}".repeat(1500) }).lastReply).length, 1000);
   const said = "I have a \u0967\u0968 year old son.";
   const store = new MemoryStore();
@@ -613,7 +613,7 @@ test("a resolved follow-up keeps its filler word", async () => {
 });
 
 test("a reply that cannot determine is a non-answer", async () => {
-  const { _isNonAnswer } = require("./voice.js");
+  const { _isNonAnswer } = require("./src/channels/voiceSession.js");
   // A hedged real answer is an answer.
   assert.strictEqual(_isNonAnswer("I can't determine the exact date, but historians place it around 1200 BC."), false);
   for (const text of ["I cannot determine your location, but you can check Google Maps.",

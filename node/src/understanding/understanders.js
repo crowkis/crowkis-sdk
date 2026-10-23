@@ -4,7 +4,7 @@
 // Mirrors crowkis/understand.py. Anything with `understand(turn, state)` (sync or async)
 // plugs in; the rule checker still decides what is shared, so a weak model costs hits, never privacy.
 
-const { TurnFrame } = require("./turn.js");
+const { TurnFrame } = require("./turnFrame.js");
 
 function uncertain() {
   return TurnFrame.fromDict({ kind: "unclear", confidence: 0, abstain: true });

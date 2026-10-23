@@ -1,6 +1,6 @@
 "use strict";
 
-const { ReplayUnderstander } = require("../../understand.js");
+const { ReplayUnderstander } = require("./understanders.js");
 const { FrameReading } = require("./frameReading.js");
 
 /**

@@ -11,7 +11,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { Agent, _ttsKey } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 const ANSWER = "Here is the answer.";
 const PCM = Buffer.from("pcm-audio");

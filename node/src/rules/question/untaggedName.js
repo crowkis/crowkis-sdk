@@ -3,8 +3,8 @@
 // The UntaggedName rule (stage 1, question; Chat, "V5_untagged_name", checked once the rule checker would share).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { wordDigest } = require("../../../callstate.js");
-const { NOT_GENERAL_TYPES } = require("../../../turn.js");
+const { wordDigest } = require("../../state/callState.js");
+const { NOT_GENERAL_TYPES } = require("../../understanding/turnFrame.js");
 const { CALENDAR, COMMON_ACRONYMS, FUNCTION } = require("../../understanding/frameWords.js");
 const { wordsOf } = require("../../understanding/wordRules/index.js");
 

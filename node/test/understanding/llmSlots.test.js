@@ -8,10 +8,10 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter } = require("../../index.js");
-const { TurnFrame } = require("../../turn.js");
+const { TurnFrame } = require("../../src/understanding/turnFrame.js");
 const { FrameReading } = require("../../src/understanding/frameReading.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 const GENERAL = { kind: "general", subject: "none", confidence: 0.95, question: "What is the refund policy?" };
 

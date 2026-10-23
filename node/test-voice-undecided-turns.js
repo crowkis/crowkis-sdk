@@ -8,7 +8,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 class FakeClient {
   constructor(shared = {}) {

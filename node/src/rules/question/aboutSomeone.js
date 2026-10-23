@@ -3,7 +3,7 @@
 // The AboutSomeone rule (stage 1, question; Chat, V4).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { NOT_GENERAL_TYPES } = require("../../../turn.js");
+const { NOT_GENERAL_TYPES } = require("../../understanding/turnFrame.js");
 
 /** An owned record, an own purchase or another person in the frame contradicts "general". */
 class AboutSomeone {

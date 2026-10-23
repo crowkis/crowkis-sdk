@@ -11,8 +11,8 @@
 // saved for every user. Anything personal, urgent, part of a booking or unclear is answered
 // with the whole chat and never cached. Per thread only a small memory is kept in `store`.
 
-const { CallSession, _masked: masked } = require("./session.js");
-const { RuleChecker } = require("./verify.js");
+const { CallSession, _masked: masked } = require("./callSession.js");
+const { RuleChecker } = require("../rules/ruleChecker.js");
 
 class ChatConflict extends Error {
   constructor(message) {

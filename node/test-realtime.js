@@ -10,8 +10,8 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
-const { RealtimeAdapter, RealtimeGate } = require("./realtime.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
+const { RealtimeAdapter, RealtimeGate } = require("./src/channels/realtime.js");
 
 const TRANSCRIPT_EVENT = "provider.transcript.done";
 const INJECT_EVENT = "provider.item.add";

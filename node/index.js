@@ -1273,59 +1273,59 @@ module.exports = {
     return require("./agent.js").Agent;
   },
   get VoiceSession() {
-    return require("./voice.js").VoiceSession;
+    return require("./src/channels/voiceSession.js").VoiceSession;
   },
   get TurnDecision() {
-    return require("./voice.js").TurnDecision;
+    return require("./src/channels/voiceSession.js").TurnDecision;
   },
   get VoiceResponse() {
-    return require("./voice.js").VoiceResponse;
+    return require("./src/channels/voiceSession.js").VoiceResponse;
   },
   get voiceSession() {
-    return require("./voice.js").voiceSession;
+    return require("./src/channels/voiceSession.js").voiceSession;
   },
   get warmFromCalls() {
-    return require("./voice.js").warmFromCalls;
+    return require("./src/channels/voiceSession.js").warmFromCalls;
   },
   get RealtimeAdapter() {
-    return require("./realtime.js").RealtimeAdapter;
+    return require("./src/channels/realtime.js").RealtimeAdapter;
   },
   get RealtimeGate() {
-    return require("./realtime.js").RealtimeGate;
+    return require("./src/channels/realtime.js").RealtimeGate;
   },
   // Turn understanding: understand once, check with fixed rules, route by contract.
   get Chat() {
-    return require("./chat.js").Chat;
+    return require("./src/channels/chat.js").Chat;
   },
   get ChatConflict() {
-    return require("./chat.js").ChatConflict;
+    return require("./src/channels/chat.js").ChatConflict;
   },
   get MemoryStore() {
-    return require("./chat.js").MemoryStore;
+    return require("./src/channels/chat.js").MemoryStore;
   },
   get CallSession() {
-    return require("./session.js").CallSession;
+    return require("./src/channels/callSession.js").CallSession;
   },
   get TurnResult() {
-    return require("./session.js").TurnResult;
+    return require("./src/channels/callSession.js").TurnResult;
   },
   get CallState() {
-    return require("./callstate.js").CallState;
+    return require("./src/state/callState.js").CallState;
   },
   get TurnFrame() {
-    return require("./turn.js").TurnFrame;
+    return require("./src/understanding/turnFrame.js").TurnFrame;
   },
   get RuleChecker() {
-    return require("./verify.js").RuleChecker;
+    return require("./src/rules/ruleChecker.js").RuleChecker;
   },
   get Verdict() {
-    return require("./verify.js").Verdict;
+    return require("./src/rules/ruleChecker.js").Verdict;
   },
   get LLMUnderstander() {
-    return require("./understand.js").LLMUnderstander;
+    return require("./src/understanding/understanders.js").LLMUnderstander;
   },
   get ReplayUnderstander() {
-    return require("./understand.js").ReplayUnderstander;
+    return require("./src/understanding/understanders.js").ReplayUnderstander;
   },
   get Channel() {
     return require("./src/turns/channel.js").Channel;
@@ -1340,7 +1340,7 @@ module.exports = {
     return require("./src/turns/channel.js").REALTIME;
   },
   get WithFallback() {
-    return require("./understand.js").WithFallback;
+    return require("./src/understanding/understanders.js").WithFallback;
   },
   get LLMClassifier() {
     return require("./src/understanding/llmClassifier.js").LLMClassifier;

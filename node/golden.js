@@ -8,9 +8,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { Agent } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
-const { CallSession } = require("./session.js");
-const { TurnFrame } = require("./turn.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
+const { CallSession } = require("./src/channels/callSession.js");
+const { TurnFrame } = require("./src/understanding/turnFrame.js");
 
 const GOLDEN = path.join(__dirname, "..", "fixtures", "golden");
 const INPUTS = JSON.parse(fs.readFileSync(path.join(GOLDEN, "inputs.json"), "utf8"));

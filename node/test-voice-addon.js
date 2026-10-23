@@ -5,7 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { Agent, waitForAudioStores } = require("./agent.js");
-const { VoiceSession } = require("./voice.js");
+const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 const ADDON_MISSING = "ENTERPRISE Voice is an add-on to Crowkis Enterprise. Get a licence key that includes it";
 

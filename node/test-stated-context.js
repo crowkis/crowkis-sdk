@@ -7,7 +7,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession, warmFromCalls, _setsContext, _isNonAnswer } = require("./voice.js");
+const { VoiceSession, warmFromCalls, _setsContext, _isNonAnswer } = require("./src/channels/voiceSession.js");
 
 class FakeClient {
   constructor() {

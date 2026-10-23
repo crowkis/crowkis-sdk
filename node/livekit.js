@@ -29,8 +29,8 @@
 //
 // Needs @livekit/agents 1.x.
 
-const { voiceSession, _words: wordsOf } = require("./voice.js");
-const { AudioClips } = require("./voiceTurns.js");
+const { voiceSession, _words: wordsOf } = require("./src/channels/voiceSession.js");
+const { AudioClips } = require("./src/integrations/voiceTurns.js");
 
 const RUNNING_PLACEHOLDER_KEY = "__lk_running_placeholder__";
 const FRAME_MS = 20;

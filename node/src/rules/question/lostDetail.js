@@ -3,7 +3,7 @@
 // The LostDetail rule (stage 1, question; Chat, V7).
 
 const { Verdict } = require("../../turns/verdict.js");
-const { DETAIL_TYPES } = require("../../../turn.js");
+const { DETAIL_TYPES } = require("../../understanding/turnFrame.js");
 const { FUNCTION, stem, toks } = require("../../understanding/frameWords.js");
 
 /** An answer-relevant detail of the turn (a product, a time, a place) missing from the key. */

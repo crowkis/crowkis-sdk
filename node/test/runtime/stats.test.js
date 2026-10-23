@@ -5,7 +5,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 const { COUNTER, Stats } = require("../../src/runtime/stats.js");
 
 test("counters start at zero and add", () => {

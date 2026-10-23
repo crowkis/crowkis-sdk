@@ -8,8 +8,8 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Agent } = require("./agent.js");
-const { VoiceSession, _promptDetails, _repeatsPromptDetails, _resetPromptBaselines } = require("./voice.js");
-const { AudioClips, AnswerPairing } = require("./voiceTurns.js");
+const { VoiceSession, _promptDetails, _repeatsPromptDetails, _resetPromptBaselines } = require("./src/channels/voiceSession.js");
+const { AudioClips, AnswerPairing } = require("./src/integrations/voiceTurns.js");
 
 const CASES = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "prompt-guard-cases.json"), "utf8"));
 const PROMPT = CASES.prompt;

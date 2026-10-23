@@ -8,12 +8,12 @@
 // personal (agent + tools; shapes only phrase verified values) | tools | agent. Never cached
 // except shared. Sits next to VoiceSession; existing users are unaffected.
 
-const { CallState, IDENTITIES } = require("./callstate.js");
-const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("./src/understanding/answerPatterns.js");
-const { ChatRuleSet } = require("./src/rules/chatRuleSet.js");
-const { ChatCore } = require("./src/turns/chatCore.js");
-const { TurnResult } = require("./src/turns/turnResult.js");
-const { FILLER } = require("./src/turns/routes.js");
+const { CallState, IDENTITIES } = require("../state/callState.js");
+const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../understanding/answerPatterns.js");
+const { ChatRuleSet } = require("../rules/chatRuleSet.js");
+const { ChatCore } = require("../turns/chatCore.js");
+const { TurnResult } = require("../turns/turnResult.js");
+const { FILLER } = require("../turns/routes.js");
 const {
   NAME_LEADS,
   SELF_INTRO,
@@ -27,26 +27,26 @@ const {
   MASKED,
   masked,
   norm,
-} = require("./src/understanding/chatDetails.js");
-const { CacheLookup } = require("./src/runtime/cacheLookup.js");
-const { QuestionRecords } = require("./src/runtime/questionRecords.js");
-const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
+} = require("../understanding/chatDetails.js");
+const { CacheLookup } = require("../runtime/cacheLookup.js");
+const { QuestionRecords } = require("../runtime/questionRecords.js");
+const { BoundedWriter } = require("../runtime/boundedWriter.js");
 // BoundedWriter's counters, under Chat's names.
 const WRITE_COUNTS = { slowWrites: "slow_writes", learnErrors: "learn_errors" };
-const { CHAT } = require("./src/turns/channel.js");
+const { CHAT } = require("../turns/channel.js");
 // Chat's counter for each way a lookup fails open.
 const LOOKUP_COUNTS = { LookupDeadline: "lookup_timeouts", CacheUnavailable: "lookup_errors" };
-const { ChatAnswer } = require("./src/turns/chatAnswer.js");
-const { ChatTurn } = require("./src/turns/chatTurn.js");
-const { UrgentWords } = require("./src/rules/question/index.js");
-const { CALENDAR } = require("./src/understanding/frameWords.js");
+const { ChatAnswer } = require("../turns/chatAnswer.js");
+const { ChatTurn } = require("../turns/chatTurn.js");
+const { UrgentWords } = require("../rules/question/index.js");
+const { CALENDAR } = require("../understanding/frameWords.js");
 const {
   _tellsAboutCaller: tellsAboutCaller, _instructs: instructs,
   _wordsOf: wordsOf, _properNouns: properNouns,
   _trackRecord: trackRecord, _pendingWrites: pendingWrites, _writesMax: writesMax,
-} = require("./voice.js");
-const { TurnFrame } = require("./turn.js");
-const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
+} = require("./voiceSession.js");
+const { TurnFrame } = require("../understanding/turnFrame.js");
+const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("../rules/ruleChecker.js");
 
 const MODES = ["full", "replay_only", "off"];
 class CallSession {

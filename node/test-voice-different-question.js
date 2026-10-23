@@ -3,7 +3,7 @@
 // Mirrors python/tests/test_voice_different_question.py.
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
-const { voiceSession, _differentSpecifics: differentSpecifics, _waitForWrites: waitForWrites } = require("./voice.js");
+const { voiceSession, _differentSpecifics: differentSpecifics, _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
 const { waitForAudioStores } = require("./agent.js");
 const { ConformanceStore } = require("./conformance.js");
 

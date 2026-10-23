@@ -10,7 +10,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession, VoiceResponse } = require("./voice.js");
+const { VoiceSession, VoiceResponse } = require("./src/channels/voiceSession.js");
 const crowkis = require("./index.js");
 
 const ANSWER = "Here is the answer.";
@@ -273,7 +273,7 @@ test("talked over before the first read: the model is never called, and it is no
 });
 
 test("works when decide() is overridden", async () => {
-  const { TurnDecision } = require("./voice.js");
+  const { TurnDecision } = require("./src/channels/voiceSession.js");
   class Custom extends VoiceSession {
     async decide(said) {
       const original = await super.decide(said);

@@ -5,10 +5,10 @@
 // (test-voice-prompt-guard.js). Mirrors python/tests/test_chat_prompt_guard.py.
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
-const { Chat } = require("./chat.js");
-const { CallSession } = require("./session.js");
-const { TurnFrame } = require("./turn.js");
-const { _resetPromptBaselines } = require("./voice.js");
+const { Chat } = require("./src/channels/chat.js");
+const { CallSession } = require("./src/channels/callSession.js");
+const { TurnFrame } = require("./src/understanding/turnFrame.js");
+const { _resetPromptBaselines } = require("./src/channels/voiceSession.js");
 
 beforeEach(() => _resetPromptBaselines()); // no other test's prompts remembered
 

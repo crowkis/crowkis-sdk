@@ -8,8 +8,8 @@
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
 const { Agent, waitForAudioStores } = require("./agent.js");
-const { VoiceSession, voiceSession, _waitForWrites, _setWritesMax } = require("./voice.js");
-const { AudioClips } = require("./voiceTurns.js");
+const { VoiceSession, voiceSession, _waitForWrites, _setWritesMax } = require("./src/channels/voiceSession.js");
+const { AudioClips } = require("./src/integrations/voiceTurns.js");
 
 const QUESTION = "what is your refund policy";
 const ANSWER = "Refunds take five business days.";

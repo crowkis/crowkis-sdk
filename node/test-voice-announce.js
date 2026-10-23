@@ -5,7 +5,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CrowkisClient } = require("./index.js");
-const { voiceSession, _waitForWrites: waitForWrites } = require("./voice.js");
+const { voiceSession, _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
 const { waitForAudioStores } = require("./agent.js");
 
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";

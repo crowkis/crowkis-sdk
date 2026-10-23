@@ -24,8 +24,8 @@
 //                 queueContext, callerMovedOn, responseStart / responseText /
 //                 responseEnd, toolCall, toolsDone, toolResult, interrupted.
 
-const { _ttsKey: ttsKey, _storeLater: storeLater } = require("./agent.js");
-const { _words: wordsOf } = require("./voice.js");
+const { _ttsKey: ttsKey, _storeLater: storeLater } = require("../../agent.js");
+const { _words: wordsOf } = require("../channels/voiceSession.js");
 
 // Same tool name and key rule as Agent.speak().
 const TTS_TOOL = "crowkis.tts";

@@ -6,11 +6,11 @@
 
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { CallSession } = require("../../session.js");
-const { TurnFrame } = require("../../turn.js");
-const { SHARED } = require("../../verify.js");
+const { CallSession } = require("../../src/channels/callSession.js");
+const { TurnFrame } = require("../../src/understanding/turnFrame.js");
+const { SHARED } = require("../../src/rules/ruleChecker.js");
 const { questionKey } = require("../../src/runtime/questionRecords.js");
-const { _waitForWrites: waitForWrites } = require("../../voice.js");
+const { _waitForWrites: waitForWrites } = require("../../src/channels/voiceSession.js");
 
 const QUESTION = "What are your opening hours on Sunday?";
 

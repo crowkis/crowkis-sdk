@@ -14,7 +14,7 @@ try {
   lk = null;
 }
 const { Agent: CrowkisAgent } = require("./agent.js");
-const { VoiceSession, voiceSession } = require("./voice.js");
+const { VoiceSession, voiceSession } = require("./src/channels/voiceSession.js");
 
 const QUESTION = "what is your refund policy";
 const ANSWER = "Refunds take five business days.";

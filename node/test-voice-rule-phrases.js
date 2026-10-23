@@ -7,7 +7,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
-const { _isPersonal: isPersonal, _isContextDependent: isContextDependent } = require("./voice.js");
+const { _isPersonal: isPersonal, _isContextDependent: isContextDependent } = require("./src/channels/voiceSession.js");
 
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "voice-rule-phrases.json"), "utf8"));
 

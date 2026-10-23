@@ -11,16 +11,16 @@
 //   V5 identifying details in the key  V10 a follow-up whose key still says "it"/"that" and names nothing
 
 const zlib = require("node:zlib");
-const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("./turn.js");
+const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("../understanding/turnFrame.js");
 
 // Facts that tailor an answer to the caller: what they have, how old, where and when.
 // Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from fixed
 // code; a place or time in an earlier shared question is only its topic ("France").
 const TOLD_TYPES = new Set(["condition"]);
 
-const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("./src/turns/routes.js");
-const { ChatRuleSet } = require("./src/rules/chatRuleSet.js");
-const { ChatTurn } = require("./src/turns/chatTurn.js");
+const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/routes.js");
+const { ChatRuleSet } = require("./chatRuleSet.js");
+const { ChatTurn } = require("../turns/chatTurn.js");
 const {
   FUNCTION,
   NUMWORDS,
@@ -32,7 +32,7 @@ const {
   CLAUSE_START,
   GENERIC_FACT,
   looksIdentifying,
-} = require("./src/understanding/frameWords.js");
+} = require("../understanding/frameWords.js");
 
 // Expiry per question type, in seconds. null = until the knowledge version changes.
 const DEFAULT_TTL = { policy: null, how_to: null, product_fact: 24 * 3600, place_fact: 6 * 3600, search: 3600, other: 3600 };

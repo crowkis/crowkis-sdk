@@ -12,9 +12,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { CrowkisClient, LLMClassifier, LLMRewriter, LLMUnderstander } = require("./index.js");
-const { voiceSession } = require("./voice.js");
+const { voiceSession } = require("./src/channels/voiceSession.js");
 const { waitForAudioStores } = require("./agent.js");
-const { _waitForWrites: waitForWrites } = require("./voice.js");
+const { _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
 
 const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "adapter-conformance.json"), "utf8"));
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";

@@ -10,7 +10,7 @@ const { Agent } = require("../../agent.js");
 const { KnowledgeSegment } = require("../../src/keys/knowledgeSegment.js");
 const { REALTIME, VOICE } = require("../../src/turns/channel.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 // A cache whose answers live per segment; it records what each call sent.
 class SegmentedStore {

@@ -1,6 +1,6 @@
 "use strict";
 
-const { CallState } = require("../../callstate.js");
+const { CallState } = require("../state/callState.js");
 const { FrameReading } = require("./frameReading.js");
 
 /**

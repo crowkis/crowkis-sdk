@@ -9,7 +9,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("./agent.js");
-const { VoiceSession, _isPersonal, _isContextDependent } = require("./voice.js");
+const { VoiceSession, _isPersonal, _isContextDependent } = require("./src/channels/voiceSession.js");
 
 const ANSWER = "Here is the answer.";
 

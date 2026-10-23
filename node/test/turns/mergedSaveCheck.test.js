@@ -7,10 +7,10 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
-const { CallSession } = require("../../session.js");
-const { TurnFrame } = require("../../turn.js");
+const { CallSession } = require("../../src/channels/callSession.js");
+const { TurnFrame } = require("../../src/understanding/turnFrame.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 const QUESTION = "What is your refund policy?";
 

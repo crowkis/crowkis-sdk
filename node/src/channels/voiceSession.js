@@ -1,24 +1,24 @@
 "use strict";
 
-const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
-const { CrowkisClient } = require("./index.js");
-const { RuleSet } = require("./src/rules/ruleSet.js");
-const { SessionCall } = require("./src/turns/sessionCall.js");
-const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
-const { CacheLookup } = require("./src/runtime/cacheLookup.js");
-const { TurnPairing } = require("./src/runtime/turnPairing.js");
-const { TurnDecision } = require("./src/turns/decision.js");
-const { TurnCore } = require("./src/turns/turnCore.js");
-const { SessionHost } = require("./src/turns/sessionHost.js");
-const { Stats } = require("./src/runtime/stats.js");
-const { LATE, within } = require("./src/runtime/deadline.js");
-const { NoRewrite } = require("./src/understanding/noRewrite.js");
-const { BudgetedUnderstanding } = require("./src/understanding/budgetedUnderstanding.js");
-const { Channel, VOICE } = require("./src/turns/channel.js");
-const { KnowledgeSegment } = require("./src/keys/knowledgeSegment.js");
-const { CallReadings } = require("./src/understanding/callReadings.js");
-const { QuestionRecords } = require("./src/runtime/questionRecords.js");
-const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
+const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("../../agent.js");
+const { CrowkisClient } = require("../../index.js");
+const { RuleSet } = require("../rules/ruleSet.js");
+const { SessionCall } = require("../turns/sessionCall.js");
+const { BoundedWriter } = require("../runtime/boundedWriter.js");
+const { CacheLookup } = require("../runtime/cacheLookup.js");
+const { TurnPairing } = require("../runtime/turnPairing.js");
+const { TurnDecision } = require("../turns/decision.js");
+const { TurnCore } = require("../turns/turnCore.js");
+const { SessionHost } = require("../turns/sessionHost.js");
+const { Stats } = require("../runtime/stats.js");
+const { LATE, within } = require("../runtime/deadline.js");
+const { NoRewrite } = require("../understanding/noRewrite.js");
+const { BudgetedUnderstanding } = require("../understanding/budgetedUnderstanding.js");
+const { Channel, VOICE } = require("../turns/channel.js");
+const { KnowledgeSegment } = require("../keys/knowledgeSegment.js");
+const { CallReadings } = require("../understanding/callReadings.js");
+const { QuestionRecords } = require("../runtime/questionRecords.js");
+const { WordRuleClassifier } = require("../understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -293,7 +293,7 @@ const {
   unfinished,
   isNonAnswer,
   answersAfterBut,
-} = require("./src/understanding/wordRules/index.js");
+} = require("../understanding/wordRules/index.js");
 
 
 

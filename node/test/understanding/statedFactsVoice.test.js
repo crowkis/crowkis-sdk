@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { LLMClassifier, LLMUnderstander } = require("../../index.js");
-const { VoiceSession } = require("../../voice.js");
+const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 const TRIP_TURN = "we are planning a trip to goa next month with the kids";
 const TRIP_FRAME = { kind: "personal", subject: "self", confidence: 0.9,

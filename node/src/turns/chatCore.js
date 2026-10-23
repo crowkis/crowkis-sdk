@@ -6,8 +6,8 @@ const { Hit } = require("./hit.js");
 const { ChatTurn } = require("./chatTurn.js");
 const { TurnResult } = require("./turnResult.js");
 const { AGENT, FILLER, PERSONAL, SHARED, TOOLS, URGENT } = require("./routes.js");
-const { Verdict } = require("../../verify.js");
-const { TurnFrame } = require("../../turn.js");
+const { Verdict } = require("../rules/ruleChecker.js");
+const { TurnFrame } = require("../understanding/turnFrame.js");
 const { identifiers, instructs, tellsAboutCaller, wordsOf } = require("../understanding/wordRules/index.js");
 const { masked, names, norm, privateWords, told } = require("../understanding/chatDetails.js");
 

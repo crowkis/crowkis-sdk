@@ -25,6 +25,7 @@ function isThenable(value) {
  * @property {number} serveAbove the confidence a cached answer needs to be spoken
  * @property {number|null|undefined} latencyBudgetMs the call's budget, read when it looks up
  * @property {number|undefined} ttl how long a saved answer lives
+ * @property {string|null} segment kb=<version>;channel=<name> with an understander, else null
  * @property {(answer: string, options?: object) => Promise<Buffer|null>} voiced audio for a spoken answer
  * @property {(key: string, answer: string, options?: object) => Promise<object|null>} learn the bounded write
  * @property {(key: string, answer: string) => Promise<boolean|object>} learnPersonal a shared shape
@@ -130,6 +131,8 @@ class TurnCore {
       cheapAbove: Math.min(0.6, this._host.serveAbove),
       template: turn.isPersonal,
       threshold: turn.isContextDependent || turn.isShort ? CONTEXT_BOUND_THRESHOLD : undefined,
+      // Sent only with an understander (kb=<version>): the default lookup is as it was.
+      ...(this._host.segment ? { segment: this._host.segment } : {}),
     });
     return this._cacheLookup.find(ask, started, this._host.latencyBudgetMs);
   }

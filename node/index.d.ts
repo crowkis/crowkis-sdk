@@ -543,6 +543,8 @@ export interface VoiceSessionOptions {
   understandBudgetMs?: number | null;
   /** What the channel can do, as the rules read it. Default "voice". */
   channel?: Channel | ChannelName;
+  /** With an understander, answers live in kb=<version>;channel=<name>. Default "1". */
+  knowledgeVersion?: string;
 }
 
 export type ChannelName = "voice" | "chat" | "realtime";

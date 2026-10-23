@@ -30,6 +30,10 @@ class SessionHost {
     return this._session.ttl;
   }
 
+  get segment() {
+    return this._session._segment;
+  }
+
   voiced(answer, options) {
     return this._session._voiced(answer, options);
   }

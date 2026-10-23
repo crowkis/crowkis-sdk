@@ -15,6 +15,7 @@ const { LATE, within } = require("./src/runtime/deadline.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("./src/understanding/budgetedUnderstanding.js");
 const { Channel, VOICE } = require("./src/turns/channel.js");
+const { KnowledgeSegment } = require("./src/keys/knowledgeSegment.js");
 const { CallReadings } = require("./src/understanding/callReadings.js");
 const { QuestionRecords } = require("./src/runtime/questionRecords.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
@@ -453,6 +454,7 @@ class VoiceSession {
       rewriter = null,
       understandBudgetMs = null,
       channel = VOICE,
+      knowledgeVersion = "1",
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -485,6 +487,9 @@ class VoiceSession {
     this.bytesPerSecond = bytesPerSecond;
     // What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
     this.channel = Channel.of(channel);
+    // With an understander, answers live in kb=<version>;channel=<name>: switching understanders or
+    // knowledge is a deliberate new version (P5). Without one, no segment, as before.
+    this._segment = classifier || rewriter ? new KnowledgeSegment(knowledgeVersion, this.channel).segment : null;
     this._reported = {};
     this.serveAbove = serveAbove;
     this.minWords = minWords;
@@ -798,6 +803,10 @@ class VoiceSession {
   // Resolves to null when the write is done; otherwise to the "slow_write" outcome to
   // report (still running, or not written at all because too many writes wait).
   async _learn(...args) {
+    if (this._segment) {
+      const [key, answer, options = {}] = args;
+      args = [key, answer, { segment: this._segment, ...options }];
+    }
     if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) {
       await this.agent.learn(...args);
       return null;
@@ -1107,7 +1116,7 @@ const TEXT_ONLY_VOICE = "crowkis:text-only";
 const SESSION_OPTIONS = new Set([
   "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
   "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
-  "classifier", "rewriter", "understandBudgetMs", "channel",
+  "classifier", "rewriter", "understandBudgetMs", "channel", "knowledgeVersion",
 ]);
 
 /**

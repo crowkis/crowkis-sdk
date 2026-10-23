@@ -78,6 +78,7 @@
     "livekit.d.ts",
     "chat.d.ts",
     "session.d.ts",
+    "src/keys/knowledgeSegment.js",
     "src/rules/chain.js",
     "src/rules/chatRuleSet.js",
     "src/rules/hit/commitmentPolicy.js",

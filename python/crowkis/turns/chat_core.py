@@ -11,10 +11,10 @@ from typing import Any, Optional, Set
 from ..rules.chain import RuleChain
 from ..rules.question import UrgentWords
 from ..runtime.cache_lookup import CacheLookup
-from ..turn import TurnFrame
+from ..understanding.turn_frame import TurnFrame
 from ..understanding.chat_details import _masked, _names, _norm, _private_words, _told
 from ..understanding.word_rules import _identifiers, _instructs, _tells_about_caller, _words
-from ..verify import AGENT, PERSONAL, SHARED, TOOLS, URGENT, Verdict
+from ..rules.rule_checker import AGENT, PERSONAL, SHARED, TOOLS, URGENT, Verdict
 from ..runtime.bounded_writer import BoundedWriter
 from ..runtime.question_records import QuestionRecords
 from .chat_answer import ChatAnswer

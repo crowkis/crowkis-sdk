@@ -4,7 +4,7 @@ import json
 import unittest
 
 from crowkis import LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter
-from crowkis.turn import TurnFrame
+from crowkis.understanding.turn_frame import TurnFrame
 from crowkis.understanding.frame_reading import FrameReading
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 

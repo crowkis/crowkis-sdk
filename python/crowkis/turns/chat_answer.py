@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional, Tuple
 
-from ..callstate import CallState
-from ..turn import TurnFrame
+from ..state.call_state import CallState
+from ..understanding.turn_frame import TurnFrame
 
 
 class ChatAnswer:

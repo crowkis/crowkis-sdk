@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from ..turn import TurnFrame
+    from .turn_frame import TurnFrame
 
 
 class Reading(Protocol):

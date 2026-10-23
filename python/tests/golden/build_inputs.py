@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from crowkis.voice import _asks, _is_context_dependent, _is_personal, _urgent, _words
+from crowkis.understanding.word_rules import _asks, _is_context_dependent, _is_personal, _urgent, _words
 
 ROOT = Path(__file__).resolve().parents[3]
 INPUTS = ROOT / "fixtures" / "golden" / "inputs.json"

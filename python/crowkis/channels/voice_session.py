@@ -11,25 +11,25 @@ import time
 import weakref
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
-from .agent import Agent, _store_later, _voice_addon_missing
-from .client import CrowkisClient, CrowkisError
-from .rules import RuleSet
-from .runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
-from .runtime.stats import Counter, CounterField, Stats
-from .turns import SessionCall
-from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
-from .turns.session_host import SessionHost
-from .turns.turn_core import TurnCore
-from .understanding.no_rewrite import NoRewrite
-from .turns.channel import VOICE, Channel
-from .keys import KnowledgeSegment
-from .understanding.budgeted_understanding import BudgetedUnderstanding
-from .understanding.call_readings import CallReadings
-from .understanding.text_only_classifier import TextOnlyClassifier
-from .runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
-from .understanding.slots import Classifier, Rewriter
-from .understanding.word_rule_classifier import WordRuleClassifier
-from .understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.voice.<name> keeps working
+from ..agent import Agent, _store_later, _voice_addon_missing
+from ..client import CrowkisClient, CrowkisError
+from ..rules import RuleSet
+from ..runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
+from ..runtime.stats import Counter, CounterField, Stats
+from ..turns import SessionCall
+from ..turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
+from ..turns.session_host import SessionHost
+from ..turns.turn_core import TurnCore
+from ..understanding.no_rewrite import NoRewrite
+from ..turns.channel import VOICE, Channel
+from ..keys import KnowledgeSegment
+from ..understanding.budgeted_understanding import BudgetedUnderstanding
+from ..understanding.call_readings import CallReadings
+from ..understanding.text_only_classifier import TextOnlyClassifier
+from ..runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
+from ..understanding.slots import Classifier, Rewriter
+from ..understanding.word_rule_classifier import WordRuleClassifier
+from ..understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.channels.voice_session.<name> keeps working
     _private_chain,
     _ACTION_LEADS,
     _ACTION_LEADS_BY_FIRST,

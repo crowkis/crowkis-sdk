@@ -4,8 +4,8 @@ import threading
 import time
 import unittest
 
-from crowkis.session import CallSession
-from crowkis.turn import TurnFrame
+from crowkis.channels.call_session import CallSession
+from crowkis.understanding.turn_frame import TurnFrame
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on

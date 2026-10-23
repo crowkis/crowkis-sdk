@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Protocol, Tuple
 
-from ..callstate import CallState
+from ..state.call_state import CallState
 
 
 class ChatHost(Protocol):

@@ -6,9 +6,10 @@ Run:  python -m pytest tests/ -q
 import json
 import unittest
 
-from crowkis.callstate import CallState
-from crowkis.understand import LLMUnderstander, ReplayUnderstander, WithFallback
-from crowkis.verify import SHARED, RuleChecker
+from crowkis.state.call_state import CallState
+from crowkis.understanding.understanders import LLMUnderstander, ReplayUnderstander, WithFallback
+from crowkis.turns.routes import SHARED
+from crowkis.rules.rule_checker import RuleChecker
 
 
 class ReplayTests(unittest.TestCase):

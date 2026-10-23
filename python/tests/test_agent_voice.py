@@ -11,7 +11,8 @@ import unittest
 
 from crowkis.agent import Agent
 from crowkis.client import CacheHit
-from crowkis.voice import VoiceSession, _is_context_dependent, _is_personal
+from crowkis.channels.voice_session import VoiceSession
+from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
 
 
 def _hit(confidence, response=b"cached answer", similarity=0.99):
@@ -887,15 +888,15 @@ if __name__ == "__main__":
 
 class SlotSafetyTests(unittest.TestCase):
     def test_a_short_value_never_splits_a_number(self):
-        from crowkis.voice import _abstract
+        from crowkis.understanding.word_rules import _abstract
         self.assertEqual(_abstract("within 24 hours", {"count": "2"}), "within 24 hours")
 
     def test_a_value_is_replaced_only_as_a_whole_word(self):
-        from crowkis.voice import _abstract
+        from crowkis.understanding.word_rules import _abstract
         self.assertEqual(_abstract("order 555 and 5551", {"order": "555"}), "order {order} and 5551")
 
     def test_filling_is_one_pass(self):
-        from crowkis.voice import _fill
+        from crowkis.understanding.word_rules import _fill
         self.assertEqual(_fill("{a} and {b}", {"a": "{b}", "b": "x"}), "{b} and x")
 
 
@@ -1252,7 +1253,7 @@ class CommitmentTests(unittest.TestCase):
 
 class SpeakableTests(unittest.TestCase):
     def test_text_written_for_a_screen_is_not_spoken(self):
-        from crowkis.voice import _speakable
+        from crowkis.understanding.word_rules import _speakable
 
         for text in (
             "See https://example.com/refunds for details.",
@@ -1284,7 +1285,7 @@ class SpeakableTests(unittest.TestCase):
 
 class WarmStartTests(unittest.TestCase):
     def test_past_calls_fill_the_cache_under_the_live_rules(self):
-        from crowkis.voice import warm_from_calls
+        from crowkis.channels.voice_session import warm_from_calls
 
         with self.assertRaises(RuntimeError, msg="nothing checks a transcript without the engine"):
             warm_from_calls(Agent("caller", client=FakeClient()), [[("Do you deliver?", "Yes.")]])
@@ -1316,7 +1317,7 @@ class WarmStartTests(unittest.TestCase):
         self.assertIn("Do you deliver on Sundays?", asked)
 
     def test_an_engine_that_is_not_keeping_up_stops_the_load_instead_of_spinning(self):
-        from crowkis.voice import warm_from_calls
+        from crowkis.channels.voice_session import warm_from_calls
 
         client = EngineClient(pending=True)
         calls = [[(f"Do you deliver on day {n}?", "Yes, between ten and four.")] for n in range(6)]
@@ -1325,7 +1326,7 @@ class WarmStartTests(unittest.TestCase):
         self.assertEqual(totals["calls"], 3, "three calls in a row were not judged in time")
 
     def test_a_lookup_that_fails_does_not_end_the_load(self):
-        from crowkis.voice import warm_from_calls
+        from crowkis.channels.voice_session import warm_from_calls
 
         class Flaky(EngineClient):
             def cdecision(self, query, *, tenant=None):
@@ -1408,7 +1409,7 @@ class EngineCheckTests(unittest.TestCase):
         self.assertEqual(session.decide("thank you").action, "serve", "the late answer is there for the next turn")
 
     def test_a_link_in_capitals_is_still_a_link(self):
-        from crowkis.voice import _speakable
+        from crowkis.understanding.word_rules import _speakable
 
         self.assertFalse(_speakable("See HTTPS://EXAMPLE.COM/refunds"))
         self.assertFalse(_speakable("Visit WWW.EXAMPLE.COM"))

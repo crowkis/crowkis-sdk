@@ -50,9 +50,9 @@ try:
 except ImportError:  # pragma: no cover
     _RUNNING_PLACEHOLDER_KEY = "__lk_running_placeholder__"
 
-from ..voice import VoiceSession
-from ..voice_async import AsyncVoiceSession, async_voice_session
-from ..voice_turns import AudioClips
+from ..channels.voice_session import VoiceSession
+from ..channels.async_voice_session import AsyncVoiceSession, async_voice_session
+from .voice_turns import AudioClips
 
 # A replayed clip is sent in frames of this length.
 _FRAME_MS = 20

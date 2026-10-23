@@ -6,14 +6,14 @@ import unittest
 from pathlib import Path
 
 from crowkis.rules import hit, question, save
-from crowkis.callstate import CallState
-from crowkis.turn import TurnFrame
+from crowkis.state.call_state import CallState
+from crowkis.understanding.turn_frame import TurnFrame
 from crowkis.turns import CachedAnswer, ModelAnswer, VoiceTurn
 from crowkis.turns.chat_answer import ChatAnswer
 from crowkis.turns.channel import CHAT, REALTIME, VOICE
 from crowkis.turns.chat_turn import ChatTurn
 from crowkis.turns.hit import Hit
-from crowkis.verify import Verdict as ChatVerdict
+from crowkis.rules.rule_checker import Verdict as ChatVerdict
 from crowkis.understanding.frame_reading import FrameReading
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 

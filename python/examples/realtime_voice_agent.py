@@ -20,7 +20,7 @@ event is one inference plus one synthesis avoided; `gate.stats()["suppressed"]`
 is therefore the money counter.
 
 Providers spell those three primitives differently, so the names live here, in
-this file, as configuration. `crowkis.realtime` contains no provider names at
+this file, as configuration. `crowkis.channels.realtime` contains no provider names at
 all — it only knows the shape of the exchange, never whose it is. Two shapes are
 configured below to make that concrete: shape A carries an event kind under a
 `type` key with a flat transcript field, shape B nests everything under a single

@@ -104,7 +104,7 @@ class UndecidedTurnTests(unittest.TestCase):
 
         session = _session(ScopedFakeClient())
         history = [f"what is the price of plan number {n}" for n in range(300)]
-        with mock.patch("crowkis.voice._sets_context", wraps=__import__("crowkis.voice", fromlist=["x"])._sets_context) as check:
+        with mock.patch("crowkis.channels.voice_session._sets_context", wraps=__import__("crowkis.channels.voice_session", fromlist=["x"])._sets_context) as check:
             for _ in range(3):  # three turns, each re-reading the whole history
                 for said in history:
                     session._heard(said)

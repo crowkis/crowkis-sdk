@@ -5,9 +5,9 @@ import time
 import unittest
 
 from crowkis.runtime.question_records import question_key
-from crowkis.session import CallSession
-from crowkis.turn import TurnFrame
-from crowkis.verify import SHARED
+from crowkis.channels.call_session import CallSession
+from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.turns.routes import SHARED
 
 QUESTION = "What are your opening hours on Sunday?"
 

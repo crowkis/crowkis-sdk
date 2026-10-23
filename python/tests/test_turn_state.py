@@ -5,8 +5,8 @@ Run:  python -m pytest tests/ -q
 
 import unittest
 
-from crowkis.callstate import CallState
-from crowkis.turn import TurnFrame
+from crowkis.state.call_state import CallState
+from crowkis.understanding.turn_frame import TurnFrame
 
 
 def frame(**kw):

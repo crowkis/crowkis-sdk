@@ -1,6 +1,6 @@
 """The word rules: fixed English word and phrase checks that read a caller's turn or a model's
 answer, one module per theme. Every name is re-exported here, so
-``crowkis.understanding.word_rules._is_personal`` (and ``crowkis.voice._is_personal``) keep working."""
+``crowkis.understanding.word_rules._is_personal`` (and ``crowkis.channels.voice_session._is_personal``) keep working."""
 
 from .text import (  # noqa: F401 - re-exported
     _ACTION_VERBS,

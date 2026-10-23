@@ -16,8 +16,8 @@ import inspect
 import threading
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
-from .agent import Agent
-from .voice import TurnDecision, VoiceSession, voice_session
+from ..agent import Agent
+from .voice_session import TurnDecision, VoiceSession, voice_session
 
 # Two pools for every async session in the process. Server calls: a turn holds a
 # worker for at most its latency budget (lookup) or the client timeout (saving the

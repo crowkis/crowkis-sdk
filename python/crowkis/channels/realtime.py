@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional, Tuple
 
-from .voice import TurnDecision, VoiceSession
+from .voice_session import TurnDecision, VoiceSession
 
 _USER = "user"
 

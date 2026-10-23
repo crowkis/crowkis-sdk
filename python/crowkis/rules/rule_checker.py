@@ -25,12 +25,12 @@ import zlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .callstate import CallState
-from .turn import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
+from ..state.call_state import CallState
+from ..understanding.turn_frame import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
 
-from .rules.chat_rule_set import ChatRuleSet
-from .turns.chat_turn import ChatTurn
-from .turns.routes import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT  # noqa: F401 - re-exported
+from .chat_rule_set import ChatRuleSet
+from ..turns.chat_turn import ChatTurn
+from ..turns.routes import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT  # noqa: F401 - re-exported
 
 # Default expiry per question type, in seconds. None = until the knowledge version changes.
 DEFAULT_TTL: Dict[str, Optional[int]] = {
@@ -42,7 +42,7 @@ DEFAULT_TTL: Dict[str, Optional[int]] = {
     "other": 3600,
 }
 
-from .understanding.frame_words import (  # noqa: F401 - re-exported
+from ..understanding.frame_words import (  # noqa: F401 - re-exported
     _FUNCTION,
     _WORD,
     _TOLD_TYPES,

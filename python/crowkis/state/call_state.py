@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
 
-from .turn import Attribute, TurnFrame
+from ..understanding.turn_frame import Attribute, TurnFrame
 
 TASKS = ("none", "searching", "booking", "ordering", "account_action")
 IDENTITIES = ("anonymous", "identified", "verified")

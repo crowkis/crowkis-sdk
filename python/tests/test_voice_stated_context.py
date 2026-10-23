@@ -4,7 +4,7 @@ answered from, or written to, the shared cache after that turn."""
 import unittest
 
 from crowkis import Agent, VoiceSession
-from crowkis.voice import _is_non_answer, _sets_context
+from crowkis.understanding.word_rules import _is_non_answer, _sets_context
 
 from test_agent_voice import ScopedFakeClient
 
@@ -287,7 +287,7 @@ class NonAnswerTests(unittest.TestCase):
 class WarmStartTaintTests(unittest.TestCase):
     def test_past_calls_with_a_stated_fact_are_not_shared(self):
         from test_agent_voice import EngineClient
-        from crowkis.voice import warm_from_calls
+        from crowkis.channels.voice_session import warm_from_calls
 
         client = EngineClient()
         warm_from_calls(Agent("caller", client=client), [

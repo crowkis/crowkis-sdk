@@ -29,19 +29,19 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .callstate import IDENTITIES, CallState
-from .rules.chat_rule_set import ChatRuleSet
-from .runtime.cache_lookup import CacheLookup
-from .runtime.bounded_writer import BoundedWriter
-from .runtime.question_records import QuestionRecords
-from . import voice as _voice
-from .turns.channel import CHAT
-from .rules.question import UrgentWords
-from .turns.chat_answer import ChatAnswer
-from .turns.chat_core import ChatCore
-from .turns.routes import FILLER  # noqa: F401 - re-exported
-from .turns.turn_result import TurnResult  # noqa: F401 - re-exported
-from .understanding.chat_details import (  # noqa: F401 - re-exported
+from ..state.call_state import IDENTITIES, CallState
+from ..rules.chat_rule_set import ChatRuleSet
+from ..runtime.cache_lookup import CacheLookup
+from ..runtime.bounded_writer import BoundedWriter
+from ..runtime.question_records import QuestionRecords
+from . import voice_session as _voice
+from ..turns.channel import CHAT
+from ..rules.question import UrgentWords
+from ..turns.chat_answer import ChatAnswer
+from ..turns.chat_core import ChatCore
+from ..turns.routes import FILLER  # noqa: F401 - re-exported
+from ..turns.turn_result import TurnResult  # noqa: F401 - re-exported
+from ..understanding.chat_details import (  # noqa: F401 - re-exported
     _MASKED,
     _NAME_LEADS,
     _POSSESSIVE,
@@ -56,13 +56,13 @@ from .understanding.chat_details import (  # noqa: F401 - re-exported
     _private_words,
     _told,
 )
-from .turns.chat_turn import ChatTurn
-from .understanding.frame_words import _CALENDAR, _DAYS  # noqa: F401
-from .understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
-from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _tells_about_caller, _words
-from .turn import TurnFrame
-from .understand import ReplayUnderstander, Understander
-from .verify import _FUNCTION, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
+from ..turns.chat_turn import ChatTurn
+from ..understanding.frame_words import _CALENDAR, _DAYS  # noqa: F401
+from ..understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
+from .voice_session import _PII_PLACEHOLDER, _instructs, _proper_nouns, _tells_about_caller, _words
+from ..understanding.turn_frame import TurnFrame
+from ..understanding.understanders import ReplayUnderstander, Understander
+from ..rules.rule_checker import _FUNCTION, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
 
 
 

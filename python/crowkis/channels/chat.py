@@ -19,9 +19,9 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .session import CallSession, _masked
-from .understand import Understander
-from .verify import RuleChecker
+from .call_session import CallSession, _masked
+from ..understanding.understanders import Understander
+from ..rules.rule_checker import RuleChecker
 
 Message = Dict[str, str]
 

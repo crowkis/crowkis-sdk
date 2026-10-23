@@ -8,7 +8,7 @@ import time
 import unittest
 from pathlib import Path
 
-from crowkis.voice import _wait_for_writes
+from crowkis.channels.voice_session import _wait_for_writes
 from test_voice_stress_bugs import Store, session_on
 
 BUDGET_MS = 50

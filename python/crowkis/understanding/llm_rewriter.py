@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ..callstate import CallState
-from ..understand import Understander
+from ..state.call_state import CallState
+from .understanders import Understander
 from .frame_reading import FrameReading
 from .slots import Reading
 

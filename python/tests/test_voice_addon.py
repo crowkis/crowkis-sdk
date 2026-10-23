@@ -10,7 +10,7 @@ import unittest
 
 from crowkis.agent import Agent, _wait_for_audio_stores
 from crowkis.client import CrowkisError
-from crowkis.voice import VoiceSession
+from crowkis.channels.voice_session import VoiceSession
 
 ADDON_MISSING = "ERR ENTERPRISE Voice is an add-on to Crowkis Enterprise. Get a licence key that includes it"
 

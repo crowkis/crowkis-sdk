@@ -7,8 +7,8 @@ private: that is tested too.
 """
 import unittest
 
-from crowkis.chat import Chat, ChatConflict, MemoryStore
-from crowkis.turn import TurnFrame
+from crowkis.channels.chat import Chat, ChatConflict, MemoryStore
+from crowkis.understanding.turn_frame import TurnFrame
 
 GENERAL = {"kind": "general", "subject": "none", "confidence": 0.9}
 
@@ -284,7 +284,7 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(TurnFrame.from_dict({"language": "pt-BR"}).language, "pt-br")
 
     def test_a_segment_value_cannot_add_a_field(self):
-        from crowkis.verify import RuleChecker
+        from crowkis.rules.rule_checker import RuleChecker
         segment = RuleChecker().build_segment({"region": "goa;told=1", "segment": "a=b"}, "hi")
         self.assertEqual(segment, "kb=1;lang=hi;region=goa_told_1;segment=a_b;channel=chat")
 
@@ -400,7 +400,7 @@ class ReviewFindingTests(unittest.TestCase):
         for n in range(3):
             chat.turn("t", [{"role": "user", "content": huge}], answer=Model("x " * 50_000))
         self.assertLess(len(str(store.load("t")[0])), 40_000)
-        from crowkis.callstate import CallState
+        from crowkis.state.call_state import CallState
         restored = CallState.from_dict({"stated": [huge] * 50, "last_reply": huge, "active_question": huge})
         self.assertLess(len(str(restored.to_dict())), 40_000)
 
@@ -462,7 +462,7 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(agent.saved[0][0], "kb=1;lang=und;channel=chat")
 
     def test_memory_counts_characters_and_digits_the_same_in_every_sdk(self):
-        from crowkis.callstate import CallState
+        from crowkis.state.call_state import CallState
         self.assertEqual(len(CallState.from_dict({"last_reply": "\U0001F600" * 1500}).last_reply), 1000)
         said = "I have a \u0967\u0968 year old son."
         store = MemoryStore()
@@ -653,7 +653,7 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(replies[-1].route, "shared")
 
     def test_a_reply_that_cannot_determine_is_a_non_answer(self):
-        from crowkis.voice import _is_non_answer
+        from crowkis.understanding.word_rules import _is_non_answer
         # A hedged real answer is an answer.
         self.assertFalse(_is_non_answer("I can't determine the exact date, but historians place it around 1200 BC."))
         for text in ("I cannot determine your location, but you can check Google Maps.",

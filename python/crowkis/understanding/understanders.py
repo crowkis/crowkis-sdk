@@ -21,8 +21,8 @@ import re
 import string
 from typing import Callable, Dict, List, Optional, Protocol
 
-from .callstate import CallState
-from .turn import TurnFrame
+from ..state.call_state import CallState
+from .turn_frame import TurnFrame
 
 Message = Dict[str, str]
 

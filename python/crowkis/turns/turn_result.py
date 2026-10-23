@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ..turn import TurnFrame
+from ..understanding.turn_frame import TurnFrame
 from .routes import SHARED
 
 Message = Dict[str, str]

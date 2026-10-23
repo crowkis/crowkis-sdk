@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..callstate import CallState
-from ..turn import TurnFrame
+from ..state.call_state import CallState
+from ..understanding.turn_frame import TurnFrame
 
 
 class ChatTurn:

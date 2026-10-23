@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...callstate import word_digest
+from ...state.call_state import word_digest
 from ...turns.chat_turn import ChatTurn
 from ...turns.verdict import Verdict
 from ...understanding.frame_words import _NUMWORDS

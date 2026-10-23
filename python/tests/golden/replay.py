@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from crowkis import Agent, CacheHit, VoiceSession
-from crowkis.session import CallSession
-from crowkis.turn import TurnFrame
+from crowkis.channels.call_session import CallSession
+from crowkis.understanding.turn_frame import TurnFrame
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN = ROOT / "fixtures" / "golden"

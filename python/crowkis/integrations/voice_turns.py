@@ -34,9 +34,9 @@ import binascii
 import collections
 from typing import Any, Awaitable, Callable, Optional
 
-from .agent import _store_later, _tts_key
-from .client import CrowkisError
-from .voice import _words
+from ..agent import _store_later, _tts_key
+from ..client import CrowkisError
+from ..channels.voice_session import _words
 
 # Same tool name and key rule as Agent.speak(): a clip is shared with speak() when it
 # names the same format (audio_format="pcm16-<rate>").

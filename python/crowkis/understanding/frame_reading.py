@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..turn import TurnFrame
+from .turn_frame import TurnFrame
 
 # The frame kinds a voice call may share: the same answer for every caller.
 SHAREABLE_KIND = "general"

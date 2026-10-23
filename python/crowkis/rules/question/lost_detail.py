@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turn import DETAIL_TYPES
+from ...understanding.turn_frame import DETAIL_TYPES
 from ...turns.chat_turn import ChatTurn
 from ...turns.verdict import Verdict
 from ...understanding.frame_words import _FUNCTION, _stem, _toks

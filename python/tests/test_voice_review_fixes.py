@@ -12,7 +12,8 @@ import time
 import unittest
 
 from crowkis.agent import Agent
-from crowkis.voice import VoiceSession, _is_personal
+from crowkis.channels.voice_session import VoiceSession
+from crowkis.understanding.word_rules import _is_personal
 
 from test_voice_stress_bugs import ANSWER, Store, _pipecat, call, session_on, user
 

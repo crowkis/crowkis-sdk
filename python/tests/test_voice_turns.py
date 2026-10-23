@@ -1,4 +1,4 @@
-"""The shared voice adapter layer (crowkis.voice_turns) does what the Pipecat processors
+"""The shared voice adapter layer (crowkis.integrations.voice_turns) does what the Pipecat processors
 do, event for event, and the scenario file the Node port checks against says the same.
 
 The Pipecat processors are now thin wrappers over this layer; every existing Pipecat test

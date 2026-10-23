@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import List, Optional, Set
 
-from ..turn import TurnFrame
+from .turn_frame import TurnFrame
 from .frame_reading import CONFIDENCE_FLOOR
 from .frame_words import _FUNCTION, _stem, _toks
 from .word_rules import HIGH_RISK_FACT_TYPES, _high_risk

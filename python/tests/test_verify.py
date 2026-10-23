@@ -5,9 +5,10 @@ Run:  python -m pytest tests/ -q
 
 import unittest
 
-from crowkis.callstate import CallState
-from crowkis.turn import TurnFrame
-from crowkis.verify import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker
+from crowkis.state.call_state import CallState
+from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.turns.routes import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT
+from crowkis.rules.rule_checker import RuleChecker
 
 
 def frame(**kw):

@@ -8,7 +8,7 @@ import json
 import unittest
 from pathlib import Path
 
-from crowkis.voice import _is_context_dependent, _is_personal
+from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
 
 FIXTURE = json.loads((Path(__file__).resolve().parents[2] / "fixtures" / "voice-rule-phrases.json").read_text("utf-8"))
 

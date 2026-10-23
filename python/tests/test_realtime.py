@@ -10,8 +10,8 @@ import unittest
 
 from crowkis.agent import Agent
 from crowkis.client import CacheHit
-from crowkis.realtime import RealtimeAdapter, RealtimeGate
-from crowkis.voice import VoiceSession
+from crowkis.channels.realtime import RealtimeAdapter, RealtimeGate
+from crowkis.channels.voice_session import VoiceSession
 
 TRANSCRIPT_EVENT = "provider.transcript.done"
 INJECT_EVENT = "provider.item.add"

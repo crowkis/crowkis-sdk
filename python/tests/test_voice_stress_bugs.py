@@ -16,7 +16,8 @@ from unittest import mock
 
 from crowkis.agent import Agent
 from crowkis.client import CacheHit, CrowkisError
-from crowkis.voice import VoiceSession, _is_context_dependent, _is_personal
+from crowkis.channels.voice_session import VoiceSession
+from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
 
 ANSWER = "Here is the answer."
 

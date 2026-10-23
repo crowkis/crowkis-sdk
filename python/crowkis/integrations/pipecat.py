@@ -87,8 +87,8 @@ except ImportError:  # pragma: no cover - a Pipecat without nested pipelines
 
 from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
 from ..client import CrowkisError  # noqa: F401  (kept importable from here)
-from ..voice import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
-from ..voice_turns import (  # noqa: F401  (the shared layer; names kept importable from here)
+from ..channels.voice_session import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
+from .voice_turns import (  # noqa: F401  (the shared layer; names kept importable from here)
     _HUNG_AFTER,
     _MAX_TOOLS,
     _RUNS_AHEAD,
@@ -185,7 +185,7 @@ def _model_context(original: Any, messages: list, chosen: list) -> Any:
 
 
 class CrowkisAudioCache(AudioClips, FrameProcessor):
-    """Pipecat frames to the shared AudioClips events (crowkis.voice_turns)."""
+    """Pipecat frames to the shared AudioClips events (crowkis.integrations.voice_turns)."""
 
     def __init__(self, session: VoiceSession, sample_rate: int):
         super().__init__()
@@ -324,7 +324,7 @@ class CrowkisGate(FrameProcessor):
 
 
 class CrowkisWriteBack(AnswerPairing, FrameProcessor):
-    """Pipecat frames to the shared AnswerPairing events (crowkis.voice_turns)."""
+    """Pipecat frames to the shared AnswerPairing events (crowkis.integrations.voice_turns)."""
 
     def __init__(
         self, session: VoiceSession, gate: CrowkisGate, audio: CrowkisAudioCache, *, on_answer: Report = None
@@ -474,7 +474,7 @@ if _Pipeline is not None:
                     "set these on the session you pass, or leave session out"
                 )
             if session is None:
-                from ..voice import voice_session
+                from ..channels.voice_session import voice_session
 
                 session = voice_session(**session_options)
             self.session = session

@@ -6,7 +6,7 @@ sentences, not the review's examples. Same cases as node/test-voice-crisis-and-s
 import logging
 import unittest
 
-from crowkis.voice import _is_personal
+from crowkis.understanding.word_rules import _is_personal
 
 from test_voice_stress_bugs import ANSWER, call, user
 

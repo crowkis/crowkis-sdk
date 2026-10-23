@@ -41,16 +41,16 @@ class _Untouchable:
 
 class DefaultsTests(unittest.TestCase):
     def test_exported_at_top_level_and_from_the_voice_module(self):
-        from crowkis.voice import voice_session
+        from crowkis.channels.voice_session import voice_session
 
         self.assertIs(crowkis.voice_session, voice_session)
         self.assertIn("voice_session", crowkis.__all__)
 
     def test_the_voice_module_is_still_the_module(self):
-        import crowkis.voice as module
+        import crowkis.channels.voice_session as module
 
         self.assertTrue(hasattr(module, "VoiceSession"))
-        self.assertIs(crowkis.voice, module)
+        self.assertIs(crowkis.channels.voice_session, module)
 
     def test_one_call_gives_a_ready_session_with_live_call_defaults(self):
         with _env():

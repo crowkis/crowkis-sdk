@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
-from ..callstate import CallState
-from ..understand import ReplayUnderstander
+from ..state.call_state import CallState
+from .understanders import ReplayUnderstander
 from .frame_reading import FrameReading
 from .slots import Reading
 

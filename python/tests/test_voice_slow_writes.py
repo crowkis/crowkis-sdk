@@ -12,8 +12,8 @@ import unittest.mock
 import crowkis
 from crowkis import Agent, VoiceSession
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.voice import _wait_for_writes
-from crowkis.voice_turns import AudioClips
+from crowkis.channels.voice_session import _wait_for_writes
+from crowkis.integrations.voice_turns import AudioClips
 
 from voice_turns_scenarios import SceneStore
 
@@ -92,7 +92,7 @@ class SlowWriteTests(unittest.TestCase):
         self.assertEqual((session.slow_writes, session.learn_errors), (1, 1))
 
     def test_a_hung_server_never_queues_writes_without_limit(self):
-        from crowkis import voice
+        from crowkis.channels import voice_session as voice
 
         class Hung(ConformanceStore):
             def cset(self, *args, **kwargs):

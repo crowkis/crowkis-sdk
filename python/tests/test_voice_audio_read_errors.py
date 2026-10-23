@@ -4,7 +4,7 @@ import asyncio
 import unittest
 
 import crowkis
-from crowkis.voice_turns import AudioClips
+from crowkis.integrations.voice_turns import AudioClips
 
 from voice_turns_scenarios import AddonStore
 

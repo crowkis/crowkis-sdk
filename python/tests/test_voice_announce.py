@@ -13,7 +13,7 @@ import unittest
 
 import crowkis
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.voice import _wait_for_writes
+from crowkis.channels.voice_session import _wait_for_writes
 
 from conformance import REAL, _SERVER
 

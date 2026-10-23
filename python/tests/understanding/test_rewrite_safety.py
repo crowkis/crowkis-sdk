@@ -134,7 +134,7 @@ class HungModelTests(unittest.TestCase):
 class ToldFactsTests(unittest.TestCase):
     def test_no_rewrite_once_the_caller_has_told_the_call_something(self):
         # The classifier reads the call's facts, so its rewrite could carry one into a shared key (P5 review).
-        from crowkis.turn import TurnFrame
+        from crowkis.understanding.turn_frame import TurnFrame
         from crowkis.understanding.frame_reading import FrameReading
 
         class SureTheTripDoesNotMatter:

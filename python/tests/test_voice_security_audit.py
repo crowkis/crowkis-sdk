@@ -7,7 +7,7 @@ import asyncio
 import unittest
 
 from crowkis.agent import Agent
-from crowkis.voice import VoiceSession
+from crowkis.channels.voice_session import VoiceSession
 
 from test_agent_voice import ScopedFakeClient
 

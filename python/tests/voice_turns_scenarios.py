@@ -1,4 +1,4 @@
-"""Event scenarios for the shared voice adapter layer (crowkis.voice_turns).
+"""Event scenarios for the shared voice adapter layer (crowkis.integrations.voice_turns).
 
 Each scenario is a list of plain events, the same ones a framework adapter feeds the
 layer. run_events() plays them through AudioClips + AnswerPairing with a small gate
@@ -18,8 +18,8 @@ from pathlib import Path
 
 from crowkis import Agent, CacheHit, VoiceSession
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.voice import _reset_prompt_baselines
-from crowkis.voice_turns import AnswerPairing, AudioClips
+from crowkis.understanding.word_rules import _reset_prompt_baselines
+from crowkis.integrations.voice_turns import AnswerPairing, AudioClips
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "voice-turns-scenarios.json"
 RATE = 16000

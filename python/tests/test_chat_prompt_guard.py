@@ -3,9 +3,9 @@ that repeats them was shaped by that user and is never saved for everyone, as in
 (test_voice_prompt_guard.py)."""
 import unittest
 
-from crowkis.chat import Chat
-from crowkis.session import CallSession
-from crowkis.voice import _reset_prompt_baselines
+from crowkis.channels.chat import Chat
+from crowkis.channels.call_session import CallSession
+from crowkis.understanding.word_rules import _reset_prompt_baselines
 
 from test_chat import GENERAL, Model, Scripted, SegmentedAgent
 

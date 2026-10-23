@@ -6,8 +6,8 @@ import re
 import unicodedata
 from typing import Optional
 
-from ...callstate import word_digest
-from ...turn import NOT_GENERAL_TYPES
+from ...state.call_state import word_digest
+from ...understanding.turn_frame import NOT_GENERAL_TYPES
 from ...turns.chat_turn import ChatTurn
 from ...turns.verdict import Verdict
 from ...understanding.frame_words import _CALENDAR, _COMMON_ACRONYMS, _FUNCTION

@@ -1,6 +1,7 @@
 "use strict";
 
 const { RuleChain, UnknownRule, ruleNames } = require("./chain.js");
+const { CommitmentRewording, DifferentQuestion, PiiPlaceholder } = require("./hit/index.js");
 const {
   AboutSomeone, IdentifyingDetails, LostDetail, NoQuestion, NotGeneral, QuestionNamesCaller, StatedFacts, TaskStep,
   ToldDetailDropped, UncertainFrame, Ungrounded, UnresolvedReference, UntaggedName, UrgentTurn,
@@ -31,6 +32,14 @@ class ChatRuleSet {
    */
   static sharedQuestionChain() {
     return new RuleChain([new QuestionNamesCaller(), new ToldDetailDropped(), new UntaggedName()]);
+  }
+
+  /**
+   * The hit guards every channel runs (v4): a placeholder for someone's detail, an answer saved for a
+   * different question, a commitment for anything but the exact same question.
+   */
+  static hitChain() {
+    return new RuleChain([new PiiPlaceholder(), new DifferentQuestion(), new CommitmentRewording()]);
   }
 
   /**

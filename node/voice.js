@@ -1,6 +1,5 @@
 "use strict";
 
-const crypto = require("node:crypto");
 const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
 const { CrowkisClient } = require("./index.js");
 const { RuleSet } = require("./src/rules/ruleSet.js");
@@ -17,6 +16,7 @@ const { NoRewrite } = require("./src/understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("./src/understanding/budgetedUnderstanding.js");
 const { Channel, VOICE } = require("./src/turns/channel.js");
 const { CallReadings } = require("./src/understanding/callReadings.js");
+const { QuestionRecords } = require("./src/runtime/questionRecords.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
@@ -64,9 +64,7 @@ const {
   describesCaller,
   normalise,
   wordsOf,
-  QUESTIONS_KEPT,
   FRAMING_WORDS,
-  QUESTION_TTL,
   stem,
   contentWords,
   differentSpecifics,
@@ -296,13 +294,6 @@ const {
   answersAfterBut,
 } = require("./src/understanding/wordRules/index.js");
 
-function questionKey(tenant, answer) {
-  const trimmed = String(answer).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); // as Python's strip(" \t\r\n")
-  const digest = crypto.createHash("sha256").update(trimmed, "utf8").digest("hex").slice(0, 32);
-  return `crowkis:question:${tenant || "default"}:${digest}`;
-}
-
-const tenantOf = (agent) => (agent && (agent.tenant || (agent.client && agent.client.tenant))) || null;
 
 
 // Writes a turn stopped waiting for (past twice the latency budget), finishing in the background.
@@ -313,6 +304,12 @@ const pendingWrites = new Set();
 /** For tests: every write handed to the background has finished. */
 // Question records being written in the background (not capped like answer writes).
 const pendingRecords = new Set();
+
+/** Tell the background-write tracker of a question record being written (voice and Chat). */
+function trackRecord(record) {
+  pendingRecords.add(record);
+  record.finally(() => pendingRecords.delete(record));
+}
 
 async function waitForWrites() {
   await Promise.allSettled([...pendingWrites, ...pendingRecords]);
@@ -780,45 +777,17 @@ class VoiceSession {
 
   // Note, in the background, that `answer` was saved for `question`. A failure only means a
   // later hit can't be checked, which is how it was before.
+  // Note, in the background, that `answer` was saved for `question` (QuestionRecords).
   _keepQuestion(question, answer) {
-    const client = this.agent && this.agent.client;
-    if (!client || typeof client.set !== "function") return;
-    const key = questionKey(tenantOf(this.agent), answer);
-    const ttl = this.ttl || QUESTION_TTL;
-    const record = (async () => {
-      try {
-        const raw = await client.get(key);
-        let kept = raw ? JSON.parse(String(raw)) : [];
-        kept = (Array.isArray(kept) ? kept : []).filter((q) => typeof q === "string" && q !== question).slice(-(QUESTIONS_KEPT - 1));
-        await client.set(key, JSON.stringify([...kept, question]), { ttl });
-      } catch {
-        // see above
-      }
-    })(); // never on the audio-clip queue
-    pendingRecords.add(record);
-    record.finally(() => pendingRecords.delete(record));
+    new QuestionRecords(this.agent, { track: trackRecord }).keep(question, answer, this.ttl);
   }
 
-  // Whether every question this answer was saved for asks about something else. Unknown
-  // (no record, or it can't be read in time) means no: as before.
+  // Whether every question this answer was saved for asks about something else, read within what the
+  // lookup left of the budget. Unknown means no: as before.
   async _answersAnotherQuestion(asked, answer, spentMs = 0) {
-    const client = this.agent && this.agent.client;
-    if (!client || typeof client.get !== "function") return false;
-    try {
-      const read = Promise.resolve().then(() => client.get(questionKey(tenantOf(this.agent), answer)));
-      read.catch(() => {});
-      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
-      const left = budgeted ? this.latencyBudgetMs - spentMs : null; // what the lookup left of the budget
-      if (budgeted && left <= 0) return false;
-      const raw = budgeted ? await within(left, read) : await read;
-      if (raw === LATE || !raw) return false;
-      const questions = JSON.parse(String(raw));
-      if (!Array.isArray(questions)) return false;
-      const kept = questions.filter((q) => typeof q === "string");
-      return kept.length > 0 && kept.every((q) => differentSpecifics(asked, q));
-    } catch {
-      return false;
-    }
+    const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
+    return new QuestionRecords(this.agent, { track: trackRecord })
+      .answersAnotherQuestion(asked, answer, budgeted ? this.latencyBudgetMs - spentMs : null);
   }
 
   // agent.learn(), waited for no longer than twice the latency budget: a slow server never
@@ -1257,6 +1226,7 @@ module.exports = {
   _resetPromptBaselines: resetPromptBaselines,
   _differentSpecifics: differentSpecifics,
   _waitForWrites: waitForWrites,
+  _trackRecord: trackRecord,
   _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
   _IPV4: IPV4,

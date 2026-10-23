@@ -1,12 +1,14 @@
 "use strict";
 
 const { ChatAnswer } = require("./chatAnswer.js");
+const { ChatCachedAnswer, ChatHitCall, ChatHitTurn } = require("./chatCachedAnswer.js");
+const { Hit } = require("./hit.js");
 const { ChatTurn } = require("./chatTurn.js");
 const { TurnResult } = require("./turnResult.js");
 const { AGENT, FILLER, PERSONAL, SHARED, TOOLS, URGENT } = require("./routes.js");
 const { Verdict } = require("../../verify.js");
 const { TurnFrame } = require("../../turn.js");
-const { PII_PLACEHOLDER, instructs, tellsAboutCaller, wordsOf } = require("../understanding/wordRules/index.js");
+const { instructs, tellsAboutCaller, wordsOf } = require("../understanding/wordRules/index.js");
 const { masked, names, norm, privateWords, told } = require("../understanding/chatDetails.js");
 
 // Chat's counter for each way a lookup fails open.
@@ -42,9 +44,11 @@ function within(promiseOrValue, ms) {
  * chains, its lookup and its turns; `host` (ChatHost) is the session's state, counts, settings, hooks.
  */
 class ChatCore {
-  constructor(host, { cacheLookup, sharedQuestionRules, urgentWords, saveRules }) {
+  constructor(host, { cacheLookup, sharedQuestionRules, urgentWords, saveRules, hitRules, questionRecords }) {
     this._host = host;
     this._cacheLookup = cacheLookup;
+    this._hitRules = hitRules;
+    this._questionRecords = questionRecords;
     this._sharedQuestionRules = sharedQuestionRules;
     this._urgentWords = urgentWords;
     this._saveRules = saveRules;
@@ -172,6 +176,7 @@ class ChatCore {
       return "refused:write_failed";
     }
     this._host.counts.saved += 1;
+    this._questionRecords.keep(result.verdict.key, answer, result.verdict.ttl ?? null);
     return "saved";
   }
 
@@ -216,14 +221,21 @@ class ChatCore {
     const ask = () => this._host.agent.ask(key, {
       serveAbove: this._host.serveAbove, cheapAbove: Math.min(0.6, this._host.serveAbove), ...(segment ? { segment } : {}),
     });
-    const { hit, verdict } = await this._cacheLookup.find(ask, performance.now(), this._host.latencyBudgetMs);
+    const started = performance.now();
+    const { hit, verdict } = await this._cacheLookup.find(ask, started, this._host.latencyBudgetMs);
     if (verdict) {
       this._host.counts[LOOKUP_COUNTS[verdict.rule]] += 1;
       return null;
     }
     if (!(hit && hit.route === "cache" && hit.answer)) return null;
-    // A placeholder the server put in place of someone's detail is never served.
-    return PII_PLACEHOLDER.test(hit.answer) ? null : hit.answer;
+    const call = new ChatHitCall(this._questionRecords, this._host.latencyBudgetMs);
+    const objection = await this._hitRules.firstObjection(new ChatCachedAnswer(new ChatHitTurn(key, call), Hit.fromAgent(hit), started));
+    if (objection) {
+      // A refused hit is counted by the rule that refused it (v4 hit guards).
+      this._host.counts[objection.rule] = (this._host.counts[objection.rule] || 0) + 1;
+      return null;
+    }
+    return hit.answer;
   }
 
   _openTurn(result) {

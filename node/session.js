@@ -29,6 +29,7 @@ const {
   norm,
 } = require("./src/understanding/chatDetails.js");
 const { CacheLookup } = require("./src/runtime/cacheLookup.js");
+const { QuestionRecords } = require("./src/runtime/questionRecords.js");
 const { CHAT } = require("./src/turns/channel.js");
 // Chat's counter for each way a lookup fails open.
 const LOOKUP_COUNTS = { LookupDeadline: "lookup_timeouts", CacheUnavailable: "lookup_errors" };
@@ -39,7 +40,7 @@ const { CALENDAR } = require("./src/understanding/frameWords.js");
 const {
   _tellsAboutCaller: tellsAboutCaller, _instructs: instructs,
   _wordsOf: wordsOf, _properNouns: properNouns,
-  _PII_PLACEHOLDER: PII_PLACEHOLDER,
+  _trackRecord: trackRecord,
 } = require("./voice.js");
 const { TurnFrame } = require("./turn.js");
 const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
@@ -87,7 +88,8 @@ class CallSession {
     this.channel = CHAT;
     this._core = new ChatCore(this, {
       cacheLookup: new CacheLookup({ refuseLateHits: false }), sharedQuestionRules: ChatRuleSet.sharedQuestionChain(),
-      urgentWords: new UrgentWords(), saveRules: ChatRuleSet.saveChain(),
+      urgentWords: new UrgentWords(), saveRules: ChatRuleSet.saveChain(), hitRules: ChatRuleSet.hitChain(),
+      questionRecords: new QuestionRecords(agent, { track: trackRecord }),
     });
     this._fillers = new Map(Object.entries(fillers || {}).map(([k, v]) => [norm(k), v]));
     this._shapes = new Map();

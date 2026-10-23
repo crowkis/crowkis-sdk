@@ -60,6 +60,26 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
+## P5.5 (in progress; owner approved 2026-10-24)
+
+Usage: stop before 95% on either limit at a clean point; 5-hour: a timer to the reset, then continue; weekly: no timer.
+After P5.5: stop and report.
+
+1. **One core for voice and chat** (brief and design: `v4-notes/p5.5-core-merge.md`).
+   - [done] Python: `388892d` (the generic `TurnCore`, voice parts), `51dc6ae` (Chat on it; `chat_core.py`,
+     `chat_host.py` gone), notes `4706966`. Python 770 passed (3 runs), Pipecat 26, LiveKit Python 23, Node 59/59,
+     golden unchanged. `tests/turns/test_turn_core.py`'s helper builds the core through `VoiceSession._build_core`
+     (the constructor is the redesign; assertions unchanged).
+   - [next] Node port: mirror the Python design exactly (same file and class names under `src/turns/`, camelCase), per
+     the "What the Node port must mirror" list in `p5.5-core-merge.md`; delete `src/turns/chatCore.js`.
+2. Measures before: done (`a806c61`, `v4-notes/clean-pass.md`, `v4-notes/tools/`).
+3. Then: the inventory in `clean-pass.md`, the refactors (host interfaces split, `Outcome` enum, typed `WriteResult`,
+   error boundaries, `Verdict` one job, no `Any`, no private cross-package imports, one stemmer, P4 rough edges),
+   measures after, the design review.
+
+**Stopped 2026-10-24 at 78% of the 5-hour limit before the Node port** (the Python merge cost ~20 points; the port
+could pass 95%). Clean: committed, suites green, golden unchanged. Timer to the reset (23:40 UTC), then continue.
+
 ## P5.6 done (2026-10-24; owner exception to the change wall: 0.5.2 unpublished, old paths removed outright)
 
 - **Public, stable names first** (`ebdf5aa`): the root exports the routes (AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS,

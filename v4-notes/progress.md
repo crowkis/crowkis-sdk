@@ -10,7 +10,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | done (2026-10-23) | `dba85e0`, `241e1ab`, `df50e41`, `4b7c60e`, `821c0f2`, `94f249b`, `d6b2d3d`, `255ff9b`, `b907566`, `dd1f5f5`, `2caeaf7`, `b293b55`, `af4375f`, `91ab247`, `0f5aae3` | ~2 h 15 min |
-| P5 v4 behaviour (opt-in) | 2 windows | approved by the owner 2026-10-23: items 1-5, only on the understander path; starts after P4 | | |
+| P5 v4 behaviour (opt-in) | 2 windows | in progress: items 1-5 committed; reviews, frameworks and real server next | `d295214` ... `45c1fa1` | |
 | P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
 | P5.6 remove the old paths (owner, 2026-10-23) | | after P5.5: owner exception to the change wall (pre-launch, 0.5.2 unpublished); delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; see plan P5.6. Nothing in P4 changes. | | |
 
@@ -59,6 +59,38 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   reaches the LLM) in both languages, and fails the same way on the pre-P1 commit `0594148`, so it is not
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
+
+## P5 (in progress; owner approved 2026-10-23: items 1-5, only on the understander path)
+
+Usage rules: 5-hour stop before 97% at a clean point, then a background timer to the reset (18:40 UTC) and continue;
+weekly stop before 95%, no timer. After P5: stop and report (P5.5 not approved yet).
+
+Items, each failing-first in both languages with must-still-work controls (all committed, both suites green):
+1. [done] `d295214` / `06e720a`: StatedFacts with relevance. `TurnFrame.fact_relevance` (+ prompt). `FactRelevanceCheck`:
+   a stated fact may be left out only when the model is sure and tags it irrelevant; allergy, medication, pregnancy,
+   age always count (`word_rules/high_risk.py`, the floor). Chat V7 uses it. Voice with a classifier runs
+   `RuleSet.understood()`: `VoiceStatedFacts` replaces `CallContextTaint` (keeps just the stating turn and each turn a
+   fact may change private; `mark_private`); the classifier reads the call's de-identified facts (frames' memorable
+   entities), never its turns. Unsure / late / failed / no model: strict as before. `RuleChain.replacing()`.
+2. [done] `b324cb5` / `ec1e5e3`: hit guards on every channel. `QuestionRecords` (runtime; voice delegates unchanged).
+   Chat's lookup runs PiiPlaceholder, DifferentQuestion, CommitmentRewording (exact only, V2) via `ChatCachedAnswer`;
+   a refused hit is counted by its rule name; Chat keeps question records when it saves.
+3. [done] `d307c95` / `d8fbff0`: merged save check. Voice (understood) gains `VoicePrivateWord`, `VoiceActionClaim`.
+   Chat gains `ChatToolResult` (`record_answer(private=True)`), `ChatCallerIdentifier` (hashed `identifiers` in the
+   chat state; note: today `PrivateWord` refuses these first, since an ID turn is never shared, so this is defence in
+   depth) and the bounded write (2x budget, then `slow_write`).
+   Fix `8f273c9` / `10ba7e6`: the told-facts / private-word collection ran on the default path (+0.2 s on a 22,500-word
+   turn, `test_review_11` flaky); now only with an understander.
+4. [done] `d82adde` / `b8c81e9`: the 2026-10-22 misfires (cases in `v4-notes/p5-misfires.md`): common acronyms are no
+   names (B05), a generic payment method is not identifying (B04), a stem starting another of 5+ letters is grounded
+   (B03), a clock time while a task runs is a task step (C01); V7 on unrelated facts is item 1.
+5. [done] `3143540` / `45c1fa1`: `kb=<version>;channel=<name>` (`keys/KnowledgeSegment`) on every voice lookup and save
+   with an understander (`knowledge_version=`, default "1"); Chat already had kb= in its segment.
+
+**Golden:** voice identical. Chat: 38 turns changed, all in item 4 (the acronym list, plus one knock-on); every one is
+listed by rule in `v4-notes/p5-golden-changes.md` for the owner.
+
+**Next:** conformance on real Pipecat / LiveKit Py / LiveKit JS, code + privacy reviews, real-server check, mark done.
 
 ## P4 done (2026-10-23)
 

@@ -13,6 +13,7 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
 | P5.5 clean code (owner, 2026-10-22) | after P5 | not started (in the plan file, owned by the orchestrating session) | | |
 | P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
+| P5.6 remove the old paths (owner, 2026-10-23) | | after P5.5: owner exception to the change wall (pre-launch, 0.5.2 unpublished); delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; see plan P5.6. Nothing in P4 changes. | | |
 
 ## P0 (done)
 
@@ -79,10 +80,10 @@ Steps (each its own commit, both languages):
 3. [done] The reading everywhere (privacy review finding): `_model_messages`, `ModelAnswer.is_personal` and
    `PrivateChain` read the turn's reading, or treat a turn as personal if either the reading or the word rules
    say so (never less private). Golden identical with the default classifier.
-   Built as `understanding/personal_readings.py` / `src/understanding/personalReadings.js` (`PersonalReadings`:
-   `note`, `is_personal`, `chain_is_private`), one per session, injected into `TurnCore` (`personal_readings=`),
+   Built as `understanding/call_readings.py` / `src/understanding/callReadings.js` (`CallReadings`:
+   `note`, `is_personal`, `chain_is_private`), one per session, injected into `TurnCore` (`call_readings=`),
    offered to rules as `VoiceCall.is_personal(text)`. `TurnCore`'s constructor gained a required
-   `personal_readings` argument; `tests/turns/test_turn_core.py` / `turnCore.test.js` pass it (setup only).
+   `call_readings` argument; `tests/turns/test_turn_core.py` / `turnCore.test.js` pass it (setup only).
    Not yet reviewed: the code + privacy review of steps 2-3 belongs to step 6.
 4. [next] `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
    `ReplayRewriter` (exact repeats) and `BudgetedUnderstanding` (Decorator: the channel budget; late or failed

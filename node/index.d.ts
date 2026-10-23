@@ -549,12 +549,12 @@ export interface Reading {
 
 /** Reads a turn: whether it is about the caller's own records or depends on the call. */
 export interface Classifier {
-  classify(text: string): Reading;
+  classify(text: string): Reading | Promise<Reading>;
 }
 
 /** Rewrites a turn into a stand-alone question, or returns null to keep the caller's words. */
 export interface Rewriter {
-  rewrite(text: string, reading: Reading): string | null;
+  rewrite(text: string, reading: Reading): string | null | Promise<string | null>;
 }
 
 export interface VoiceStats {
@@ -946,6 +946,35 @@ export class LLMUnderstander implements Understander {
   constructor(complete: (messages: ChatMessage[]) => string | Promise<string>, options?: { business?: string });
   messages(turn: string, state: CallState): ChatMessage[];
   understand(turn: string, state: CallState): Promise<TurnFrame>;
+}
+
+/** A Reading from an understander's frame: anything but a confident, general turn reads as personal. */
+export class FrameReading implements Reading {
+  constructor(frame: TurnFrame);
+  readonly frame: TurnFrame;
+  readonly isPersonal: boolean;
+  readonly isContextDependent: boolean;
+  /** The stand-alone question, only for a turn that may be shared. */
+  readonly question: string | null;
+}
+
+/** The Classifier slot filled by an understander; the model sees the turn alone. */
+export class LLMClassifier implements Classifier {
+  constructor(understander: Understander);
+  classify(text: string): Promise<FrameReading>;
+}
+
+/** The Rewriter slot filled by an understander's stand-alone question (reuses the classifier's frame). */
+export class LLMRewriter implements Rewriter {
+  constructor(understander: Understander);
+  rewrite(text: string, reading: Reading): Promise<string | null>;
+}
+
+/** The Rewriter slot for exact repeats of already-verified questions. */
+export class ReplayRewriter implements Rewriter {
+  constructor(known?: Record<string, QuestionType | string>);
+  remember(turn: string, question: string, questionType?: string): void;
+  rewrite(text: string, reading: Reading): string | null;
 }
 
 export class WithFallback implements Understander {

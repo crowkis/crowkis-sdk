@@ -44,7 +44,7 @@ function coreWithout(session, names) {
   return new TurnCore(new SessionHost(session), {
     rules: RuleSet.voice().without(names), call: session._call, pairing: session._pairing,
     cacheLookup: session._cacheLookup, classifier: session._classifier, rewriter: session._rewriter,
-    personalReadings: session._personalReadings, stats: session._stats,
+    callReadings: session._callReadings, stats: session._stats,
   });
 }
 

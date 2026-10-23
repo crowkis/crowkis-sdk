@@ -9,6 +9,13 @@ const { TurnDecision } = require("./decision.js");
 const { ModelAnswer } = require("./modelAnswer.js");
 const { VoiceTurn } = require("./voiceTurn.js");
 
+/** @typedef {{ isPersonal: boolean, isContextDependent: boolean }} Reading */
+
+/** A plugged-in model's slot may answer with a promise; the default slots answer at once. */
+function isThenable(value) {
+  return value !== null && typeof value === "object" && typeof value.then === "function";
+}
+
 /**
  * What TurnCore uses of the session that hosts it (SessionHost implements it).
  * @typedef {object} TurnHost
@@ -32,9 +39,9 @@ const { VoiceTurn } = require("./voiceTurn.js");
  * @property {object} call the VoiceCall the rules read (SessionCall)
  * @property {import("../runtime/turnPairing.js").TurnPairing} pairing
  * @property {import("../runtime/cacheLookup.js").CacheLookup} cacheLookup
- * @property {{ classify: (text: string) => { isPersonal: boolean, isContextDependent: boolean } }} classifier
- * @property {{ rewrite: (text: string, reading: object) => string|null }} rewriter
- * @property {import("../understanding/personalReadings.js").PersonalReadings} personalReadings
+ * @property {{ classify: (text: string) => Reading | Promise<Reading> }} classifier
+ * @property {{ rewrite: (text: string, reading: Reading) => string|null|Promise<string|null> }} rewriter
+ * @property {import("../understanding/callReadings.js").CallReadings} callReadings
  *   the turns the classifier read as personal in this call
  * @property {import("../runtime/stats.js").Stats} stats
  */
@@ -52,7 +59,7 @@ class TurnCore {
    * @param {TurnHost} host
    * @param {TurnCoreParts} parts
    */
-  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, personalReadings, stats }) {
+  constructor(host, { rules, call, pairing, cacheLookup, classifier, rewriter, callReadings, stats }) {
     this._host = host;
     this._stats = stats;
     this._rules = rules;
@@ -61,16 +68,21 @@ class TurnCore {
     this._cacheLookup = cacheLookup;
     this._classifier = classifier;
     this._rewriter = rewriter;
-    this._personalReadings = personalReadings;
+    this._callReadings = callReadings;
   }
 
   async decide(callerSaid) {
     this._pairing.start(this._host.transcript.length);
 
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    const reading = this._classifier.classify(text);
-    this._personalReadings.note(text, reading);
-    const turn = new VoiceTurn(callerSaid, this._call, reading, this._rewriter.rewrite(text, reading));
+    // The default slots answer at once; only a plugged-in model is awaited, so a turn without one
+    // keeps today's timing.
+    let reading = this._classifier.classify(text);
+    if (isThenable(reading)) reading = await reading;
+    let rewritten = this._rewriter.rewrite(text, reading);
+    if (isThenable(rewritten)) rewritten = await rewritten;
+    this._callReadings.note(text, reading, rewritten);
+    const turn = new VoiceTurn(callerSaid, this._call, reading, rewritten);
     let verdict = this._rules.beforeFiller.firstObjection(turn);
     if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._infer(verdict);
@@ -152,7 +164,7 @@ class TurnCore {
     let verdict = this._rules.answerGiven.firstObjection(answer);
     if (RuleChain.isPending(verdict)) verdict = await verdict;
     if (verdict) return this._kept(verdict);
-    answer = answer.keyed(this._host.contextKey(callerSaid, answer.text));
+    answer = answer.keyed(this._callReadings.rewritten(answer.text) ?? this._host.contextKey(callerSaid, answer.text));
     this._host.transcript.push({ role: "user", content: callerSaid });
     this._host.transcript.push({ role: "assistant", content: modelSaid });
     verdict = this._rules.beforeSharing.firstObjection(answer);

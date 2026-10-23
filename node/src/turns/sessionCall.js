@@ -45,7 +45,7 @@ class SessionCall {
   }
 
   isPersonal(text) {
-    return this._session._personalReadings.isPersonal(text);
+    return this._session._callReadings.isPersonal(text);
   }
 
   markTainted() {

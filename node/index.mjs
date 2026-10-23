@@ -39,4 +39,7 @@ export const {
   LLMUnderstander,
   ReplayUnderstander,
   WithFallback,
+  LLMClassifier,
+  LLMRewriter,
+  ReplayRewriter,
 } = crowkis;

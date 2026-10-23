@@ -1328,4 +1328,13 @@ module.exports = {
   get WithFallback() {
     return require("./understand.js").WithFallback;
   },
+  get LLMClassifier() {
+    return require("./src/understanding/llmClassifier.js").LLMClassifier;
+  },
+  get LLMRewriter() {
+    return require("./src/understanding/llmRewriter.js").LLMRewriter;
+  },
+  get ReplayRewriter() {
+    return require("./src/understanding/replayRewriter.js").ReplayRewriter;
+  },
 };

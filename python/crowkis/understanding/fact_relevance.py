@@ -10,8 +10,8 @@ from .frame_reading import CONFIDENCE_FLOOR
 from .frame_words import _FUNCTION, _stem, _toks
 from .word_rules import HIGH_RISK_FACT_TYPES, _high_risk
 
-# Where a stated turn holds a second fact: "going to Goa and my husband has a heart condition".
-CLAUSE_BREAK = re.compile(r"[,;.!?]|\b(?:and|but|also|plus|aur|y)\b", re.I)
+# Where a stated turn holds a second fact: "going to Goa and my husband has a heart condition", "with my son who uses a wheelchair".
+CLAUSE_BREAK = re.compile(r"[,;.!?]|\b(?:and|but|also|plus|aur|y|with|who|whose|which|because|since|so|while|after)\b", re.I)
 
 
 class FactRelevanceCheck:

@@ -607,6 +607,303 @@
     ]
    },
    "objects": false
+  },
+  {
+   "name": "re-check: the floor counts 'my nephew is 6'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "my nephew is 6"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: my nephew is 6",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'the twins are four'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "the twins are four"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: the twins are four",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'ella tiene tres años'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "ella tiene tres años"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: ella tiene tres años",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'she is immunocompromised'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "she is immunocompromised"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: she is immunocompromised",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'he has lupus'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "he has lupus"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: he has lupus",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'I have crohns'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I have crohns"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I have crohns",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'my father is deaf'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "my father is deaf"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: my father is deaf",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'she uses a wheelchair'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "she uses a wheelchair"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: she uses a wheelchair",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: the floor counts 'I am on the pill'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I am on the pill"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I am on the pill",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: 'with ... who' starts a second fact",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "stated_turns": [
+     "we are going to goa with my son who uses a crutch"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "trip: going to goa",
+      "type": "trip",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "re-check: 'because' starts a second fact",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "stated_turns": [
+     "we are moving to pune because my wife lost her job"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "place: pune",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   }
  ]
 }

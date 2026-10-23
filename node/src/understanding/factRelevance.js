@@ -4,8 +4,8 @@ const { CONFIDENCE_FLOOR } = require("./frameReading.js");
 const { FUNCTION, stem, toks } = require("./frameWords.js");
 const { HIGH_RISK_FACT_TYPES, highRisk } = require("./wordRules/highRisk.js");
 
-// Where a stated turn holds a second fact: "going to Goa and my husband has a heart condition".
-const CLAUSE_BREAK = /[,;.!?]|\b(?:and|but|also|plus|aur|y)\b/i;
+// Where a stated turn holds a second fact: "going to Goa and my husband has a heart condition", "with my son who uses a wheelchair".
+const CLAUSE_BREAK = /[,;.!?]|\b(?:and|but|also|plus|aur|y|with|who|whose|which|because|since|so|while|after)\b/i;
 
 /**
  * A stated turn ("my car was hit") may be left out of a shared question only when the model is sure

@@ -25,6 +25,7 @@ const CONDITION_WORDS = new Set([
   "diabetic", "diabetes", "kidney", "kidneys", "renal", "epilepsy", "epileptic", "seizure", "seizures", "asthma",
   "asthmatic", "stroke", "heart", "cardiac", "cancer", "hypertension", "cirrhosis", "liver", "hiv", "pacemaker",
   "copd", "dementia", "alzheimer", "alzheimers", "arthritis", "thyroid", "anemia", "anaemia", "hemophilia",
+  "immunocompromised", "lupus", "crohn", "crohns", "deaf", "blind", "wheelchair", "disabled", "disability", "autism", "autistic", "adhd", "pill", "transplant", "sclerosis", "parkinson", "parkinsons",
 ]);
 // "I'm pregnant", "breastfeeding", "estoy embarazada", "8 months along".
 const PREGNANCY_WORDS = new Set([
@@ -39,10 +40,13 @@ const PERSON_WORDS = new Set([
   "i", "im", "he", "she", "hes", "shes", "son", "daughter", "kid", "kids", "child", "children", "boy", "girl",
   "mother", "father", "mom", "mum", "dad", "grandmother", "grandfather", "grandma", "grandpa", "wife", "husband",
   "brother", "sister", "hijo", "hija", "beta", "beti", "bacha", "bachcha", "bachche",
+  "nephew", "niece", "grandson", "granddaughter", "twins", "twin", "cousin", "toddler", "ella", "el", "usko",
 ]);
 // Numbers said in words ("my daughter is three").
 const NUMBER_WORDS = new Set(("one two three four five six seven eight nine ten eleven twelve thirteen fourteen " +
-  "fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred").split(" "));
+  "fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred " +
+  // Spanish and Hindi ("tres años", "paanch saal"); Hindi "do" (two) is left out: it is English "do".
+  "uno dos tres cuatro cinco seis siete ocho nueve diez veinte treinta cuarenta cincuenta sesenta setenta ochenta noventa ek teen char paanch chhe saat aath nau das bees pachaas assi").split(" "));
 
 const isNumber = (w) => /^\d+$/.test(w) || NUMBER_WORDS.has(w) || /^\d+yo$/.test(w);
 

@@ -67,7 +67,9 @@ const tripRelevance = (changes) => [{ fact: "place: trip to goa", type: "trip", 
 
 test("an unrelated stated fact no longer keeps the call private", async () => {
   const { store, session } = callWith({
-    [TRIP_TURN]: TRIP_FRAME, "what is a deductible in insurance": { ...DEDUCTIBLE, fact_relevance: tripRelevance(false) },
+    // Each fact of the stated turn (the trip, the kids) needs its own "does not change" (P5 re-check).
+    [TRIP_TURN]: TRIP_FRAME, "what is a deductible in insurance": { ...DEDUCTIBLE, fact_relevance: [
+      ...tripRelevance(false), { fact: "family: the kids", type: "other", changes_answer: false }] },
   });
   const first = await session.decide(TRIP_TURN);
   assert.strictEqual(first.rule, "VoiceStatedFacts");

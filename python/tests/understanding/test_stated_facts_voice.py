@@ -35,8 +35,10 @@ def call_with(frames):
 
 class VoiceStatedFactsTests(unittest.TestCase):
     def test_an_unrelated_stated_fact_no_longer_keeps_the_call_private(self):
+        # Each fact of the stated turn (the trip, the kids) needs its own "does not change" (P5 re-check).
         frames = {TRIP_TURN: TRIP_FRAME, "what is a deductible in insurance": dict(DEDUCTIBLE, fact_relevance=[
-            {"fact": "place: trip to goa", "type": "trip", "changes_answer": False}])}
+            {"fact": "place: trip to goa", "type": "trip", "changes_answer": False},
+            {"fact": "family: the kids", "type": "other", "changes_answer": False}])}
         _, store, session = call_with(frames)
         first = session.decide(TRIP_TURN)
         self.assertEqual(first.rule, "VoiceStatedFacts")

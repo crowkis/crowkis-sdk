@@ -46,4 +46,11 @@ export const {
   VOICE,
   CHAT,
   REALTIME,
+  AGENT,
+  FILLER,
+  PERSONAL,
+  SHARED,
+  TASK,
+  TOOLS,
+  URGENT,
 } = crowkis;

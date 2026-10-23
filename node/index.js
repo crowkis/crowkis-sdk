@@ -1262,6 +1262,8 @@ class CrowkisAdmin {
 }
 
 module.exports = {
+  // Where a turn goes: public, stable names (@crowkis/client/privacy has the privacy word rules).
+  ...require("./src/turns/routes.js"),
   Crowkis: CrowkisClient, // idiomatic short name (like `new Redis()`)
   CrowkisClient,
   CrowkisAdmin,

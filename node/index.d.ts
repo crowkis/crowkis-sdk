@@ -570,6 +570,14 @@ export class Channel {
   readonly savesAnswers: boolean;
 }
 export const VOICE: Channel;
+/** Where a turn goes: public, stable names. */
+export const AGENT: "agent";
+export const FILLER: "filler";
+export const PERSONAL: "personal";
+export const SHARED: "shared";
+export const TASK: "task";
+export const TOOLS: "tools";
+export const URGENT: "urgent";
 export const CHAT: Channel;
 export const REALTIME: Channel;
 

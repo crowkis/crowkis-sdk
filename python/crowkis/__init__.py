@@ -30,6 +30,8 @@ from .understanding.llm_classifier import LLMClassifier
 from .understanding.llm_rewriter import LLMRewriter
 from .understanding.replay_rewriter import ReplayRewriter
 from .turns.channel import CHAT, REALTIME, VOICE, Channel
+# Where a turn goes: public, stable names (crowkis.privacy has the privacy word rules).
+from .turns.routes import AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT
 from .session import CallSession, TurnResult
 from .chat import Chat, ChatConflict, ChatReply, MemoryStore
 
@@ -71,6 +73,13 @@ __all__ = [
     "VOICE",
     "CHAT",
     "REALTIME",
+    "AGENT",
+    "FILLER",
+    "PERSONAL",
+    "SHARED",
+    "TASK",
+    "TOOLS",
+    "URGENT",
     # clients (idiomatic short names first)
     "Crowkis",
     "AsyncCrowkis",

@@ -15,6 +15,7 @@
     "./memory": { "types": "./memory.d.ts", "default": "./memory.js" },
     "./chat": { "types": "./chat.d.ts", "default": "./chat.js" },
     "./session": { "types": "./session.d.ts", "default": "./session.js" },
+    "./privacy": { "types": "./privacy.d.ts", "default": "./src/privacy.js" },
     "./package.json": "./package.json"
   },
   "license": "Apache-2.0",
@@ -78,7 +79,9 @@
     "livekit.d.ts",
     "chat.d.ts",
     "session.d.ts",
+    "privacy.d.ts",
     "src/keys/knowledgeSegment.js",
+    "src/privacy.js",
     "src/rules/chain.js",
     "src/rules/chatRuleSet.js",
     "src/rules/hit/commitmentPolicy.js",

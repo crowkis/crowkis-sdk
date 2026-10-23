@@ -9,9 +9,8 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P1 rule chains in voice | 2-3 windows | done (2026-10-22) | `da6e0c2`, `2182580`, `b276d2b`, `6016501`, `d54dbfd`, `6a9fc92` | ~1 h 35 min |
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
-| P4 pluggable understanding | 1-2 windows | in progress (owner: start 2026-10-22; stop lines 97% 5-hour and weekly) | | |
-| P5 v4 behaviour (opt-in) | 2 windows | needs the owner's OK (changes golden decisions) | | |
-| P5.5 clean code (owner, 2026-10-22) | after P5 | not started (in the plan file, owned by the orchestrating session) | | |
+| P4 pluggable understanding | 1-2 windows | done (2026-10-23) | `dba85e0`, `241e1ab`, `df50e41`, `4b7c60e`, `821c0f2`, `94f249b`, `d6b2d3d`, `255ff9b`, `b907566`, `dd1f5f5`, `2caeaf7`, `b293b55`, `af4375f`, `91ab247`, `0f5aae3` | ~2 h 15 min |
+| P5 v4 behaviour (opt-in) | 2 windows | approved by the owner 2026-10-23: items 1-5, only on the understander path; starts after P4 | | |
 | P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
 | P5.6 remove the old paths (owner, 2026-10-23) | | after P5.5: owner exception to the change wall (pre-launch, 0.5.2 unpublished); delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; see plan P5.6. Nothing in P4 changes. | | |
 
@@ -61,7 +60,42 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
-## P4 (in progress; owner started it 2026-10-22 ~19:15 IST)
+## P4 done (2026-10-23)
+
+- **Done when, checked:** golden files untouched by every P4 commit (no understander: identical); conformance with the
+  four v4 scenarios (an understander) passes on the custom loops, Pipecat 1.13, LiveKit Python 1.8.8 and LiveKit JS
+  (`af4375f`, re-run after the review fixes); both suites green twice (Python 744 passed, Node 54/54 files).
+- **What it added:** `classifier=` / `rewriter=` on `VoiceSession` and the factories; `CallReadings` (a turn is personal
+  or a follow-up by its reading OR the word rules; each turn sets or clears its rewrite; the answer is saved under the
+  key it was looked up with); `FrameReading`, `LLMClassifier`, `LLMRewriter`, `ReplayRewriter` (exported);
+  `RewriteCheck` (a rewrite keys only a general, stand-alone turn and adds no number, capitalised name or declared
+  value); `BudgetedUnderstanding` (every plugged-in model: error boundary, budget from the channel, word rules on a
+  late or failed model, `understand_timeouts` / `understand_errors` in `stats()` only when a model is plugged in;
+  Python bounds a session's late calls at 4 and cancels them); `channel=` profiles (`Channel.of`, exported).
+- **Reviews:** code + privacy (two subagents). Fixed in `91ab247` / `0f5aae3`: stale rewrite used as the save key;
+  a model could drop a word-rule follow-up (leaking a private chain's words into a lookup key); a rewrite used for a
+  word-personal turn (template under a general key) and for a follow-up (answer built from the chain saved under a
+  bare question); an unchecked rewrite carrying invented details; no error boundary without a budget; a hung model
+  holding every shared worker (Python); blank rewrites; `Channel` not exported / typed as an interface. The privacy
+  reviewer re-checked: all fixed.
+- **Tests changed, not added:** `test_slots_wired` / `slotsWired.test.js` "the factory passes them through" now
+  expects the slots inside `BudgetedUnderstanding`; `test_budgeted_understanding` / `budgetedUnderstanding.test.js`
+  "no budget runs the model as it is" asserted the unguarded model (a bug) and now expects the guarded one;
+  `test_turn_core` / `turnCore.test.js` pass the new `call_readings` argument (setup only).
+- **Real server** (`crowkis-demo`, tenant `voice`, stopped after): every v4 scenario passes in both languages. Two
+  failures, both also on the pre-v4 base `835c533` (checked today), so server-side: "a reworded question hits"
+  (known) and, new today, "Unicode, Hinglish and numbers" (the Spanish turn's new answer is not findable by the
+  next caller; earlier runs passed on an older stored copy). For the owner; not flushed.
+- **Known limits, for the owner (not fixed):** `RewriteCheck` catches capitalised names only, so a lowercase name
+  the model invents can key a turn (the model sees the turn alone, so it cannot carry this caller's other details;
+  no worse than today's key, the caller's words). A wrong rewrite can store an answer under an unrelated question
+  (cache poisoning by a bad model; P5 item 2's hit guards are the defence). `_chain()` walks back by the word rules
+  only. Channel fields other than `spoken` and the budgets are informational until P5. Python's understanding pool is
+  module-level like the lookup pool. Node logs through `console.warn`, like `BoundedWriter`. `CallReadings` sets grow
+  with the call's distinct turns.
+- **Logged nits:** Node validates the client before `Channel.of`, Python after (error order only).
+
+## P4 steps (2026-10-22 to 2026-10-23)
 
 **Stopped 2026-10-22 (owner: stop for the day; no timer).** Steps 1-3 are committed, both suites green
 (Python 711 passed, Node 50/50, each run twice), golden files untouched. Restart after the weekly reset
@@ -89,9 +123,9 @@ Steps (each its own commit, both languages):
    `ReplayRewriter` (exact repeats) and `BudgetedUnderstanding` (Decorator: the channel budget; late or failed
    means the word rules decide, never "share anyway"; counts `understand_timeouts` / `understand_errors`).
    `LLMUnderstander` keeps working as both slots for Chat.
-5. [next] `channel=` profiles in the factories; v4 conformance scenarios with an understander in
+5. [done] `channel=` profiles in the factories; v4 conformance scenarios with an understander in
    `fixtures/adapter-conformance.json` (Pipecat, LiveKit Python, LiveKit JS).
-6. Reviews (code + privacy), real-server check, mark P4 done.
+6. [done] Reviews (code + privacy), real-server check, mark P4 done.
 
 ## P3 done (2026-10-22); work stopped (owner: no P4 today)
 

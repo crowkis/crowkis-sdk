@@ -107,6 +107,18 @@ class RuleChain {
       .map((rule) => (rule instanceof RuleChain ? rule.without(names, { unsafe }) : rule));
     return new RuleChain(kept, { name: this.name, floor: this.floor });
   }
+
+  /**
+   * This chain with the rule called `name` swapped for `rule`, in the same place. A floor rule is
+   * never swapped; a name the chain does not have is refused.
+   */
+  replacing(name, rule) {
+    if (!this.names.includes(name)) throw new UnknownRule(`no such rule: ${name}`);
+    if (this._rules.some((old) => old.name === name && RuleChain._holdsFloor(old))) {
+      throw new FloorRuleLocked(`a floor rule cannot be replaced: ${name}`);
+    }
+    return new RuleChain(this._rules.map((old) => (old.name === name ? rule : old)), { name: this.name, floor: this.floor });
+  }
 }
 
 module.exports = { FloorRuleLocked, RuleChain, UnknownRule, ruleNames };

@@ -26,4 +26,5 @@ module.exports = {
   ...require("./untaggedName.js"),
   ...require("./urgentTurn.js"),
   ...require("./urgentWords.js"),
+  ...require("./voiceStatedFacts.js"),
 };

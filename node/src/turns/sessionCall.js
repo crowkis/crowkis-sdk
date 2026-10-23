@@ -51,6 +51,14 @@ class SessionCall {
     return this._session._callReadings.isContextDependent(text);
   }
 
+  stated() {
+    return this._session._callReadings.stated;
+  }
+
+  markPrivate(text) {
+    this._session._callReadings.markPrivate(text);
+  }
+
   markTainted() {
     this._session._tainted = true;
   }

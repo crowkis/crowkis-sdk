@@ -80,7 +80,7 @@ class TurnCore {
     const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
     // The default slots answer at once; only a plugged-in model is awaited, so a turn without one
     // keeps today's timing.
-    let reading = this._classifier.classify(text);
+    let reading = this._classifier.classify(text, this._callReadings.facts);
     if (isThenable(reading)) reading = await reading;
     let rewritten = this._rewriter.rewrite(text, reading);
     if (isThenable(rewritten)) rewritten = await rewritten;

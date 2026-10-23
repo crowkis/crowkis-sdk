@@ -531,7 +531,7 @@ class VoiceSession {
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
     // The checks of the three SDK stages, read through this call's view of the session.
-    this._rules = RuleSet.voice(this._fillers);
+    this._rules = classifier ? RuleSet.understood(this._fillers) : RuleSet.voice(this._fillers);
     // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
     this._classifier = classifier || new WordRuleClassifier();
     this._rewriter = rewriter || new NoRewrite();

@@ -65,6 +65,27 @@ class Attribute {
   }
 }
 
+/**
+ * Whether a fact the caller stated (an allergy, an age, a trip) changes the answer to this turn. Read
+ * fail-closed: a fact the model did not say is irrelevant changes the answer.
+ */
+class FactRelevance {
+  constructor({ fact, type, changesAnswer }) {
+    Object.assign(this, { fact, type, changesAnswer });
+    Object.freeze(this);
+  }
+
+  static fromDict(data) {
+    if (!data || typeof data !== "object") return null;
+    const fact = text(data.fact);
+    if (!fact) return null;
+    const said = data.changes_answer ?? data.changesAnswer;
+    return new FactRelevance({
+      fact, type: text(data.type).toLowerCase() || "other", changesAnswer: said === undefined || said === null ? true : bool(said),
+    });
+  }
+}
+
 class TurnFrame {
   constructor(fields) {
     Object.assign(this, fields);
@@ -103,6 +124,9 @@ class TurnFrame {
       questionType: QUESTION_TYPES.includes(qtype) ? qtype : "other",
       // The language the reply must be in ("hi", "en"): asked for now or earlier, else the turn's.
       language: LANGUAGE.test(language) ? language : null,
+      // For each fact the caller stated, whether it changes this turn's answer (v4 StatedFacts).
+      factRelevance: (Array.isArray(data.fact_relevance ?? data.factRelevance) ? (data.fact_relevance ?? data.factRelevance) : [])
+        .map((r) => FactRelevance.fromDict(r)).filter(Boolean),
     });
   }
 
@@ -128,5 +152,5 @@ class TurnFrame {
 }
 
 module.exports = {
-  TurnFrame, Entity, Attribute, KINDS, SUBJECTS, QUESTION_TYPES, IDENTIFYING_TYPES, NOT_GENERAL_TYPES, DETAIL_TYPES,
+  TurnFrame, Entity, Attribute, FactRelevance, KINDS, SUBJECTS, QUESTION_TYPES, IDENTIFYING_TYPES, NOT_GENERAL_TYPES, DETAIL_TYPES,
 };

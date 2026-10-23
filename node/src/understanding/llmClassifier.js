@@ -5,8 +5,9 @@ const { FrameReading } = require("./frameReading.js");
 
 /**
  * Adapter: reads a voice turn through an understander (LLMUnderstander over the app's `complete`
- * function, or any other). The model sees the turn alone, never the caller's earlier words, so
- * nothing else the caller said crosses to the provider.
+ * function, or any other). The model sees the turn and the call's de-identified facts (what earlier
+ * frames remembered, never a name, a number or an earlier turn), so it can say which facts change
+ * this answer.
  */
 class LLMClassifier {
   constructor(understander) {
@@ -14,8 +15,8 @@ class LLMClassifier {
   }
 
   /** The model's reading of the turn. */
-  async classify(text) {
-    return new FrameReading(await this._understander.understand(text, new CallState()));
+  async classify(text, facts = []) {
+    return new FrameReading(await this._understander.understand(text, new CallState({ facts })));
   }
 }
 

@@ -35,6 +35,11 @@ class VoiceTurn {
     return this.reading.isContextDependent || this.call.isContextDependent(this.text);
   }
 
+  /** The model's frame of the turn, or null (the word rules make none). */
+  get frame() {
+    return this.reading.frame ?? null;
+  }
+
   /** The cache key: the rewritten question, else the caller's words or the chain a follow-up leans on; null without one. */
   get key() {
     return this._once("key", () => (this.rewritten !== null ? this.rewritten : this.call.contextKey(this.said, this.text)));

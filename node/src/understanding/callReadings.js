@@ -1,6 +1,10 @@
 "use strict";
 
-const { isContextDependent, isPersonal, privateChain } = require("./wordRules/index.js");
+const { isContextDependent, isPersonal, privateChain, setsContext } = require("./wordRules/index.js");
+
+// The newest facts and stated turns a call keeps (as Chat's CallState does).
+const MAX_FACTS = 12;
+const MAX_STATED = 12;
 
 /**
  * What the classifier and rewriter made of each caller turn of one call, kept so that record() and
@@ -9,13 +13,17 @@ const { isContextDependent, isPersonal, privateChain } = require("./wordRules/in
  * A turn is personal, or a follow-up, when its reading or the word rules say so, so a plugged-in
  * classifier can only make a call more private, never less. A rewritten turn's answer is saved under
  * the question it was looked up with; each turn sets or clears its rewrite, so an earlier turn's never
- * keys a later one.
+ * keys a later one. It also keeps what the caller told the call: the stated turns (never sent
+ * anywhere; StatedFacts checks them) and the de-identified facts the model's frames remembered (the
+ * classifier reads them).
  */
 class CallReadings {
   constructor() {
     this._readPersonal = new Set();
     this._readFollowUp = new Set();
     this._rewritten = new Map();
+    this._stated = [];
+    this._facts = [];
   }
 
   /** Remember a turn's reading and rewrite (keyed by the trimmed words the classifier read). */
@@ -25,6 +33,27 @@ class CallReadings {
     if (reading.isContextDependent) this._readFollowUp.add(trimmed);
     if (rewritten === null || rewritten === undefined) this._rewritten.delete(trimmed);
     else this._rewritten.set(trimmed, rewritten);
+    if (setsContext(trimmed)) this._stated = [...this._stated, trimmed].slice(-MAX_STATED);
+    const frame = reading.frame || null;
+    for (const entity of frame ? frame.memorable : []) {
+      const fact = `${entity.type}: ${entity.text}`;
+      this._facts = [...this._facts.filter((f) => f !== fact), fact].slice(-MAX_FACTS);
+    }
+  }
+
+  /** Read this turn as personal from now on (a rule kept it private). */
+  markPrivate(text) {
+    this._readPersonal.add(typeof text === "string" ? text.trim() : "");
+  }
+
+  /** The turns in which the caller told the call something, oldest first. */
+  get stated() {
+    return [...this._stated];
+  }
+
+  /** The call's de-identified facts ("condition: car hit"), as the classifier reads them. */
+  get facts() {
+    return [...this._facts];
   }
 
   /** The turn is about the caller's own records, by its reading or by the word rules. */

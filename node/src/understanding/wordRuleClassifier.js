@@ -9,6 +9,11 @@ class WordReading {
     this._read = new Map();
   }
 
+  /** The word rules make no frame. */
+  get frame() {
+    return null;
+  }
+
   _once(name, read) {
     if (!this._read.has(name)) this._read.set(name, read());
     return this._read.get(name);
@@ -30,7 +35,7 @@ class WordReading {
  * so nothing changes without opt-in.
  */
 class WordRuleClassifier {
-  classify(text) {
+  classify(text, facts = []) {
     return new WordReading(text);
   }
 }

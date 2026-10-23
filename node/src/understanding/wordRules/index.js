@@ -13,4 +13,5 @@ module.exports = {
   ...require("./callContext.js"),
   ...require("./answers.js"),
   ...require("./promptDetails.js"),
+  ...require("./highRisk.js"),
 };

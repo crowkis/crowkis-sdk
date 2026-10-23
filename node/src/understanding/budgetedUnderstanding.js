@@ -18,6 +18,10 @@ class BudgetedReading {
   get isContextDependent() {
     return this.reading.isContextDependent;
   }
+
+  get frame() {
+    return this.reading.frame ?? null;
+  }
 }
 
 /**
@@ -38,10 +42,10 @@ class BudgetedUnderstanding {
   }
 
   /** The model's reading and rewrite, or the word rules' reading when the model is late or fails. */
-  async classify(text) {
+  async classify(text, facts = []) {
     let understood;
     try {
-      const understanding = this._understand(text);
+      const understanding = this._understand(text, facts);
       understood = this._budgetMs === null ? await understanding : await within(this._budgetMs, understanding);
     } catch (error) {
       return this._fallBack(text, COUNTER.UNDERSTAND_ERRORS, `failed (${(error && error.name) || typeof error})`);
@@ -57,8 +61,8 @@ class BudgetedUnderstanding {
     return reading.rewritten;
   }
 
-  async _understand(text) {
-    const reading = await this._classifier.classify(text);
+  async _understand(text, facts) {
+    const reading = await this._classifier.classify(text, facts);
     const rewritten = await this._rewriter.rewrite(text, reading);
     return { reading, rewritten: rewritten ?? null };
   }

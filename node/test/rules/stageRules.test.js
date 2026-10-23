@@ -19,6 +19,7 @@ const { Hit } = require("../../src/turns/hit.js");
 const { Verdict: ChatVerdict } = require("../../verify.js");
 const { ModelAnswer } = require("../../src/turns/modelAnswer.js");
 const { VoiceTurn } = require("../../src/turns/voiceTurn.js");
+const { FrameReading } = require("../../src/understanding/frameReading.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { FakeCall } = require("./fakeCall.js");
 
@@ -46,7 +47,10 @@ function subject(testCase, call) {
   if (testCase.subject === "chat") {
     return new ChatTurn(TurnFrame.fromDict(testCase.frame), testCase.say, CallState.fromDict(testCase.state));
   }
-  const turn = new VoiceTurn(testCase.say, call, new WordRuleClassifier().classify(testCase.say.trim()));
+  // A case with a frame is read by a model (v4); without one, by the word rules.
+  const reading = testCase.frame ? new FrameReading(TurnFrame.fromDict(testCase.frame))
+    : new WordRuleClassifier().classify(testCase.say.trim());
+  const turn = new VoiceTurn(testCase.say, call, reading);
   if (testCase.stage === "question") return turn;
   if (testCase.stage === "hit") return new CachedAnswer(turn, Hit.fromAgent(testCase.hit), performance.now());
   return new ModelAnswer(testCase.say, testCase.answer, call.key, call, {
@@ -75,7 +79,7 @@ test("every rule has cases both ways", () => {
     const outcomes = new Set(CASES.filter((c) => c.rule === name).map((c) => c.objects));
     assert.deepStrictEqual([...outcomes].sort(), [false, true], name);
   }
-  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 47);
+  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 48);
 });
 
 test("the taint rule marks the call", async () => {

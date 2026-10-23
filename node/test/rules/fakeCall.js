@@ -10,7 +10,7 @@ const CHANNELS = { voice: VOICE, chat: CHAT, realtime: REALTIME };
 
 const SETTING_NAMES = {
   min_words: "minWords", short_turns: "shortTurns", serve_above: "serveAbove", urgent_before: "urgentBefore",
-  another_question: "anotherQuestion",
+  another_question: "anotherQuestion", stated_turns: "statedTurns",
 };
 
 class FakeCall {
@@ -18,7 +18,7 @@ class FakeCall {
     Object.assign(this, {
       tainted: false, values: {}, minWords: 3, shortTurns: false, serveAbove: 0.92, commitments: "exact",
       vouches: false, earlier: [], urgentBefore: false, key: "the key", anotherQuestion: false, identifiers: [],
-      channel: VOICE, readPersonal: new Set(),
+      channel: VOICE, readPersonal: new Set(), statedTurns: [],
     });
     for (const [name, value] of Object.entries(settings)) this[SETTING_NAMES[name] || name] = value;
     if (typeof this.channel === "string") this.channel = CHANNELS[this.channel];
@@ -34,6 +34,14 @@ class FakeCall {
 
   isContextDependent(text) {
     return isContextDependent(text);
+  }
+
+  stated() {
+    return this.statedTurns;
+  }
+
+  markPrivate(text) {
+    this.readPersonal.add(text.trim());
   }
 
   markTainted() {

@@ -85,11 +85,11 @@ Steps (each its own commit, both languages):
    offered to rules as `VoiceCall.is_personal(text)`. `TurnCore`'s constructor gained a required
    `call_readings` argument; `tests/turns/test_turn_core.py` / `turnCore.test.js` pass it (setup only).
    Not yet reviewed: the code + privacy review of steps 2-3 belongs to step 6.
-4. [next] `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
+4. [done] `LLMClassifier` / `LLMRewriter` split from `LLMUnderstander` (any provider via one `complete`), plus
    `ReplayRewriter` (exact repeats) and `BudgetedUnderstanding` (Decorator: the channel budget; late or failed
    means the word rules decide, never "share anyway"; counts `understand_timeouts` / `understand_errors`).
    `LLMUnderstander` keeps working as both slots for Chat.
-5. `channel=` profiles in the factories; v4 conformance scenarios with an understander in
+5. [next] `channel=` profiles in the factories; v4 conformance scenarios with an understander in
    `fixtures/adapter-conformance.json` (Pipecat, LiveKit Python, LiveKit JS).
 6. Reviews (code + privacy), real-server check, mark P4 done.
 

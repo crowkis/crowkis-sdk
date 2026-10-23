@@ -539,6 +539,8 @@ export interface VoiceSessionOptions {
   classifier?: Classifier;
   /** The stand-alone question a turn is looked up and saved under. Defaults to no rewrite. */
   rewriter?: Rewriter;
+  /** How long a plugged-in classifier and rewriter may take on a turn; late or failed, the word rules read it. */
+  understandBudgetMs?: number | null;
 }
 
 /** What a classifier says about one turn. */
@@ -559,6 +561,9 @@ export interface Rewriter {
 
 export interface VoiceStats {
   turns: number;
+  /** Only with a plugged-in, budgeted model: turns it was too slow for, or failed on. */
+  understandTimeouts?: number;
+  understandErrors?: number;
   servedFromCache: number;
   answeredByFiller: number;
   modelCalls: number;

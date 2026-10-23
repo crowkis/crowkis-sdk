@@ -153,6 +153,7 @@
     "src/turns/verdict.js",
     "src/turns/voiceTurn.js",
     "src/understanding/answerPatterns.js",
+    "src/understanding/budgetedUnderstanding.js",
     "src/understanding/callReadings.js",
     "src/understanding/chatDetails.js",
     "src/understanding/frameReading.js",

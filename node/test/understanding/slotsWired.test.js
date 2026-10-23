@@ -7,6 +7,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { CrowkisClient } = require("../../index.js");
+const { BudgetedUnderstanding } = require("../../src/understanding/budgetedUnderstanding.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { VoiceSession, voiceSession } = require("../../voice.js");
 
@@ -82,8 +83,11 @@ test("the factory passes them through", () => {
   const classifier = new AlwaysPersonal();
   const rewriter = new Rewords();
   const session = voiceSession({ client: new CrowkisClient({ port: 1 }), classifier, rewriter });
-  assert.strictEqual(session._classifier, classifier);
-  assert.strictEqual(session._rewriter, rewriter);
+  // The factory gives a plugged-in model the understanding budget (P4 step 4).
+  assert.ok(session._classifier instanceof BudgetedUnderstanding);
+  assert.strictEqual(session._rewriter, session._classifier);
+  assert.strictEqual(session._classifier._classifier, classifier);
+  assert.strictEqual(session._classifier._rewriter, rewriter);
 });
 
 test("a turn the classifier reads personal is never shared", async () => {

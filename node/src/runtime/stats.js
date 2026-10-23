@@ -19,6 +19,8 @@ const COUNTER = Object.freeze({
   UNSPEAKABLE: "unspeakable",
   EMPTY_ANSWERS: "emptyAnswers",
   AUDIO_UNAVAILABLE: "audioUnavailable",
+  UNDERSTAND_TIMEOUTS: "understandTimeouts",
+  UNDERSTAND_ERRORS: "understandErrors",
 });
 
 /**

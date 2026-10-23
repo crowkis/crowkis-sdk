@@ -14,6 +14,8 @@ const { SessionHost } = require("./src/turns/sessionHost.js");
 const { Stats } = require("./src/runtime/stats.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
+const { BudgetedUnderstanding } = require("./src/understanding/budgetedUnderstanding.js");
+const { VOICE } = require("./src/turns/channel.js");
 const { CallReadings } = require("./src/understanding/callReadings.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
@@ -452,6 +454,7 @@ class VoiceSession {
       bytesPerSecond,
       classifier = null,
       rewriter = null,
+      understandBudgetMs = null,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -464,6 +467,9 @@ class VoiceSession {
     }
     if (latencyBudgetMs !== undefined && latencyBudgetMs !== null && !(latencyBudgetMs > 0)) {
       throw new Error(`latencyBudgetMs must be positive, got ${latencyBudgetMs}`);
+    }
+    if (understandBudgetMs !== null && understandBudgetMs !== undefined && !(understandBudgetMs > 0)) {
+      throw new Error(`understandBudgetMs must be positive, got ${understandBudgetMs}`);
     }
     const voiceId = typeof voice === "string" ? voice.trim() : "";
     if (!voiceId) {
@@ -526,6 +532,16 @@ class VoiceSession {
     // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
     this._classifier = classifier || new WordRuleClassifier();
     this._rewriter = rewriter || new NoRewrite();
+    // A plugged-in model gets a budget: late or failed, the word rules read the turn (counted).
+    this._understandingBudgeted = understandBudgetMs !== null && understandBudgetMs !== undefined &&
+      Boolean(classifier || rewriter);
+    if (this._understandingBudgeted) {
+      const understanding = new BudgetedUnderstanding(this._classifier, this._rewriter, {
+        budgetMs: understandBudgetMs, count: (counter) => this._stats.add(counter),
+      });
+      this._classifier = understanding;
+      this._rewriter = understanding;
+    }
     // Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
     this._callReadings = new CallReadings();
     this._call = new SessionCall(this);
@@ -935,6 +951,10 @@ class VoiceSession {
       modelCallsAvoidedPct: pct(this.served + this.filled),
       // How often each rule decided a turn or kept an answer, by the rule's name.
       rules: this._stats.ruleCounts(),
+      // Turns a plugged-in model was too slow for or failed on (the word rules read them).
+      ...(this._understandingBudgeted
+        ? { understandTimeouts: this.understandTimeouts, understandErrors: this.understandErrors }
+        : {}),
     };
   }
 
@@ -1115,7 +1135,7 @@ const TEXT_ONLY_VOICE = "crowkis:text-only";
 const SESSION_OPTIONS = new Set([
   "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
   "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
-  "classifier", "rewriter",
+  "classifier", "rewriter", "understandBudgetMs",
 ]);
 
 /**
@@ -1140,6 +1160,11 @@ const SESSION_OPTIONS = new Set([
  *
  * `client` uses a client you built, as it is: passing host/port/authToken/token/tenant/
  * timeoutMs with it is an error, and closing the agent leaves it open.
+ *
+ * `classifier` / `rewriter` plug in a model that reads the turn (LLMClassifier, LLMRewriter,
+ * ReplayRewriter). It gets `understandBudgetMs` (250) per turn; late or failed, the word rules read
+ * the turn. The word rules apply either way, so a model can make a call more private, never less.
+ * null turns the budget off.
  */
 function voiceSession(options = {}) {
   const {
@@ -1154,6 +1179,7 @@ function voiceSession(options = {}) {
     tenant,
     timeoutMs,
     latencyBudgetMs = 250,
+    understandBudgetMs = VOICE.understandBudgetMs,
     ...rest
   } = options;
   if (timeoutMs !== undefined && timeoutMs !== null && !(timeoutMs > 0)) {
@@ -1197,6 +1223,7 @@ function voiceSession(options = {}) {
     ...rest,
     voice: textOnly ? TEXT_ONLY_VOICE : voice,
     latencyBudgetMs,
+    understandBudgetMs,
   });
   session._textOnly = textOnly;
   return session;

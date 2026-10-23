@@ -10,10 +10,20 @@ class Channel {
     Object.assign(this, { name, isolatesContext, budgetMs, audio, spoken, savesAnswers, understandBudgetMs });
     Object.freeze(this);
   }
+
+  /** A channel, or the profile with that name ("voice", "chat", "realtime"). */
+  static of(channel) {
+    if (channel instanceof Channel) return channel;
+    const found = CHANNELS.get(String(channel).trim().toLowerCase());
+    if (!found) throw new Error(`channel must be one of ${[...CHANNELS.keys()].sort().join(", ")} or a Channel, got ${channel}`);
+    return found;
+  }
 }
 
 const VOICE = new Channel({ name: "voice", isolatesContext: true, budgetMs: 250, audio: true, spoken: true, savesAnswers: true });
 const CHAT = new Channel({ name: "chat", isolatesContext: true, budgetMs: 1000, audio: false, spoken: false, savesAnswers: true });
 const REALTIME = new Channel({ name: "realtime", isolatesContext: false, budgetMs: 250, audio: false, spoken: true, savesAnswers: false });
 
-module.exports = { CHAT, Channel, REALTIME, VOICE };
+const CHANNELS = new Map([VOICE, CHAT, REALTIME].map((channel) => [channel.name, channel]));
+
+module.exports = { CHANNELS, CHAT, Channel, REALTIME, VOICE };

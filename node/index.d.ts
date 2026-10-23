@@ -541,6 +541,21 @@ export interface VoiceSessionOptions {
   rewriter?: Rewriter;
   /** How long a plugged-in classifier and rewriter may take on a turn; late or failed, the word rules read it. */
   understandBudgetMs?: number | null;
+  /** What the channel can do, as the rules read it. Default "voice". */
+  channel?: Channel | ChannelName;
+}
+
+export type ChannelName = "voice" | "chat" | "realtime";
+
+/** A channel's capability profile (its budgets and what it can do). */
+export interface Channel {
+  readonly name: string;
+  readonly isolatesContext: boolean;
+  readonly budgetMs: number;
+  readonly understandBudgetMs: number;
+  readonly audio: boolean;
+  readonly spoken: boolean;
+  readonly savesAnswers: boolean;
 }
 
 /** What a classifier says about one turn. */
@@ -713,7 +728,7 @@ export interface VoiceSessionFactoryOptions extends Omit<VoiceSessionOptions, "v
   tenant?: string;
   /** Per server request. Default 1000, with no retries. */
   timeoutMs?: number;
-  /** The longest a turn waits for a cache lookup. Default 250; null turns it off. */
+  /** The longest a turn waits for a cache lookup. Default: the channel's (250); null turns it off. */
   latencyBudgetMs?: number | null;
 }
 

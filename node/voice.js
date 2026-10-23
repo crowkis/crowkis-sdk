@@ -15,7 +15,7 @@ const { Stats } = require("./src/runtime/stats.js");
 const { LATE, within } = require("./src/runtime/deadline.js");
 const { NoRewrite } = require("./src/understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("./src/understanding/budgetedUnderstanding.js");
-const { VOICE } = require("./src/turns/channel.js");
+const { Channel, VOICE } = require("./src/turns/channel.js");
 const { CallReadings } = require("./src/understanding/callReadings.js");
 const { WordRuleClassifier } = require("./src/understanding/wordRuleClassifier.js");
 
@@ -455,6 +455,7 @@ class VoiceSession {
       classifier = null,
       rewriter = null,
       understandBudgetMs = null,
+      channel = VOICE,
     } = {}
   ) {
     if (!(serveAbove >= 0 && serveAbove <= 1)) {
@@ -485,6 +486,8 @@ class VoiceSession {
     this.speed = speed;
     this.audioFormat = audioFormat;
     this.bytesPerSecond = bytesPerSecond;
+    // What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
+    this.channel = Channel.of(channel);
     this._reported = {};
     this.serveAbove = serveAbove;
     this.minWords = minWords;
@@ -1135,7 +1138,7 @@ const TEXT_ONLY_VOICE = "crowkis:text-only";
 const SESSION_OPTIONS = new Set([
   "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
   "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
-  "classifier", "rewriter", "understandBudgetMs",
+  "classifier", "rewriter", "understandBudgetMs", "channel",
 ]);
 
 /**
@@ -1165,6 +1168,9 @@ const SESSION_OPTIONS = new Set([
  * ReplayRewriter). It gets `understandBudgetMs` (250) per turn; late or failed, the word rules read
  * the turn. The word rules apply either way, so a model can make a call more private, never less.
  * null turns the budget off.
+ *
+ * `channel` ("voice", the default, or "realtime", or a Channel) is the profile the budgets not
+ * passed here come from (voice and realtime: 250 ms each).
  */
 function voiceSession(options = {}) {
   const {
@@ -1178,8 +1184,9 @@ function voiceSession(options = {}) {
     token,
     tenant,
     timeoutMs,
-    latencyBudgetMs = 250,
-    understandBudgetMs = VOICE.understandBudgetMs,
+    channel: channelOption = VOICE,
+    latencyBudgetMs,
+    understandBudgetMs,
     ...rest
   } = options;
   if (timeoutMs !== undefined && timeoutMs !== null && !(timeoutMs > 0)) {
@@ -1200,6 +1207,7 @@ function voiceSession(options = {}) {
       );
     }
   }
+  const channel = Channel.of(channelOption);
   const textOnly = voice === undefined || voice === null;
   if (textOnly && rest.synthesise) {
     throw new Error(
@@ -1222,8 +1230,10 @@ function voiceSession(options = {}) {
   const session = new VoiceSession(agent, {
     ...rest,
     voice: textOnly ? TEXT_ONLY_VOICE : voice,
-    latencyBudgetMs,
-    understandBudgetMs,
+    // Budgets left out come from the channel's profile; null turns one off.
+    latencyBudgetMs: latencyBudgetMs === undefined ? channel.budgetMs : latencyBudgetMs,
+    understandBudgetMs: understandBudgetMs === undefined ? channel.understandBudgetMs : understandBudgetMs,
+    channel,
   });
   session._textOnly = textOnly;
   return session;

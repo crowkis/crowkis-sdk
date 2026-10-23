@@ -46,12 +46,12 @@ class CustomLoop:
     def active(self):
         return contextlib.nullcontext()
 
-    async def call(self, store, turns, agent_id) -> List[Heard]:
-        return await asyncio.to_thread(self._call, store, turns, agent_id)
+    async def call(self, store, turns, agent_id, options) -> List[Heard]:
+        return await asyncio.to_thread(self._call, store, turns, agent_id, options)
 
-    def _call(self, store, turns, agent_id):
+    def _call(self, store, turns, agent_id, options):
         counts = Counts()
-        session = crowkis.voice_session(client=store, agent_id=agent_id, voice="v", synthesise=fake_tts(counts))
+        session = crowkis.voice_session(client=store, agent_id=agent_id, voice="v", synthesise=fake_tts(counts), **options)
         out = []
         try:
             for turn in turns:
@@ -85,9 +85,10 @@ class AsyncCustomLoop:
     def active(self):
         return contextlib.nullcontext()
 
-    async def call(self, store, turns, agent_id) -> List[Heard]:
+    async def call(self, store, turns, agent_id, options) -> List[Heard]:
         counts = Counts()
-        session = crowkis.async_voice_session(client=store, agent_id=agent_id, voice="v", synthesise=fake_tts(counts))
+        session = crowkis.async_voice_session(client=store, agent_id=agent_id, voice="v", synthesise=fake_tts(counts),
+                                              **options)
         out = []
         try:
             for turn in turns:
@@ -237,9 +238,9 @@ class PipecatDriver:
     def active(self):
         return contextlib.nullcontext()
 
-    async def call(self, store, turns, agent_id) -> List[Heard]:
+    async def call(self, store, turns, agent_id, options) -> List[Heard]:
         out, history = [], []
-        session = crowkis.voice_session(client=store, agent_id=agent_id)
+        session = crowkis.voice_session(client=store, agent_id=agent_id, **options)
         for turn in turns:
             counts = Counts()
             heard = _Heard()
@@ -323,10 +324,10 @@ class LiveKitDriver:
         with mock.patch.multiple(LiveKitAgent.default, llm_node=llm_node, tts_node=tts_node):
             yield
 
-    async def call(self, store, turns, agent_id) -> List[Heard]:
+    async def call(self, store, turns, agent_id, options) -> List[Heard]:
         counts = Counts()
         fakes = _LiveKitFakes(counts)
-        session = crowkis.voice_session(client=store, agent_id=agent_id, voice="v")
+        session = crowkis.voice_session(client=store, agent_id=agent_id, voice="v", **options)
 
         class Assistant(CrowkisVoice, LiveKitAgent):
             pass

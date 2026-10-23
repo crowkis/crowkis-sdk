@@ -6,7 +6,8 @@ CrowkisTTS in a real Pipeline) and LiveKit (CrowkisVoice on a real Agent). The L
 TTS are stand-ins that count their calls; the server is ConformanceStore (fault modes:
 down, slow, audio_error; reworded questions via aliases) or, with
 CROWKIS_CONFORMANCE_SERVER=1, a real Crowkis server from CROWKIS_HOST / CROWKIS_PORT /
-CROWKIS_AUTH_TOKEN / CROWKIS_TENANT. node/conformance.js is the Node twin.
+CROWKIS_AUTH_TOKEN / CROWKIS_TENANT. node/conformance.js is the Node twin. A scenario with
+an ``understander`` reads its turns through LLMClassifier / LLMRewriter over ScriptedModel (v4).
 """
 
 from __future__ import annotations
@@ -147,6 +148,35 @@ def agent_id() -> str:
 
 # -- the stand-ins ----------------------------------------------------------------------
 
+# A turn the scenario's understander has no frame for gets this raw output (not a frame).
+UNSCRIPTED = "I cannot tell."
+
+
+class ScriptedModel:
+    """The app's LLM as a turn-understanding model: for each turn text, the frame the scenario
+    gives (``delay_ms``: it answers that late) or, as a string, its raw output."""
+
+    def __init__(self, script: Dict[str, Any]):
+        self._script = script
+
+    def __call__(self, messages) -> str:
+        turn = json.loads(messages[-1]["content"])["turn"]
+        answer = self._script.get(turn, UNSCRIPTED)
+        if isinstance(answer, str):
+            return answer
+        frame = dict(answer)
+        time.sleep(frame.pop("delay_ms", 0) / 1000)
+        return json.dumps(frame)
+
+
+def session_options(scenario: dict) -> Dict[str, Any]:
+    """What every driver's session is built with for this scenario: a v4 understander, or nothing."""
+    if "understander" not in scenario:
+        return {}
+    understander = crowkis.LLMUnderstander(ScriptedModel(scenario["understander"]))
+    return {"classifier": crowkis.LLMClassifier(understander), "rewriter": crowkis.LLMRewriter(understander)}
+
+
 class Counts:
     def __init__(self):
         self.llm = 0
@@ -189,20 +219,21 @@ def _missed(turns: list, heard: List[Heard]) -> bool:
 async def run_scenario(driver, scenario: dict, store) -> List[List[Heard]]:
     """Every call of the scenario, one after another (each ``concurrent`` times at once)."""
     agent = agent_id()
+    options = session_options(scenario)
     results = []
     await asyncio.to_thread(_settle)  # nothing left over from an earlier scenario
     for turns in scenario["calls"]:
         copies = scenario.get("concurrent", 1)
         if REAL:
             turns = _for_real(turns)
-        runs = await asyncio.gather(*(driver.call(store, turns, agent) for _ in range(copies)))
+        runs = await asyncio.gather(*(driver.call(store, turns, agent, options) for _ in range(copies)))
         for attempt in range(REAL_RETRIES if REAL else 0):
             # A real server's engine may take longer to make a new answer findable: a new
             # caller asks again, a few seconds later.
             if not any(_missed(turns, run) for run in runs):
                 break
             await asyncio.sleep(REAL_RETRY_S)
-            runs = await asyncio.gather(*(driver.call(store, turns, agent) for _ in range(copies)))
+            runs = await asyncio.gather(*(driver.call(store, turns, agent, options) for _ in range(copies)))
         results.extend(runs)
         # Writes and clips may finish in the background; the next caller is a later call.
         await asyncio.to_thread(_settle)

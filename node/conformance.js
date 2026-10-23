@@ -6,11 +6,12 @@
 // custom loop on voiceSession().respond(), and LiveKit (withCrowkis on a real
 // @livekit/agents Agent, when installed). The LLM and TTS are stand-ins that count their
 // calls; the server is ConformanceStore (down / slow / audio_error, reworded questions) or,
-// with CROWKIS_CONFORMANCE_SERVER=1, a real Crowkis server from the CROWKIS_* variables.
+// with CROWKIS_CONFORMANCE_SERVER=1, a real Crowkis server from the CROWKIS_* variables. A scenario
+// with an `understander` reads its turns through LLMClassifier / LLMRewriter over ScriptedModel (v4).
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { CrowkisClient } = require("./index.js");
+const { CrowkisClient, LLMClassifier, LLMRewriter, LLMUnderstander } = require("./index.js");
 const { voiceSession } = require("./voice.js");
 const { waitForAudioStores } = require("./agent.js");
 const { _waitForWrites: waitForWrites } = require("./voice.js");
@@ -135,6 +136,47 @@ const makeStore = (scenario) =>
   REAL ? new RecordingClient(new CrowkisClient()) : new ConformanceStore(scenario);
 const agentId = () => (REAL ? `conformance-${crypto.randomBytes(5).toString("hex")}` : "conformance");
 
+// -- the understander ----------------------------------------------------------------------
+
+// A turn the scenario's understander has no frame for gets this raw output (not a frame).
+const UNSCRIPTED = "I cannot tell.";
+
+// The app's LLM as a turn-understanding model: for each turn text, the frame the scenario gives
+// (delay_ms: it answers that late) or, as a string, its raw output. idle() waits for answers still
+// on their way (one the budget gave up on), as Python's runner waits for its pools.
+class ScriptedModel {
+  constructor(script) {
+    this._script = script;
+    this._pending = new Set();
+    this.complete = (messages) => {
+      const answer = this._answer(messages);
+      this._pending.add(answer);
+      return answer.finally(() => this._pending.delete(answer));
+    };
+  }
+
+  async idle() {
+    await Promise.allSettled([...this._pending]);
+  }
+
+  async _answer(messages) {
+    const { turn } = JSON.parse(messages[messages.length - 1].content);
+    const answer = Object.prototype.hasOwnProperty.call(this._script, turn) ? this._script[turn] : UNSCRIPTED;
+    if (typeof answer === "string") return answer;
+    const { delay_ms: delayMs = 0, ...frame } = answer;
+    await sleep(delayMs);
+    return JSON.stringify(frame);
+  }
+}
+
+// What every driver's session is built with for this scenario: a v4 understander, or nothing.
+function understanding(scenario) {
+  if (!scenario.understander) return { options: {}, model: null };
+  const model = new ScriptedModel(scenario.understander);
+  const understander = new LLMUnderstander(model.complete);
+  return { options: { classifier: new LLMClassifier(understander), rewriter: new LLMRewriter(understander) }, model };
+}
+
 // -- drivers ------------------------------------------------------------------------------
 
 class Counts {
@@ -148,10 +190,10 @@ const heard = (llm, tts, said, ms) => ({ llm, tts, heard: said, ms });
 const customLoop = {
   name: "custom loop (voiceSession().respond)",
   supported: true,
-  async call(store, turns, agent) {
+  async call(store, turns, agent, options) {
     const counts = new Counts();
     const synthesise = async (text) => { counts.tts += 1; return audioOf(text); };
-    const session = voiceSession({ client: store, agentId: agent, voice: "v", synthesise });
+    const session = voiceSession({ client: store, agentId: agent, voice: "v", synthesise, ...options });
     const out = [];
     try {
       for (const turn of turns) {
@@ -220,10 +262,10 @@ const chunkText = (c) => (typeof c === "string" ? c : (c && c.delta && c.delta.c
 const liveKit = {
   name: "LiveKit (withCrowkis)",
   supported: Boolean(lk),
-  async call(store, turns, agentName) {
+  async call(store, turns, agentName, options) {
     const counts = new Counts();
     const state = { pieces: [], tool: false };
-    const session = voiceSession({ client: store, agentId: agentName, voice: "v" });
+    const session = voiceSession({ client: store, agentId: agentName, voice: "v", ...options });
     const agent = new lk.voice.Agent({ instructions: "You are Acme's assistant." });
     agent.llmNode = async (chatCtx) => {
       counts.llm += 1;
@@ -299,12 +341,13 @@ const missed = (turns, heardTurns) => turns.some((t, i) => t.expect.llm === fals
 
 async function runScenario(driver, scenario, store) {
   const agent = agentId();
+  const { options, model } = understanding(scenario);
   const results = [];
   await settle(store);
   for (const original of scenario.calls) {
     const copies = scenario.concurrent || 1;
     const turns = REAL ? forReal(original) : original;
-    const run = () => Promise.all(Array.from({ length: copies }, () => driver.call(store, turns, agent)));
+    const run = () => Promise.all(Array.from({ length: copies }, () => driver.call(store, turns, agent, options)));
     let runs = await run();
     for (let attempt = 0; REAL && attempt < REAL_RETRIES && runs.some((r) => missed(turns, r)); attempt += 1) {
       // A real server's engine may take longer to make a new answer findable: a new caller
@@ -316,6 +359,7 @@ async function runScenario(driver, scenario, store) {
     await settle(store); // writes and clips may finish in the background; the next caller is later
     if (REAL) await sleep(REAL_GAP_MS); // a real server makes a new answer findable within about a second
   }
+  if (model) await model.idle();
   return results;
 }
 

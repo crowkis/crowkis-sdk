@@ -24,7 +24,10 @@ class CallReadings:
     anywhere; StatedFacts checks them) and the de-identified facts the model's frames remembered
     (the classifier reads them)."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, remembers_told: bool = False) -> None:
+        # Only a session with an understander reads the stated turns, facts and private words (its
+        # StatedFacts and PrivateWord rules); the word-rule default never pays for collecting them.
+        self._remembers_told = remembers_told
         self._read_personal: Set[str] = set()
         self._read_follow_up: Set[str] = set()
         self._rewritten: Dict[str, str] = {}
@@ -37,17 +40,23 @@ class CallReadings:
         text = text.strip()
         if reading.is_personal:
             self._read_personal.add(text)
-        if self.is_personal(text):
-            self._private_words.update(_private_words(text, getattr(reading, "frame", None)))
+        if self._remembers_told:
+            self._remember_told(text, reading)
         if reading.is_context_dependent:
             self._read_follow_up.add(text)
         if rewritten is None:
             self._rewritten.pop(text, None)
         else:
             self._rewritten[text] = rewritten
+
+    def _remember_told(self, text: str, reading: Reading) -> None:
+        """What this turn told the call: a stated turn, the facts its frame remembered, the words that
+        may identify the caller in a turn kept private."""
+        frame = getattr(reading, "frame", None)
+        if self.is_personal(text):
+            self._private_words.update(_private_words(text, frame))
         if _sets_context(text):
             self._stated = (self._stated + [text])[-MAX_STATED:]
-        frame = getattr(reading, "frame", None)
         if frame is not None:
             for entity in frame.memorable:
                 fact = f"{entity.type}: {entity.text}"
@@ -56,7 +65,8 @@ class CallReadings:
     def mark_private(self, text: str) -> None:
         """Read this turn as personal from now on (a rule kept it private)."""
         self._read_personal.add((text or "").strip())
-        self._private_words.update(_private_words(text or ""))
+        if self._remembers_told:
+            self._private_words.update(_private_words(text or ""))
 
     def private_words(self) -> Set[str]:
         """Every word that may identify the caller in the turns kept private (names, numbers, capitalised

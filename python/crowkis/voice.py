@@ -588,7 +588,7 @@ class VoiceSession:
                                                   pool=_UNDERSTANDING, count=self._stats.add)
             self._classifier = self._rewriter = understanding
         # Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
-        self._call_readings = CallReadings()
+        self._call_readings = CallReadings(remembers_told=classifier is not None)
         self._call = SessionCall(self)
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)

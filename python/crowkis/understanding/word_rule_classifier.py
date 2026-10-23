@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import cached_property
+from typing import Sequence
 
 from .word_rules import _is_context_dependent, _is_personal
 
@@ -10,6 +11,9 @@ from .word_rules import _is_context_dependent, _is_personal
 class WordReading:
     """What the word rules make of one turn's words. Each reading is worked out once, when a
     rule first needs it."""
+
+    # The word rules make no frame.
+    frame = None
 
     def __init__(self, text: str) -> None:
         self.text = text
@@ -29,5 +33,5 @@ class WordRuleClassifier:
     """The classifier a voice session uses when no understander is plugged in: the fixed word
     rules, so nothing changes without opt-in."""
 
-    def classify(self, text: str) -> WordReading:
+    def classify(self, text: str, facts: Sequence[str] = ()) -> WordReading:
         return WordReading(text)

@@ -110,7 +110,9 @@ Return exactly:
  "uses_state": true|false,
  "question": "standalone question, or -",
  "question_type": "policy|how_to|product_fact|place_fact|search|other",
- "language": "language code the reply must be in, e.g. en, hi, ta"}
+ "language": "language code the reply must be in, e.g. en, hi, ta",
+ "fact_relevance": [{"fact": "...", "type": "allergy|medication|pregnancy|age|diet|condition|trip|budget|other",
+                     "changes_answer": true|false}]}
 
 kind: general = the same answer for every caller from the business's own knowledge (policies, how-to,
 troubleshooting, product facts, stable facts about a named place, searches with stable criteria). personal = about
@@ -150,6 +152,10 @@ caller's own records, account, orders, bookings or identity.
 If the turn asks for the same thing as call_state.active_question ("what were the steps again?"), return that
 question exactly as it is written there. Facts about someone the caller mentions ("my mother has type 2 diabetes")
 also make a later question general: "What foods should someone with type 2 diabetes avoid?".
+fact_relevance: one entry for each fact in call_state.facts and each fact this turn states, "fact" written exactly
+as given there. changes_answer is true if the answer to this turn could differ for someone with that fact (an allergy
+and a dessert question, an age and a dose); false only when the answer is the same for everyone (a car accident and
+"what is a deductible?"). When unsure, true.
 confidence: your calibrated probability that kind and question are right."""
 
 

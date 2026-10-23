@@ -54,6 +54,27 @@ class Entity:
 
 
 @dataclass(frozen=True)
+class FactRelevance:
+    """Whether a fact the caller stated (an allergy, an age, a trip) changes the answer to this turn.
+    Read fail-closed: a fact the model did not say is irrelevant changes the answer."""
+
+    fact: str
+    type: str
+    changes_answer: bool
+
+    @classmethod
+    def from_dict(cls, data: Any) -> Optional["FactRelevance"]:
+        if not isinstance(data, dict):
+            return None
+        fact = _text(data.get("fact"))
+        if not fact:
+            return None
+        said = data.get("changes_answer")
+        changes = True if said is None else _bool(said)
+        return cls(fact=fact, type=_text(data.get("type")).lower() or "other", changes_answer=changes)
+
+
+@dataclass(frozen=True)
 class Attribute:
     """A tier or location. Open values; ``changes_answer`` decides whether it enters the key."""
 
@@ -89,6 +110,8 @@ class TurnFrame:
     question_type: str = "other"
     # The language the reply must be in ("hi", "en"): asked for now or earlier, else the turn's.
     language: Optional[str] = None
+    # For each fact the caller stated, whether it changes this turn's answer (v4 StatedFacts).
+    fact_relevance: List[FactRelevance] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "TurnFrame":
@@ -124,6 +147,8 @@ class TurnFrame:
             question=question if question and question != "-" else None,
             question_type=qtype if qtype in QUESTION_TYPES else "other",
             language=language if _LANGUAGE.fullmatch(language) else None,
+            fact_relevance=[f for f in (FactRelevance.from_dict(r) for r in data.get("fact_relevance") or [])
+                            if f is not None],
         )
 
     @property
@@ -152,5 +177,5 @@ class TurnFrame:
         return not self.memorable and not self.attributes and not self.task_step and not self.uses_state
 
 
-__all__ = ["TurnFrame", "Entity", "Attribute", "KINDS", "IDENTIFYING_TYPES", "NOT_GENERAL_TYPES",
+__all__ = ["TurnFrame", "Entity", "Attribute", "FactRelevance", "KINDS", "IDENTIFYING_TYPES", "NOT_GENERAL_TYPES",
            "DETAIL_TYPES", "QUESTION_TYPES"]

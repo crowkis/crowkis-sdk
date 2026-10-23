@@ -17,7 +17,7 @@ class Slow:
     def __init__(self):
         self.release = threading.Event()
 
-    def classify(self, text):
+    def classify(self, text, facts=()):
         self.release.wait(5)
         return type("Reading", (), {"is_personal": False, "is_context_dependent": False})()
 
@@ -26,7 +26,7 @@ class Slow:
 
 
 class Broken:
-    def classify(self, text):
+    def classify(self, text, facts=()):
         raise RuntimeError("provider down")
 
 

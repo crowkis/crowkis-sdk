@@ -19,7 +19,7 @@ class Reads:
 
 
 class General:
-    def classify(self, text):
+    def classify(self, text, facts=()):
         return Reads()
 
 
@@ -34,7 +34,7 @@ class Script:
 
 
 class Broken:
-    def classify(self, text):
+    def classify(self, text, facts=()):
         raise RuntimeError("provider down")
 
 
@@ -48,7 +48,7 @@ class RewriteSafetyTests(unittest.TestCase):
 
     def test_a_word_rule_follow_up_stays_a_follow_up_whatever_the_reading(self):
         class FlightPersonal:
-            def classify(self, text):
+            def classify(self, text, facts=()):
                 return Reads(personal="flight" in text)
 
         session = session_on(Store(), classifier=FlightPersonal())
@@ -117,7 +117,7 @@ class HungModelTests(unittest.TestCase):
         calls = []
 
         class Hung:
-            def classify(self, text):
+            def classify(self, text, facts=()):
                 calls.append(text)
                 release.wait(5)
                 return WordRuleClassifier().classify(text)

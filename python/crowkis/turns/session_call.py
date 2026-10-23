@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from .channel import Channel
 
@@ -47,6 +47,12 @@ class SessionCall:
 
     def is_context_dependent(self, text: str) -> bool:
         return self._session._call_readings.is_context_dependent(text)
+
+    def stated(self) -> Sequence[str]:
+        return self._session._call_readings.stated
+
+    def mark_private(self, text: str) -> None:
+        self._session._call_readings.mark_private(text)
 
     def mark_tainted(self) -> None:
         self._session._tainted = True

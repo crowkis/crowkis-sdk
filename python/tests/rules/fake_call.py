@@ -27,12 +27,19 @@ class FakeCall:
     identifiers: Set[str] = field(default_factory=set)
     channel: Channel = VOICE
     read_personal: Set[str] = field(default_factory=set)
+    stated_turns: List[str] = field(default_factory=list)
 
     def is_personal(self, text: str) -> bool:
         return text.strip() in self.read_personal or _is_personal(text)
 
     def is_context_dependent(self, text: str) -> bool:
         return _is_context_dependent(text)
+
+    def stated(self) -> List[str]:
+        return self.stated_turns
+
+    def mark_private(self, text: str) -> None:
+        self.read_personal.add(text.strip())
 
     def mark_tainted(self) -> None:
         self.tainted = True

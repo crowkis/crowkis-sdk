@@ -14,6 +14,7 @@ from crowkis.turns.channel import CHAT, REALTIME, VOICE
 from crowkis.turns.chat_turn import ChatTurn
 from crowkis.turns.hit import Hit
 from crowkis.verify import Verdict as ChatVerdict
+from crowkis.understanding.frame_reading import FrameReading
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from fake_call import FakeCall
@@ -33,7 +34,10 @@ def subject(case, call):
                           prompt_key=(None, None, "chat"))
     if case["subject"] == "chat":
         return ChatTurn(TurnFrame.from_dict(case["frame"]), case["say"], CallState.from_dict(case["state"]))
-    turn = VoiceTurn(case["say"], call, WordRuleClassifier().classify(case["say"].strip()))
+    # A case with a frame is read by a model (v4); without one, by the word rules.
+    reading = (FrameReading(TurnFrame.from_dict(case["frame"])) if "frame" in case
+               else WordRuleClassifier().classify(case["say"].strip()))
+    turn = VoiceTurn(case["say"], call, reading)
     if case["stage"] == "question":
         return turn
     if case["stage"] == "hit":

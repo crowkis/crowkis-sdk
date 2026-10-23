@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, Sequence, Set, Tuple
 
 if TYPE_CHECKING:
     from .channel import Channel
@@ -45,6 +45,12 @@ class VoiceCall(Protocol):
 
     def is_context_dependent(self, text: str) -> bool:
         """A turn of this call is a follow-up, by its reading or the word rules."""
+
+    def stated(self) -> Sequence[str]:
+        """The turns in which the caller told this call something."""
+
+    def mark_private(self, text: str) -> None:
+        """Keep this turn private: its answer is never shared, and it makes its follow-ups private."""
 
     def mark_tainted(self) -> None:
         """Remember that the caller has told this call something."""

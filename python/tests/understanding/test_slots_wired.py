@@ -9,7 +9,7 @@ from test_voice_stress_bugs import Store, session_on
 
 
 class AlwaysPersonal:
-    def classify(self, text):
+    def classify(self, text, facts=()):
         return type("Reading", (), {"is_personal": True, "is_context_dependent": False})()
 
 
@@ -19,7 +19,7 @@ class ReadsPersonal:
     def __init__(self, personal_turn):
         self._personal_turn = personal_turn
 
-    def classify(self, text):
+    def classify(self, text, facts=()):
         reading = WordRuleClassifier().classify(text)
         if text != self._personal_turn:
             return reading

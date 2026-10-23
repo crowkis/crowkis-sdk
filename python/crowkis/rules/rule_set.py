@@ -24,6 +24,7 @@ from .question import (
     PrivateChain,
     RegisteredFiller,
     TooShort,
+    VoiceStatedFacts,
 )
 from .save import (
     CallerIdentifier,
@@ -73,6 +74,13 @@ class RuleSet:
             personal=PersonalTemplate(),
             sharing=RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), NonAnswer()]),
         )
+
+    @classmethod
+    def understood(cls, fillers: Optional[Mapping[str, str]] = None) -> "RuleSet":
+        """The rules of a voice session with an understander plugged in (v4): StatedFacts, which keeps
+        only the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint."""
+        rules = cls.voice(fillers)
+        return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()))
 
     def without(self, names: Sequence[str], *, unsafe: bool = False) -> "RuleSet":
         """These rules with the named ones turned off; a floor rule stays on unless ``unsafe``.

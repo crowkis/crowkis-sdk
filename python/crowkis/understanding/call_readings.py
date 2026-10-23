@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 from .slots import Reading
-from .word_rules import _is_context_dependent, _is_personal, _private_chain
+from .word_rules import _is_context_dependent, _is_personal, _private_chain, _sets_context
+
+# The newest facts and stated turns a call keeps (as Chat's CallState does).
+MAX_FACTS = 12
+MAX_STATED = 12
 
 
 class CallReadings:
@@ -15,12 +19,16 @@ class CallReadings:
     A turn is personal, or a follow-up, when its reading or the word rules say so, so a plugged-in
     classifier can only make a call more private, never less. A rewritten turn's answer is saved under
     the question it was looked up with; each turn sets or clears its rewrite, so an earlier turn's never
-    keys a later one."""
+    keys a later one. It also keeps what the caller told the call: the stated turns (never sent
+    anywhere; StatedFacts checks them) and the de-identified facts the model's frames remembered
+    (the classifier reads them)."""
 
     def __init__(self) -> None:
         self._read_personal: Set[str] = set()
         self._read_follow_up: Set[str] = set()
         self._rewritten: Dict[str, str] = {}
+        self._stated: List[str] = []
+        self._facts: List[str] = []
 
     def note(self, text: str, reading: Reading, rewritten: Optional[str]) -> None:
         """Remember a turn's reading and rewrite (keyed by the stripped words the classifier read)."""
@@ -33,6 +41,27 @@ class CallReadings:
             self._rewritten.pop(text, None)
         else:
             self._rewritten[text] = rewritten
+        if _sets_context(text):
+            self._stated = (self._stated + [text])[-MAX_STATED:]
+        frame = getattr(reading, "frame", None)
+        if frame is not None:
+            for entity in frame.memorable:
+                fact = f"{entity.type}: {entity.text}"
+                self._facts = ([f for f in self._facts if f != fact] + [fact])[-MAX_FACTS:]
+
+    def mark_private(self, text: str) -> None:
+        """Read this turn as personal from now on (a rule kept it private)."""
+        self._read_personal.add((text or "").strip())
+
+    @property
+    def stated(self) -> Sequence[str]:
+        """The turns in which the caller told the call something, oldest first."""
+        return tuple(self._stated)
+
+    @property
+    def facts(self) -> Sequence[str]:
+        """The call's de-identified facts ("condition: car hit"), as the classifier reads them."""
+        return tuple(self._facts)
 
     def is_personal(self, text: str) -> bool:
         """The turn is about the caller's own records, by its reading or by the word rules."""

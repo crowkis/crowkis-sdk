@@ -87,3 +87,12 @@ class RuleChain:
         kept = [rule.without(names, unsafe=unsafe) if isinstance(rule, RuleChain) else rule
                 for rule in self._rules if rule.name not in names]
         return RuleChain(kept, name=self.name, floor=self.floor)
+
+    def replacing(self, name: str, rule: Rule) -> "RuleChain":
+        """This chain with the rule called ``name`` swapped for ``rule``, in the same place. A floor
+        rule is never swapped; a name the chain does not have is refused."""
+        if name not in self.names:
+            raise UnknownRule(f"no such rule: {name}")
+        if any(old.name == name and _holds_floor(old) for old in self._rules):
+            raise FloorRuleLocked(f"a floor rule cannot be replaced: {name}")
+        return RuleChain([rule if old.name == name else old for old in self._rules], name=self.name, floor=self.floor)

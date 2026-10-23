@@ -5,7 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import threading
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from ..runtime.stats import Counter
 from .slots import Classifier, Reading, Rewriter
@@ -34,6 +34,10 @@ class BudgetedReading:
     def is_context_dependent(self) -> bool:
         return self.reading.is_context_dependent
 
+    @property
+    def frame(self):
+        return getattr(self.reading, "frame", None)
+
 
 class BudgetedUnderstanding:
     """Decorator over a classifier and a rewriter that fills both slots: the model reads and rewrites a
@@ -53,10 +57,10 @@ class BudgetedUnderstanding:
         self._fallback = fallback if fallback is not None else WordRuleClassifier()
         self._in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 
-    def classify(self, text: str) -> BudgetedReading:
+    def classify(self, text: str, facts: Sequence[str] = ()) -> BudgetedReading:
         """The model's reading and rewrite, or the word rules' reading when the model is late or fails."""
         try:
-            reading, rewritten = self._understand_in_time(text)
+            reading, rewritten = self._understand_in_time(text, facts)
         except concurrent.futures.TimeoutError:
             return self._fall_back(text, Counter.UNDERSTAND_TIMEOUTS, f"passed the {self._budget_ms}ms budget")
         except Exception as error:  # noqa: BLE001 — a broken model must never end a call
@@ -67,12 +71,12 @@ class BudgetedUnderstanding:
         """The rewrite made with the reading (classify() ran both)."""
         return reading.rewritten
 
-    def _understand_in_time(self, text: str) -> Tuple[Reading, Optional[str]]:
+    def _understand_in_time(self, text: str, facts: Sequence[str]) -> Tuple[Reading, Optional[str]]:
         if self._budget_ms is None:
-            return self._understand(text)
+            return self._understand(text, facts)
         if not self._in_flight.acquire(blocking=False):
             raise concurrent.futures.TimeoutError
-        future = self._pool.submit(self._understand, text)
+        future = self._pool.submit(self._understand, text, facts)
         future.add_done_callback(lambda _: self._in_flight.release())
         try:
             return future.result(timeout=self._budget_ms / MS_PER_SECOND)
@@ -80,8 +84,8 @@ class BudgetedUnderstanding:
             future.cancel()  # not started yet: it never will
             raise
 
-    def _understand(self, text: str) -> Tuple[Reading, Optional[str]]:
-        reading = self._classifier.classify(text)
+    def _understand(self, text: str, facts: Sequence[str]) -> Tuple[Reading, Optional[str]]:
+        reading = self._classifier.classify(text, facts)
         return reading, self._rewriter.rewrite(text, reading)
 
     def _fall_back(self, text: str, counter: Counter, why: str) -> BudgetedReading:

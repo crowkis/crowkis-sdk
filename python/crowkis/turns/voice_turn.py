@@ -35,6 +35,11 @@ class VoiceTurn:
         """Only means something next to the turn before it, by its reading or the word rules."""
         return self.reading.is_context_dependent or self.call.is_context_dependent(self.text)
 
+    @property
+    def frame(self):
+        """The model's frame of the turn, or None (the word rules make none)."""
+        return getattr(self.reading, "frame", None)
+
     @cached_property
     def key(self) -> Optional[str]:
         """The cache key: the rewritten question, else the caller's words or the chain a

@@ -1,0 +1,68 @@
+{
+ "rule": "VoiceStatedFacts",
+ "stage": "question",
+ "about": "v4 P5: StatedFacts on voice with an understander (it replaces CallContextTaint there). A case's frame is the model's frame of the turn; call.stated_turns are the turns that told the call something. Run alone on a fake call by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "the turn itself tells the call something",
+   "say": "I am allergic to peanuts",
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "a fact was stated and there is no frame (word rules, a late or failed model): strict",
+   "say": "what is a deductible",
+   "call": {"stated_turns": ["my car was hit"]},
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "the model is sure the stated fact does not change this answer",
+   "say": "what is a deductible",
+   "call": {"stated_turns": ["my car was hit"]},
+   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?",
+             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": false}]},
+   "objects": false
+  },
+  {
+   "name": "the model says the stated fact changes this answer",
+   "say": "what is a deductible",
+   "call": {"stated_turns": ["my car was hit"]},
+   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?",
+             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": true}]},
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "an allergy always counts, whatever the model says (the floor)",
+   "say": "which desserts do you have today",
+   "call": {"stated_turns": ["I am allergic to peanuts"]},
+   "frame": {"kind": "general", "subject": "none", "confidence": 0.95, "question": "Which desserts are available?",
+             "fact_relevance": [{"fact": "condition: peanuts", "type": "other", "changes_answer": false}]},
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "the model is unsure of the turn",
+   "say": "what is a deductible",
+   "call": {"stated_turns": ["my car was hit"]},
+   "frame": {"kind": "general", "subject": "none", "confidence": 0.4, "question": "What is a deductible?",
+             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": false}]},
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "the model says nothing about the stated fact",
+   "say": "what is a deductible",
+   "call": {"stated_turns": ["my car was hit"]},
+   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?"},
+   "objects": true,
+   "counts": ["refused_private", "inferred"]
+  },
+  {
+   "name": "nothing was stated",
+   "say": "what is your refund policy",
+   "objects": false
+  }
+ ]
+}

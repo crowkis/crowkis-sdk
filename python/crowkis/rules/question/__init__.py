@@ -23,5 +23,6 @@ from .unresolved_reference import UnresolvedReference
 from .untagged_name import UntaggedName
 from .urgent_turn import UrgentTurn
 from .urgent_words import UrgentWords
+from .voice_stated_facts import VoiceStatedFacts
 
-__all__ = ["AboutSomeone", "CallContextTaint", "CutOff", "EmptyTurn", "FollowUpWithoutContext", "IdentifyingDetails", "LostDetail", "NoQuestion", "NotGeneral", "OwnRecords", "PrivateChain", "QuestionNamesCaller", "RegisteredFiller", "StatedFacts", "TaskStep", "ToldDetailDropped", "TooShort", "UncertainFrame", "Ungrounded", "UnresolvedReference", "UntaggedName", "UrgentTurn", "UrgentWords"]
+__all__ = ["AboutSomeone", "CallContextTaint", "CutOff", "EmptyTurn", "FollowUpWithoutContext", "IdentifyingDetails", "LostDetail", "NoQuestion", "NotGeneral", "OwnRecords", "PrivateChain", "QuestionNamesCaller", "RegisteredFiller", "StatedFacts", "TaskStep", "ToldDetailDropped", "TooShort", "UncertainFrame", "Ungrounded", "UnresolvedReference", "UntaggedName", "UrgentTurn", "UrgentWords", "VoiceStatedFacts"]

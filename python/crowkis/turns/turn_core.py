@@ -58,7 +58,7 @@ class TurnCore:
         self._pairing.start(len(self._host.transcript))
 
         text = (caller_said or "").strip()
-        reading = self._classifier.classify(text)
+        reading = self._classifier.classify(text, self._call_readings.facts)
         rewritten = self._rewrite_check.accept(text, reading, self._rewriter.rewrite(text, reading), self._call)
         self._call_readings.note(text, reading, rewritten)
         turn = VoiceTurn(caller_said, self._call, reading, rewritten)

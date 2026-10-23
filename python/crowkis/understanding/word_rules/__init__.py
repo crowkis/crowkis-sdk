@@ -278,3 +278,7 @@ from .prompt_details import (  # noqa: F401 - re-exported
     _same_number,
     _value_words,
 )
+from .high_risk import (  # noqa: F401 - re-exported
+    HIGH_RISK_FACT_TYPES,
+    _high_risk,
+)

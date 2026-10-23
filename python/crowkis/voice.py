@@ -582,7 +582,7 @@ class VoiceSession:
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = self._pairing.lock
         # The checks of the three SDK stages, read through this call's view of the session.
-        self._rules = RuleSet.voice(self._fillers)
+        self._rules = RuleSet.voice(self._fillers) if classifier is None else RuleSet.understood(self._fillers)
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
         self._classifier = classifier if classifier is not None else WordRuleClassifier()
         self._rewriter = rewriter if rewriter is not None else NoRewrite()

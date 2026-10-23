@@ -25,6 +25,10 @@ from .turn import TurnFrame
 from .callstate import CallState
 from .verify import RuleChecker, Verdict
 from .understand import LLMUnderstander, ReplayUnderstander, WithFallback
+# Voice understanding slots (v4): a model reads the turn; the word rules still apply.
+from .understanding.llm_classifier import LLMClassifier
+from .understanding.llm_rewriter import LLMRewriter
+from .understanding.replay_rewriter import ReplayRewriter
 from .session import CallSession, TurnResult
 from .chat import Chat, ChatConflict, ChatReply, MemoryStore
 
@@ -59,6 +63,9 @@ __all__ = [
     "LLMUnderstander",
     "ReplayUnderstander",
     "WithFallback",
+    "LLMClassifier",
+    "LLMRewriter",
+    "ReplayRewriter",
     # clients (idiomatic short names first)
     "Crowkis",
     "AsyncCrowkis",

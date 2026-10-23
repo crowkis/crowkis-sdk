@@ -43,7 +43,7 @@ class SessionCall:
         return self._session.commitments
 
     def is_personal(self, text: str) -> bool:
-        return self._session._personal_readings.is_personal(text)
+        return self._session._call_readings.is_personal(text)
 
     def mark_tainted(self) -> None:
         self._session._tainted = True

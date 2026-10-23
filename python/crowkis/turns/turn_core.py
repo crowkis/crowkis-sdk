@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from ..runtime.cache_lookup import CacheLookup
 from ..runtime.stats import Counter, Stats
 from ..runtime.turn_pairing import TurnPairing
-from ..understanding.personal_readings import PersonalReadings
+from ..understanding.call_readings import CallReadings
 from ..understanding.slots import Classifier, Rewriter
 from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .cached_answer import CachedAnswer
@@ -33,14 +33,14 @@ class TurnCore:
     question rules, a filler, the lookup inside the budget, the hit rules, serve. record(): pair the
     answer with its turn, the save rules, a shared shape for a personal answer, the bounded write.
 
-    The steps' parts are injected: the rules, the classifier and rewriter (with the call's personal
-    readings, which remember what the classifier read), the turn pairing, the
+    The steps' parts are injected: the rules, the classifier and rewriter (with the call's readings,
+    which remember what they made of each turn), the turn pairing, the
     lookup, the call as the rules see it, and the counters (``stats``); ``host`` (TurnHost) is the
     session's transcript, settings, audio and writes."""
 
     def __init__(self, host: TurnHost, *, rules: "RuleSet", call: VoiceCall, pairing: TurnPairing,
                  cache_lookup: CacheLookup, classifier: Classifier, rewriter: Rewriter,
-                 personal_readings: PersonalReadings, stats: Stats) -> None:
+                 call_readings: CallReadings, stats: Stats) -> None:
         self._host = host
         self._stats = stats
         self._rules = rules
@@ -49,7 +49,7 @@ class TurnCore:
         self._cache_lookup = cache_lookup
         self._classifier = classifier
         self._rewriter = rewriter
-        self._personal_readings = personal_readings
+        self._call_readings = call_readings
 
     def decide(self, caller_said: str) -> TurnDecision:
         """What this turn needs: a filler, a cached answer, or the model (and which rule said so)."""
@@ -57,8 +57,9 @@ class TurnCore:
 
         text = (caller_said or "").strip()
         reading = self._classifier.classify(text)
-        self._personal_readings.note(text, reading)
-        turn = VoiceTurn(caller_said, self._call, reading, self._rewriter.rewrite(text, reading))
+        rewritten = self._rewriter.rewrite(text, reading)
+        self._call_readings.note(text, reading, rewritten)
+        turn = VoiceTurn(caller_said, self._call, reading, rewritten)
         verdict = self._rules.before_filler.first_objection(turn)
         if verdict is not None:
             return self._infer(verdict)
@@ -138,7 +139,8 @@ class TurnCore:
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return self._kept(verdict)
-        answer = answer.keyed(self._host.context_key(caller_said, answer.text))
+        answer = answer.keyed(self._call_readings.rewritten(answer.text)
+                              or self._host.context_key(caller_said, answer.text))
         self._host.transcript.append({"role": "user", "content": caller_said})
         self._host.transcript.append({"role": "assistant", "content": model_said})
         verdict = self._rules.before_sharing.first_objection(answer)

@@ -19,7 +19,10 @@ const MAX_STATED = 12;
  * classifier reads them).
  */
 class CallReadings {
-  constructor() {
+  constructor({ remembersTold = false } = {}) {
+    // Only a session with an understander reads the stated turns, facts and private words (its
+    // StatedFacts and PrivateWord rules); the word-rule default never pays for collecting them.
+    this._remembersTold = remembersTold;
     this._readPersonal = new Set();
     this._readFollowUp = new Set();
     this._rewritten = new Map();
@@ -32,12 +35,17 @@ class CallReadings {
   note(text, reading, rewritten) {
     const trimmed = text.trim();
     if (reading.isPersonal) this._readPersonal.add(trimmed);
-    if (this.isPersonal(trimmed)) for (const w of privateWords(trimmed, reading.frame || null)) this._privateWords.add(w);
     if (reading.isContextDependent) this._readFollowUp.add(trimmed);
     if (rewritten === null || rewritten === undefined) this._rewritten.delete(trimmed);
     else this._rewritten.set(trimmed, rewritten);
-    if (setsContext(trimmed)) this._stated = [...this._stated, trimmed].slice(-MAX_STATED);
+    if (this._remembersTold) this._rememberTold(trimmed, reading);
+  }
+
+  /** What this turn told the call: a stated turn, the facts its frame remembered, the words that may identify the caller in a turn kept private. */
+  _rememberTold(text, reading) {
     const frame = reading.frame || null;
+    if (this.isPersonal(text)) for (const w of privateWords(text, frame)) this._privateWords.add(w);
+    if (setsContext(text)) this._stated = [...this._stated, text].slice(-MAX_STATED);
     for (const entity of frame ? frame.memorable : []) {
       const fact = `${entity.type}: ${entity.text}`;
       this._facts = [...this._facts.filter((f) => f !== fact), fact].slice(-MAX_FACTS);
@@ -47,7 +55,7 @@ class CallReadings {
   /** Read this turn as personal from now on (a rule kept it private). */
   markPrivate(text) {
     this._readPersonal.add(typeof text === "string" ? text.trim() : "");
-    for (const w of privateWords(typeof text === "string" ? text : "")) this._privateWords.add(w);
+    if (this._remembersTold) for (const w of privateWords(typeof text === "string" ? text : "")) this._privateWords.add(w);
   }
 
   /** Every word that may identify the caller in the turns kept private, lower case. Never sent anywhere. */

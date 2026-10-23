@@ -543,7 +543,7 @@ class VoiceSession {
       this._rewriter = understanding;
     }
     // Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
-    this._callReadings = new CallReadings();
+    this._callReadings = new CallReadings({ remembersTold: Boolean(classifier) });
     this._call = new SessionCall(this);
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),

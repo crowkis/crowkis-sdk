@@ -111,6 +111,25 @@ restarts at the reset (18:40 UTC).** The code review was still running at the st
 6. Low-Medium: the acronym list matches case-insensitively, so "Ram" / "Sim" pass `UntaggedName`. Fix: exempt
    all-caps tokens only.
 7. Low (note): golden A09 "Do I need an ID proof for that?" now shared under its own words (stand-in frame).
+
+**Code review findings (arrived after the stop), to fix with the above:**
+- BLOCKER: on the understander path, a heard turn (`_heard`: `record_private_turn`, Pipecat / LiveKit history) only
+  sets `_tainted`; `VoiceStatedFacts` never reads it, so a later turn can be *served* (saving is still blocked by
+  TaintedCall). Fix: `VoiceStatedFacts` keeps a turn private when `call.tainted`, or `_heard` adds stated turns via
+  `CallReadings` (guarded by `remembers_told`); fixture case; both languages. Repro: scratchpad `rev/test_heard2.py`.
+- HIGH: same as privacy 3 (one irrelevant entry clears a two-fact turn). Repro: `rev/test_unit_rel.py`.
+- MEDIUM: Python calls `classify(text, facts)`; a P4-style `classify(self, text)` classifier raises TypeError and
+  silently falls back on every turn (Node ignores the extra argument). Fix: pass facts only when the classifier's
+  signature takes them (checked once), in TurnCore and BudgetedUnderstanding.
+- MEDIUM: Python Chat question records run on Chat's lookup pool (`submit_write=_LOOKUPS.submit`). Fix:
+  `_voice._submit_write`.
+- LOW: `index.d.ts` lacks `classify(text, facts?)`, `Reading.frame`, `TurnFrame.factRelevance`, `CallState.identifiers`
+  / `details`; `LLMClassifier` d.ts comment stale; `voice.py` imports `hashlib` / `json` unused; `_COMMON_ACRONYMS`
+  sits between `_GENERIC_FACT`'s comment and its definition (both languages).
+- Notes for the docs (no fix): a rewriter alone turns on `kb=` but not `RuleSet.understood()`; `warm_from_calls` saves
+  without a segment (its answers are not found by an understander session); Chat now reads a question record on a hit,
+  bounds saves at 2x budget (`slow_write`) and counts refused hits by rule name.
+
 Then: real-server check, mark P5 done, stop and report (P5.5 not approved).
 
 ## P4 done (2026-10-23)

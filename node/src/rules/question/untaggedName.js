@@ -5,7 +5,7 @@
 const { Verdict } = require("../../turns/verdict.js");
 const { wordDigest } = require("../../../callstate.js");
 const { NOT_GENERAL_TYPES } = require("../../../turn.js");
-const { CALENDAR, FUNCTION } = require("../../understanding/frameWords.js");
+const { CALENDAR, COMMON_ACRONYMS, FUNCTION } = require("../../understanding/frameWords.js");
 const { wordsOf } = require("../../understanding/wordRules/index.js");
 
 /**
@@ -26,7 +26,7 @@ class UntaggedName {
   check(turn) {
     const state = turn.state;
     const allowed = new Set(turn.frame.entities.filter((e) => !e.identifying && !NOT_GENERAL_TYPES.has(e.type)).flatMap((e) => wordsOf(e.text)));
-    for (const w of [...CALENDAR, ...wordsOf(state.activeQuestion || ""), ...wordsOf(state.lastReply)]) allowed.add(w);
+    for (const w of [...CALENDAR, ...COMMON_ACRONYMS, ...wordsOf(state.activeQuestion || ""), ...wordsOf(state.lastReply)]) allowed.add(w);
     const flagged = new Set();
     (String(turn.question || "").match(/\p{L}+/gu) || []).forEach((word, i) => {
       const low = word.toLowerCase();

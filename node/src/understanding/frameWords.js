@@ -45,6 +45,13 @@ const CONTRACTION = new Set("s t d m re ll ve".split(" ")); // "what's" -> "what
 const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
 // Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
 // penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
+// Acronyms of things, never of a person ("SIM porting", "a UPI refund"): a capitalised word in a shared
+// question that is one of these is no name (v4, misfire B05).
+const COMMON_ACRONYMS = new Set([
+  "sim", "esim", "upi", "otp", "pin", "emi", "kyc", "gst", "atm", "usb", "api", "faq", "pdf", "sms", "mms", "gdpr",
+  "icu", "opd", "ac", "tv", "wifi", "gps", "id", "sso", "csv", "vpn", "url", "ssd", "ram", "cpu", "nfc", "qr",
+  "pnr", "ifsc", "neft", "rtgs", "imps", "cod", "eta", "ev", "abs",
+]);
 const GENERIC_FACT = new Set("allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split(" ").map(stem));
 
 function looksIdentifying(question) {
@@ -63,6 +70,7 @@ const CALENDAR = new Set([..."january february march april may june july august 
   ...DAYS, ...DAYS.map((d) => d + "s")]);
 
 module.exports = {
+  COMMON_ACRONYMS,
   CALENDAR,
   DAYS,
   FUNCTION,

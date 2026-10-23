@@ -28,6 +28,14 @@ function bool(value) {
   return Boolean(value);
 }
 
+// A payment method named only in general ("a different card", "UPI", "my bank account") identifies no
+// one: tagged as payment, it is not identifying unless it has a number or a name (v4, misfire B04).
+const GENERIC_PAYMENT_WORDS = new Set([
+  "a", "an", "the", "my", "another", "different", "other", "new", "same", "card", "cards", "credit", "debit",
+  "upi", "wallet", "bank", "account", "net", "netbanking", "banking", "transfer", "cash", "cheque", "check",
+  "payment", "method", "original", "emi",
+]);
+
 class Entity {
   constructor({ text: t, type, identifying, answerRelevant }) {
     this.text = t;
@@ -38,11 +46,15 @@ class Entity {
 
   static fromDict(data) {
     const type = text(data.type).toLowerCase() || "topic";
-    // The type decides identifying-ness; a model saying otherwise is overruled.
+    const said = text(data.text);
+    // The type decides identifying-ness; a model saying otherwise is overruled. A payment method named
+    // only in general is the one exception.
+    const words = said.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+    const genericPayment = type === "payment" && words.length > 0 && words.every((w) => GENERIC_PAYMENT_WORDS.has(w));
     return new Entity({
-      text: text(data.text),
+      text: said,
       type,
-      identifying: IDENTIFYING_TYPES.has(type) || bool(data.identifying),
+      identifying: !genericPayment && (IDENTIFYING_TYPES.has(type) || bool(data.identifying)),
       answerRelevant: bool(data.answer_relevant ?? data.answerRelevant),
     });
   }

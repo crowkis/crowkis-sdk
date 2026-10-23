@@ -10,9 +10,9 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P2 runtime components, TurnCore | 1-2 windows | done (2026-10-22) | `91529cc`, `b261b6d`, `c12d137`, `c561c3e`, `6d7073c` | ~1 h 25 min |
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | done (2026-10-23) | `dba85e0`, `241e1ab`, `df50e41`, `4b7c60e`, `821c0f2`, `94f249b`, `d6b2d3d`, `255ff9b`, `b907566`, `dd1f5f5`, `2caeaf7`, `b293b55`, `af4375f`, `91ab247`, `0f5aae3` | ~2 h 15 min |
-| P5 v4 behaviour (opt-in) | 2 windows | in progress: items 1-5 committed; reviews, frameworks and real server next | `d295214` ... `45c1fa1` | |
-| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
-| P5.6 remove the old paths (owner, 2026-10-23) | | after P5.5: owner exception to the change wall (pre-launch, 0.5.2 unpublished); delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; see plan P5.6. Nothing in P4 changes. | | |
+| P5 v4 behaviour (opt-in) | 2 windows | done (2026-10-24); 38 Chat golden changes for the owner's review (`v4-notes/p5-golden-changes.md`) | `d295214` ... `45c1fa1`, fixes `8f273c9`, `10ba7e6`, `23ef007`, `9351e52`, `0d2ae7f` | ~5 h |
+| P5.6 remove the old paths (owner, 2026-10-23; before P5.5 since 2026-10-24) | | next, started right after P5 (owner, 2026-10-24): public, stable names for what the outside scripts import first (`_is_context_dependent`, the `verify` constants `PERSONAL` / `SHARED` / `URGENT`); then delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; outside scripts committed separately per repo, nothing pushed; see plan P5.6. Stop and report after it. | | |
+| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5.6 (owner, 2026-10-24), not approved to start yet: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
 
 ## P0 (done)
 
@@ -60,9 +60,10 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
 
-## P5 (in progress; owner approved 2026-10-23: items 1-5, only on the understander path)
+## P5 done (2026-10-24; owner approved 2026-10-23: items 1-5, only on the understander path)
 
-Usage rules: 5-hour stop before 97% at a clean point, then a background timer to the reset (18:40 UTC) and continue;
+Usage rules (owner, 2026-10-24): stop before 95% on either limit at a clean point; for the 5-hour limit a background
+timer to its reset, then continue; for the weekly limit no timer. (Earlier: 97%.)
 weekly stop before 95%, no timer. After P5: stop and report (P5.5 not approved yet).
 
 Items, each failing-first in both languages with must-still-work controls (all committed, both suites green):
@@ -130,7 +131,23 @@ restarts at the reset (18:40 UTC).** The code review was still running at the st
   without a segment (its answers are not found by an understander session); Chat now reads a question record on a hit,
   bounds saves at 2x budget (`slow_write`) and counts refused hits by rule name.
 
-Then: real-server check, mark P5 done, stop and report (P5.5 not approved).
+**Fixed (2026-10-24):** every finding above, both languages, failing-first: `23ef007` / `9351e52` (privacy 1-6, the
+heard-turn blocker, the classify(text) adapter `TextOnlyClassifier`, Chat records on the write workers, typings, unused
+imports, the misplaced comment). The privacy reviewer re-checked: 1, 4, 5, 6 and the blocker confirmed fixed; 2 and 3
+partly, closed in `0d2ae7f` (more ages, conditions and number words; clauses also split at with / who / because /
+since / so / while / after; 11 new shared fixture cases). `test_stated_facts_voice` / `statedFactsVoice.test.js`
+"an unrelated stated fact" asserted one fact clearing a two-fact turn (the bug) and now clears both facts.
+Not fixed, known: the floor is word lists, so it stays open-ended (the reviewer's examples are covered); after
+`restore()` a chat has no identifiers from earlier requests (PrivateWord still covers ID turns); a rewriter alone turns
+on `kb=` but not `RuleSet.understood()`; `warm_from_calls` saves without a segment (an understander session does not
+find those answers); Chat now reads a question record on a hit, bounds saves at 2x the budget (`slow_write`) and counts
+a refused hit by its rule name.
+
+**Done when, checked:** both suites green twice (Python 768 passed, Node 58/58); Pipecat 1.13, LiveKit Python 1.8.8 and
+LiveKit JS conformance green on the fixed code; voice golden identical; Chat golden: the 38 listed changes only.
+Real server (`crowkis-demo`, tenant `voice`, then stopped; the extra demo containers web / chat-api / voice-agent
+stopped too): every scenario passes but the known server-side "a reworded question hits" (fails on the pre-v4 base
+too). Docker Desktop also started `crowkis-bolna-server` (Bolna work); left running, not ours.
 
 ## P4 done (2026-10-23)
 

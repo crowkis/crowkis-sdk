@@ -150,3 +150,26 @@ test("a failing model without a budget never ends the call", async (t) => {
   assert.strictEqual(decision.action, "infer");
   assert.strictEqual(session.stats().understandErrors, 1);
 });
+
+test("no rewrite once the caller has told the call something", async () => {
+  // The classifier reads the call's facts, so its rewrite could carry one into a shared key (P5 review).
+  const { FrameReading } = require("../../src/understanding/frameReading.js");
+  const { TurnFrame } = require("../../turn.js");
+  const sureTheTripDoesNotMatter = { classify: () => new FrameReading(TurnFrame.fromDict({
+    kind: "general", subject: "none", confidence: 0.9, question: "-",
+    fact_relevance: [{ fact: "place: goa", type: "trip", changes_answer: false }],
+  })) };
+  const store = new Store();
+  const rewrite = "what are the opening hours for travellers to goa";
+  const session = sessionOn(store, { classifier: sureTheTripDoesNotMatter, rewriter: new Script(null, rewrite) });
+  await session.record(await session.decide("we are planning a trip to goa next month"), "Have a good trip.");
+  assert.strictEqual((await session.decide("what are your opening hours on sunday")).cacheable, true);
+  assert.strictEqual(store.reads.includes(rewrite), false);
+});
+
+test("a classifier written for classify(text) still reads the turn", async () => {
+  const textOnly = { classify: (text) => reads({ personal: true }) };
+  const session = sessionOn(new Store(), { classifier: textOnly });
+  assert.strictEqual((await session.decide("what are your opening hours on sunday")).rule, "OwnRecords");
+  assert.strictEqual(session.stats().understandErrors, 0);
+});

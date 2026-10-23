@@ -26,11 +26,12 @@ class UntaggedName {
   check(turn) {
     const state = turn.state;
     const allowed = new Set(turn.frame.entities.filter((e) => !e.identifying && !NOT_GENERAL_TYPES.has(e.type)).flatMap((e) => wordsOf(e.text)));
-    for (const w of [...CALENDAR, ...COMMON_ACRONYMS, ...wordsOf(state.activeQuestion || ""), ...wordsOf(state.lastReply)]) allowed.add(w);
+    for (const w of [...CALENDAR, ...wordsOf(state.activeQuestion || ""), ...wordsOf(state.lastReply)]) allowed.add(w);
     const flagged = new Set();
     (String(turn.question || "").match(/\p{L}+/gu) || []).forEach((word, i) => {
       const low = word.toLowerCase();
       if (word === "I" || (i === 0 && FUNCTION.has(low))) return; // "What ...", "How ..."
+      if (word === word.toUpperCase() && COMMON_ACRONYMS.has(low)) return; // "UPI", "SIM": a thing, never "Ram" or "Sim"
       if (/[\p{Lu}\p{Lt}\p{Lo}]/u.test(word)) flagged.add(low);
     });
     if (![...flagged].some((w) => !allowed.has(w) && !state.details.includes(wordDigest(w)))) return null;

@@ -55,6 +55,10 @@ class SessionCall {
     return this._session._callReadings.stated;
   }
 
+  facts() {
+    return this._session._callReadings.facts;
+  }
+
   markPrivate(text) {
     this._session._callReadings.markPrivate(text);
   }

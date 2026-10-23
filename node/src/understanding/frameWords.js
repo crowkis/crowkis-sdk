@@ -43,15 +43,15 @@ const QUESTION_WORDS = new Set("population distance duration step steps process 
 const REFERRING = new Set("it its they them their there here this that those these he she him his her".split(" "));
 const CONTRACTION = new Set("s t d m re ll ve".split(" ")); // "what's" -> "what", "s": "s" names nothing
 const CLAUSE_START = new Set("i we you he she they it my our your his her their me".split(" "));
-// Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
-// penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
-// Acronyms of things, never of a person ("SIM porting", "a UPI refund"): a capitalised word in a shared
-// question that is one of these is no name (v4, misfire B05).
+// Acronyms of things, never of a person ("SIM porting", "a UPI refund"): an all-caps word in a shared
+// question that is one of these is no name (v4, misfire B05). "Ram" or "Sim" written as a name is.
 const COMMON_ACRONYMS = new Set([
   "sim", "esim", "upi", "otp", "pin", "emi", "kyc", "gst", "atm", "usb", "api", "faq", "pdf", "sms", "mms", "gdpr",
   "icu", "opd", "ac", "tv", "wifi", "gps", "id", "sso", "csv", "vpn", "url", "ssd", "ram", "cpu", "nfc", "qr",
   "pnr", "ifsc", "neft", "rtgs", "imps", "cod", "eta", "ev", "abs",
 ]);
+// Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
+// penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
 const GENERIC_FACT = new Set("allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split(" ").map(stem));
 
 function looksIdentifying(question) {

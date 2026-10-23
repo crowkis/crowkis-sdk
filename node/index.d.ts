@@ -577,11 +577,14 @@ export const REALTIME: Channel;
 export interface Reading {
   readonly isPersonal: boolean;
   readonly isContextDependent: boolean;
+  /** The model's frame of the turn; absent or null for the word rules. */
+  readonly frame?: TurnFrame | null;
 }
 
 /** Reads a turn: whether it is about the caller's own records or depends on the call. */
 export interface Classifier {
-  classify(text: string): Reading | Promise<Reading>;
+  /** `facts`: the call's de-identified stated facts ("condition: car hit"), never its turns. */
+  classify(text: string, facts?: readonly string[]): Reading | Promise<Reading>;
 }
 
 /** Rewrites a turn into a stand-alone question, or returns null to keep the caller's words. */
@@ -893,11 +896,20 @@ export class TurnFrame {
   questionType: QuestionType;
   /** The language the reply must be in ("hi", "en"), or null. */
   language: string | null;
+  /** For each fact the caller stated, whether it changes this turn's answer (v4 StatedFacts). */
+  factRelevance: FactRelevance[];
   static fromDict(data: unknown): TurnFrame;
   readonly identifyingTexts: string[];
   readonly details: Entity[];
   readonly memorable: Entity[];
   readonly isPureAcknowledgement: boolean;
+}
+
+/** Whether a fact the caller stated changes the answer to this turn (a missing or unsure answer: it does). */
+export interface FactRelevance {
+  readonly fact: string;
+  readonly type: string;
+  readonly changesAnswer: boolean;
 }
 
 /** Per-call memory as structure, not transcript. */
@@ -993,10 +1005,10 @@ export class FrameReading implements Reading {
   readonly question: string | null;
 }
 
-/** The Classifier slot filled by an understander; the model sees the turn alone. */
+/** The Classifier slot filled by an understander; the model sees the turn and the call's de-identified facts. */
 export class LLMClassifier implements Classifier {
   constructor(understander: Understander);
-  classify(text: string): Promise<FrameReading>;
+  classify(text: string, facts?: readonly string[]): Promise<FrameReading>;
 }
 
 /** The Rewriter slot filled by an understander's stand-alone question (reuses the classifier's frame). */

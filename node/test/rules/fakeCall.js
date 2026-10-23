@@ -40,6 +40,10 @@ class FakeCall {
     return this.statedTurns;
   }
 
+  facts() {
+    return [];
+  }
+
   markPrivate(text) {
     this.readPersonal.add(text.trim());
   }

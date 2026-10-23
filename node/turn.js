@@ -81,6 +81,9 @@ class Attribute {
  * Whether a fact the caller stated (an allergy, an age, a trip) changes the answer to this turn. Read
  * fail-closed: a fact the model did not say is irrelevant changes the answer.
  */
+// What a model's "does not change the answer" may look like; anything else counts as "it does".
+const SAID_NO = [false, 0, "false", "False", "no", "No", "0"];
+
 class FactRelevance {
   constructor({ fact, type, changesAnswer }) {
     Object.assign(this, { fact, type, changesAnswer });
@@ -91,10 +94,9 @@ class FactRelevance {
     if (!data || typeof data !== "object") return null;
     const fact = text(data.fact);
     if (!fact) return null;
+    // Only a plain "no" makes a fact irrelevant: missing, "unsure" or "maybe" means it counts.
     const said = data.changes_answer ?? data.changesAnswer;
-    return new FactRelevance({
-      fact, type: text(data.type).toLowerCase() || "other", changesAnswer: said === undefined || said === null ? true : bool(said),
-    });
+    return new FactRelevance({ fact, type: text(data.type).toLowerCase() || "other", changesAnswer: !SAID_NO.includes(said) });
   }
 }
 

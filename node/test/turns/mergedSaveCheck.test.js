@@ -124,3 +124,11 @@ test("chat, must still work: a plain answer is saved", async () => {
   assert.strictEqual(await session.recordAnswer(result, "Refunds take five days."), "saved");
   assert.deepStrictEqual(agent.saved.map(([, answer]) => answer), ["Refunds take five days."]);
 });
+
+test("chat: the user's identifiers are never exported", async () => {
+  // Short ID hashes are easy to reverse; they stay in memory for the chat only (P5 review).
+  const session = new CallSession(new ChatAgent(), scripted);
+  await session.handle("my order is ORD55821");
+  assert.ok(session.state.identifiers.length > 0);
+  assert.strictEqual("identifiers" in session.export().state, false);
+});

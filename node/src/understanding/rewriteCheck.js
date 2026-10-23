@@ -6,13 +6,15 @@ const { isPersonal, leaks, numbersOf, properNouns, wordsOf } = require("./wordRu
  * Specification: a rewrite keys a turn only when that cannot make the call less private. The turn
  * must be neither personal nor a follow-up, by its reading or the word rules (a follow-up keeps its
  * chain as the key, so the key says what the model was shown); the rewrite must not read as personal,
- * carry a declared value, or add a number or a name the caller did not say. Anything else keeps the
- * caller's words.
+ * carry a declared value, or add a number or a name the caller did not say. Once the caller has told the
+ * call something, no rewrite is used: the classifier read those facts, and a rewrite could carry one into a
+ * shared key. Anything else keeps the caller's words.
  */
 class RewriteCheck {
   /** The rewrite to key the turn on, or null for the caller's words. */
   accept(text, reading, rewritten, call) {
     if (typeof rewritten !== "string" || !rewritten.trim()) return null;
+    if (call.stated().length || call.facts().length) return null;
     if (reading.isPersonal || call.isPersonal(text)) return null;
     if (reading.isContextDependent || call.isContextDependent(text)) return null;
     if (isPersonal(rewritten) || leaks(rewritten, call.values) || RewriteCheck._addsDetails(text, rewritten)) return null;

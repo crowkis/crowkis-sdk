@@ -34,6 +34,8 @@ class VoiceStatedFacts {
 
   check(turn) {
     if (setsContext(turn.text)) return this._private(turn, TELLS_REASON);
+    // The call heard something its model never read (loaded history, a private turn).
+    if (turn.call.tainted) return this._private(turn, DEPENDS_REASON);
     if (turn.call.stated().some((stated) => !this._relevance.irrelevant(stated, turn.frame))) {
       return this._private(turn, DEPENDS_REASON);
     }

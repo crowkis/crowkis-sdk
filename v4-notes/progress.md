@@ -11,8 +11,8 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P3 Chat on the same core | 1-2 windows | done (2026-10-22) | `817f642`, `3a9c2d3`, `2fc5d7d`, `712d0ef`, `ac43e2c`, `6c90229`, `cfda1ad` | ~2 h 30 min |
 | P4 pluggable understanding | 1-2 windows | done (2026-10-23) | `dba85e0`, `241e1ab`, `df50e41`, `4b7c60e`, `821c0f2`, `94f249b`, `d6b2d3d`, `255ff9b`, `b907566`, `dd1f5f5`, `2caeaf7`, `b293b55`, `af4375f`, `91ab247`, `0f5aae3` | ~2 h 15 min |
 | P5 v4 behaviour (opt-in) | 2 windows | done (2026-10-24); 38 Chat golden changes for the owner's review (`v4-notes/p5-golden-changes.md`) | `d295214` ... `45c1fa1`, fixes `8f273c9`, `10ba7e6`, `23ef007`, `9351e52`, `0d2ae7f` | ~5 h |
-| P5.6 remove the old paths (owner, 2026-10-23; before P5.5 since 2026-10-24) | | next, started right after P5 (owner, 2026-10-24): public, stable names for what the outside scripts import first (`_is_context_dependent`, the `verify` constants `PERSONAL` / `SHARED` / `URGENT`); then delete the re-export modules once every user (integrations, tests, docs, six outside scripts) imports the new paths; outside scripts committed separately per repo, nothing pushed; see plan P5.6. Stop and report after it. | | |
-| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5.6 (owner, 2026-10-24), not approved to start yet: re-check every file, refactor the ones not clean; see plan P5.5 and `v4-notes/review-later.md` | | |
+| P5.6 remove the old paths (owner, 2026-10-23; before P5.5 since 2026-10-24) | about 1 window | done (2026-10-24): facades in `channels/`, the ten old modules and nine old Node files gone, public stable names, website copy checked; see the P5.6 section | `ebdf5aa`, `b4e09d1`, `a1cba4b`, notes; crowkis `v4-imports` `0bef059` | ~1 h |
+| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5.6, not approved to start yet. First and required item (owner, 2026-10-24): merge `ChatCore` into `TurnCore` (`CallSession` / `Chat` become facades with `ChatChannel`; Chat's differing steps become rules, profile fields or injected parts); done when `chat_core.py` / `chatCore.js` are gone and golden decisions are identical. Then re-check every file; see plan P5.5 and `v4-notes/review-later.md` | | |
 
 ## P0 (done)
 
@@ -59,6 +59,29 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
   reaches the LLM) in both languages, and fails the same way on the pre-P1 commit `0594148`, so it is not
   from P1. It passed at the end of P0 this morning; likely the shared `voice` tenant's state or the server's
   matching. Needs a look by the owner (not flushed).
+
+## P5.6 done (2026-10-24; owner exception to the change wall: 0.5.2 unpublished, old paths removed outright)
+
+- **Public, stable names first** (`ebdf5aa`): the root exports the routes (AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS,
+  URGENT); `crowkis.privacy` / `@crowkis/client/privacy` name the privacy word rules apps reuse (`is_personal`,
+  `is_context_dependent`, `leaks`, `abstract`, `fill`, `SLOT`, `CONTEXT_BOUND_THRESHOLD`). P5.5 may move internals, never
+  these names.
+- **The move** (layout: `v4-notes/p5.6-layout.md`; done by two subagents, reviewed here): Node `b4e09d1` (nine root files
+  into `src/channels`, `src/integrations`, `src/rules`, `src/understanding`, `src/state`; subpaths keep their names and
+  point at the new files), Python `a1cba4b` (ten modules into `channels/`, `integrations/`, `rules/`, `understanding/`,
+  `state/`). `git mv`, code unchanged, imports repointed; tests import-only (Python
+  `test_voice_session_factory`'s `assertIs` names the new module; Node `test-voice.js` runs a Python snippet that now
+  imports `_is_personal` from `crowkis.channels.voice_session`).
+- **Checked:** Python 770 passed and Node 59/59, twice each; golden unchanged; `test-packaging.js` 7/7; `npm pack` (no old
+  file; `src/channels`, `src/state` in); the wheel (no old module; `channels/`, `state/` in); Pipecat 26, LiveKit Python
+  23, LiveKit JS 49/49. Website: `sdk-docs/website/` copied to `v4-notes/website/` (owner: the original stays as it is
+  until v4 merges); no page used an old path, so **no page changed**; its snippet checks pass against v4 and the real
+  server (syntax 43/43, pages 34/34 and 30/30, voice 4/4 and 4/4).
+- **Outside scripts:** crowkis `v4-imports` `0bef059` (bench imports from the root; works with today's SDK too).
+  crowkis-testing-scripts: the three files are untracked there (another session's work), so the exact changes are written
+  in `v4-notes/p5.6-layout.md`, to apply once they are committed.
+- **Left for the owner:** `CLAUDE.md` section 4 still says the old import paths keep working as re-exports (true until
+  P5.6; the owner's exception replaces it); `sdk-docs/voice-adapter-layer.md` names `crowkis.voice_turns`.
 
 ## P5 done (2026-10-24; owner approved 2026-10-23: items 1-5, only on the understander path)
 

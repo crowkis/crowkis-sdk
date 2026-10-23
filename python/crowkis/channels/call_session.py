@@ -37,8 +37,16 @@ from ..runtime.question_records import QuestionRecords
 from . import voice_session as _voice
 from ..turns.channel import CHAT
 from ..rules.question import UrgentWords
-from ..turns.chat_answer import ChatAnswer
-from ..turns.chat_core import ChatCore
+from ..turns.answered import ChatAnswered
+from ..turns.chat_answers import ChatAnswers
+from ..turns.chat_hit_check import ChatHitCheck
+from ..turns.chat_question_check import ChatQuestionCheck
+from ..turns.chat_reader import ChatReader
+from ..turns.chat_reading import ChatReading
+from ..turns.chat_report import ChatReport
+from ..turns.chat_saving import ChatSaving
+from ..turns.chat_turns import ChatTurns
+from ..turns.turn_core import TurnCore
 from ..turns.routes import FILLER  # noqa: F401 - re-exported
 from ..turns.turn_result import TurnResult  # noqa: F401 - re-exported
 from ..understanding.chat_details import (  # noqa: F401 - re-exported
@@ -56,7 +64,6 @@ from ..understanding.chat_details import (  # noqa: F401 - re-exported
     _private_words,
     _told,
 )
-from ..turns.chat_turn import ChatTurn
 from ..understanding.frame_words import _CALENDAR, _DAYS  # noqa: F401
 from ..understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
 from .voice_session import _PII_PLACEHOLDER, _instructs, _proper_nouns, _tells_about_caller, _words
@@ -73,6 +80,10 @@ from ..rules.rule_checker import _FUNCTION, AGENT, PERSONAL, SHARED, TASK, TOOLS
 MODES = ("full", "replay_only", "off")
 Message = Dict[str, str]
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-call")
+_UNDERSTAND = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="crowkis-understand")
+# A chat's counters for each way a lookup fails open.
+_LOOKUP_DEADLINE_COUNTS = ("lookup_timeouts",)
+_LOOKUP_UNAVAILABLE_COUNTS = ("lookup_errors",)
 
 
 # A first-person claim that something was done. A cached answer must never claim an action.
@@ -147,20 +158,33 @@ class CallSession:
         self.mode = "full"
         self.set_mode(mode)
         self.state = CallState()
-        # A chat: what it can do. Its turn steps (ChatCore) own its lookup inside the budget (a late hit is
-        # still served, as before), its rule chains and its turns; this session keeps state, counts and hooks.
+        # A chat: what it can do. This session keeps the chat's state, counts, settings and hooks.
         self.channel = CHAT
-        self._core = ChatCore(self, cache_lookup=CacheLookup(_LOOKUPS, refuse_late_hits=False),
-                              shared_question_rules=ChatRuleSet.shared_question_chain(), urgent_words=UrgentWords(),
-                              save_rules=ChatRuleSet.save_chain(), hit_rules=ChatRuleSet.hit_chain(),
-                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_voice._submit_write),
-                              writer=BoundedWriter(_voice._WRITES, lambda: _voice._WRITES_MAX, self._count_write, _voice._LOG))
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self.counts: Dict[str, int] = {k: 0 for k in (
             URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT, FILLER, "hits", "saved", "save_refused",
             "lookup_timeouts", "lookup_errors", "understand_errors", "understand_timeouts", "fallback_used",
             "cancelled", "sharing_off", "tools_answered")}
+        self._core = self._build_core()
+
+    def _build_core(self) -> TurnCore:
+        """The one TurnCore with a chat's parts (this session is their composition root). Its lookup
+        serves a late hit, as Chat always did."""
+        self._turns = ChatTurns()
+        self._report = ChatReport(self, self._turns)
+        records = QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_voice._submit_write)
+        self._cache_lookup = CacheLookup(_LOOKUPS, refuse_late_hits=False, deadline_counts=_LOOKUP_DEADLINE_COUNTS,
+                                         unavailable_counts=_LOOKUP_UNAVAILABLE_COUNTS)
+        self._saving = ChatSaving(self, save_rules=ChatRuleSet.save_chain(), question_records=records,
+                                  writer=BoundedWriter(_voice._WRITES, lambda: _voice._WRITES_MAX, self._count_write,
+                                                       _voice._LOG))
+        question_check = ChatQuestionCheck(self, shared_question_rules=ChatRuleSet.shared_question_chain(),
+                                           urgent_words=UrgentWords())
+        hit_check = ChatHitCheck(self, hit_rules=ChatRuleSet.hit_chain(), question_records=records)
+        return TurnCore(self, pairing=self._turns, answers=ChatAnswers(self, self._turns),
+                        reader=ChatReader(self, _UNDERSTAND), question_check=question_check,
+                        cache_lookup=self._cache_lookup, hit_check=hit_check, report=self._report, saving=self._saving)
 
     def set_mode(self, mode: str) -> None:
         """Switch sharing at runtime: "full", "replay_only" (no model) or "off" (share nothing)."""
@@ -172,11 +196,11 @@ class CallSession:
 
 
     def handle(self, turn: str) -> TurnResult:
-        return self._core.handle(turn)
+        return self._core.decide(turn)
 
     def record_answer(self, result: TurnResult, answer: str, *, mentions: tuple = (),
                       task: Optional[str] = None, private: bool = False) -> str:
-        outcome = self._core.record(result, answer, mentions, task, private)
+        outcome = self._core.record(ChatAnswered(result, answer, mentions, task, private))
         self._emit({"type": "answer", "turn_id": result.turn_id, "route": result.route, "outcome": outcome,
                     "key": result.verdict.key if result.verdict else None})
         return outcome
@@ -187,12 +211,12 @@ class CallSession:
 
     def cancel(self) -> bool:
         """Barge-in: the open turn is abandoned and its answer will never be saved."""
-        return self._core.cancel()
+        return self._turns.cancel()
 
     def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None,
                    private: bool = False) -> Optional[str]:
         """Why an answer to a shared question must not be saved, or None."""
-        return self._core.save_check(answer, verdict, frame, private)
+        return self._saving.save_check(answer, verdict, frame, private)
 
     def _count_write(self, counter: Any) -> None:
         """A slow or late-failing write, counted under its name (BoundedWriter's counters)."""
@@ -208,8 +232,12 @@ class CallSession:
         return self._prompt_key()
 
     def _lookup(self, key: str, segment: Optional[str]) -> Optional[str]:
-        """The cached answer for a shared key, or None (kept for code that calls it; ChatCore looks up)."""
-        return self._core._lookup(key, segment)
+        """The cached answer for a shared key, or None (kept for code that calls it; TurnCore looks up)."""
+        looked = self._core.look_up(ChatReading("").checked_as(Verdict(True, SHARED, key=key, segment=segment)))
+        if looked.objection is not None:
+            self._report.count(looked.objection)
+            return None
+        return looked.hit["answer"]
 
     @property
     def fillers(self) -> Dict[str, str]:
@@ -249,7 +277,7 @@ class CallSession:
 
     def export(self) -> Dict[str, Any]:
         """The thread's memory for the app's store, between turns. No transcript is in it."""
-        return {"version": 1, "state": self.state.to_dict(), "next_turn": self._core.next_turn}
+        return {"version": 1, "state": self.state.to_dict(), "next_turn": self._turns.next_turn}
 
     @classmethod
     def restore(cls, agent: Any, understander: Understander, data: Optional[Dict[str, Any]],
@@ -260,7 +288,7 @@ class CallSession:
         data = data if isinstance(data, dict) else {}
         session.state = CallState.from_dict(data.get("state"))
         try:
-            session._core.next_turn = max(1, int(data.get("next_turn", 1)))
+            session._turns.next_turn = max(1, int(data.get("next_turn", 1)))
         except (TypeError, ValueError, OverflowError):
             pass
         return session

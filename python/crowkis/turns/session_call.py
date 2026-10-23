@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .channel import VOICE, Channel
+from .channel import Channel
 
 
 class SessionCall:
@@ -16,7 +16,7 @@ class SessionCall:
 
     @property
     def channel(self) -> Channel:
-        return VOICE
+        return self._session.channel
 
     @property
     def tainted(self) -> bool:

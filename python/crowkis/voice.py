@@ -23,7 +23,7 @@ from .turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
 from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
-from .turns.channel import VOICE
+from .turns.channel import VOICE, Channel
 from .understanding.budgeted_understanding import BudgetedUnderstanding
 from .understanding.call_readings import CallReadings
 from .understanding.slots import Classifier, Rewriter
@@ -505,6 +505,7 @@ class VoiceSession:
         classifier: Optional[Classifier] = None,
         rewriter: Optional[Rewriter] = None,
         understand_budget_ms: Optional[float] = None,
+        channel: Union[Channel, str] = VOICE,
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -532,6 +533,8 @@ class VoiceSession:
         self.speed = speed
         self.audio_format = audio_format
         self.bytes_per_second = bytes_per_second
+        # What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
+        self.channel = Channel.of(channel)
         self._reported: Dict[str, int] = {}
         self.serve_above = serve_above
         self.min_words = min_words
@@ -1118,6 +1121,9 @@ class VoiceSession:
 # checks `_text_only` first.
 _TEXT_ONLY_VOICE = "crowkis:text-only"
 
+# A voice_session() budget left out: it comes from the channel's profile.
+_FROM_CHANNEL: Any = object()
+
 
 def voice_session(
     *,
@@ -1130,8 +1136,9 @@ def voice_session(
     token: Optional[str] = None,
     tenant: Optional[str] = None,
     timeout: Optional[float] = None,
-    latency_budget_ms: Optional[float] = 250,
-    understand_budget_ms: Optional[float] = VOICE.understand_budget_ms,
+    channel: Union[Channel, str] = VOICE,
+    latency_budget_ms: Any = _FROM_CHANNEL,
+    understand_budget_ms: Any = _FROM_CHANNEL,
     **options: Any,
 ) -> VoiceSession:
     """A ready VoiceSession in one call, with defaults for live calls.
@@ -1163,7 +1170,15 @@ def voice_session(
     ``LLMRewriter``, ``ReplayRewriter``). It gets ``understand_budget_ms`` (250) per turn; late
     or failed, the word rules read the turn. The word rules apply either way, so a model can make
     a call more private, never less. ``None`` turns the budget off.
+
+    ``channel`` ("voice", the default, or "realtime", or a ``Channel``) is the profile the
+    budgets not passed here come from (voice and realtime: 250 ms each).
     """
+    channel = Channel.of(channel)
+    if latency_budget_ms is _FROM_CHANNEL:
+        latency_budget_ms = channel.budget_ms
+    if understand_budget_ms is _FROM_CHANNEL:
+        understand_budget_ms = channel.understand_budget_ms
     if timeout is not None and not timeout > 0:
         raise ValueError(f"timeout must be a positive number of seconds, got {timeout}")
     if client is not None:
@@ -1193,6 +1208,7 @@ def voice_session(
         voice=_TEXT_ONLY_VOICE if voice is None else voice,
         latency_budget_ms=latency_budget_ms,
         understand_budget_ms=understand_budget_ms,
+        channel=channel,
         **options,
     )
     session._text_only = voice is None

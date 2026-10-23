@@ -76,3 +76,18 @@ Root-cause fixes, with tests (`test_rewrite_safety.py`, 135 lines). Details to c
 - `TurnCore` builds a default `RewriteCheck()` itself; collaborators come from the composition root.
 - `VoiceCall` / `SessionCall` keep growing (`is_context_dependent` added), the same host-interface concern
   as section 2.
+
+## 6. Merge similar voice / chat pairs (owner, 2026-10-24)
+
+P5.5 splits each turn step into a voice part and a chat part (`turns/voice_*.py` / `turns/chat_*.py`, behind the
+interfaces in `turns/turn_steps.py`). Once the refactor is done, compare each pair side by side:
+- **Mostly the same, with the differences being settings:** merge them into one class that reads the channel
+  profile (`turns/channel.py`), and move the settings into the profile (Fowler's Inline Class / Collapse Hierarchy).
+- **Really different behaviour** (Chat reporting every objection vs voice stopping at the first, Chat's routes,
+  voice's barge-in and audio): keep them split.
+The pieces are internal (apps only use the facades), so a merge changes no public name. Merge in both languages,
+combine the two classes' tests, and keep golden decisions identical.
+
+Also from the 2026-10-24 tour: `VoiceSession.decide()` still numbers the turn, offers sharing and builds
+`decision.messages` (`_model_messages`) around the core. That belongs in the core's steps (pairing, report), so the
+facade's `decide()` only calls the core.

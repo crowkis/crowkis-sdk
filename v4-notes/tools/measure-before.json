@@ -1,0 +1,180 @@
+{
+ "python": {
+  "language": "python",
+  "files": 140,
+  "functions": 707,
+  "cognitive_max": 80,
+  "cognitive_mean_reported": 3.07,
+  "cognitive_over_15": 25,
+  "function_nloc_max": 106,
+  "function_nloc_mean": 7.17,
+  "functions_over_20_lines": 43,
+  "file_lines_max": 1257,
+  "files_over_300_lines": 8,
+  "cyclomatic_max": 54
+ },
+ "node": {
+  "language": "node",
+  "files": 116,
+  "functions": 907,
+  "cognitive_max": 70,
+  "cognitive_mean_reported": 4.31,
+  "cognitive_over_15": 18,
+  "function_nloc_max": 110,
+  "function_nloc_mean": 4.78,
+  "functions_over_20_lines": 26,
+  "file_lines_max": 1257,
+  "files_over_300_lines": 4,
+  "cyclomatic_max": 49
+ },
+ "forward_only_python": [
+  "python\\crowkis\\turns\\session_call.py:SessionCall",
+  "python\\crowkis\\turns\\session_host.py:SessionHost"
+ ],
+ "worst_cognitive_python": [
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\word_rules\\call_context.py",
+   "function": "_states_self",
+   "cognitive": 80
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\word_rules\\personal.py",
+   "function": "_never_share",
+   "cognitive": 60
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\word_rules\\prompt_details.py",
+   "function": "_prompt_details",
+   "cognitive": 53
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\word_rules\\personal.py",
+   "function": "_identifies",
+   "cognitive": 48
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\word_rules\\personal.py",
+   "function": "_names_someone",
+   "cognitive": 47
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\integrations\\livekit.py",
+   "function": "CrowkisVoice::llm_node",
+   "cognitive": 42
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\turns\\chat_core.py",
+   "function": "ChatCore::handle",
+   "cognitive": 36
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\understanding\\chat_details.py",
+   "function": "_names",
+   "cognitive": 35
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\channels\\async_voice_session.py",
+   "function": "AsyncVoiceResponse::_run",
+   "cognitive": 35
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\python\\crowkis\\agent.py",
+   "function": "Agent::speak",
+   "cognitive": 35
+  }
+ ],
+ "worst_cognitive_node": [
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\callContext.js",
+   "line": 151,
+   "cognitive": 70
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\personal.js",
+   "line": 532,
+   "cognitive": 57
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\promptDetails.js",
+   "line": 70,
+   "cognitive": 55
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\personal.js",
+   "line": 388,
+   "cognitive": 48
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\personal.js",
+   "line": 316,
+   "cognitive": 47
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\turns\\chatCore.js",
+   "line": 70,
+   "cognitive": 36
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\chatDetails.js",
+   "line": 26,
+   "cognitive": 32
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\channels\\voiceSession.js",
+   "line": 371,
+   "cognitive": 31
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\wordRules\\text.js",
+   "line": 427,
+   "cognitive": 27
+  },
+  {
+   "file": "C:\\Users\\j7goe\\AppData\\Local\\Temp\\claude\\D--Tarkova\\b8ad0357-bb3c-4f0e-ae6d-0181b37ff090\\scratchpad\\before\\node\\src\\understanding\\turnFrame.js",
+   "line": 109,
+   "cognitive": 24
+  }
+ ],
+ "longest_files": [
+  [
+   "python\\crowkis\\channels\\voice_session.py",
+   1257
+  ],
+  [
+   "node\\src\\channels\\voiceSession.js",
+   1257
+  ],
+  [
+   "python\\crowkis\\understanding\\word_rules\\personal.py",
+   769
+  ],
+  [
+   "node\\src\\understanding\\wordRules\\personal.js",
+   747
+  ],
+  [
+   "python\\crowkis\\understanding\\word_rules\\text.py",
+   598
+  ],
+  [
+   "node\\src\\understanding\\wordRules\\text.js",
+   583
+  ],
+  [
+   "python\\crowkis\\integrations\\pipecat.py",
+   545
+  ],
+  [
+   "python\\crowkis\\integrations\\voice_turns.py",
+   500
+  ],
+  [
+   "python\\crowkis\\agent.py",
+   470
+  ],
+  [
+   "node\\src\\integrations\\voiceTurns.js",
+   466
+  ]
+ ]
+}

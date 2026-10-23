@@ -26,6 +26,7 @@ from .understanding.no_rewrite import NoRewrite
 from .turns.channel import VOICE, Channel
 from .understanding.budgeted_understanding import BudgetedUnderstanding
 from .understanding.call_readings import CallReadings
+from .runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
 from .understanding.slots import Classifier, Rewriter
 from .understanding.word_rule_classifier import WordRuleClassifier
 from .understanding.word_rules import (  # noqa: F401 - re-exported: crowkis.voice.<name> keeps working
@@ -295,18 +296,11 @@ _REPORT_MAX = 1_000_000
 _LOG = logging.getLogger("crowkis")
 
 
-_QUESTIONS_KEPT = 8
-# How long a question record lives when the answer has no TTL of its own.
-_QUESTION_TTL = 30 * 24 * 3600
-
-
-def _question_key(tenant: Optional[str], answer: str) -> str:
-    digest = hashlib.sha256(answer.strip(" \t\r\n").encode("utf-8")).hexdigest()[:32]
-    return _QUESTION_KEY.format(tenant=tenant or "default", answer=digest)
-
-
-def _tenant_of(agent: Any) -> Optional[str]:
-    return getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
+# Which questions each shared answer was saved for: runtime/question_records.py (names kept here).
+_QUESTIONS_KEPT = QUESTIONS_KEPT
+_QUESTION_TTL = QUESTION_TTL
+_question_key = question_key
+_tenant_of = tenant_of
 
 
 # --- Turns whose answer must never be shared ------------------------------------------
@@ -845,44 +839,15 @@ class VoiceSession:
                 self.not_shareable += 1
 
     def _keep_question(self, question: str, answer: str) -> None:
-        """Note, in the background, that ``answer`` was saved for ``question``. A
-        failure only means a later hit can't be checked, which is how it was before."""
-        client = getattr(self.agent, "_client", None)
-        if client is None or not hasattr(client, "set"):
-            return
-        key, ttl = _question_key(_tenant_of(self.agent), answer), self.ttl or _QUESTION_TTL
-
-        def keep() -> None:
-            try:
-                raw = client.get(key)
-                kept = json.loads(raw) if raw else []
-                kept = [q for q in kept if isinstance(q, str) and q != question][-(_QUESTIONS_KEPT - 1):]
-                client.set(key, json.dumps(kept + [question], separators=(",", ":"), ensure_ascii=False), ttl=ttl)
-            except Exception as err:  # noqa: BLE001 — see docstring
-                _LOG.debug("crowkis voice: the answer's question was not kept (%s)", type(err).__name__)
-
-        _submit_write(keep)  # never on the audio-clip queue
+        """Note, in the background, that ``answer`` was saved for ``question`` (QuestionRecords)."""
+        QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_submit_write).keep(question, answer, self.ttl)
 
     def _answers_another_question(self, asked: str, answer: str, spent_ms: float = 0.0) -> bool:
-        """Whether every question this answer was saved for asks about something else.
-        Unknown (no record, or it can't be read in time) means no: as before."""
-        client = getattr(self.agent, "_client", None)
-        if client is None or not hasattr(client, "get"):
-            return False
-        read = lambda: client.get(_question_key(_tenant_of(self.agent), answer))  # noqa: E731
-        try:
-            if self.latency_budget_ms is None:
-                raw = read()
-            else:
-                left = self.latency_budget_ms - spent_ms  # what the lookup left of the budget
-                if left <= 0:
-                    return False
-                raw = _LOOKUPS.submit(read).result(timeout=left / 1000.0)
-            questions = json.loads(raw) if raw else []
-        except Exception:  # noqa: BLE001 — see docstring
-            return False
-        questions = [q for q in questions if isinstance(q, str)] if isinstance(questions, list) else []
-        return bool(questions) and all(_different_specifics(asked, q) for q in questions)
+        """Whether every question this answer was saved for asks about something else, read within
+        what the lookup left of the budget. Unknown means no: as before."""
+        left = None if self.latency_budget_ms is None else self.latency_budget_ms - spent_ms
+        records = QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_submit_write)
+        return records.answers_another_question(asked, answer, left)
 
     def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
         """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter).

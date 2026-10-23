@@ -32,6 +32,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from .callstate import IDENTITIES, CallState
 from .rules.chat_rule_set import ChatRuleSet
 from .runtime.cache_lookup import CacheLookup
+from .runtime.question_records import QuestionRecords
 from .turns.channel import CHAT
 from .rules.question import UrgentWords
 from .turns.chat_answer import ChatAnswer
@@ -149,7 +150,8 @@ class CallSession:
         self.channel = CHAT
         self._core = ChatCore(self, cache_lookup=CacheLookup(_LOOKUPS, refuse_late_hits=False),
                               shared_question_rules=ChatRuleSet.shared_question_chain(), urgent_words=UrgentWords(),
-                              save_rules=ChatRuleSet.save_chain())
+                              save_rules=ChatRuleSet.save_chain(), hit_rules=ChatRuleSet.hit_chain(),
+                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_LOOKUPS.submit))
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self.counts: Dict[str, int] = {k: 0 for k in (

@@ -6,6 +6,7 @@ from dataclasses import dataclass, fields, replace
 from typing import Sequence
 
 from .chain import RuleChain, UnknownRule, rule_names
+from .hit import CommitmentRewording, DifferentQuestion, PiiPlaceholder
 from .save import (
     ActionClaim,
     AttributeNotInKey,
@@ -53,6 +54,12 @@ class ChatRuleSet:
         """The checks a session runs once the rule checker would share a question, on what the chat
         has learnt (names, told details): the first objection keeps the turn with the agent."""
         return RuleChain([QuestionNamesCaller(), ToldDetailDropped(), UntaggedName()])
+
+    @staticmethod
+    def hit_chain() -> RuleChain:
+        """The hit guards every channel runs (v4): a placeholder for someone's detail, an answer saved
+        for a different question, a commitment for anything but the exact same question."""
+        return RuleChain([PiiPlaceholder(), DifferentQuestion(), CommitmentRewording()])
 
     @staticmethod
     def save_chain() -> RuleChain:

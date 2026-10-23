@@ -13,9 +13,12 @@ from ..rules.question import UrgentWords
 from ..runtime.cache_lookup import CacheLookup
 from ..turn import TurnFrame
 from ..understanding.chat_details import _masked, _names, _norm, _private_words, _told
-from ..understanding.word_rules import _PII_PLACEHOLDER, _instructs, _tells_about_caller, _words
+from ..understanding.word_rules import _instructs, _tells_about_caller, _words
 from ..verify import AGENT, PERSONAL, SHARED, TOOLS, URGENT, Verdict
+from ..runtime.question_records import QuestionRecords
 from .chat_answer import ChatAnswer
+from .chat_cached_answer import ChatCachedAnswer, ChatHitCall, ChatHitTurn
+from .hit import Hit
 from .chat_host import ChatHost
 from .chat_turn import ChatTurn
 from .routes import FILLER
@@ -34,9 +37,12 @@ class ChatCore:
     ones); ``host`` (ChatHost) is the session's state, counts, settings and hooks."""
 
     def __init__(self, host: ChatHost, *, cache_lookup: CacheLookup, shared_question_rules: RuleChain,
-                 urgent_words: UrgentWords, save_rules: RuleChain) -> None:
+                 urgent_words: UrgentWords, save_rules: RuleChain, hit_rules: RuleChain,
+                 question_records: QuestionRecords) -> None:
         self._host = host
         self._cache_lookup = cache_lookup
+        self._hit_rules = hit_rules
+        self._question_records = question_records
         self._shared_question_rules = shared_question_rules
         self._urgent_words = urgent_words
         self._save_rules = save_rules
@@ -177,6 +183,7 @@ class ChatCore:
             self._host.counts["save_refused"] += 1
             return "refused:write_failed"
         self._host.counts["saved"] += 1
+        self._question_records.keep(result.verdict.key, answer, result.verdict.ttl)
         return "saved"
 
     def cancel(self) -> bool:
@@ -228,11 +235,17 @@ class ChatCore:
     def _lookup(self, key: str, segment: Optional[str]) -> Optional[str]:
         ask = lambda: self._host.agent.ask(key, serve_above=self._host.serve_above,  # noqa: E731
                                      cheap_above=min(0.6, self._host.serve_above), segment=segment)
-        hit, verdict = self._cache_lookup.find(ask, time.monotonic(), self._host.latency_budget_ms)
+        started = time.monotonic()
+        hit, verdict = self._cache_lookup.find(ask, started, self._host.latency_budget_ms)
         if verdict is not None:
             self._host.counts[_LOOKUP_COUNTS[verdict.rule]] += 1
             return None
-        if hit.get("route") == "cache" and hit.get("answer"):
-            # A placeholder the server put in place of someone's detail is never served.
-            return None if _PII_PLACEHOLDER.search(hit["answer"]) else hit["answer"]
-        return None
+        if hit.get("route") != "cache" or not hit.get("answer"):
+            return None
+        call = ChatHitCall(self._question_records, self._host.latency_budget_ms)
+        objection = self._hit_rules.first_objection(ChatCachedAnswer(ChatHitTurn(key, call), Hit.from_agent(hit), started))
+        if objection is not None:
+            # A refused hit is counted by the rule that refused it (v4 hit guards).
+            self._host.counts[objection.rule] = self._host.counts.get(objection.rule, 0) + 1
+            return None
+        return hit["answer"]

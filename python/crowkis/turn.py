@@ -64,6 +64,10 @@ class Entity:
                    answer_relevant=_bool(data.get("answer_relevant")))
 
 
+# What a model's "does not change the answer" may look like; anything else counts as "it does".
+_SAID_NO = (False, 0, "false", "False", "no", "No", "0")
+
+
 @dataclass(frozen=True)
 class FactRelevance:
     """Whether a fact the caller stated (an allergy, an age, a trip) changes the answer to this turn.
@@ -80,8 +84,8 @@ class FactRelevance:
         fact = _text(data.get("fact"))
         if not fact:
             return None
-        said = data.get("changes_answer")
-        changes = True if said is None else _bool(said)
+        # Only a plain "no" makes a fact irrelevant: missing, "unsure" or "maybe" means it counts.
+        changes = data.get("changes_answer") not in _SAID_NO
         return cls(fact=fact, type=_text(data.get("type")).lower() or "other", changes_answer=changes)
 
 

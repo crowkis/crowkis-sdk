@@ -131,5 +131,36 @@ class HungModelTests(unittest.TestCase):
         self.assertEqual(session.stats()["understand_timeouts"], MAX_IN_FLIGHT + 3)
 
 
+class ToldFactsTests(unittest.TestCase):
+    def test_no_rewrite_once_the_caller_has_told_the_call_something(self):
+        # The classifier reads the call's facts, so its rewrite could carry one into a shared key (P5 review).
+        from crowkis.turn import TurnFrame
+        from crowkis.understanding.frame_reading import FrameReading
+
+        class SureTheTripDoesNotMatter:
+            def classify(self, text, facts=()):
+                return FrameReading(TurnFrame.from_dict({
+                    "kind": "general", "subject": "none", "confidence": 0.9, "question": "-",
+                    "fact_relevance": [{"fact": "place: goa", "type": "trip", "changes_answer": False}]}))
+
+        store = Store()
+        rewrite = "what are the opening hours for travellers to goa"
+        session = session_on(store, classifier=SureTheTripDoesNotMatter(), rewriter=Script(None, rewrite))
+        session.record(session.decide("we are planning a trip to goa next month"), "Have a good trip.")
+        self.assertTrue(session.decide("what are your opening hours on sunday").cacheable)
+        self.assertNotIn(rewrite, store.reads)
+
+
+class OneArgumentClassifierTests(unittest.TestCase):
+    def test_a_classifier_written_for_classify_text_still_reads_the_turn(self):
+        class TextOnly:
+            def classify(self, text):
+                return Reads(personal=True)
+
+        session = session_on(Store(), classifier=TextOnly())
+        self.assertEqual(session.decide("what are your opening hours on sunday").rule, "OwnRecords")
+        self.assertEqual(session.stats()["understand_errors"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

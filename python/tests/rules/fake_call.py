@@ -39,6 +39,9 @@ class FakeCall:
     def stated(self) -> List[str]:
         return self.stated_turns
 
+    def facts(self) -> List[str]:
+        return []
+
     def mark_private(self, text: str) -> None:
         self.read_personal.add(text.strip())
 

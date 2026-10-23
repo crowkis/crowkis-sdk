@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import collections
 import concurrent.futures
-import hashlib
 import inspect
-import json
 import logging
 import re
 import string
@@ -27,6 +25,7 @@ from .turns.channel import VOICE, Channel
 from .keys import KnowledgeSegment
 from .understanding.budgeted_understanding import BudgetedUnderstanding
 from .understanding.call_readings import CallReadings
+from .understanding.text_only_classifier import TextOnlyClassifier
 from .runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
 from .understanding.slots import Classifier, Rewriter
 from .understanding.word_rule_classifier import WordRuleClassifier
@@ -584,7 +583,7 @@ class VoiceSession:
         # The checks of the three SDK stages, read through this call's view of the session.
         self._rules = RuleSet.voice(self._fillers) if classifier is None else RuleSet.understood(self._fillers)
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
-        self._classifier = classifier if classifier is not None else WordRuleClassifier()
+        self._classifier = TextOnlyClassifier.fit(classifier) if classifier is not None else WordRuleClassifier()
         self._rewriter = rewriter if rewriter is not None else NoRewrite()
         # A plugged-in model runs inside its error boundary and budget (None: no deadline); late or
         # failed, the word rules read the turn (counted).

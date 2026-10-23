@@ -49,6 +49,9 @@ class VoiceCall(Protocol):
     def stated(self) -> Sequence[str]:
         """The turns in which the caller told this call something."""
 
+    def facts(self) -> Sequence[str]:
+        """The de-identified facts the classifier read for this call."""
+
     def mark_private(self, text: str) -> None:
         """Keep this turn private: its answer is never shared, and it makes its follow-ups private."""
 

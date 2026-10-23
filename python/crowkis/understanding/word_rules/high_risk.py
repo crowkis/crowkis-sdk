@@ -1,7 +1,9 @@
-"""The word rules for high-risk stated facts: an allergy, a medication, a pregnancy, an age. A shared
-answer is never given without such a fact once the caller has stated it, whatever a model says."""
+"""The word rules for high-risk stated facts: an allergy, a medication, a pregnancy, an age, a serious condition. A
+shared answer is never given without such a fact once the caller has stated it, whatever a model says."""
 
 from __future__ import annotations
+
+from typing import List
 
 from .call_context import _AGE_WORDS, _TREATMENTS
 from .text import _words
@@ -13,20 +15,52 @@ HIGH_RISK_FACT_TYPES = frozenset({"allergy", "medication", "pregnancy", "age"})
 _ALLERGY_WORDS = frozenset(
     {"allergic", "allergy", "allergies", "intolerant", "intolerance", "anaphylaxis", "anaphylactic", "celiac", "coeliac"}
 )
-# "I'm on insulin", "she takes blood thinners".
-_MEDICATION_WORDS = _TREATMENTS | frozenset({"prescription", "prescribed", "dose", "dosage", "tablets", "meds"})
-# "I'm pregnant", "breastfeeding".
-_PREGNANCY_WORDS = frozenset(
-    {"pregnant", "pregnancy", "expecting", "trimester", "breastfeeding", "nursing", "postpartum"}
+# "I'm on insulin", "she takes warfarin": a treatment, a dose, or a common drug by name.
+_MEDICATION_WORDS = _TREATMENTS | frozenset(
+    {"prescription", "prescribed", "dose", "dosage", "tablets", "meds", "warfarin", "metformin", "aspirin", "ibuprofen",
+     "paracetamol", "acetaminophen", "statin", "statins", "lisinopril", "amoxicillin", "penicillin", "prednisone",
+     "levothyroxine", "antidepressants", "ssri", "opioids", "morphine", "inhaler", "chemo"}
 )
-# "my 3 year old", "a toddler", "she is 80": an age, or a word that is one.
-_AGE_STAGE_WORDS = frozenset({"aged", "toddler", "infant", "baby", "newborn", "elderly", "senior", "teenager", "teen"})
+# "I'm diabetic", "he had a stroke": a condition that changes what is safe for the caller.
+_CONDITION_WORDS = frozenset(
+    {"diabetic", "diabetes", "kidney", "kidneys", "renal", "epilepsy", "epileptic", "seizure", "seizures", "asthma",
+     "asthmatic", "stroke", "heart", "cardiac", "cancer", "hypertension", "cirrhosis", "liver", "hiv", "pacemaker",
+     "copd", "dementia", "alzheimer", "alzheimers", "arthritis", "thyroid", "anemia", "anaemia", "hemophilia"}
+)
+# "I'm pregnant", "breastfeeding", "estoy embarazada", "8 months along".
+_PREGNANCY_WORDS = frozenset(
+    {"pregnant", "pregnancy", "expecting", "trimester", "breastfeeding", "nursing", "postpartum", "embarazada",
+     "embarazo", "garbhvati", "pregnent"}
+)
+_PREGNANCY_PHRASES = (("months", "along"), ("weeks", "along"), ("weeks", "pregnant"), ("months", "pregnant"))
+# "a toddler", "she is elderly": an age by its stage.
+_AGE_STAGE_WORDS = frozenset(
+    {"aged", "toddler", "infant", "baby", "newborn", "elderly", "senior", "teenager", "teen", "yo", "yrs"}
+)
+# Who an age may be said of ("my son is 3", "she is 80"): a person word next to a number makes it an age.
+_PERSON_WORDS = frozenset(
+    {"i", "im", "he", "she", "hes", "shes", "son", "daughter", "kid", "kids", "child", "children", "boy", "girl",
+     "mother", "father", "mom", "mum", "dad", "grandmother", "grandfather", "grandma", "grandpa", "wife", "husband",
+     "brother", "sister", "hijo", "hija", "beta", "beti", "bacha", "bachcha", "bachche"}
+)
+# Numbers said in words ("my daughter is three").
+_NUMBER_WORDS = frozenset(
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
+    "eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred".split()
+)
+
+
+def _is_number(word: str) -> bool:
+    return word.isdigit() or word in _NUMBER_WORDS or (word[:-2].isdigit() and word.endswith("yo"))
 
 
 def _high_risk(text: str) -> bool:
-    """The text states an allergy, a medication, a pregnancy or an age."""
-    words = _words(text)
-    if any(w in _ALLERGY_WORDS or w in _MEDICATION_WORDS or w in _PREGNANCY_WORDS or w in _AGE_STAGE_WORDS
-           for w in words):
+    """The text states an allergy, a medication, a serious condition, a pregnancy or an age."""
+    words: List[str] = _words(text)
+    named = (_ALLERGY_WORDS, _MEDICATION_WORDS, _CONDITION_WORDS, _PREGNANCY_WORDS, _AGE_STAGE_WORDS)
+    if any(w in group for w in words for group in named):
         return True
-    return any(w.isdigit() for w in words) and any(w in _AGE_WORDS for w in words)
+    if any(words[i:i + 2] == list(phrase) for phrase in _PREGNANCY_PHRASES for i in range(len(words) - 1)):
+        return True
+    has_number = any(_is_number(w) for w in words)
+    return has_number and any(w in _AGE_WORDS or w in _PERSON_WORDS for w in words)

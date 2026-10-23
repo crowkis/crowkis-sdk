@@ -51,6 +51,9 @@ class SessionCall:
     def stated(self) -> Sequence[str]:
         return self._session._call_readings.stated
 
+    def facts(self) -> Sequence[str]:
+        return self._session._call_readings.facts
+
     def mark_private(self, text: str) -> None:
         self._session._call_readings.mark_private(text)
 

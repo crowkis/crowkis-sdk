@@ -153,7 +153,7 @@ class CallSession:
         self._core = ChatCore(self, cache_lookup=CacheLookup(_LOOKUPS, refuse_late_hits=False),
                               shared_question_rules=ChatRuleSet.shared_question_chain(), urgent_words=UrgentWords(),
                               save_rules=ChatRuleSet.save_chain(), hit_rules=ChatRuleSet.hit_chain(),
-                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_LOOKUPS.submit),
+                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_voice._submit_write),
                               writer=BoundedWriter(_voice._WRITES, lambda: _voice._WRITES_MAX, self._count_write, _voice._LOG))
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}

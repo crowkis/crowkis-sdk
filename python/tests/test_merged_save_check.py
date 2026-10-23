@@ -97,5 +97,14 @@ class ChatMergedSaveTests(unittest.TestCase):
         self.assertEqual([answer for _, answer in agent.saved], ["Refunds take five days."])
 
 
+class ExportTests(unittest.TestCase):
+    def test_the_users_identifiers_are_never_exported(self):
+        # Short ID hashes are easy to reverse; they stay in memory for the chat only (P5 review).
+        session = CallSession(Agent(), Scripted())
+        session.handle("my order is ORD55821")
+        self.assertTrue(session.state.identifiers)
+        self.assertNotIn("identifiers", session.export()["state"])
+
+
 if __name__ == "__main__":
     unittest.main()

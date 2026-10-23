@@ -32,6 +32,8 @@ class VoiceStatedFacts:
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if _sets_context(turn.text):
             return self._private(turn, TELLS_REASON)
+        if turn.call.tainted:  # the call heard something its model never read (loaded history, a private turn)
+            return self._private(turn, DEPENDS_REASON)
         if any(not self._relevance.irrelevant(stated, turn.frame) for stated in turn.call.stated()):
             return self._private(turn, DEPENDS_REASON)
         return None

@@ -7,61 +7,605 @@
    "name": "the turn itself tells the call something",
    "say": "I am allergic to peanuts",
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "a fact was stated and there is no frame (word rules, a late or failed model): strict",
    "say": "what is a deductible",
-   "call": {"stated_turns": ["my car was hit"]},
+   "call": {
+    "stated_turns": [
+     "my car was hit"
+    ]
+   },
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "the model is sure the stated fact does not change this answer",
    "say": "what is a deductible",
-   "call": {"stated_turns": ["my car was hit"]},
-   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?",
-             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": false}]},
+   "call": {
+    "stated_turns": [
+     "my car was hit"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "condition: car hit",
+      "type": "condition",
+      "changes_answer": false
+     }
+    ]
+   },
    "objects": false
   },
   {
    "name": "the model says the stated fact changes this answer",
    "say": "what is a deductible",
-   "call": {"stated_turns": ["my car was hit"]},
-   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?",
-             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": true}]},
+   "call": {
+    "stated_turns": [
+     "my car was hit"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "condition: car hit",
+      "type": "condition",
+      "changes_answer": true
+     }
+    ]
+   },
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "an allergy always counts, whatever the model says (the floor)",
    "say": "which desserts do you have today",
-   "call": {"stated_turns": ["I am allergic to peanuts"]},
-   "frame": {"kind": "general", "subject": "none", "confidence": 0.95, "question": "Which desserts are available?",
-             "fact_relevance": [{"fact": "condition: peanuts", "type": "other", "changes_answer": false}]},
+   "call": {
+    "stated_turns": [
+     "I am allergic to peanuts"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.95,
+    "question": "Which desserts are available?",
+    "fact_relevance": [
+     {
+      "fact": "condition: peanuts",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "the model is unsure of the turn",
    "say": "what is a deductible",
-   "call": {"stated_turns": ["my car was hit"]},
-   "frame": {"kind": "general", "subject": "none", "confidence": 0.4, "question": "What is a deductible?",
-             "fact_relevance": [{"fact": "condition: car hit", "type": "condition", "changes_answer": false}]},
+   "call": {
+    "stated_turns": [
+     "my car was hit"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.4,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "condition: car hit",
+      "type": "condition",
+      "changes_answer": false
+     }
+    ]
+   },
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "the model says nothing about the stated fact",
    "say": "what is a deductible",
-   "call": {"stated_turns": ["my car was hit"]},
-   "frame": {"kind": "general", "subject": "none", "confidence": 0.9, "question": "What is a deductible?"},
+   "call": {
+    "stated_turns": [
+     "my car was hit"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?"
+   },
    "objects": true,
-   "counts": ["refused_private", "inferred"]
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
   },
   {
    "name": "nothing was stated",
    "say": "what is your refund policy",
+   "objects": false
+  },
+  {
+   "name": "review: a turn the call only heard (history) keeps later turns private",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "tainted": true
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "place: goa",
+      "type": "trip",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: one irrelevant fact does not clear a turn with a second fact",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "stated_turns": [
+     "we are travelling to goa next week and my husband has a heart condition"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "place: goa",
+      "type": "trip",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: an unsure relevance counts",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "stated_turns": [
+     "we are travelling to goa next week"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "place: goa",
+      "type": "trip",
+      "changes_answer": "unsure"
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'my son is 3'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "my son is 3"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: my son is 3",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'she is 80'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "she is 80"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: she is 80",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'my daughter is three'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "my daughter is three"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: my daughter is three",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'she is 3yo'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "she is 3yo"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: she is 3yo",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'I am on warfarin'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I am on warfarin"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I am on warfarin",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'I take metformin'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I take metformin"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I take metformin",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'I am diabetic'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I am diabetic"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I am diabetic",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'he has kidney disease'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "he has kidney disease"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: he has kidney disease",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'she has epilepsy'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "she has epilepsy"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: she has epilepsy",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'I have asthma'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I have asthma"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I have asthma",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'he had a stroke'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "he had a stroke"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: he had a stroke",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'I am 8 months along'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "I am 8 months along"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: I am 8 months along",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review: the floor counts 'estoy embarazada'",
+   "say": "which painkiller is best for a headache",
+   "call": {
+    "stated_turns": [
+     "estoy embarazada"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Which painkiller is best for a headache?",
+    "fact_relevance": [
+     {
+      "fact": "condition: estoy embarazada",
+      "type": "other",
+      "changes_answer": false
+     }
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "refused_private",
+    "inferred"
+   ]
+  },
+  {
+   "name": "review, must still work: the trip alone is cleared",
+   "say": "what is a deductible in insurance",
+   "call": {
+    "stated_turns": [
+     "we are travelling to goa next week"
+    ]
+   },
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is a deductible?",
+    "fact_relevance": [
+     {
+      "fact": "place: goa",
+      "type": "trip",
+      "changes_answer": false
+     }
+    ]
+   },
    "objects": false
   }
  ]

@@ -61,6 +61,20 @@
    "objects": true,
    "counts": [],
    "reason": "V5_untagged_name"
+  },
+  {
+   "name": "review: a name written like an acronym ('Ram') is still flagged",
+   "say": "can ram claim the refund",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Can Ram claim the refund?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V5_untagged_name"
   }
  ]
 }

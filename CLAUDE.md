@@ -60,6 +60,22 @@ to satisfy a style rule. Code nobody is touching is not rewritten just to comply
 - Old import paths (`crowkis.voice`, `crowkis.session`, `crowkis.verify`, `node/voice.js`, ...) keep working as
   re-exports. Python and Node keep the same layout and the same class names (camelCase methods in Node).
 
+**Splitting: no more pieces than the code needs** (owner, 2026-10-24)
+- *Common Closure Principle:* things that change together live together; things that change for different reasons
+  live apart. Rules change independently, so each rule has its own file (owner decision). Two classes that always
+  change together are one class.
+- *Fewest elements* (Kent Beck's simple design, last rule): once the code passes, reveals its intention and has no
+  duplication, use the fewest classes and files that do the job.
+- *Deep modules* (Ousterhout): a class hides more than it exposes. A class or method that only forwards a call
+  (a middle man, a pass-through method) is merged into its caller or its callee.
+- *Real variations only* (the Rule of Three, YAGNI): an interface or a per-channel split exists only when today's code
+  has two implementations that really behave differently. A difference that is a setting goes in the channel
+  profile, not in a second class.
+- *Merge signals* (Fowler): Lazy Element (a class that does too little to earn its file), Middle Man, Speculative
+  Generality (an extension point nobody uses), Shotgun Surgery (one change needs edits in many files).
+- *Measured:* for five typical changes (add a rule, change a threshold, add a counter, change a key part, fix a
+  misfire), count the files touched; it must not grow. Count forward-only classes and methods; it stays near zero.
+
 **Errors: fail open, in one place**
 - A live call never ends because of Crowkis. That is not "swallowing": each concern (lookup, write,
   understanding, audio, reporting) has exactly one boundary that turns a failure into a typed outcome
@@ -92,6 +108,7 @@ works today must still work after it. (How that is kept in practice: `../sdk-doc
 **Server independence:** every call to the server goes through one protocol layer (`transport/`). The rest of the
 SDK never builds commands or reads raw replies, so a server change touches that layer only, or nothing.
 
-**Before finishing**, check: one responsibility per class; no new branch that should be a class; no glue
+**Before finishing**, check: no class that only forwards or does too little to earn its file; no split or interface
+without two real variations; one responsibility per class; no new branch that should be a class; no glue
 or helper modules; dependencies injected; one error boundary per concern; no magic values or dead code;
 a newcomer can follow the flow; both languages' tests pass, with failing-first tests for behaviour changes.

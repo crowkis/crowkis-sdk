@@ -30,6 +30,11 @@ class TurnHost(Protocol):
     def ttl(self) -> Optional[int]:
         """How long a saved answer lives."""
 
+    @property
+    def segment(self) -> Optional[str]:
+        """The segment the call's answers are looked up and saved in (``kb=<version>;channel=...`` with an
+        understander), or None (no segment, as before)."""
+
     def voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         """Audio for a spoken answer, when the session caches audio."""
 

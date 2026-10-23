@@ -24,6 +24,7 @@ from .turns.session_host import SessionHost
 from .turns.turn_core import TurnCore
 from .understanding.no_rewrite import NoRewrite
 from .turns.channel import VOICE, Channel
+from .keys import KnowledgeSegment
 from .understanding.budgeted_understanding import BudgetedUnderstanding
 from .understanding.call_readings import CallReadings
 from .runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
@@ -500,6 +501,7 @@ class VoiceSession:
         rewriter: Optional[Rewriter] = None,
         understand_budget_ms: Optional[float] = None,
         channel: Union[Channel, str] = VOICE,
+        knowledge_version: str = "1",
     ) -> None:
         if not 0.0 <= serve_above <= 1.0:
             raise ValueError(f"serve_above must be in 0..1, got {serve_above}")
@@ -529,6 +531,10 @@ class VoiceSession:
         self.bytes_per_second = bytes_per_second
         # What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
         self.channel = Channel.of(channel)
+        # With an understander, answers live in kb=<version>;channel=<name>: switching understanders or
+        # knowledge is a deliberate new version (P5). Without one, no segment, as before.
+        understood = classifier is not None or rewriter is not None
+        self._segment = KnowledgeSegment(knowledge_version, self.channel).segment if understood else None
         self._reported: Dict[str, int] = {}
         self.serve_above = serve_above
         self.min_words = min_words
@@ -855,6 +861,8 @@ class VoiceSession:
 
         None when the write is done; otherwise the ``slow_write`` outcome to report (still
         running, or not written at all because too many writes wait on a slow server)."""
+        if self._segment:
+            kwargs.setdefault("segment", self._segment)
         if self.latency_budget_ms is None:
             self.agent.learn(*args, **kwargs)
             return None

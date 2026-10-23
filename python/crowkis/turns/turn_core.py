@@ -106,6 +106,8 @@ class TurnCore:
             cheap_above=min(0.60, self._host.serve_above),
             template=turn.is_personal,
             threshold=_CONTEXT_BOUND_THRESHOLD if turn.is_context_dependent or turn.is_short else None,
+            # Sent only with an understander (kb=<version>): the default lookup is as it was.
+            **({"segment": self._host.segment} if self._host.segment else {}),
         )
         return self._cache_lookup.find(lookup, started, self._host.latency_budget_ms)
 

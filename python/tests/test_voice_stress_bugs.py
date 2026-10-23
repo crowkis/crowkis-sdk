@@ -41,7 +41,7 @@ class Store:
             matched_key=b"k", confidence=0.99, hit_type="semantic",
         )
 
-    def cset(self, query, response, *, ttl=None, tenant=None, template=False):
+    def cset(self, query, response, *, ttl=None, tenant=None, template=False, segment=None):
         if self.refuse is not None:
             raise self.refuse
         self.writes.append((query, response, template))

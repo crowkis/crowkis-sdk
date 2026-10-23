@@ -1058,12 +1058,13 @@ export class CallSession {
   constructor(agent: Agent, understander: Understander, options?: CallSessionOptions);
   state: CallState;
   handle(turn: string): Promise<TurnResult>;
-  recordAnswer(result: TurnResult, answer: string, options?: { mentions?: string[]; task?: string | null }): Promise<string>;
+  /** `private`: the answer was built from a tool's result, so it is never shared. */
+  recordAnswer(result: TurnResult, answer: string, options?: { mentions?: string[]; task?: string | null; private?: boolean }): Promise<string>;
   cancel(): boolean;
   setMode(mode: "full" | "replay_only" | "off"): void;
   registerShape(field: string, template: string, options?: { requires?: "anonymous" | "identified" | "verified" }): void;
   phrase(field: string, value: unknown, options?: { subject?: string }): string | null;
-  saveCheck(answer: string, verdict: Verdict, frame?: TurnFrame | null): string | null;
+  saveCheck(answer: string, verdict: Verdict, frame?: TurnFrame | null, isPrivate?: boolean): string | null;
   stats(): Record<string, number>;
   /** The thread's memory for the app's store, between turns (no transcript). */
   export(): Record<string, unknown>;

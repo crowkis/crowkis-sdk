@@ -11,7 +11,7 @@ const {
 } = require("./question/index.js");
 const {
   CallerIdentifier, DeclaredValue, EmptyAnswer, NoKey, NonAnswer, NotShareable, PersonalTemplate, PromptCallerDetails,
-  TaintedCall, ToolResult,
+  TaintedCall, ToolResult, VoiceActionClaim, VoicePrivateWord,
 } = require("./save/index.js");
 
 const CHAINS = ["beforeFiller", "filler", "question", "hit", "answerGiven", "beforeSharing", "sharing"];
@@ -49,11 +49,14 @@ class RuleSet {
 
   /**
    * The rules of a voice session with an understander plugged in (v4): StatedFacts, which keeps only
-   * the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint.
+   * the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint, and the save
+   * check gains Chat's PrivateWord and ActionClaim (the merged save check).
    */
   static understood(fillers = new Map()) {
     const rules = RuleSet.voice(fillers);
-    return new RuleSet({ ...rules, question: rules.question.replacing("CallContextTaint", new VoiceStatedFacts()) });
+    const sharing = new RuleChain([new TaintedCall(), new NotShareable(), new DeclaredValue(), new CallerIdentifier(),
+      new VoicePrivateWord(), new VoiceActionClaim(), new NonAnswer()]);
+    return new RuleSet({ ...rules, question: rules.question.replacing("CallContextTaint", new VoiceStatedFacts()), sharing });
   }
 
   /**

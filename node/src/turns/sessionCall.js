@@ -59,6 +59,10 @@ class SessionCall {
     this._session._callReadings.markPrivate(text);
   }
 
+  privateWords() {
+    return this._session._callReadings.privateWords();
+  }
+
   markTainted() {
     this._session._tainted = true;
   }

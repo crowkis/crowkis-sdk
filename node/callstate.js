@@ -59,6 +59,7 @@ class CallState {
     // Hashes of the specific words of facts the caller told (a place, a month, a number: "goa",
     // "december", "3"): a shared question must carry every one, or it stays private.
     this.details = [...(init.details || [])];
+    this.identifiers = [...(init.identifiers || [])];
   }
 
   /** Record what the agent said, the things it named or offered, and the task it runs (set by the app). */
@@ -157,6 +158,18 @@ class CallState {
     this.details = this.details.slice(-MAX_PRIVATE_WORDS);
   }
 
+  noteIdentifiers(values) {
+    for (const raw of values || []) {
+      const digest = wordDigest(raw);
+      if (digest && !this.identifiers.includes(digest)) this.identifiers.push(digest);
+    }
+    this.identifiers = this.identifiers.slice(-MAX_PRIVATE_WORDS);
+  }
+
+  saidIdentifier(value) {
+    return this.identifiers.includes(wordDigest(value));
+  }
+
   /** Everything, for the app's own store: a stateless chat server restores it per request. */
   toDict() {
     const attributes = {};
@@ -178,6 +191,7 @@ class CallState {
       private_words: [...this.privateWords],
       names: [...this.names],
       details: [...this.details],
+      identifiers: [...this.identifiers],
     };
   }
 
@@ -205,6 +219,7 @@ class CallState {
     state.privateWords = list(data.private_words).filter((d) => d.length === 16).slice(-MAX_PRIVATE_WORDS);
     state.names = list(data.names).filter((d) => d.length === 16).slice(-MAX_PRIVATE_WORDS);
     state.details = list(data.details).filter((d) => d.length === 16).slice(-MAX_PRIVATE_WORDS);
+    state.identifiers = list(data.identifiers).filter((d) => d.length === 16).slice(-MAX_PRIVATE_WORDS);
     return state;
   }
 
@@ -235,6 +250,7 @@ class CallState {
       activeQuestion: this.activeQuestion, activeKind: this.activeKind, facts: this.facts,
       agentMentions: this.agentMentions, task: this.task, attributes: this.attributes, lastReply: this.lastReply,
       language: this.language, stated: this.stated, privateWords: this.privateWords, names: this.names, details: this.details,
+      identifiers: this.identifiers,
     });
     c.subjectFocus = this.subjectFocus;
     c.identity = this.identity;

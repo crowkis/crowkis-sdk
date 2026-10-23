@@ -7,8 +7,10 @@
  * `promptKey` naming whose prompts it is compared with.
  */
 class ChatAnswer {
-  constructor(text, verdict, frame, state, { instructions = "", promptKey = null } = {}) {
+  constructor(text, verdict, frame, state, { instructions = "", promptKey = null, private: isPrivate = false } = {}) {
     this.text = text;
+    // The app built this answer from a tool's result (ChatToolResult keeps it in the chat).
+    this.private = isPrivate;
     this.verdict = verdict;
     this.frame = frame;
     this.state = state;

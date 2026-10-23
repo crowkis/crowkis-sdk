@@ -30,6 +30,9 @@ const {
 } = require("./src/understanding/chatDetails.js");
 const { CacheLookup } = require("./src/runtime/cacheLookup.js");
 const { QuestionRecords } = require("./src/runtime/questionRecords.js");
+const { BoundedWriter } = require("./src/runtime/boundedWriter.js");
+// BoundedWriter's counters, under Chat's names.
+const WRITE_COUNTS = { slowWrites: "slow_writes", learnErrors: "learn_errors" };
 const { CHAT } = require("./src/turns/channel.js");
 // Chat's counter for each way a lookup fails open.
 const LOOKUP_COUNTS = { LookupDeadline: "lookup_timeouts", CacheUnavailable: "lookup_errors" };
@@ -40,7 +43,7 @@ const { CALENDAR } = require("./src/understanding/frameWords.js");
 const {
   _tellsAboutCaller: tellsAboutCaller, _instructs: instructs,
   _wordsOf: wordsOf, _properNouns: properNouns,
-  _trackRecord: trackRecord,
+  _trackRecord: trackRecord, _pendingWrites: pendingWrites, _writesMax: writesMax,
 } = require("./voice.js");
 const { TurnFrame } = require("./turn.js");
 const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("./verify.js");
@@ -90,6 +93,7 @@ class CallSession {
       cacheLookup: new CacheLookup({ refuseLateHits: false }), sharedQuestionRules: ChatRuleSet.sharedQuestionChain(),
       urgentWords: new UrgentWords(), saveRules: ChatRuleSet.saveChain(), hitRules: ChatRuleSet.hitChain(),
       questionRecords: new QuestionRecords(agent, { track: trackRecord }),
+      writer: new BoundedWriter(pendingWrites, writesMax, (counter) => this._countWrite(counter), (message) => console.warn(message)),
     });
     this._fillers = new Map(Object.entries(fillers || {}).map(([k, v]) => [norm(k), v]));
     this._shapes = new Map();
@@ -116,8 +120,14 @@ class CallSession {
   }
 
   /** Why an answer to a shared question must not be saved, or null. */
-  saveCheck(answer, verdict, frame = null) {
-    return this._core.saveCheck(answer, verdict, frame);
+  saveCheck(answer, verdict, frame = null, isPrivate = false) {
+    return this._core.saveCheck(answer, verdict, frame, isPrivate);
+  }
+
+  // A slow or late-failing write, counted under its Chat name (BoundedWriter's counters).
+  _countWrite(counter) {
+    const name = WRITE_COUNTS[counter] || counter;
+    this.counts[name] = (this.counts[name] || 0) + 1;
   }
 
   /** The cached answer for a shared key, or null (kept for code that calls it; ChatCore looks up). */
@@ -140,8 +150,8 @@ class CallSession {
     return this._promptKey();
   }
 
-  async recordAnswer(result, answer, { mentions = [], task = null } = {}) {
-    const outcome = await this._core.record(result, answer, mentions, task);
+  async recordAnswer(result, answer, { mentions = [], task = null, private: isPrivate = false } = {}) {
+    const outcome = await this._core.record(result, answer, mentions, task, isPrivate);
     this._emit({ type: "answer", turnId: result.turnId, route: result.route, outcome, key: result.verdict ? result.verdict.key : null });
     return outcome;
   }

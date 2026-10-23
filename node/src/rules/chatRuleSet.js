@@ -7,7 +7,8 @@ const {
   ToldDetailDropped, UncertainFrame, Ungrounded, UnresolvedReference, UntaggedName, UrgentTurn,
 } = require("./question/index.js");
 const {
-  ActionClaim, AttributeNotInKey, ChatEmptyAnswer, ChatNonAnswer, ChatPromptDetails, IdentifyingAnswer, PrivateWord,
+  ActionClaim, AttributeNotInKey, ChatCallerIdentifier, ChatEmptyAnswer, ChatNonAnswer, ChatPromptDetails, ChatToolResult,
+  IdentifyingAnswer, PrivateWord,
 } = require("./save/index.js");
 
 const V7 = "V7_LostOrDropped";
@@ -47,8 +48,8 @@ class ChatRuleSet {
    * question is not saved.
    */
   static saveChain() {
-    return new RuleChain([new ChatEmptyAnswer(), new ChatNonAnswer(), new IdentifyingAnswer(), new ActionClaim(),
-      new AttributeNotInKey(), new PrivateWord(), new ChatPromptDetails()]);
+    return new RuleChain([new ChatEmptyAnswer(), new ChatToolResult(), new ChatNonAnswer(), new IdentifyingAnswer(),
+      new ActionClaim(), new AttributeNotInKey(), new PrivateWord(), new ChatCallerIdentifier(), new ChatPromptDetails()]);
   }
 
   /** Chat's rules today, in today's order. */

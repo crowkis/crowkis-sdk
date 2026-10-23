@@ -1,6 +1,7 @@
 "use strict";
 
 const { isContextDependent, isPersonal, privateChain, setsContext } = require("./wordRules/index.js");
+const { privateWords } = require("./chatDetails.js");
 
 // The newest facts and stated turns a call keeps (as Chat's CallState does).
 const MAX_FACTS = 12;
@@ -24,12 +25,14 @@ class CallReadings {
     this._rewritten = new Map();
     this._stated = [];
     this._facts = [];
+    this._privateWords = new Set();
   }
 
   /** Remember a turn's reading and rewrite (keyed by the trimmed words the classifier read). */
   note(text, reading, rewritten) {
     const trimmed = text.trim();
     if (reading.isPersonal) this._readPersonal.add(trimmed);
+    if (this.isPersonal(trimmed)) for (const w of privateWords(trimmed, reading.frame || null)) this._privateWords.add(w);
     if (reading.isContextDependent) this._readFollowUp.add(trimmed);
     if (rewritten === null || rewritten === undefined) this._rewritten.delete(trimmed);
     else this._rewritten.set(trimmed, rewritten);
@@ -44,6 +47,12 @@ class CallReadings {
   /** Read this turn as personal from now on (a rule kept it private). */
   markPrivate(text) {
     this._readPersonal.add(typeof text === "string" ? text.trim() : "");
+    for (const w of privateWords(typeof text === "string" ? text : "")) this._privateWords.add(w);
+  }
+
+  /** Every word that may identify the caller in the turns kept private, lower case. Never sent anywhere. */
+  privateWords() {
+    return new Set(this._privateWords);
   }
 
   /** The turns in which the caller told the call something, oldest first. */

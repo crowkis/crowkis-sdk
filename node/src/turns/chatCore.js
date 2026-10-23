@@ -8,7 +8,7 @@ const { TurnResult } = require("./turnResult.js");
 const { AGENT, FILLER, PERSONAL, SHARED, TOOLS, URGENT } = require("./routes.js");
 const { Verdict } = require("../../verify.js");
 const { TurnFrame } = require("../../turn.js");
-const { instructs, tellsAboutCaller, wordsOf } = require("../understanding/wordRules/index.js");
+const { identifiers, instructs, tellsAboutCaller, wordsOf } = require("../understanding/wordRules/index.js");
 const { masked, names, norm, privateWords, told } = require("../understanding/chatDetails.js");
 
 // Chat's counter for each way a lookup fails open.
@@ -44,11 +44,12 @@ function within(promiseOrValue, ms) {
  * chains, its lookup and its turns; `host` (ChatHost) is the session's state, counts, settings, hooks.
  */
 class ChatCore {
-  constructor(host, { cacheLookup, sharedQuestionRules, urgentWords, saveRules, hitRules, questionRecords }) {
+  constructor(host, { cacheLookup, sharedQuestionRules, urgentWords, saveRules, hitRules, questionRecords, writer }) {
     this._host = host;
     this._cacheLookup = cacheLookup;
     this._hitRules = hitRules;
     this._questionRecords = questionRecords;
+    this._writer = writer;
     this._sharedQuestionRules = sharedQuestionRules;
     this._urgentWords = urgentWords;
     this._saveRules = saveRules;
@@ -98,6 +99,7 @@ class ChatCore {
     // refund policy?") is never in a shared question or answer.
     const said = [...new Set([...names(t, frame, aboutCaller), ...named])].sort();
     this._host.state.noteNames(said);
+    this._host.state.noteIdentifiers(identifiers([t]));
     if (frame.language && instructs(t, words)) this._host.state.language = frame.language; // kept for the rest of the chat
     let verdict = this._host.checker.check(frame, t, this._host.state);
     const chatTurn = new ChatTurn(frame, t, this._host.state);
@@ -158,23 +160,24 @@ class ChatCore {
     return this._openTurn(new TurnResult(tid, SHARED, { frame, verdict, messages, reason: "cache miss" }));
   }
 
-  async record(result, answer, mentions, task) {
+  /** `isPrivate`: the app built the answer from a tool's result, so it is never shared. Returns saved | slow_write | not_shared | refused:<why> | cancelled | stale. */
+  async record(result, answer, mentions, task, isPrivate = false) {
     if (this._cancelled.has(result.turnId)) { this._host.counts.cancelled += 1; return "cancelled"; }
     if (!this._open || this._open.turnId !== result.turnId) return "stale";
     this._open = null;
     const kept = result.route === SHARED ? answer : masked(answer);
     this._host.state.noteAgentReply(kept, mentions, task);
     if (result.route !== SHARED || result.text !== null || !result.verdict) return "not_shared";
-    const why = this.saveCheck(answer, result.verdict, result.frame);
+    const why = this.saveCheck(answer, result.verdict, result.frame, isPrivate);
     if (why) { this._host.counts.save_refused += 1; return "refused:" + why; }
+    let slow;
     try {
-      await this._host.agent.learn(result.verdict.key, answer, {
-        ttl: result.verdict.ttl ?? undefined, ...(result.verdict.segment ? { segment: result.verdict.segment } : {}),
-      });
+      slow = await this._write(result.verdict, answer);
     } catch {
       this._host.counts.save_refused += 1;
       return "refused:write_failed";
     }
+    if (slow) return slow.outcome;
     this._host.counts.saved += 1;
     this._questionRecords.keep(result.verdict.key, answer, result.verdict.ttl ?? null);
     return "saved";
@@ -189,9 +192,9 @@ class ChatCore {
   }
 
   /** Why an answer to a shared question must not be saved, or null. */
-  saveCheck(answer, verdict, frame = null) {
+  saveCheck(answer, verdict, frame = null, isPrivate = false) {
     const chatAnswer = new ChatAnswer(String(answer || "").split(/\s+/).filter(Boolean).join(" "), verdict, frame,
-      this._host.state, { instructions: this._host.instructions, promptKey: this._host.promptKey() });
+      this._host.state, { instructions: this._host.instructions, promptKey: this._host.promptKey(), private: isPrivate });
     const objection = this._saveRules.firstObjection(chatAnswer);
     return objection ? objection.reason : null;
   }
@@ -236,6 +239,20 @@ class ChatCore {
       return null;
     }
     return hit.answer;
+  }
+
+  // agent.learn(), waited for no longer than twice the latency budget (BoundedWriter, as voice); without a
+  // budget it is waited for. null when written; else the BoundedWrite verdict.
+  async _write(verdict, answer) {
+    const learn = () => this._host.agent.learn(verdict.key, answer, {
+      ttl: verdict.ttl ?? undefined, ...(verdict.segment ? { segment: verdict.segment } : {}),
+    });
+    const budget = this._host.latencyBudgetMs;
+    if (budget === null || budget === undefined) {
+      await learn();
+      return null;
+    }
+    return this._writer.write(learn, 2 * budget);
   }
 
   _openTurn(result) {

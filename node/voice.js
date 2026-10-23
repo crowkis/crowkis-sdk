@@ -1227,6 +1227,8 @@ module.exports = {
   _differentSpecifics: differentSpecifics,
   _waitForWrites: waitForWrites,
   _trackRecord: trackRecord,
+  _pendingWrites: pendingWrites,
+  _writesMax: () => WRITES_MAX,
   _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
   _IPV4: IPV4,

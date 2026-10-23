@@ -42,7 +42,7 @@ function subject(testCase, call) {
     const frame = testCase.frame ? TurnFrame.fromDict(testCase.frame) : null;
     const verdict = new ChatVerdict(true, "shared", [], testCase.verdict.question, testCase.verdict.attributes);
     return new ChatAnswer(testCase.answer.split(/\s+/).filter(Boolean).join(" "), verdict, frame,
-      CallState.fromDict(testCase.state), { instructions: testCase.instructions, promptKey: [null, null, "chat"] });
+      CallState.fromDict(testCase.state), { instructions: testCase.instructions, promptKey: [null, null, "chat"], private: Boolean(testCase.private) });
   }
   if (testCase.subject === "chat") {
     return new ChatTurn(TurnFrame.fromDict(testCase.frame), testCase.say, CallState.fromDict(testCase.state));
@@ -79,7 +79,7 @@ test("every rule has cases both ways", () => {
     const outcomes = new Set(CASES.filter((c) => c.rule === name).map((c) => c.objects));
     assert.deepStrictEqual([...outcomes].sort(), [false, true], name);
   }
-  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 48);
+  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 52);
 });
 
 test("the taint rule marks the call", async () => {

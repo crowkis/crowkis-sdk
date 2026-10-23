@@ -18,7 +18,7 @@ class FakeCall {
     Object.assign(this, {
       tainted: false, values: {}, minWords: 3, shortTurns: false, serveAbove: 0.92, commitments: "exact",
       vouches: false, earlier: [], urgentBefore: false, key: "the key", anotherQuestion: false, identifiers: [],
-      channel: VOICE, readPersonal: new Set(), statedTurns: [],
+      channel: VOICE, readPersonal: new Set(), statedTurns: [], private: [],
     });
     for (const [name, value] of Object.entries(settings)) this[SETTING_NAMES[name] || name] = value;
     if (typeof this.channel === "string") this.channel = CHANNELS[this.channel];
@@ -42,6 +42,10 @@ class FakeCall {
 
   markPrivate(text) {
     this.readPersonal.add(text.trim());
+  }
+
+  privateWords() {
+    return new Set(this.private);
   }
 
   markTainted() {

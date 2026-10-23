@@ -6,9 +6,11 @@ module.exports = {
   ...require("./actionClaim.js"),
   ...require("./attributeNotInKey.js"),
   ...require("./callerIdentifier.js"),
+  ...require("./chatCallerIdentifier.js"),
   ...require("./chatEmptyAnswer.js"),
   ...require("./chatNonAnswer.js"),
   ...require("./chatPromptDetails.js"),
+  ...require("./chatToolResult.js"),
   ...require("./declaredValue.js"),
   ...require("./emptyAnswer.js"),
   ...require("./identifyingAnswer.js"),
@@ -20,4 +22,6 @@ module.exports = {
   ...require("./promptCallerDetails.js"),
   ...require("./taintedCall.js"),
   ...require("./toolResult.js"),
+  ...require("./voiceActionClaim.js"),
+  ...require("./voicePrivateWord.js"),
 };

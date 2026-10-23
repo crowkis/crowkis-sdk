@@ -1,0 +1,23 @@
+{
+ "rule": "VoiceActionClaim",
+ "stage": "save",
+ "about": "v4 P5: when the save rule VoiceActionClaim objects (voice with an understander, an answer saying it was done); run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "claims it was done",
+   "say": "can you cancel my order",
+   "answer": "I have cancelled your order.",
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "kept"
+  },
+  {
+   "name": "explains how",
+   "say": "how do i cancel an order",
+   "answer": "You can cancel an order from the Orders page.",
+   "objects": false
+  }
+ ]
+}

@@ -7,7 +7,7 @@ from ..turn import TurnFrame
 from ..understanding.answer_patterns import _EMAIL, _LONG_DIGITS
 from ..understanding.frame_words import _CALENDAR
 from ..verify import _FUNCTION
-from ..voice import _proper_nouns, _words
+from .word_rules import _proper_nouns, _words
 from typing import Any, List, Optional, Set, Tuple
 import re
 import string

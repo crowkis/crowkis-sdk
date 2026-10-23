@@ -32,7 +32,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from .callstate import IDENTITIES, CallState
 from .rules.chat_rule_set import ChatRuleSet
 from .runtime.cache_lookup import CacheLookup
+from .runtime.bounded_writer import BoundedWriter
 from .runtime.question_records import QuestionRecords
+from . import voice as _voice
 from .turns.channel import CHAT
 from .rules.question import UrgentWords
 from .turns.chat_answer import ChatAnswer
@@ -151,7 +153,8 @@ class CallSession:
         self._core = ChatCore(self, cache_lookup=CacheLookup(_LOOKUPS, refuse_late_hits=False),
                               shared_question_rules=ChatRuleSet.shared_question_chain(), urgent_words=UrgentWords(),
                               save_rules=ChatRuleSet.save_chain(), hit_rules=ChatRuleSet.hit_chain(),
-                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_LOOKUPS.submit))
+                              question_records=QuestionRecords(agent, read_pool=_LOOKUPS, submit_write=_LOOKUPS.submit),
+                              writer=BoundedWriter(_voice._WRITES, lambda: _voice._WRITES_MAX, self._count_write, _voice._LOG))
         self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self.counts: Dict[str, int] = {k: 0 for k in (
@@ -172,8 +175,8 @@ class CallSession:
         return self._core.handle(turn)
 
     def record_answer(self, result: TurnResult, answer: str, *, mentions: tuple = (),
-                      task: Optional[str] = None) -> str:
-        outcome = self._core.record(result, answer, mentions, task)
+                      task: Optional[str] = None, private: bool = False) -> str:
+        outcome = self._core.record(result, answer, mentions, task, private)
         self._emit({"type": "answer", "turn_id": result.turn_id, "route": result.route, "outcome": outcome,
                     "key": result.verdict.key if result.verdict else None})
         return outcome
@@ -186,9 +189,15 @@ class CallSession:
         """Barge-in: the open turn is abandoned and its answer will never be saved."""
         return self._core.cancel()
 
-    def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None) -> Optional[str]:
+    def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None,
+                   private: bool = False) -> Optional[str]:
         """Why an answer to a shared question must not be saved, or None."""
-        return self._core.save_check(answer, verdict, frame)
+        return self._core.save_check(answer, verdict, frame, private)
+
+    def _count_write(self, counter: Any) -> None:
+        """A slow or late-failing write, counted under its name (BoundedWriter's counters)."""
+        name = getattr(counter, "value", str(counter))
+        self.counts[name] = self.counts.get(name, 0) + 1
 
     def emit(self, event: Dict[str, Any]) -> None:
         """Send a monitoring event (never raises)."""

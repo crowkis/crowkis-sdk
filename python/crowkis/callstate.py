@@ -67,6 +67,9 @@ class CallState:
     # Hashes of the specific words of facts the caller told (a place, a month, a number: "goa",
     # "december", "3"): a shared question must carry every one, or it stays private.
     details: List[str] = field(default_factory=list)
+    # Hashes of the ID-like values the user said in any turn ("ord55821", an email): a shared answer
+    # repeating one is refused (ChatCallerIdentifier). Hashed, so the values are not kept.
+    identifiers: List[str] = field(default_factory=list)
 
     # --- the agent's side -------------------------------------------------------------
 
@@ -160,6 +163,16 @@ class CallState:
     def is_name(self, word: str) -> bool:
         return word_digest(word) in self.names
 
+    def note_identifiers(self, values: Iterable[str]) -> None:
+        for value in values:
+            digest = word_digest(value)
+            if digest and digest not in self.identifiers:
+                self.identifiers.append(digest)
+        self.identifiers = self.identifiers[-MAX_PRIVATE_WORDS:]
+
+    def said_identifier(self, value: str) -> bool:
+        return word_digest(value) in self.identifiers
+
     def note_details(self, words: Iterable[str]) -> None:
         for word in words:
             digest = word_digest(word)
@@ -187,6 +200,7 @@ class CallState:
             "private_words": list(self.private_words),
             "names": list(self.names),
             "details": list(self.details),
+            "identifiers": list(self.identifiers),
         }
 
     @classmethod
@@ -214,6 +228,7 @@ class CallState:
         state.private_words = [d for d in _strings(data.get("private_words")) if len(d) == 16][-MAX_PRIVATE_WORDS:]
         state.names = [d for d in _strings(data.get("names")) if len(d) == 16][-MAX_PRIVATE_WORDS:]
         state.details = [d for d in _strings(data.get("details")) if len(d) == 16][-MAX_PRIVATE_WORDS:]
+        state.identifiers = [d for d in _strings(data.get("identifiers")) if len(d) == 16][-MAX_PRIVATE_WORDS:]
         return state
 
     # --- what crosses to the server ---------------------------------------------------

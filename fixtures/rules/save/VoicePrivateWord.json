@@ -1,0 +1,33 @@
+{
+ "rule": "VoicePrivateWord",
+ "stage": "save",
+ "about": "v4 P5: when the save rule VoicePrivateWord objects (voice with an understander, a word from a private turn); run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "a word from a private turn",
+   "say": "what is your refund policy",
+   "answer": "Sarah, refunds take five days.",
+   "call": {
+    "private": [
+     "sarah"
+    ]
+   },
+   "objects": true,
+   "counts": [
+    "not_shareable"
+   ],
+   "outcome": "private"
+  },
+  {
+   "name": "no private word in it",
+   "say": "what is your refund policy",
+   "answer": "Refunds take five days.",
+   "call": {
+    "private": [
+     "sarah"
+    ]
+   },
+   "objects": false
+  }
+ ]
+}

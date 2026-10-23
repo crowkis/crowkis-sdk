@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Set
 
+from .chat_details import _private_words
 from .slots import Reading
 from .word_rules import _is_context_dependent, _is_personal, _private_chain, _sets_context
 
@@ -29,12 +30,15 @@ class CallReadings:
         self._rewritten: Dict[str, str] = {}
         self._stated: List[str] = []
         self._facts: List[str] = []
+        self._private_words: Set[str] = set()
 
     def note(self, text: str, reading: Reading, rewritten: Optional[str]) -> None:
         """Remember a turn's reading and rewrite (keyed by the stripped words the classifier read)."""
         text = text.strip()
         if reading.is_personal:
             self._read_personal.add(text)
+        if self.is_personal(text):
+            self._private_words.update(_private_words(text, getattr(reading, "frame", None)))
         if reading.is_context_dependent:
             self._read_follow_up.add(text)
         if rewritten is None:
@@ -52,6 +56,12 @@ class CallReadings:
     def mark_private(self, text: str) -> None:
         """Read this turn as personal from now on (a rule kept it private)."""
         self._read_personal.add((text or "").strip())
+        self._private_words.update(_private_words(text or ""))
+
+    def private_words(self) -> Set[str]:
+        """Every word that may identify the caller in the turns kept private (names, numbers, capitalised
+        words), lower case. Never sent anywhere."""
+        return set(self._private_words)
 
     @property
     def stated(self) -> Sequence[str]:

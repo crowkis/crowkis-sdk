@@ -52,6 +52,9 @@ class VoiceCall(Protocol):
     def mark_private(self, text: str) -> None:
         """Keep this turn private: its answer is never shared, and it makes its follow-ups private."""
 
+    def private_words(self) -> Set[str]:
+        """The words that may identify the caller in the turns this call kept private."""
+
     def mark_tainted(self) -> None:
         """Remember that the caller has told this call something."""
 

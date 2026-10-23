@@ -14,8 +14,10 @@ class ChatAnswer:
     system prompt the model read with ``prompt_key`` naming whose prompts it is compared with."""
 
     def __init__(self, text: str, verdict: Any, frame: Optional[TurnFrame], state: CallState, *,
-                 instructions: str, prompt_key: Tuple) -> None:
+                 instructions: str, prompt_key: Tuple, private: bool = False) -> None:
         self.text = text
+        # The app built this answer from a tool's result (ChatToolResult keeps it in the chat).
+        self.private = private
         self.verdict = verdict
         self.frame = frame
         self.state = state

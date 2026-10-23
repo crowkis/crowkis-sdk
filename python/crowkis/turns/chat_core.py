@@ -13,8 +13,9 @@ from ..rules.question import UrgentWords
 from ..runtime.cache_lookup import CacheLookup
 from ..turn import TurnFrame
 from ..understanding.chat_details import _masked, _names, _norm, _private_words, _told
-from ..understanding.word_rules import _instructs, _tells_about_caller, _words
+from ..understanding.word_rules import _identifiers, _instructs, _tells_about_caller, _words
 from ..verify import AGENT, PERSONAL, SHARED, TOOLS, URGENT, Verdict
+from ..runtime.bounded_writer import BoundedWriter
 from ..runtime.question_records import QuestionRecords
 from .chat_answer import ChatAnswer
 from .chat_cached_answer import ChatCachedAnswer, ChatHitCall, ChatHitTurn
@@ -38,11 +39,12 @@ class ChatCore:
 
     def __init__(self, host: ChatHost, *, cache_lookup: CacheLookup, shared_question_rules: RuleChain,
                  urgent_words: UrgentWords, save_rules: RuleChain, hit_rules: RuleChain,
-                 question_records: QuestionRecords) -> None:
+                 question_records: QuestionRecords, writer: BoundedWriter) -> None:
         self._host = host
         self._cache_lookup = cache_lookup
         self._hit_rules = hit_rules
         self._question_records = question_records
+        self._writer = writer
         self._shared_question_rules = shared_question_rules
         self._urgent_words = urgent_words
         self._save_rules = save_rules
@@ -89,6 +91,7 @@ class ChatCore:
         # What is the refund policy?") is never in a shared question or answer.
         names = sorted(set(_names(text, frame, fact=about_caller)) | named)
         self._host.state.note_names(names)
+        self._host.state.note_identifiers(_identifiers([text]))
         if frame.language and _instructs(text, words):
             self._host.state.language = frame.language  # "reply only in Hindi": kept for the rest of the chat
         verdict = self._host.checker.check(frame, text, self._host.state)
@@ -156,12 +159,14 @@ class ChatCore:
         return self._open_turn(TurnResult(tid, SHARED, frame=frame, verdict=verdict, messages=messages,
                                           reason="cache miss"))
 
-    def record(self, result: TurnResult, answer: str, mentions: tuple, task: Optional[str]) -> str:
+    def record(self, result: TurnResult, answer: str, mentions: tuple, task: Optional[str],
+               private: bool = False) -> str:
         """The agent answered ``result``. Saves it when allowed and updates the call state.
 
         ``mentions`` are the places/products/options the agent named; ``task`` is set when
         the agent starts collecting details for a booking, order or account change.
-        Returns what happened: saved | not_shared | refused:<why> | cancelled | stale.
+        ``private``: the app built the answer from a tool's result, so it is never shared.
+        Returns what happened: saved | slow_write | not_shared | refused:<why> | cancelled | stale.
         """
         if result.turn_id in self._cancelled:
             self._host.counts["cancelled"] += 1
@@ -173,15 +178,17 @@ class ChatCore:
         self._host.state.note_agent_reply(kept, mentions, task)
         if result.route != SHARED or result.text is not None or result.verdict is None:
             return "not_shared"
-        why = self.save_check(answer, result.verdict, result.frame)
+        why = self.save_check(answer, result.verdict, result.frame, private=private)
         if why:
             self._host.counts["save_refused"] += 1
             return "refused:" + why
         try:
-            self._host.agent.learn(result.verdict.key, answer, ttl=result.verdict.ttl, segment=result.verdict.segment)
+            slow = self._write(result.verdict, answer)
         except Exception:  # noqa: BLE001 - a refused write must not end a call
             self._host.counts["save_refused"] += 1
             return "refused:write_failed"
+        if slow is not None:
+            return slow.outcome
         self._host.counts["saved"] += 1
         self._question_records.keep(result.verdict.key, answer, result.verdict.ttl)
         return "saved"
@@ -194,12 +201,24 @@ class ChatCore:
         self._open = None
         return True
 
-    def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None) -> Optional[str]:
+    def save_check(self, answer: str, verdict: Verdict, frame: Optional[TurnFrame] = None,
+                   private: bool = False) -> Optional[str]:
         """Why an answer to a shared question must not be saved, or None."""
         chat_answer = ChatAnswer(" ".join((answer or "").split()), verdict, frame, self._host.state,
-                                 instructions=self._host.instructions, prompt_key=self._host.prompt_key())
+                                 instructions=self._host.instructions, prompt_key=self._host.prompt_key(),
+                                 private=private)
         objection = self._save_rules.first_objection(chat_answer)
         return None if objection is None else objection.reason
+
+    def _write(self, verdict: Verdict, answer: str):
+        """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter, as voice);
+        without a budget it is waited for. None when written; else the BoundedWrite verdict."""
+        learn = self._host.agent.learn
+        if self._host.latency_budget_ms is None:
+            learn(verdict.key, answer, ttl=verdict.ttl, segment=verdict.segment)
+            return None
+        return self._writer.write(learn, verdict.key, answer, ttl=verdict.ttl, segment=verdict.segment,
+                                  deadline_s=2 * self._host.latency_budget_ms / 1000)
 
     def _open_turn(self, result: TurnResult) -> TurnResult:
         self._open = result

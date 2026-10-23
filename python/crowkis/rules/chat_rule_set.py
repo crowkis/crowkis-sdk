@@ -10,9 +10,11 @@ from .hit import CommitmentRewording, DifferentQuestion, PiiPlaceholder
 from .save import (
     ActionClaim,
     AttributeNotInKey,
+    ChatCallerIdentifier,
     ChatEmptyAnswer,
     ChatNonAnswer,
     ChatPromptDetails,
+    ChatToolResult,
     IdentifyingAnswer,
     PrivateWord,
 )
@@ -65,8 +67,8 @@ class ChatRuleSet:
     def save_chain() -> RuleChain:
         """Chat's save rules, in save_check's order: the first objection is why an answer to a shared
         question is not saved."""
-        return RuleChain([ChatEmptyAnswer(), ChatNonAnswer(), IdentifyingAnswer(), ActionClaim(), AttributeNotInKey(),
-                          PrivateWord(), ChatPromptDetails()])
+        return RuleChain([ChatEmptyAnswer(), ChatToolResult(), ChatNonAnswer(), IdentifyingAnswer(), ActionClaim(),
+                          AttributeNotInKey(), PrivateWord(), ChatCallerIdentifier(), ChatPromptDetails()])
 
     @classmethod
     def chat(cls, confidence_floor: float) -> "ChatRuleSet":

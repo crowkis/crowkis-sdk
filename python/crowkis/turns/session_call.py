@@ -54,6 +54,9 @@ class SessionCall:
     def mark_private(self, text: str) -> None:
         self._session._call_readings.mark_private(text)
 
+    def private_words(self) -> Set[str]:
+        return self._session._call_readings.private_words()
+
     def mark_tainted(self) -> None:
         self._session._tainted = True
 

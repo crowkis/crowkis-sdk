@@ -31,7 +31,7 @@ def subject(case, call):
         frame = TurnFrame.from_dict(case["frame"]) if "frame" in case else None
         return ChatAnswer(" ".join(case["answer"].split()), ChatVerdict(True, "shared", [], **case["verdict"]), frame,
                           CallState.from_dict(case["state"]), instructions=case["instructions"],
-                          prompt_key=(None, None, "chat"))
+                          prompt_key=(None, None, "chat"), private=case.get("private", False))
     if case["subject"] == "chat":
         return ChatTurn(TurnFrame.from_dict(case["frame"]), case["say"], CallState.from_dict(case["state"]))
     # A case with a frame is read by a model (v4); without one, by the word rules.

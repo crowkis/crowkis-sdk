@@ -28,6 +28,7 @@ class FakeCall:
     channel: Channel = VOICE
     read_personal: Set[str] = field(default_factory=set)
     stated_turns: List[str] = field(default_factory=list)
+    private: Set[str] = field(default_factory=set)
 
     def is_personal(self, text: str) -> bool:
         return text.strip() in self.read_personal or _is_personal(text)
@@ -40,6 +41,9 @@ class FakeCall:
 
     def mark_private(self, text: str) -> None:
         self.read_personal.add(text.strip())
+
+    def private_words(self) -> Set[str]:
+        return self.private
 
     def mark_tainted(self) -> None:
         self.tainted = True

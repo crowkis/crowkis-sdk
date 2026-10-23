@@ -37,6 +37,8 @@ from .save import (
     PromptCallerDetails,
     TaintedCall,
     ToolResult,
+    VoiceActionClaim,
+    VoicePrivateWord,
 )
 
 
@@ -78,9 +80,12 @@ class RuleSet:
     @classmethod
     def understood(cls, fillers: Optional[Mapping[str, str]] = None) -> "RuleSet":
         """The rules of a voice session with an understander plugged in (v4): StatedFacts, which keeps
-        only the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint."""
+        only the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint, and the
+        save check gains Chat's PrivateWord and ActionClaim (the merged save check)."""
         rules = cls.voice(fillers)
-        return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()))
+        sharing = RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoicePrivateWord(),
+                             VoiceActionClaim(), NonAnswer()])
+        return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()), sharing=sharing)
 
     def without(self, names: Sequence[str], *, unsafe: bool = False) -> "RuleSet":
         """These rules with the named ones turned off; a floor rule stays on unless ``unsafe``.

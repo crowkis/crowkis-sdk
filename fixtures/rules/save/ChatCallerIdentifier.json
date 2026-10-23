@@ -1,0 +1,55 @@
+{
+ "rule": "ChatCallerIdentifier",
+ "stage": "save",
+ "subject": "chat_answer",
+ "about": "v4 P5: when the save rule ChatCallerIdentifier objects (Chat, an answer repeating an ID the user said); run alone by python/tests/rules/test_stage_rules.py and node/test/rules/stageRules.test.js.",
+ "cases": [
+  {
+   "name": "repeats an order number the user said",
+   "answer": "Refunds for ORD55821 take five days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {
+    "identifiers": [
+     "820fabad95504054"
+    ]
+   },
+   "instructions": "",
+   "objects": true,
+   "counts": [],
+   "reason": "caller_identifier"
+  },
+  {
+   "name": "the question itself has the value",
+   "answer": "Order ORD55821 ships in two days.",
+   "verdict": {
+    "question": "When does order ORD55821 ship?",
+    "attributes": {}
+   },
+   "state": {
+    "identifiers": [
+     "820fabad95504054"
+    ]
+   },
+   "instructions": "",
+   "objects": false
+  },
+  {
+   "name": "repeats nothing the user said",
+   "answer": "Refunds take five days.",
+   "verdict": {
+    "question": "What is your refund policy?",
+    "attributes": {}
+   },
+   "state": {
+    "identifiers": [
+     "820fabad95504054"
+    ]
+   },
+   "instructions": "",
+   "objects": false
+  }
+ ]
+}

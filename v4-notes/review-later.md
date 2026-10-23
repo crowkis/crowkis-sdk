@@ -61,3 +61,18 @@ that moves without being redesigned passes every gate.
 - Measure, not opinion: cognitive complexity (default limit 15 per function), the ruff / eslint default
   limits, change amplification (files touched for 5 typical tasks, before vs after), a newcomer test, and a
   count of forward-only classes.
+
+## 5. P4 review fixes (commits `91ab247`, `0f5aae3`), read 2026-10-23
+
+Root-cause fixes, with tests (`test_rewrite_safety.py`, 135 lines). Details to clean in P5.5:
+- `understanding/rewrite_check.py` imports five private `word_rules` functions (`_is_personal`, `_leaks`,
+  `_numbers`, `_proper_nouns`, `_words`).
+- `RewriteCheck._stem` is a new, crude stemmer (`lower().rstrip("s")`: "news" -> "new", "bus" -> "bu"), beside
+  the existing N2 stemmer. Use one stemmer.
+- `RewriteCheck.accept(..., rewritten: object, ...)` with an `isinstance` check: validate the rewriter's
+  result once at the boundary (`BudgetedUnderstanding`) and type it as `Optional[str]`.
+- `BudgetedUnderstanding` raises `TimeoutError` when its in-flight limit is full, so "too many model calls
+  waiting" is counted as `understand_timeouts`. Give it its own counter and outcome.
+- `TurnCore` builds a default `RewriteCheck()` itself; collaborators come from the composition root.
+- `VoiceCall` / `SessionCall` keep growing (`is_context_dependent` added), the same host-interface concern
+  as section 2.

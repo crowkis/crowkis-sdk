@@ -43,6 +43,36 @@
    },
    "state": {},
    "objects": false
+  },
+  {
+   "name": "v4 (B03): a form of a word the chat said is grounded",
+   "say": "can i bring home food for a patient",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Can visitors bring home food for a patient?"
+   },
+   "state": {
+    "active_question": "What are the visiting hours in the ICU?"
+   },
+   "objects": false
+  },
+  {
+   "name": "v4: a new word is still ungrounded",
+   "say": "can i bring home food for a patient",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Can patients have visitors after surgery?"
+   },
+   "state": {
+    "active_question": "What are the visiting hours in the ICU?"
+   },
+   "objects": true,
+   "counts": [],
+   "reason": "V6_ungrounded:surgery"
   }
  ]
 }

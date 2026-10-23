@@ -10,7 +10,7 @@ from ...callstate import word_digest
 from ...turn import NOT_GENERAL_TYPES
 from ...turns.chat_turn import ChatTurn
 from ...turns.verdict import Verdict
-from ...understanding.frame_words import _CALENDAR, _FUNCTION
+from ...understanding.frame_words import _CALENDAR, _COMMON_ACRONYMS, _FUNCTION
 from ...understanding.word_rules import _words
 
 LETTER_RUN = re.compile(r"[^\W\d_]+")
@@ -30,7 +30,7 @@ class UntaggedName:
         state = turn.state
         allowed = {w for e in turn.frame.entities if not e.identifying and e.type not in NOT_GENERAL_TYPES
                    for w in _words(e.text)}
-        allowed |= _CALENDAR | set(_words(state.active_question or "")) | set(_words(state.last_reply))
+        allowed |= _CALENDAR | _COMMON_ACRONYMS | set(_words(state.active_question or "")) | set(_words(state.last_reply))
         flagged = set()
         for i, word in enumerate(LETTER_RUN.findall(turn.question or "")):
             low = word.lower()

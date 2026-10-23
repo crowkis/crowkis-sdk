@@ -161,6 +161,29 @@
    "objects": true,
    "counts": [],
    "reason": "V7_lost:we are planning a trip to goa"
+  },
+  {
+   "name": "v4 (B05): a stated fact the model tags as not changing the answer",
+   "say": "what is the process to port my number to another network",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "What is the process to port a number to another network?",
+    "fact_relevance": [
+     {
+      "fact": "product: SIM",
+      "type": "product",
+      "changes_answer": false
+     }
+    ]
+   },
+   "state": {
+    "stated": [
+     "I need a new SIM I lost my phone"
+    ]
+   },
+   "objects": false
   }
  ]
 }

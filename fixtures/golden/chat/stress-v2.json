@@ -558,7 +558,7 @@
   },
   "A06": {
    "stats": {
-    "agent": 3,
+    "agent": 2,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -567,8 +567,8 @@
     "lookup_timeouts": 0,
     "personal": 0,
     "save_refused": 0,
-    "saved": 4,
-    "shared": 4,
+    "saved": 5,
+    "shared": 5,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -579,14 +579,16 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "What are the OPD timings at the hospital?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What are the OPD timings at the hospital?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What are the OPD timings at the hospital?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": "Which department should I visit for a skin rash?",
@@ -892,7 +894,7 @@
   },
   "A09": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -901,8 +903,8 @@
     "lookup_timeouts": 0,
     "personal": 0,
     "save_refused": 0,
-    "saved": 7,
-    "shared": 7,
+    "saved": 8,
+    "shared": 8,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -997,20 +999,22 @@
      "segment": "kb=1;lang=und;channel=chat"
     },
     {
-     "key": null,
+     "key": "Do I need an ID proof for that?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "Do I need an ID proof for that?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: Do I need an ID proof for that?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     }
    ]
   },
   "B01": {
    "stats": {
-    "agent": 2,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1019,8 +1023,8 @@
     "lookup_timeouts": 0,
     "personal": 5,
     "save_refused": 1,
-    "saved": 1,
-    "shared": 2,
+    "saved": 2,
+    "shared": 3,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1105,14 +1109,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "What is the daily ATM withdrawal limit?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What is the daily ATM withdrawal limit?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What is the daily ATM withdrawal limit?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": null,
@@ -1248,7 +1254,7 @@
   },
   "B03": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1257,8 +1263,8 @@
     "lookup_timeouts": 0,
     "personal": 5,
     "save_refused": 0,
-    "saved": 1,
-    "shared": 1,
+    "saved": 2,
+    "shared": 2,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1299,14 +1305,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "What are the visiting hours in the ICU?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What are the visiting hours in the ICU?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What are the visiting hours in the ICU?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": "Can I bring home food for a patient?",
@@ -1344,7 +1352,7 @@
   },
   "B04": {
    "stats": {
-    "agent": 2,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1353,8 +1361,8 @@
     "lookup_timeouts": 0,
     "personal": 5,
     "save_refused": 0,
-    "saved": 2,
-    "shared": 2,
+    "saved": 3,
+    "shared": 3,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1417,14 +1425,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "How long do refunds take to reach a UPI account?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "How long do refunds take to reach a UPI account?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: How long do refunds take to reach a UPI account?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": "Can I get a refund to a different card?",
@@ -1580,7 +1590,7 @@
   },
   "B06": {
    "stats": {
-    "agent": 3,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1589,8 +1599,8 @@
     "lookup_timeouts": 0,
     "personal": 2,
     "save_refused": 0,
-    "saved": 1,
-    "shared": 1,
+    "saved": 3,
+    "shared": 3,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1631,24 +1641,28 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "What happens if I enter the wrong PIN three times?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What happens if I enter the wrong PIN three times?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What happens if I enter the wrong PIN three times?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
-     "key": null,
+     "key": "How can I reset my ATM PIN?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "How can I reset my ATM PIN?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: How can I reset my ATM PIN?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": "Can you skip the verification this once?",
@@ -2784,7 +2798,7 @@
   },
   "C08": {
    "stats": {
-    "agent": 2,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -2793,8 +2807,8 @@
     "lookup_timeouts": 0,
     "personal": 1,
     "save_refused": 0,
-    "saved": 4,
-    "shared": 4,
+    "saved": 5,
+    "shared": 5,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -2805,14 +2819,16 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": "And for 15 years?",
@@ -4124,7 +4140,7 @@
   },
   "E03": {
    "stats": {
-    "agent": 3,
+    "agent": 2,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -4133,8 +4149,8 @@
     "lookup_timeouts": 0,
     "personal": 6,
     "save_refused": 0,
-    "saved": 1,
-    "shared": 1,
+    "saved": 2,
+    "shared": 2,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -4227,14 +4243,16 @@
      "segment": "kb=1;lang=und;channel=chat"
     },
     {
-     "key": null,
+     "key": "Can I pay my electricity bill with UPI?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "Can I pay my electricity bill with UPI?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: Can I pay my electricity bill with UPI?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": null,
@@ -4250,7 +4268,7 @@
   },
   "E04": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -4259,8 +4277,8 @@
     "lookup_timeouts": 0,
     "personal": 6,
     "save_refused": 0,
-    "saved": 2,
-    "shared": 2,
+    "saved": 3,
+    "shared": 3,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -4271,14 +4289,16 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "How do I export my data to CSV?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "How do I export my data to CSV?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: How do I export my data to CSV?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": null,
@@ -4736,7 +4756,7 @@
   },
   "E08": {
    "stats": {
-    "agent": 2,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -4745,8 +4765,8 @@
     "lookup_timeouts": 0,
     "personal": 3,
     "save_refused": 0,
-    "saved": 1,
-    "shared": 1,
+    "saved": 2,
+    "shared": 2,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -4809,14 +4829,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "How do I update my KYC?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "How do I update my KYC?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: How do I update my KYC?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     }
    ]
   },
@@ -6068,7 +6090,7 @@
   },
   "H03": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -6077,8 +6099,8 @@
     "lookup_timeouts": 0,
     "personal": 2,
     "save_refused": 0,
-    "saved": 1,
-    "shared": 1,
+    "saved": 2,
+    "shared": 2,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -6099,14 +6121,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "What is the UPI daily limit?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What is the UPI daily limit?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What is the UPI daily limit?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
      "key": null,
@@ -6134,17 +6158,17 @@
   },
   "H04": {
    "stats": {
-    "agent": 2,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
-    "hits": 0,
+    "hits": 1,
     "lookup_errors": 0,
     "lookup_timeouts": 0,
     "personal": 2,
     "save_refused": 0,
-    "saved": 0,
-    "shared": 0,
+    "saved": 1,
+    "shared": 2,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -6165,14 +6189,14 @@
      "segment": null
     },
     {
-     "key": null,
-     "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "key": "What is the UPI daily limit?",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
      "say": "What is the UPI daily limit?",
      "sees": null,
-     "segment": null
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "The UPI daily limit in India is ₹2,50,000, with a per‑transaction cap of ₹1,00,000."
     },
     {
      "key": null,
@@ -6185,14 +6209,16 @@
      "segment": null
     },
     {
-     "key": null,
+     "key": "What's the UPI transaction limit per day?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What's the UPI transaction limit per day?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What's the UPI transaction limit per day?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     }
    ]
   },
@@ -7174,17 +7200,17 @@
   },
   "J03": {
    "stats": {
-    "agent": 3,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
-    "hits": 0,
+    "hits": 2,
     "lookup_errors": 0,
     "lookup_timeouts": 0,
     "personal": 0,
     "save_refused": 0,
-    "saved": 4,
-    "shared": 4,
+    "saved": 5,
+    "shared": 7,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -7195,34 +7221,36 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "What is the GST rate on restaurant food?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "What is the GST rate on restaurant food?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: What is the GST rate on restaurant food?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     },
     {
-     "key": null,
-     "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "key": "What is the GST rate on restaurant food?",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
      "say": "What is the GST rate on restaurant food?",
      "sees": null,
-     "segment": null
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Here is the answer."
     },
     {
-     "key": null,
-     "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "key": "What is the GST rate on restaurant food?",
+     "needs_model": false,
+     "reason": "cache hit",
+     "route": "shared",
      "say": "What is the GST rate on restaurant food?",
      "sees": null,
-     "segment": null
+     "segment": "kb=1;lang=und;channel=chat",
+     "text": "Here is the answer."
     },
     {
      "key": "what is the gst rate on restaurant food",
@@ -7733,6 +7761,12 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "What are the OPD timings at the hospital?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "Which department should I visit for a skin rash?",
     "Here is the answer.",
     false
@@ -7871,8 +7905,20 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "Do I need an ID proof for that?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "How do I block a lost debit card?",
     "To block a lost debit card, you should call your bank’s customer service number immediately and request that your card be frozen or cancelled.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "What is the daily ATM withdrawal limit?",
+    "The daily ATM withdrawal limit is typically $500.",
     false
    ],
    [
@@ -7895,6 +7941,12 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "What are the visiting hours in the ICU?",
+    "The ICU is open for visits from 10 a.m. to 4 p.m. each day.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "Can I bring home food for a patient?",
     "Yes, you can bring home food for a patient, but make sure it meets any dietary restrictions and follows the hospital’s rules for outside food.",
     false
@@ -7903,6 +7955,12 @@
     "kb=1;lang=und;channel=chat",
     "What is your return policy for jackets?",
     "The return policy for jackets allows you to return or exchange the item within 30 days of purchase, provided it is in its original condition and packaging.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "How long do refunds take to reach a UPI account?",
+    "Refunds typically take 1 to 3 business days to reach a UPI account.",
     false
    ],
    [
@@ -7921,6 +7979,18 @@
     "kb=1;lang=und;channel=chat",
     "How long does porting take?",
     "The amount of time porting takes depends on the complexity of the project, the platform being moved to, and the resources available. Typically, a small, straightforward codebase may be ported in a few weeks, while larger, more complex systems can take several months.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "What happens if I enter the wrong PIN three times?",
+    "If you enter the wrong PIN three times, the system will lock the account or device, and you’ll need to reset the PIN through the recovery or support process.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "How can I reset my ATM PIN?",
+    "To reset your ATM PIN, visit a bank branch or use the ATM's PIN reset option, following the prompts to enter your account details and set a new PIN.",
     false
    ],
    [
@@ -8004,6 +8074,12 @@
    [
     "kb=1;lang=und;channel=chat",
     "What time is check-in?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?",
     "Here is the answer.",
     false
    ],
@@ -8129,6 +8205,18 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "Can I pay my electricity bill with UPI?",
+    "Yes, you can pay your electricity bill with UPI if your electricity provider accepts UPI payments; you would just need to enter the bill reference or UPI ID in your UPI app to complete the transaction.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "How do I export my data to CSV?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "How do I reset two factor authentication?",
     "Here is the answer.",
     false
@@ -8191,6 +8279,12 @@
     "kb=1;lang=und;channel=chat",
     "What is the minimum balance for a salary account?",
     "The minimum balance for a salary account is typically zero rupees.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "How do I update my KYC?",
+    "To update your KYC, go to the app’s settings, tap “Verification,” upload new ID photos, and submit them for review. The system will notify you once your updated documents are approved.",
     false
    ],
    [
@@ -8285,8 +8379,20 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "What is the UPI daily limit?",
+    "The UPI daily limit in India is ₹2,50,000, with a per‑transaction cap of ₹1,00,000.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "What are the bank holidays in October?",
     "There are no bank holidays in October.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "What's the UPI transaction limit per day?",
+    "The daily UPI transaction limit is typically ₹200,000 per user, but some banks may set it lower.",
     false
    ],
    [
@@ -8358,6 +8464,12 @@
    [
     "kb=1;lang=und;channel=chat",
     "What's the link to your course catalogue?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "What is the GST rate on restaurant food?",
     "Here is the answer.",
     false
    ],

@@ -21,6 +21,13 @@ QUESTION_TYPES = ("policy", "how_to", "product_fact", "place_fact", "search", "o
 
 # Entity types whose text identifies a person: never allowed in a shared key.
 IDENTIFYING_TYPES = frozenset({"person_name", "id_number", "contact", "address", "payment", "date_of_birth"})
+# A payment method named only in general ("a different card", "UPI", "my bank account") identifies no
+# one: tagged as payment, it is not identifying unless it has a number or a name (v4, misfire B04).
+GENERIC_PAYMENT_WORDS = frozenset(
+    {"a", "an", "the", "my", "another", "different", "other", "new", "same", "card", "cards", "credit", "debit",
+     "upi", "wallet", "bank", "account", "net", "netbanking", "banking", "transfer", "cash", "cheque", "check",
+     "payment", "method", "original", "emi"}
+)
 # Entity types that make a turn about someone in particular, whatever its kind says.
 NOT_GENERAL_TYPES = frozenset({"owned_record", "own_purchase", "other_person"})
 # Non-identifying details worth remembering for later turns ("condition: damaged").
@@ -47,9 +54,13 @@ class Entity:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Entity":
         etype = _text(data.get("type")).lower() or "topic"
-        # The type decides identifying-ness; a model saying otherwise is overruled.
-        identifying = etype in IDENTIFYING_TYPES or _bool(data.get("identifying"))
-        return cls(text=_text(data.get("text")), type=etype, identifying=identifying,
+        text = _text(data.get("text"))
+        # The type decides identifying-ness; a model saying otherwise is overruled. A payment method named
+        # only in general is the one exception.
+        generic_payment = etype == "payment" and bool(text) and all(
+            w in GENERIC_PAYMENT_WORDS for w in re.findall(r"[^\W_]+", text.lower()))
+        identifying = not generic_payment and (etype in IDENTIFYING_TYPES or _bool(data.get("identifying")))
+        return cls(text=text, type=etype, identifying=identifying,
                    answer_relevant=_bool(data.get("answer_relevant")))
 
 

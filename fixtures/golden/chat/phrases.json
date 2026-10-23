@@ -868,7 +868,7 @@
   },
   "Can I pay with UPI?": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -877,8 +877,8 @@
     "lookup_timeouts": 0,
     "personal": 0,
     "save_refused": 0,
-    "saved": 0,
-    "shared": 0,
+    "saved": 1,
+    "shared": 1,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -889,14 +889,16 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "Can I pay with UPI?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "Can I pay with UPI?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: Can I pay with UPI?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     }
    ]
   },
@@ -1768,7 +1770,7 @@
   },
   "Do you offer EMI on laptops?": {
    "stats": {
-    "agent": 1,
+    "agent": 0,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1777,8 +1779,8 @@
     "lookup_timeouts": 0,
     "personal": 0,
     "save_refused": 0,
-    "saved": 0,
-    "shared": 0,
+    "saved": 1,
+    "shared": 1,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1789,14 +1791,16 @@
    },
    "turns": [
     {
-     "key": null,
+     "key": "Do you offer EMI on laptops?",
      "needs_model": true,
-     "outcome": "not_shared",
-     "reason": "V5_untagged_name",
-     "route": "agent",
+     "outcome": "saved",
+     "reason": "cache miss",
+     "route": "shared",
      "say": "Do you offer EMI on laptops?",
-     "sees": null,
-     "segment": null
+     "sees": [
+      "user: Do you offer EMI on laptops?"
+     ],
+     "segment": "kb=1;lang=und;channel=chat"
     }
    ]
   },
@@ -9805,6 +9809,12 @@
    ],
    [
     "kb=1;lang=und;channel=chat",
+    "Can I pay with UPI?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
     "What is the shipping cost for express delivery?",
     "Here is the answer.",
     false
@@ -9842,6 +9852,12 @@
    [
     "kb=1;lang=und;channel=chat",
     "What is the return window for electronics?",
+    "Here is the answer.",
+    false
+   ],
+   [
+    "kb=1;lang=und;channel=chat",
+    "Do you offer EMI on laptops?",
     "Here is the answer.",
     false
    ],

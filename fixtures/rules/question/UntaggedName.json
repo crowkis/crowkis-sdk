@@ -35,6 +35,32 @@
    },
    "state": {},
    "objects": false
+  },
+  {
+   "name": "v4 (B05): a common acronym is no name",
+   "say": "how long does porting take",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "How long does SIM porting take?"
+   },
+   "state": {},
+   "objects": false
+  },
+  {
+   "name": "v4: a short capitalised name is still flagged",
+   "say": "is raj in today",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Is Raj in today?"
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V5_untagged_name"
   }
  ]
 }

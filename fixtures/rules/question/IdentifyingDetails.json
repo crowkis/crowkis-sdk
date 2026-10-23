@@ -29,6 +29,45 @@
    },
    "state": {},
    "objects": false
+  },
+  {
+   "name": "v4 (B04): a generic payment method the model tagged as payment",
+   "say": "can i get a refund to a different card",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Can I get a refund to a different card?",
+    "entities": [
+     {
+      "text": "a different card",
+      "type": "payment",
+      "identifying": true
+     }
+    ]
+   },
+   "state": {},
+   "objects": false
+  },
+  {
+   "name": "v4: a specific card is still identifying",
+   "say": "can i get a refund to my card ending 4421",
+   "frame": {
+    "kind": "general",
+    "subject": "none",
+    "confidence": 0.9,
+    "question": "Can I get a refund to card ending 4421?",
+    "entities": [
+     {
+      "text": "card ending 4421",
+      "type": "payment"
+     }
+    ]
+   },
+   "state": {},
+   "objects": true,
+   "counts": [],
+   "reason": "V5_identifying"
   }
  ]
 }

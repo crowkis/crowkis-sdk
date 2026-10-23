@@ -11,6 +11,8 @@ from ...turns.verdict import Verdict
 from ...understanding.frame_words import _FUNCTION, _QUESTION_WORDS, _stem, _toks
 
 SHOWN_WORDS = 3
+# A stem that starts another of at least this many letters is the same word ("visit", "visitor").
+SHARED_STEM = 5
 
 
 class Ungrounded:
@@ -31,5 +33,13 @@ class Ungrounded:
         for grounding in state.grounding_sources():
             source.update(_toks(grounding))
         stems = {_stem(w) for w in source}
-        return [w for w in _toks(question) if w not in _FUNCTION and w not in source and _stem(w) not in stems
-                and w not in _QUESTION_WORDS]
+        return [w for w in _toks(question) if w not in _FUNCTION and w not in source
+                and not Ungrounded._grounded(_stem(w), stems) and w not in _QUESTION_WORDS]
+
+    @staticmethod
+    def _grounded(stem: str, stems) -> bool:
+        """The stem, or one it starts or is started by (v4, misfire B03: "visitors" after "visiting")."""
+        if stem in stems:
+            return True
+        return any(min(len(stem), len(other)) >= SHARED_STEM and (stem.startswith(other) or other.startswith(stem))
+                   for other in stems)

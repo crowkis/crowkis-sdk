@@ -11,6 +11,7 @@ from ..runtime.cache_lookup import CacheLookup
 from ..runtime.stats import Counter, Stats
 from ..runtime.turn_pairing import TurnPairing
 from ..understanding.call_readings import CallReadings
+from ..understanding.rewrite_check import RewriteCheck
 from ..understanding.slots import Classifier, Rewriter
 from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
 from .cached_answer import CachedAnswer
@@ -40,7 +41,7 @@ class TurnCore:
 
     def __init__(self, host: TurnHost, *, rules: "RuleSet", call: VoiceCall, pairing: TurnPairing,
                  cache_lookup: CacheLookup, classifier: Classifier, rewriter: Rewriter,
-                 call_readings: CallReadings, stats: Stats) -> None:
+                 call_readings: CallReadings, stats: Stats, rewrite_check: Optional[RewriteCheck] = None) -> None:
         self._host = host
         self._stats = stats
         self._rules = rules
@@ -50,6 +51,7 @@ class TurnCore:
         self._classifier = classifier
         self._rewriter = rewriter
         self._call_readings = call_readings
+        self._rewrite_check = rewrite_check if rewrite_check is not None else RewriteCheck()
 
     def decide(self, caller_said: str) -> TurnDecision:
         """What this turn needs: a filler, a cached answer, or the model (and which rule said so)."""
@@ -57,7 +59,7 @@ class TurnCore:
 
         text = (caller_said or "").strip()
         reading = self._classifier.classify(text)
-        rewritten = self._rewriter.rewrite(text, reading)
+        rewritten = self._rewrite_check.accept(text, reading, self._rewriter.rewrite(text, reading), self._call)
         self._call_readings.note(text, reading, rewritten)
         turn = VoiceTurn(caller_said, self._call, reading, rewritten)
         verdict = self._rules.before_filler.first_objection(turn)

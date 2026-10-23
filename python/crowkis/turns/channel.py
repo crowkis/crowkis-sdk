@@ -14,7 +14,8 @@ class Channel:
     the factories use. ``understand_budget_ms``: how long a plugged-in classifier and rewriter may
     take on a turn before the word rules read it instead. ``audio``: answers have cached clips.
     ``spoken``: answers are read aloud, so screen-only answers are refused. ``saves_answers``: the
-    channel writes answers itself."""
+    channel writes answers itself. Today the rules read ``spoken`` and the factories the budgets;
+    ``isolates_context``, ``audio`` and ``saves_answers`` describe the channel for the merged core (P5)."""
 
     name: str
     isolates_context: bool

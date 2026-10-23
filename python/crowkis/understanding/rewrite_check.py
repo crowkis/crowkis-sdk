@@ -1,0 +1,44 @@
+"""RewriteCheck: whether a rewriter's question may key a turn."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional, Set
+
+from .slots import Reading
+from .word_rules import _is_personal, _leaks, _numbers, _proper_nouns, _words
+
+if TYPE_CHECKING:
+    from ..turns.voice_call import VoiceCall
+
+
+class RewriteCheck:
+    """Specification: a rewrite keys a turn only when that cannot make the call less private. The turn
+    must be neither personal nor a follow-up, by its reading or the word rules (a follow-up keeps its
+    chain as the key, so the key says what the model was shown); the rewrite must not read as personal,
+    carry a declared value, or add a number or a name the caller did not say. Anything else keeps the
+    caller's words."""
+
+    def accept(self, text: str, reading: Reading, rewritten: object, call: "VoiceCall") -> Optional[str]:
+        """The rewrite to key the turn on, or None for the caller's words."""
+        if not isinstance(rewritten, str) or not rewritten.strip():
+            return None
+        if reading.is_personal or call.is_personal(text):
+            return None
+        if reading.is_context_dependent or call.is_context_dependent(text):
+            return None
+        if _is_personal(rewritten) or _leaks(rewritten, call.values) or self._adds_details(text, rewritten):
+            return None
+        return rewritten.strip()
+
+    @staticmethod
+    def _adds_details(text: str, rewritten: str) -> bool:
+        said_numbers = set(_numbers(text))
+        if any(number not in said_numbers for number in _numbers(rewritten)):
+            return True
+        said_words: Set[str] = {RewriteCheck._stem(word) for word in _words(text)}
+        return any(RewriteCheck._stem(name) not in said_words for name in _proper_nouns(rewritten))
+
+    @staticmethod
+    def _stem(word: str) -> str:
+        """A word without case or a plural "s", so "Sunday" in a rewrite matches "sundays" said."""
+        return word.lower().rstrip("s")

@@ -29,6 +29,7 @@ from .understand import LLMUnderstander, ReplayUnderstander, WithFallback
 from .understanding.llm_classifier import LLMClassifier
 from .understanding.llm_rewriter import LLMRewriter
 from .understanding.replay_rewriter import ReplayRewriter
+from .turns.channel import CHAT, REALTIME, VOICE, Channel
 from .session import CallSession, TurnResult
 from .chat import Chat, ChatConflict, ChatReply, MemoryStore
 
@@ -66,6 +67,10 @@ __all__ = [
     "LLMClassifier",
     "LLMRewriter",
     "ReplayRewriter",
+    "Channel",
+    "VOICE",
+    "CHAT",
+    "REALTIME",
     # clients (idiomatic short names first)
     "Crowkis",
     "AsyncCrowkis",

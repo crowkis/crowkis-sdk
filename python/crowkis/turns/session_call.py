@@ -45,6 +45,9 @@ class SessionCall:
     def is_personal(self, text: str) -> bool:
         return self._session._call_readings.is_personal(text)
 
+    def is_context_dependent(self, text: str) -> bool:
+        return self._session._call_readings.is_context_dependent(text)
+
     def mark_tainted(self) -> None:
         self._session._tainted = True
 

@@ -5,7 +5,6 @@ import unittest
 
 from crowkis import VoiceSession
 from crowkis.agent import Agent
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 from test_voice_stress_bugs import Store
 
@@ -73,10 +72,13 @@ class BudgetTests(unittest.TestCase):
         self.assertNotIn("understand_timeouts", stats)
         self.assertNotIn("understand_errors", stats)
 
-    def test_must_still_work_no_budget_runs_the_model_as_it_is(self):
-        session = session_on(Store(), rewriter=Rewords())
-        self.assertIsInstance(session._classifier, WordRuleClassifier)
-        self.assertNotIn("understand_timeouts", session.stats())
+    def test_no_budget_runs_the_model_without_a_deadline_inside_its_error_boundary(self):
+        # Changed by the P4 review: a model without a budget used to run with no error boundary.
+        store = Store()
+        store.shared["what is the refund policy"] = "Refunds take five business days."
+        session = session_on(store, rewriter=Rewords())
+        self.assertEqual(session.decide("can you tell me about your refund policy").action, "serve")
+        self.assertEqual(session.stats()["understand_errors"], 0)
 
     def test_the_budget_must_be_positive(self):
         for budget in (0, -1):

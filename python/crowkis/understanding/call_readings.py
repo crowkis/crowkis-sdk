@@ -5,19 +5,21 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set
 
 from .slots import Reading
-from .word_rules import _is_personal, _private_chain
+from .word_rules import _is_context_dependent, _is_personal, _private_chain
 
 
 class CallReadings:
     """What the classifier and rewriter made of each caller turn of one call, kept so that record()
     and later follow-ups read the turn the way decide() did.
 
-    A turn is personal when its reading or the word rules say so, so a plugged-in classifier can only
-    make a call more private, never less. A rewritten turn's answer is saved under the question it was
-    looked up with."""
+    A turn is personal, or a follow-up, when its reading or the word rules say so, so a plugged-in
+    classifier can only make a call more private, never less. A rewritten turn's answer is saved under
+    the question it was looked up with; each turn sets or clears its rewrite, so an earlier turn's never
+    keys a later one."""
 
     def __init__(self) -> None:
         self._read_personal: Set[str] = set()
+        self._read_follow_up: Set[str] = set()
         self._rewritten: Dict[str, str] = {}
 
     def note(self, text: str, reading: Reading, rewritten: Optional[str]) -> None:
@@ -25,13 +27,22 @@ class CallReadings:
         text = text.strip()
         if reading.is_personal:
             self._read_personal.add(text)
-        if rewritten is not None:
+        if reading.is_context_dependent:
+            self._read_follow_up.add(text)
+        if rewritten is None:
+            self._rewritten.pop(text, None)
+        else:
             self._rewritten[text] = rewritten
 
     def is_personal(self, text: str) -> bool:
         """The turn is about the caller's own records, by its reading or by the word rules."""
         text = (text or "").strip()
         return text in self._read_personal or _is_personal(text)
+
+    def is_context_dependent(self, text: str) -> bool:
+        """The turn only means something next to the one before, by its reading or by the word rules."""
+        text = (text or "").strip()
+        return text in self._read_follow_up or _is_context_dependent(text)
 
     def chain_is_private(self, chain: List[str], min_words: int) -> bool:
         """A follow-up chain is private by the word rules, or when any turn of it was read as personal."""

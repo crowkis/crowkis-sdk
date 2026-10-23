@@ -32,8 +32,8 @@ class VoiceTurn:
 
     @property
     def is_context_dependent(self) -> bool:
-        """Only means something next to the turn before it."""
-        return self.reading.is_context_dependent
+        """Only means something next to the turn before it, by its reading or the word rules."""
+        return self.reading.is_context_dependent or self.call.is_context_dependent(self.text)
 
     @cached_property
     def key(self) -> Optional[str]:

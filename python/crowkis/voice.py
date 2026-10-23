@@ -586,9 +586,9 @@ class VoiceSession:
         # How a turn is understood: the word rules, and no rewrite, until an understander is plugged in.
         self._classifier = classifier if classifier is not None else WordRuleClassifier()
         self._rewriter = rewriter if rewriter is not None else NoRewrite()
-        # A plugged-in model gets a budget: late or failed, the word rules read the turn (counted).
-        self._understanding_budgeted = understand_budget_ms is not None and (
-            classifier is not None or rewriter is not None)
+        # A plugged-in model runs inside its error boundary and budget (None: no deadline); late or
+        # failed, the word rules read the turn (counted).
+        self._understanding_budgeted = classifier is not None or rewriter is not None
         if self._understanding_budgeted:
             understanding = BudgetedUnderstanding(self._classifier, self._rewriter, budget_ms=understand_budget_ms,
                                                   pool=_UNDERSTANDING, count=self._stats.add)
@@ -655,7 +655,7 @@ class VoiceSession:
             or self._after_urgent(text) or _unfinished(text)
         ):
             return None, False
-        if not _is_context_dependent(text):
+        if not self._call_readings.is_context_dependent(text):
             # "Twelve years old.": a turn that neither asks nor requests anything is an
             # answer about the caller, never stored on its own.
             if not _asks(text):
@@ -1051,7 +1051,7 @@ class VoiceSession:
         return False
 
     def _context_key(self, caller_said: str, text: str) -> Optional[str]:
-        if not _is_context_dependent(text):
+        if not self._call_readings.is_context_dependent(text):
             return caller_said
         chain = self._chain()
         if chain is None:

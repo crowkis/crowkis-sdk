@@ -90,7 +90,28 @@ Items, each failing-first in both languages with must-still-work controls (all c
 **Golden:** voice identical. Chat: 38 turns changed, all in item 4 (the acronym list, plus one knock-on); every one is
 listed by rule in `v4-notes/p5-golden-changes.md` for the owner.
 
-**Next:** conformance on real Pipecat / LiveKit Py / LiveKit JS, code + privacy reviews, real-server check, mark done.
+**Done since:** conformance with the P5 code passes on Pipecat 1.13 (45 runs), LiveKit Python 1.8.8 and LiveKit JS (49/49).
+
+**Stopped 2026-10-23 ~15:40 UTC at 97% of the 5-hour limit (clean: `5c9dd46`, both suites green). A background timer
+restarts at the reset (18:40 UTC).** The code review was still running at the stop; read its report first.
+
+**Privacy review findings, to fix next (both languages, failing-first):**
+1. Medium: the classifier now sees the call's facts, so `LLMRewriter` can put a told fact into a shared key
+   ("what foods should someone with liver cirrhosis avoid?"). Fix: `RewriteCheck` refuses a rewrite once the call has
+   stated turns or facts (`call.stated()` / a new `call.facts()`).
+2. High (the floor): `_high_risk` misses "my son is 3", "she is 80", number words ("three", "ninety"), "3yo", drug
+   names (warfarin, metformin), chronic conditions (diabetic, kidney disease, epilepsy, asthma, stroke), "8 months
+   along", Spanish / Hindi pregnancy and age words. Fix: a digit or number word next to a relation word or pronoun is
+   an age; add number words, "yo", condition and common-drug lists, es / hi words.
+3. Medium: one irrelevant fact excuses a whole stated turn ("heart condition and going to Goa" + "trip: Goa"
+   irrelevant). Fix: split the stated turn into clauses; every clause needs its own irrelevant fact.
+4. Medium: `changes_answer` "unsure" / "" / "maybe" read as irrelevant. Fix: only false / "false" / "no" / 0 are.
+5. Medium: `identifiers` are unsalted 16-hex digests of low-entropy IDs in `export()`. Fix: leave them out of the
+   export (in-memory only).
+6. Low-Medium: the acronym list matches case-insensitively, so "Ram" / "Sim" pass `UntaggedName`. Fix: exempt
+   all-caps tokens only.
+7. Low (note): golden A09 "Do I need an ID proof for that?" now shared under its own words (stand-in frame).
+Then: real-server check, mark P5 done, stop and report (P5.5 not approved).
 
 ## P4 done (2026-10-23)
 

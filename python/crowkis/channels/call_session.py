@@ -160,7 +160,7 @@ class CallSession:
         self.state = CallState()
         # A chat: what it can do. This session keeps the chat's state, counts, settings and hooks.
         self.channel = CHAT
-        self._fillers = {self._norm(k): v for k, v in (fillers or {}).items()}
+        self._fillers = {_norm(k): v for k, v in (fillers or {}).items()}
         self._shapes: Dict[str, _Shape] = {}
         self.counts: Dict[str, int] = {k: 0 for k in (
             URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT, FILLER, "hits", "saved", "save_refused",
@@ -290,16 +290,6 @@ class CallSession:
         except (TypeError, ValueError, OverflowError):
             pass
         return session
-
-    # --- internals ----------------------------------------------------------------------
-
-
-
-
-
-    @staticmethod
-    def _norm(text: str) -> str:
-        return _norm(text)
 
     def stats(self) -> dict:
         return dict(self.counts)

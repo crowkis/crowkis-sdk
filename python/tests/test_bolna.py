@@ -36,7 +36,7 @@ from bolna.synthesizer.base_synthesizer import BaseSynthesizer  # noqa: E402
 from crowkis import Agent, AsyncVoiceSession, CrowkisError, VoiceSession  # noqa: E402
 from crowkis.agent import _tts_key, _wait_for_audio_stores  # noqa: E402
 from crowkis.integrations.bolna import CrowkisBolnaError, CrowkisLLM, CrowkisSynthesizer, register_crowkis  # noqa: E402
-from crowkis.integrations.bolna.call_links import CallLinks  # noqa: E402
+from crowkis.integrations.bolna.synthesizer import CallLinks  # noqa: E402
 from crowkis.voice import _reset_prompt_baselines  # noqa: E402
 
 from test_voice_prompt_guard import PROMPT  # noqa: E402
@@ -50,7 +50,6 @@ PERSONAL = "my order number is 48213, where is it?"
 PERSONAL_ANSWER = "Order 48213 left the depot this morning."
 BUFFER = 40
 FAKE_BASE = "crowkis-test-fake-base"
-SESSION_KINDS = ("async", "sync")
 
 
 # --- stand-ins ------------------------------------------------------------------------------
@@ -145,9 +144,8 @@ class FakeTaskManager:
         self.conversation_history.append_assistant(text, response_uid=response_uid, turn_id=1)
 
 
-def make_session(store, kind="async"):
-    session = VoiceSession(Agent("caller", client=store), voice="v")
-    return AsyncVoiceSession.wrap(session) if kind == "async" else session
+def make_session(store):
+    return AsyncVoiceSession.wrap(VoiceSession(Agent("caller", client=store), voice="v"))
 
 
 def meta(sequence_id=1, response_uid="r1", **extra):
@@ -165,9 +163,9 @@ def text_of(chunks):
 class Call:
     """One phone call: its own session, inner LLM and task manager over a (shared) cache."""
 
-    def __init__(self, store, reply=ANSWER, *, task_manager=True, kind="async", session=None, **inner_options):
+    def __init__(self, store, reply=ANSWER, *, task_manager=True, session=None, **inner_options):
         self.store = store
-        self.session = session or make_session(store, kind)
+        self.session = session or make_session(store)
         self.inner = FakeInner(reply, **inner_options)
         self.tm = FakeTaskManager() if task_manager is True else (task_manager or None)
         self.llm = CrowkisLLM(self.inner, self.session, task_manager=self.tm)
@@ -212,11 +210,6 @@ class BoundSession:
 
     def __getattr__(self, name):
         return getattr(self._real, name)
-
-
-class SyncRaisingDecide(VoiceSession):
-    def decide(self, caller_said):
-        raise RuntimeError("crowkis lookup exploded")
 
 
 class Base(unittest.IsolatedAsyncioTestCase):
@@ -373,23 +366,19 @@ class DelegationTests(Base):
 
 class FlowTests(Base):
     async def test_a_miss_streams_the_inner_answer_unchanged(self):
-        for kind in SESSION_KINDS:
-            with self.subTest(session=kind):
-                call = Call(SceneStore(), kind=kind)
-                chunks = await call.stream(user_turn(QUESTION))
-                self.assertEqual(chunks, call.inner.scripted)
-                self.assertEqual(text_of(chunks), ANSWER)
-                self.assertEqual(len(call.inner.calls), 1)
+        call = Call(SceneStore())
+        chunks = await call.stream(user_turn(QUESTION))
+        self.assertEqual(chunks, call.inner.scripted)
+        self.assertEqual(text_of(chunks), ANSWER)
+        self.assertEqual(len(call.inner.calls), 1)
 
     async def test_the_answer_is_saved_once_bolna_has_committed_it(self):
-        for kind in SESSION_KINDS:
-            with self.subTest(session=kind):
-                store = SceneStore()
-                call = Call(store, kind=kind)
-                await call.turn(QUESTION)
-                self.assertEqual(store.writes, [])  # still pending: Bolna may yet trim it
-                await call.end()
-                self.assertEqual(store.writes, [[QUESTION, ANSWER, False]])
+        store = SceneStore()
+        call = Call(store)
+        await call.turn(QUESTION)
+        self.assertEqual(store.writes, [])  # still pending: Bolna may yet trim it
+        await call.end()
+        self.assertEqual(store.writes, [[QUESTION, ANSWER, False]])
 
     async def test_the_answer_is_settled_when_the_next_turn_starts(self):
         store = SceneStore()
@@ -399,18 +388,16 @@ class FlowTests(Base):
         self.assertEqual(store.writes, [[QUESTION, ANSWER, False]])  # the second answer is still pending
 
     async def test_another_call_asking_the_same_question_is_served_without_its_llm(self):
-        for kind in SESSION_KINDS:
-            with self.subTest(session=kind):
-                store = SceneStore()
-                first = Call(store, kind=kind)
-                await first.turn(QUESTION)
-                await first.end()
-                second = Call(store, reply="This must never be said.", kind=kind)
-                chunks = await second.turn(QUESTION)
-                self.assertEqual(text_of(chunks), ANSWER)
-                self.assertEqual(second.inner.calls, [])
-                self.assertEqual(second.inner.chain_resets, 1)
-                self.assertTrue(chunks[-1].end_of_stream)
+        store = SceneStore()
+        first = Call(store)
+        await first.turn(QUESTION)
+        await first.end()
+        second = Call(store, reply="This must never be said.")
+        chunks = await second.turn(QUESTION)
+        self.assertEqual(text_of(chunks), ANSWER)
+        self.assertEqual(second.inner.calls, [])
+        self.assertEqual(second.inner.chain_resets, 1)
+        self.assertTrue(chunks[-1].end_of_stream)
 
     async def test_a_final_empty_end_marker_does_not_change_the_saved_answer(self):
         store = SceneStore()
@@ -585,10 +572,6 @@ class BypassTests(Base):
             with self.subTest(agent_type=agent_type):
                 call = self.bypass_call(task_manager=FakeTaskManager(agent_type))
                 await self.assert_bypassed(call, dict(messages=user_turn(QUESTION), meta_info=meta()))
-
-    async def test_a_bypass_with_sync_sessions_too(self):
-        call = self.bypass_call(kind="sync")
-        await self.assert_bypassed(call, dict(messages=user_turn(QUESTION), meta_info=meta(eager_eot=True)))
 
     async def test_controls_a_plain_caller_turn_is_still_served(self):
         controls = [
@@ -913,19 +896,15 @@ class PromptGuardTests(Base):
 class FailOpenTests(Base):
     async def test_a_session_that_cannot_decide_leaves_the_turn_to_the_inner_llm(self):
         store = SceneStore({QUESTION: "Never reached."})
-        sessions = [BoundSession(make_session(store), decide=True),
-                    SyncRaisingDecide(Agent("caller", client=store), voice="v")]
-        for session in sessions:
-            with self.subTest(session=type(session).__name__):
-                call = Call(store, session=session)
-                messages = user_turn(QUESTION)
-                chunks = await call.stream(messages)
-                self.assertEqual(call.inner.calls[0]["messages"], messages)
-                self.assertEqual(chunks, call.inner.scripted)
-                call.tm.commit("r1", ANSWER)
-                await call.end()
-                again = await call.stream(user_turn("and another question"), meta_info=meta(2, "r2"))
-                self.assertEqual(text_of(again), ANSWER)  # the call goes on
+        call = Call(store, session=BoundSession(make_session(store), decide=True))
+        messages = user_turn(QUESTION)
+        chunks = await call.stream(messages)
+        self.assertEqual(call.inner.calls[0]["messages"], messages)
+        self.assertEqual(chunks, call.inner.scripted)
+        call.tm.commit("r1", ANSWER)
+        await call.end()
+        again = await call.stream(user_turn("and another question"), meta_info=meta(2, "r2"))
+        self.assertEqual(text_of(again), ANSWER)  # the call goes on
 
     async def test_a_session_that_cannot_record_never_breaks_the_call(self):
         store = SceneStore()

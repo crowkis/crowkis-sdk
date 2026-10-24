@@ -4,21 +4,83 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Any, AsyncIterator, Callable, Iterator, List, Optional
+from dataclasses import dataclass
+from typing import Any, AsyncIterator, Callable, Iterator, List, Optional, Sequence
 
-from bolna.llms.types import LLMStreamChunk
+from bolna.llms.types import LatencyData, LLMStreamChunk
 
 from ...voice import TurnDecision
+from ...voice_async import AsyncVoiceSession
 from ...voice_turns import _earlier_callers, _field, _instructions
-from .call_links import CallLinks
-from .fail_open import FailOpenBoundary
-from .pending_answer import PendingAnswer
-from .served_reply import ServedReply
-from .session_port import SessionPort
+from .synthesizer import AUDIO_CONCERN, CallLinks
 from .turn_filter import GenerateCall, TurnFilter
 
 SYSTEM_ROLES = ("system", "developer")
+ASSISTANT_ROLE = "assistant"
 DEFAULT_BUFFER_SIZE = 40
+RECORD_CONCERN = "record"
+LOOKUP_CONCERN = "lookup"
+CLOSE_CONCERN = "close"
+
+
+@dataclass
+class PendingAnswer:
+    """A finished model answer, held until Bolna's history shows it in full.
+
+    Bolna writes a reply to its history only once the audio went out, and trims it when the
+    caller talks over it. So the answer is saved only when the history row for its
+    ``response_uid`` equals the text; anything else (no row, a trimmed row, another reply)
+    is dropped. With no task manager to ask (``history`` is None) the answer is trusted and
+    saved. Over-dropping only costs cache hits."""
+
+    decision: TurnDecision
+    text: str
+    instructions: Optional[str]
+    response_uid: Optional[str]
+    sequence_id: Optional[int] = None
+
+    def committed_in(self, history: Optional[Sequence[Any]]) -> bool:
+        """Whether Bolna's history holds this answer, whole."""
+        if history is None:
+            return True
+        if self.response_uid is None:
+            return False
+        for row in reversed(history):
+            if row.get("role") == ASSISTANT_ROLE and row.get("response_uid") == self.response_uid:
+                return _squash(row.get("content")) == _squash(self.text)
+        return False
+
+
+def _squash(text: Any) -> str:
+    """Text with its whitespace made single spaces, so spacing never decides a match."""
+    return " ".join(text.split()) if isinstance(text, str) else ""
+
+
+def _served_chunks(text: str, *, sequence_id: Optional[int], buffer_size: int,
+                   synthesize: bool) -> List[LLMStreamChunk]:
+    """A served answer shaped the way Bolna's own LLMs stream one, so the speech side cannot
+    tell it from a model's: synthesised text is cut at the last space once about ``buffer_size``
+    characters wait, an unsynthesised answer goes whole, and the last chunk ends the stream."""
+    pieces = _pieces(text, buffer_size) if synthesize else [text]
+    last = len(pieces) - 1
+    return [LLMStreamChunk(data=piece, end_of_stream=index == last, latency=LatencyData(sequence_id=sequence_id))
+            for index, piece in enumerate(pieces)]
+
+
+def _pieces(text: str, buffer_size: int) -> List[str]:
+    words = text.split()
+    if not words:
+        return [text]
+    pieces: List[str] = []
+    waiting: List[str] = []
+    for word in words:
+        waiting.append(word)
+        if len(" ".join(waiting)) >= buffer_size:
+            pieces.append(" ".join(waiting))
+            waiting = []
+    if waiting:
+        pieces.append(" ".join(waiting))
+    return pieces
 
 
 def _leading_system(messages: List[Any]) -> List[Any]:
@@ -37,29 +99,31 @@ class CrowkisLLM:
     One instance serves one call (Bolna builds one LLM per call), so it owns one Crowkis
     session and no caller's details are ever shared. ``generate_stream`` is the only
     method that changes; every other attribute and method is the wrapped LLM's own.
+    The session is an ``AsyncVoiceSession``: Bolna is fully async, so a sync one is not supported.
 
     A turn goes through a ``TurnFilter`` (turns Crowkis never touches go straight to the
     wrapped LLM), then the session decides: a hit is streamed as Bolna chunks, a miss is
     answered by the wrapped LLM reading the question alone (or the whole call when the
     answer must stay private) and its answer is held as a ``PendingAnswer`` until Bolna's
-    history shows it was spoken in full. Every Crowkis failure goes through one
+    history shows it was spoken in full. Every Crowkis failure goes through the call's
     ``FailOpenBoundary`` and the wrapped LLM answers instead.
 
     With a ``CallLinks`` shared with the call's ``CrowkisSynthesizer``, it also tells the
     synthesizer what each answer's audio is: a cached clip to play, or audio to keep once
     the answer is saved word for word."""
 
-    def __init__(self, inner: Any, session: Any, *, task_manager: Any = None, owns_session: bool = False,
-                 turn_filter: Optional[TurnFilter] = None, boundary: Optional[FailOpenBoundary] = None,
+    def __init__(self, inner: Any, session: AsyncVoiceSession, *, task_manager: Any = None,
+                 owns_session: bool = False, turn_filter: Optional[TurnFilter] = None,
                  links: Optional[CallLinks] = None) -> None:
+
         self._inner = inner
-        self._port = SessionPort(session)
+        self._session = session
         self._task_manager = task_manager
         self._owns_session = owns_session
         self._filter = turn_filter or TurnFilter.standard()
-        self._boundary = boundary or FailOpenBoundary()
         self._plan = (links or CallLinks()).plan_for(task_manager)
-        self._plan.bind_session(session, self._boundary)
+        self._boundary = self._plan.boundary  # the call's one boundary, shared with its synthesizer
+        self._plan.bind_session(session)
         self._pending: Optional[PendingAnswer] = None
         self._closed = False
         self._chain_diverged = False
@@ -89,7 +153,7 @@ class CrowkisLLM:
 
     def cancel_in_flight_response(self) -> None:
         """Barge-in: the Crowkis turn is dropped too, so its answer is never saved."""
-        self._port.cancel()
+        self._session.cancel()
         self._plan.drop_all()
         self._inner.cancel_in_flight_response()
 
@@ -100,7 +164,7 @@ class CrowkisLLM:
         self._closed = True
         await self._settle_pending()
         if self._owns_session:
-            await self._boundary.attempt("close", self._port.close())
+            await self._boundary.attempt(CLOSE_CONCERN, self._session.close())
         await self._inner.close()
 
     async def _source(self, call: GenerateCall) -> AsyncIterator[LLMStreamChunk]:
@@ -118,17 +182,17 @@ class CrowkisLLM:
     async def _decide(self, call: GenerateCall) -> Optional[TurnDecision]:
         for said in _earlier_callers(list(call.messages)):
             self._hear(said)
-        return await self._boundary.attempt("lookup", self._port.decide(call.last_text))
+        return await self._boundary.attempt(LOOKUP_CONCERN, self._session.decide(call.last_text))
 
     async def _serve(self, call: GenerateCall, decision: TurnDecision) -> AsyncIterator[LLMStreamChunk]:
         self._inner.invalidate_response_chain()
         self._chain_diverged = True
         await self._arrange_clip(call, decision)
-        reply = ServedReply(decision.text, sequence_id=call.meta.get("sequence_id"),
-                            buffer_size=getattr(self._inner, "buffer_size", DEFAULT_BUFFER_SIZE),
-                            synthesize=call.synthesize)
+        chunks = _served_chunks(decision.text, sequence_id=call.meta.get("sequence_id"),
+                                buffer_size=getattr(self._inner, "buffer_size", DEFAULT_BUFFER_SIZE),
+                                synthesize=call.synthesize)
         with self._cancel_on_barge_in():
-            for chunk in reply.chunks():
+            for chunk in chunks:
                 yield chunk
 
     async def _arrange_clip(self, call: GenerateCall, decision: TurnDecision) -> None:
@@ -189,7 +253,10 @@ class CrowkisLLM:
         pending, self._pending = self._pending, None
         if pending is None:
             return
-        recorded = await pending.settle(self._history(), self._record)
+        recorded = pending.committed_in(self._history())
+        if recorded:
+            await self._boundary.attempt(
+                RECORD_CONCERN, self._session.record(pending.decision, pending.text, system=pending.instructions))
         await self._plan.settle(pending.sequence_id, pending.text, await self._clip_shareable(pending, recorded))
 
     async def _clip_shareable(self, pending: PendingAnswer, recorded: bool) -> bool:
@@ -198,11 +265,14 @@ class CrowkisLLM:
         decision = pending.decision
         if not (recorded and decision.stored and decision.cacheable):
             return False
-        holds = await self._boundary.attempt("audio", self._port.holds_new_answers())
+        holds = await self._boundary.attempt(AUDIO_CONCERN, self._holds_new_answers())
         return holds is False
 
-    async def _record(self, decision: TurnDecision, text: str, instructions: Optional[str]) -> None:
-        await self._boundary.attempt("record", self._port.record(decision, text, instructions))
+    async def _holds_new_answers(self) -> bool:
+        """Whether the server's decision engine holds a new answer until it vouches for it: its
+        audio is then made when the answer is first served, never before."""
+        agent = self._session.agent
+        return await asyncio.to_thread(lambda: agent.decides() and agent._holds)
 
     def _history(self) -> Optional[list]:
         """Bolna's committed history; None when there is no task manager to ask."""
@@ -217,7 +287,7 @@ class CrowkisLLM:
 
     def _hear(self, caller_said: Optional[str]) -> None:
         if caller_said:
-            self._port.heard(caller_said)
+            self._session._heard(caller_said)
 
     @contextlib.contextmanager
     def _cancel_on_barge_in(self, still_cancellable: Callable[[], bool] = lambda: True) -> Iterator[None]:
@@ -226,5 +296,5 @@ class CrowkisLLM:
             yield
         except (asyncio.CancelledError, GeneratorExit):
             if still_cancellable():
-                self._port.cancel()
+                self._session.cancel()
             raise

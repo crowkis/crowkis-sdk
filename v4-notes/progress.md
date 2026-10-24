@@ -92,6 +92,32 @@ not restart the work; the orchestrating session did).
 3. The inventory, the remaining clean-ups, the measures after (files per typical change must not grow; forward-only
    classes near zero), the design review (it checks the "Splitting" rules too), the final checks.
 
+**Paused 2026-10-24 (owner: pause at the next clean point; no timer; the owner restarts P5.5; P5.7 after P5.5).**
+Where P5.5 stands, at `b977788` (then these notes), clean tree:
+- **Done:**
+  - Item 1, one core: Python `388892d`, `51dc6ae`; the "Splitting" re-check `ff5bdaa`, `af852d1`, `4970731`,
+    `bef9a30`, `ecc8ccc` (`turns/` 33 -> 30 files, forward-only classes 2 -> 0, `VoiceSession.decide()` only calls the
+    core); the Node port `e638f16`, `a4a7955`, `ff17478` (no live path slower; microtask counts checked).
+  - Measures before `a806c61`; inventory `0dadde3` (46 clean, 101 not clean of 147 Python files, Node twins on the same
+    lines; the refactor plan, 15 items; files per typical change "before").
+  - Refactor plan items 1-3: `88a6480` (parity: Node's `cacheable` also requires a non-private answer, a privacy fix
+    when an app turns ToolResult off, failing-first in both languages; Python's chat `segment` only when set),
+    `9a20210` (`Outcome` enum / `OUTCOME`, `RecordedOutcome`, typed `WriteResult`), `6673dca`, `39549dd`, `7187972`,
+    `12fc34d` (error boundaries: the write's in `BoundedWriter.write_within`, `AppHooks` for chat's hooks,
+    `ChatUnderstanding` for chat's understanding), notes `b977788`.
+- **Checked at `b977788`:** Python 773 passed, Node 59/59, Pipecat 26, LiveKit Python 23, LiveKit JS 49/49,
+  `test-packaging` 7/7, golden unchanged.
+- **Left (from the refactor plan in `v4-notes/clean-pass.md`):** the rest of item 3 (realtime's fallback count and log,
+  `engine_vouches`' deadline into runtime, one audio boundary, `WithFallback`'s catch); item 3's open question for the
+  owner: chat's understanding could share `BudgetedUnderstanding` only with a behaviour change (a log per fallback, 4
+  calls in flight, word-rule fallback, other counters), so it has its own `ChatUnderstanding` for now; items 4-15
+  (`Verdict` one job, narrower host / session interfaces, no `Any`, no private cross-package imports, one stemmer (it
+  feeds Chat's `told=` segment hash, so changing it changes keys: needs care), the P4 rough edges, one counting
+  system, one place per key part and threshold, merging setting-only pairs, long methods, large classes, leftovers);
+  then the measures after, the typical-change counts after, the design review, the final checks.
+- **Known edge:** after item 3, an error raised in the save step but outside the store call (none known) would escape
+  `record()` instead of becoming "refused".
+
 ## P5.6 done (2026-10-24; owner exception to the change wall: 0.5.2 unpublished, old paths removed outright)
 
 - **Public, stable names first** (`ebdf5aa`): the root exports the routes (AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS,

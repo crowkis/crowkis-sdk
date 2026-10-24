@@ -6,7 +6,7 @@ import concurrent.futures
 import time
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
-from ..turns import Verdict
+from ..turns.verdict import Verdict
 from .stats import Counter
 
 MS_PER_SECOND = 1000.0

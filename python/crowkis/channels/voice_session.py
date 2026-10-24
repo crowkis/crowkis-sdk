@@ -19,7 +19,6 @@ from ..runtime.stats import Counter, CounterField, Stats
 from ..turns import SessionCall
 from ..turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
 from ..turns.answered import VoiceAnswered
-from ..turns.session_host import SessionHost
 from ..turns.turn_core import TurnCore
 from ..turns.voice_pairing import VoicePairing
 from ..turns.voice_reader import VoiceReader
@@ -327,8 +326,6 @@ _tenant_of = tenant_of
 #    words (names), email words and numbers in them are caller details.
 
 
-# How many follow-ups back a turn may lean on before it is treated as unresolvable.
-_CHAIN_LIMIT = 6
 # How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
 _HEARD_MAX = 2048
 
@@ -574,8 +571,6 @@ class VoiceSession:
         self.unspeakable = 0
         self.empty_answers = 0
         self.audio_unavailable = 0
-        # The question the latest stored answer was stored under.
-        self._last_stored: Optional[str] = None
         self._fillers: Dict[str, str] = {}
         # Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
         self._pairing = TurnPairing()
@@ -600,9 +595,10 @@ class VoiceSession:
             self._classifier = self._rewriter = understanding
         # Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
         self._call_readings = CallReadings(remembers_told=classifier is not None)
-        self._call = SessionCall(self)
+        self._call = SessionCall(self, call_readings=self._call_readings, read_pool=_LOOKUPS,
+                                 submit_write=_submit_write)
         # Writes wait at most twice the budget; the cap is read when a write starts.
-        self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._count, _LOG)
+        self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._stats.add, _LOG)
         # Lookups run on the shared pool, inside the budget the call has when it looks up.
         self._cache_lookup = CacheLookup(_LOOKUPS)
         # The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
@@ -614,15 +610,15 @@ class VoiceSession:
 
     def _build_core(self, rules: RuleSet) -> TurnCore:
         """The one TurnCore with a voice call's parts (this session is their composition root):
-        ``rules`` are the question, hit and save checks."""
-        host = SessionHost(self)
-        report = VoiceReport(host, self._stats)
+        ``rules`` are the question, hit and save checks. The session is the core's live settings."""
+        report = VoiceReport(self, self._stats, voiced=self._voiced)
         reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter, rewrite_check=RewriteCheck(),
                              call_readings=self._call_readings, call=self._call, segment=self._segment)
-        saving = VoiceSaving(host, rules=rules, call=self._call, call_readings=self._call_readings, report=report)
-        return TurnCore(host, pairing=VoicePairing(self._pairing, host), answers=report, reader=reader,
+        self._saving = VoiceSaving(self, rules=rules, call=self._call, call_readings=self._call_readings,
+                                   report=report, writer=self._writer, stats=self._stats, segment=self._segment)
+        return TurnCore(self, pairing=VoicePairing(self._pairing, self), answers=report, reader=reader,
                         question_check=rules, cache_lookup=self._cache_lookup, hit_check=rules, report=report,
-                        saving=saving)
+                        saving=self._saving)
 
     def set_values(self, **values: object) -> None:
         for name, value in values.items():
@@ -667,7 +663,7 @@ class VoiceSession:
         if (
             self._tainted or len(text.split()) < self.min_words or self._call_readings.is_personal(text)
             or _lookup_only(text)
-            or self._after_urgent(text) or _unfinished(text)
+            or self._call.after_urgent(text) or _unfinished(text)
         ):
             return None, False
         if not self._call_readings.is_context_dependent(text):
@@ -676,20 +672,10 @@ class VoiceSession:
             if not _asks(text):
                 return None, False
             return [{"role": "user", "content": caller_said}], True
-        chain = self._chain()
+        chain = self._call.chain()
         if chain is None or self._call_readings.chain_is_private(chain, self.min_words):
             return None, False
         return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
-
-    def _engine_vouches(self) -> bool:
-        """Whether the server judges what it caches, asked inside this call's
-        budget: a slow answer is a no for this turn, and is there for the next."""
-        if self.latency_budget_ms is None:
-            return self.agent.decides()
-        try:
-            return _LOOKUPS.submit(self.agent.decides).result(timeout=self.latency_budget_ms / 1000.0)
-        except concurrent.futures.TimeoutError:
-            return False
 
     def cancel(self) -> bool:
         # Under the turn lock, like decide() and recording: a save finishing on another
@@ -818,12 +804,6 @@ class VoiceSession:
         decision = self.decide(caller_said)
         return VoiceResponse(self, decision, caller_said, llm, system, private)
 
-    def _agent_key(self) -> tuple:
-        """Which agent's system prompts this call's is compared with."""
-        agent = self.agent
-        tenant = getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
-        return (tenant, getattr(agent, "agent_id", None))
-
     def _moved_on(self, decision: TurnDecision) -> bool:
         """The caller talked over this turn, or a newer turn has been decided."""
         return self._pairing.moved_on(decision.turn)
@@ -858,40 +838,6 @@ class VoiceSession:
         with self._turn_lock:
             if self._pairing.drop_shareable():
                 self.not_shareable += 1
-
-    def _keep_question(self, question: str, answer: str) -> None:
-        """Note, in the background, that ``answer`` was saved for ``question`` (QuestionRecords)."""
-        QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_submit_write).keep(question, answer, self.ttl)
-
-    def _answers_another_question(self, asked: str, answer: str, spent_ms: float = 0.0) -> bool:
-        """Whether every question this answer was saved for asks about something else, read within
-        what the lookup left of the budget. Unknown means no: as before."""
-        left = None if self.latency_budget_ms is None else self.latency_budget_ms - spent_ms
-        records = QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_submit_write)
-        return records.answers_another_question(asked, answer, left)
-
-    def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
-        """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter).
-        Without a budget it is waited for, as it always was.
-
-        None when the write is done; otherwise the ``slow_write`` outcome to report (still
-        running, or not written at all because too many writes wait on a slow server)."""
-        if self._segment:
-            kwargs.setdefault("segment", self._segment)
-        verdict = self._writer.write_within(self.agent.learn, *args, budget_ms=self.latency_budget_ms, **kwargs)
-        return None if verdict is None else _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
-
-    def _count(self, name: str) -> None:
-        """Add to a counter a background write and a turn may both update (locked in Stats)."""
-        self._stats.add(name)
-
-    def _said_identifiers(self) -> set:
-        """The ID-like values this caller said earlier in the call: its earlier turns in
-        the transcript and the turns the session only heard (private turns, loaded
-        history). Called once the turn being recorded is in the transcript, so that
-        turn is left out: it passed the personal rules, so its numbers are not private."""
-        said = [turn["content"] for turn in self.transcript if turn["role"] == "user"][:-1]
-        return _identifiers(said + sorted(self._heard_texts))
 
     def _heard(self, caller_said: Optional[str]) -> None:
         """A caller turn this session never decided (a private turn, history the app gave
@@ -1006,69 +952,6 @@ class VoiceSession:
         for name, count in sent.items():
             self._reported[name] = self._reported.get(name, 0) + count
         return True
-
-    def _chain(self) -> Optional[List[str]]:
-        """The earlier caller turns a follow-up leans on, oldest first: back to the
-        latest one that stands on its own. None when there is no such turn."""
-        chain: List[str] = []
-        for turn in reversed(self.transcript):
-            if turn["role"] != "user":
-                continue
-            chain.insert(0, turn["content"])
-            if not _is_context_dependent((turn["content"] or "").strip()):
-                return chain
-            if len(chain) >= _CHAIN_LIMIT:
-                return None
-        return None
-
-    def _after_urgent(self, text: str) -> bool:
-        """A short turn after a private emergency or medical turn ("is he going to be
-        okay?", "how do i make her vomit?"): about that turn, so answered with the call."""
-        if len(_words(text)) > _FOLLOW_UP_WORDS:
-            return False
-        earlier = [turn["content"] or "" for turn in self.transcript if turn["role"] == "user"]
-        for said in reversed(earlier[-_CHAIN_LIMIT:]):
-            words = _words(said)
-            if (any(w in _URGENT for w in words) or _urgent(words)) and _is_personal(said):
-                return True
-            if len(words) > _FOLLOW_UP_WORDS:
-                return False
-        return False
-
-    def _context_key(self, caller_said: str, text: str) -> Optional[str]:
-        if not self._call_readings.is_context_dependent(text):
-            return caller_said
-        chain = self._chain()
-        if chain is None:
-            return None
-        return " || ".join(chain + [caller_said])
-
-    def _learn_personal(self, keyed: str, model_said: str) -> bool:
-        """Store a personal answer as a shape. False when it cannot be made generic,
-        or when this session does not share templates."""
-        if not self.share_templates:
-            self.uncacheable_personal += 1
-            return False
-        shaped = _abstract(model_said, self.values)
-        # The model read the whole call: what is left outside the slots must say nothing
-        # of this caller that was not declared (a name, an address, a number, a matter).
-        outside = _SLOT.sub(" ", shaped)
-        words = _words(outside)
-        earlier = [turn["content"] or "" for turn in self.transcript if turn["role"] == "user"]
-        undeclared = (
-            any(_has_digit(w) or w in _AMOUNT_WORDS or w in _MATTERS for w in words)
-            or _reads_out_digits(outside, words) or bool(_EMAIL.search(outside)) or _identifies(outside, words)
-            or _carries_call_context(outside, keyed, earlier)
-        )
-        if (
-            self.values
-            and _SLOT.search(shaped)
-            and not _leaks(shaped, self.values)
-            and not undeclared
-        ):
-            return self._learn(keyed, shaped, ttl=self.ttl, template=True) or True
-        self.uncacheable_personal += 1
-        return False
 
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
         """The audio for an answer this turn speaks, or None. Never raises: when the
@@ -1233,7 +1116,7 @@ def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
             # was written with the whole call in view, so one that repeats what
             # identified this caller is kept out here, and the engine reads the
             # rest before anyone is served them.
-            keyed = session._context_key(caller_said, (caller_said or "").strip()) or caller_said
+            keyed = session._call.context_key(caller_said, (caller_said or "").strip()) or caller_said
             session._tainted = session._tainted or _sets_context((caller_said or "").strip())
             _, cacheable = session._model_messages(caller_said)
             pairing = session._pairing
@@ -1246,7 +1129,7 @@ def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
         totals["failed_writes"] += session.learn_errors
         # Let the engine catch up before the next call: it judges a bounded
         # number of answers at a time and refuses what does not fit.
-        stalls = 0 if _judged_in_time(agent, session._last_stored, wait) else stalls + 1
+        stalls = 0 if _judged_in_time(agent, session._saving.last_stored, wait) else stalls + 1
         if stalls >= 3:
             totals["stalled"] = True
             break

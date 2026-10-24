@@ -9,8 +9,8 @@ class RecordOrderTests(unittest.TestCase):
         session = session_on(Store())
         decision = session.decide("what are your opening hours on weekdays")
         keyed = []
-        context_key = session._context_key
-        session._context_key = lambda *args: keyed.append(args) or context_key(*args)
+        context_key = session._call.context_key
+        session._call.context_key = lambda *args: keyed.append(args) or context_key(*args)
         session.record(decision, "")
         self.assertEqual(keyed, [])
 

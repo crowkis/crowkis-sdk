@@ -3,27 +3,34 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Callable, Dict, List, Optional, Protocol
 
 from ..runtime.stats import Counter, Stats
 from .checked import Checked, LookedUp
 from .decision import TurnDecision, _Outcome
-from .turn_host import TurnHost
 from .verdict import Verdict
 
 _LOG = logging.getLogger("crowkis")
 SERVED_REASON = "confident cache hit"
 
 
+class VoiceSessionTranscript(Protocol):
+    """What VoiceReport reads of the voice session, live."""
+
+    transcript: List[Dict[str, str]]
+
+
 class VoiceReport:
     """Adapter: what TurnCore found, as a voice call reports it: a ``TurnDecision`` for a turn and an
     ``_Outcome`` for an answer, counted in ``Stats``. A served turn joins the transcript and carries
     its audio when the session caches audio. A rule that answered the turn itself (a filler) is the
-    only early answer voice has."""
+    only early answer voice has. ``voiced`` is the session's audio for an answer (None without it)."""
 
-    def __init__(self, host: TurnHost, stats: Stats) -> None:
-        self._host = host
+    def __init__(self, session: VoiceSessionTranscript, stats: Stats, *,
+                 voiced: Callable[..., Optional[bytes]]) -> None:
+        self._session = session
         self._stats = stats
+        self._voiced = voiced
 
     def before_reading(self, said: str) -> None:
         """Voice reads every turn first (its fillers are checked once the turn is read)."""
@@ -35,7 +42,7 @@ class VoiceReport:
         if verdict.answer is None:
             return None
         self._count(verdict)
-        decision = TurnDecision(verdict.route, text=verdict.answer, audio=self._host.voiced(verdict.answer),
+        decision = TurnDecision(verdict.route, text=verdict.answer, audio=self._voiced(verdict.answer),
                                 confidence=1.0, reason=verdict.reason, rule=verdict.rule)
         decision._audio_shareable = True
         return decision
@@ -49,12 +56,12 @@ class VoiceReport:
     def served(self, checked: Checked, looked: LookedUp) -> TurnDecision:
         turn, cached = checked.subject, looked.cached
         self._stats.add(Counter.SERVED)
-        self._host.transcript.append({"role": "user", "content": turn.said})
-        self._host.transcript.append({"role": "assistant", "content": cached.answer})
+        self._session.transcript.append({"role": "user", "content": turn.said})
+        self._session.transcript.append({"role": "assistant", "content": cached.answer})
         decision = TurnDecision(
             "serve",
             text=cached.answer,
-            audio=self._host.voiced(cached.answer, cacheable=not turn.is_personal),
+            audio=self._voiced(cached.answer, cacheable=not turn.is_personal),
             confidence=looked.hit["confidence"],
             reason=SERVED_REASON,
         )

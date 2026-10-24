@@ -380,4 +380,167 @@ class LiveKitDriver:
         return "".join(pieces).strip()
 
 
-DRIVERS = [CustomLoop(), AsyncCustomLoop(), PipecatDriver(), LiveKitDriver()]
+# -- Bolna ------------------------------------------------------------------------------
+
+try:
+    from bolna import providers as bolna_providers
+    from bolna.helpers.conversation_history import ConversationHistory
+    from bolna.llms.llm import BaseLLM
+    from bolna.llms.types import LatencyData, LLMStreamChunk
+
+    from crowkis.integrations.bolna import register_crowkis
+except ImportError:  # pragma: no cover - bolna not installed
+    BaseLLM = object
+    bolna_providers = None
+
+BOLNA_NAME = "crowkis-conformance"
+BOLNA_BASE = "crowkis-conformance-base"
+BOLNA_SYSTEM = "You are Acme's assistant."
+BOLNA_BUFFER = 40
+
+
+class _BolnaScript:
+    """What the stand-in Bolna LLM does this turn: its reply pieces, or first a tool call."""
+
+    def __init__(self, counts):
+        self.counts = counts
+        self.pieces: list = []
+        self.tool = False
+
+
+class _BolnaInnerLLM(BaseLLM):
+    """A Bolna LLM class (the registered provider's base) streaming a scripted reply as chunks."""
+
+    def __init__(self, conformance_script=None, **kwargs):
+        super().__init__(max_tokens=100, buffer_size=BOLNA_BUFFER)
+        self.model = "fake"
+        self.script = conformance_script
+        self.cancelled = 0
+
+    async def generate_stream(self, messages, synthesize=True, request_json=False, meta_info=None,
+                              tool_choice=None, tools=None):
+        self.script.counts.llm += 1
+        self.script.counts.read.append(messages)
+        sequence_id = (meta_info or {}).get("sequence_id")
+        if self.script.tool and not any(m.get("role") == "tool" for m in messages):
+            yield LLMStreamChunk(data=None, end_of_stream=True, is_function_call=True, function_name="weather")
+            return
+        pieces = self.script.pieces or [""]
+        for index, piece in enumerate(pieces):
+            await asyncio.sleep(0)
+            yield LLMStreamChunk(data=piece, end_of_stream=index == len(pieces) - 1,
+                                 latency=LatencyData(sequence_id=sequence_id))
+
+    def invalidate_response_chain(self):
+        pass
+
+    def cancel_in_flight_response(self):
+        self.cancelled += 1
+
+    async def close(self):
+        pass
+
+
+class _BolnaTaskManager:
+    """What the adapter reads of Bolna's TaskManager: its history and task config."""
+
+    def __init__(self):
+        self.conversation_history = ConversationHistory([])
+        self.task_config = {"tools_config": {"llm_agent": {"agent_type": "simple_llm_agent"}}}
+        self.conversation_history.messages.append({"role": "system", "content": BOLNA_SYSTEM})
+
+    @property
+    def history(self):
+        return self.conversation_history.messages
+
+    def hear(self, text):
+        self.history.append({"role": "user", "content": text})
+
+    def commit(self, response_uid, text):
+        """Bolna's commit of a reply to its history, once the audio went out."""
+        self.conversation_history.append_assistant(text, response_uid=response_uid, turn_id=1)
+
+
+def _chunks_text(chunks) -> str:
+    return " ".join(" ".join(str(chunk.data or "").split()) for chunk in chunks).strip()
+
+
+class BolnaDriver:
+    """The class register_crowkis() returns, driven the way Bolna drives an LLM: each turn
+    a copy of the history goes to generate_stream(synthesize=True, meta_info=...), every
+    chunk is consumed, then the reply is committed to the history; a barge-in commits the
+    trimmed reply and calls cancel_in_flight_response(). The adapter has no audio side yet,
+    so ``tts`` expectations are not checked (``checks_audio``)."""
+
+    name = "Bolna (register_crowkis)"
+    supported = bolna_providers is not None
+    checks_audio = False
+
+    @contextlib.contextmanager
+    def active(self):
+        before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        bolna_providers.SUPPORTED_LLM_PROVIDERS[BOLNA_BASE] = _BolnaInnerLLM
+        try:
+            yield
+        finally:
+            bolna_providers.SUPPORTED_LLM_PROVIDERS.clear()
+            bolna_providers.SUPPORTED_LLM_PROVIDERS.update(before)
+
+    async def call(self, store, turns, agent_id) -> List[Heard]:
+        counts = Counts()
+        script = _BolnaScript(counts)
+        provider = register_crowkis(name=BOLNA_NAME, base=BOLNA_BASE,
+                                    session_factory=lambda: crowkis.async_voice_session(
+                                        client=store, agent_id=agent_id, voice="v"))
+        task_manager = _BolnaTaskManager()
+        llm = provider(language="en", model="fake", provider=BOLNA_NAME, conformance_script=script,
+                       task_manager_instance=task_manager)
+        out = []
+        try:
+            for sequence, turn in enumerate(turns, start=1):
+                llm0 = counts.llm
+                script.pieces, script.tool = list(turn["reply"]), bool(turn.get("tool"))
+                task_manager.hear(turn["say"])
+                started = time.perf_counter()
+                said = await self._turn(llm, task_manager, turn, sequence)
+                out.append(Heard(counts.llm > llm0, False, said, (time.perf_counter() - started) * 1000))
+        finally:
+            await llm.close()
+        return out
+
+    async def _turn(self, llm, task_manager, turn, sequence) -> str:
+        uid = f"r{sequence}"
+        meta = {"sequence_id": sequence, "response_uid": uid, "origin": "transcriber", "turn_id": sequence}
+        if turn.get("barge_in_after") is not None:
+            return await self._barge_in(llm, task_manager, meta, turn["barge_in_after"])
+        chunks = await self._consume(llm, task_manager, meta)
+        if turn.get("tool"):
+            # The model asked for a tool: Bolna runs it and calls the LLM again with its result.
+            task_manager.history.extend([
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "t1", "type": "function", "function": {"name": "weather", "arguments": "{}"}}]},
+                {"role": "tool", "tool_call_id": "t1", "content": "sunny, 22 degrees"}])
+            chunks = await self._consume(llm, task_manager, dict(meta, sequence_id=sequence + 1000))
+        said = _chunks_text(chunks)
+        task_manager.commit(uid, said)
+        return said
+
+    @staticmethod
+    async def _consume(llm, task_manager, meta):
+        history = [dict(row) for row in task_manager.history]
+        return [chunk async for chunk in llm.generate_stream(history, synthesize=True, meta_info=meta)]
+
+    @staticmethod
+    async def _barge_in(llm, task_manager, meta, after) -> str:
+        """The caller talks over the reply: Bolna stops reading it, cancels, and keeps only what was spoken."""
+        history = [dict(row) for row in task_manager.history]
+        stream = llm.generate_stream(history, synthesize=True, meta_info=meta)
+        chunks = [await stream.__anext__() for _ in range(after)]
+        llm.cancel_in_flight_response()
+        await stream.aclose()
+        said = _chunks_text(chunks)
+        task_manager.commit(meta["response_uid"], said)
+        return said
+
+
+DRIVERS = [CustomLoop(), AsyncCustomLoop(), PipecatDriver(), LiveKitDriver(), BolnaDriver()]

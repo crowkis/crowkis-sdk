@@ -216,9 +216,11 @@ def _settle() -> None:
     _wait_for_audio_stores()
 
 
-def check(case, scenario: dict, store, results: List[List[Heard]]) -> None:
+def check(case, scenario: dict, store, results: List[List[Heard]], driver=None) -> None:
     """``case`` is a unittest.TestCase. Real hits may lag a write (the server's engine),
-    which run_real() allows for by retrying."""
+    which run_real() allows for by retrying. A driver whose adapter has no audio side yet
+    sets ``checks_audio = False``: the ``tts`` expectations are skipped for it, nothing else."""
+    checks_audio = getattr(driver, "checks_audio", True)
     expected = [turns for turns in scenario["calls"] for _ in range(scenario.get("concurrent", 1))]
     for index, (turns, heard) in enumerate(zip(expected, results)):
         for turn, got in zip(turns, heard):
@@ -228,7 +230,7 @@ def check(case, scenario: dict, store, results: List[List[Heard]]) -> None:
             # cache is per tenant), so a miss is not required there; what the caller heard is.
             if want.get("llm") is not None and not (REAL and want["llm"]):
                 case.assertEqual(got.llm, want["llm"], "LLM called? " + where)
-            if want.get("tts") is not None:
+            if want.get("tts") is not None and checks_audio:
                 case.assertEqual(got.tts, want["tts"], "TTS called? " + where)
             if "heard" in want and not (REAL and want.get("llm") is False and got.llm):
                 case.assertEqual(got.heard.strip(), want["heard"], "heard: " + where)

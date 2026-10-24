@@ -4,6 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { CrowkisClient } = require("./index.js");
+const { cases: FIXTURE } = require("../fixtures/stream-chunks.json");
 
 const ANSWERS = [
   "It waters at dawn for ten minutes.",
@@ -38,6 +39,12 @@ test("a hit still streams in several chunks", async () => {
   const chunks = await streamed("It waters at dawn for ten minutes.");
   assert.strictEqual(chunks.length, 2);
   assert.strictEqual(chunks[0].trim(), "It waters at dawn");
+});
+
+test("the chunks match the shared fixture", async () => {  // X5: the same chunks as Python
+  for (const { text, chunk_tokens: chunkTokens, chunks } of FIXTURE) {
+    assert.deepStrictEqual(await streamed(text, { chunkTokens }), chunks, `${chunkTokens}: ${JSON.stringify(text)}`);
+  }
 });
 
 test("an answer of only spaces streams nothing", async () => {

@@ -284,15 +284,19 @@ def _plain(value: Any) -> Any:
     return value
 
 
+# The spaces a cached answer is cut at, written out (not \s, which differs between Python and
+# Node) so both SDKs cut it the same way: fixtures/stream-chunks.json.
+_SPACES = r"\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"
 # A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
-_WORD_WITH_SPACE = re.compile(r"\S+\s*")
+_WORD_WITH_SPACE = re.compile(f"[^{_SPACES}]+[{_SPACES}]*")
+_LEADING_SPACE = re.compile(f"[{_SPACES}]*")
 
 
 def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
     chunk_tokens = max(1, min(int(chunk_tokens or 4), 128))
     words = _WORD_WITH_SPACE.findall(text)
     if words:
-        words[0] = text[: len(text) - len(text.lstrip())] + words[0]
+        words[0] = _LEADING_SPACE.match(text).group() + words[0]
     for idx in range(0, len(words), chunk_tokens):
         yield "".join(words[idx : idx + chunk_tokens])
 

@@ -3,9 +3,13 @@
 Node: test-stream-spacing.js.
 """
 import asyncio
+import json
+import os
 import unittest
 
 from crowkis import AsyncCrowkis
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "..", "..", "fixtures", "stream-chunks.json")
 
 ANSWERS = [
     "It waters at dawn for ten minutes.",
@@ -46,6 +50,13 @@ class StreamSpacingTests(unittest.TestCase):
         chunks = _streamed("It waters at dawn for ten minutes.")
         self.assertEqual(len(chunks), 2)
         self.assertEqual(chunks[0].strip(), "It waters at dawn")
+
+    def test_the_chunks_match_the_shared_fixture(self):  # X5: the same chunks as Node
+        with open(FIXTURE, encoding="utf-8") as fixture:
+            cases = json.load(fixture)["cases"]
+        for case in cases:
+            with self.subTest(text=case["text"], chunk_tokens=case["chunk_tokens"]):
+                self.assertEqual(_streamed(case["text"], chunk_tokens=case["chunk_tokens"]), case["chunks"])
 
     def test_an_answer_of_only_spaces_streams_nothing(self):
         self.assertEqual(_streamed("   "), [])

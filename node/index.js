@@ -266,14 +266,19 @@ function warnNotStored(reply) {
 
 const NO_SERVER_TOKEN = /called without any password configured/i;
 
+// The spaces a cached answer is cut at, written out (not \s, which differs between Python and
+// Node) so both SDKs cut it the same way: fixtures/stream-chunks.json.
+const SPACES = "\\t\\n\\x0b\\x0c\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
 // A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
-const WORD_WITH_SPACE = /\S+\s*/g;
+const WORD_WITH_SPACE = new RegExp(`[^${SPACES}]+[${SPACES}]*`, "g");
+const LEADING_SPACE = new RegExp(`^[${SPACES}]*`);
 
 function tokenChunks(text, chunkTokens = 4) {
-  const size = Math.max(1, Math.min(Number(chunkTokens) || 4, 128));
+  // A fraction is cut to a whole number, as Python's int() does.
+  const size = Math.max(1, Math.min(Math.trunc(Number(chunkTokens) || 4), 128));
   text = String(text);
   const words = text.match(WORD_WITH_SPACE) || [];
-  if (words.length) words[0] = text.slice(0, text.length - text.trimStart().length) + words[0];
+  if (words.length) words[0] = LEADING_SPACE.exec(text)[0] + words[0];
   const chunks = [];
   for (let i = 0; i < words.length; i += size) {
     chunks.push(words.slice(i, i + size).join(""));

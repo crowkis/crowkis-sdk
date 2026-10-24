@@ -17,6 +17,7 @@ const { ChatAnswers } = require("../turns/chatAnswers.js");
 const { ChatHitCheck } = require("../turns/chatHitCheck.js");
 const { ChatQuestionCheck } = require("../turns/chatQuestionCheck.js");
 const { ChatReader } = require("../turns/chatReader.js");
+const { ChatUnderstanding } = require("../turns/chatUnderstanding.js");
 const { ChatReading } = require("../turns/chatReading.js");
 const { ChatReport } = require("../turns/chatReport.js");
 const { AppHooks } = require("../turns/appHooks.js");
@@ -128,7 +129,8 @@ class CallSession {
     });
     const hitCheck = new ChatHitCheck(this, { hitRules: ChatRuleSet.hitChain(), questionRecords: records });
     return new TurnCore(this, {
-      pairing: this._turns, answers: new ChatAnswers(this, this._turns, this._hooks), reader: new ChatReader(this), questionCheck,
+      pairing: this._turns, answers: new ChatAnswers(this, this._turns, this._hooks),
+      reader: new ChatReader(this, new ChatUnderstanding(this)), questionCheck,
       cacheLookup: this._cacheLookup, hitCheck, report: this._report, saving: this._saving,
     });
   }

@@ -43,6 +43,7 @@ from ..turns.chat_answers import ChatAnswers
 from ..turns.chat_hit_check import ChatHitCheck
 from ..turns.chat_question_check import ChatQuestionCheck
 from ..turns.chat_reader import ChatReader
+from ..turns.chat_understanding import ChatUnderstanding
 from ..turns.chat_reading import ChatReading
 from ..turns.chat_report import ChatReport
 from ..turns.chat_saving import ChatSaving
@@ -186,7 +187,7 @@ class CallSession:
                                            urgent_words=UrgentWords())
         hit_check = ChatHitCheck(self, hit_rules=ChatRuleSet.hit_chain(), question_records=records)
         return TurnCore(self, pairing=self._turns, answers=ChatAnswers(self, self._turns, self._hooks),
-                        reader=ChatReader(self, _UNDERSTAND), question_check=question_check,
+                        reader=ChatReader(self, ChatUnderstanding(self, _UNDERSTAND)), question_check=question_check,
                         cache_lookup=self._cache_lookup, hit_check=hit_check, report=self._report, saving=self._saving)
 
     def set_mode(self, mode: str) -> None:

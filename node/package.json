@@ -162,6 +162,7 @@
     "src/turns/chatSaving.js",
     "src/turns/chatTurn.js",
     "src/turns/chatTurns.js",
+    "src/turns/chatUnderstanding.js",
     "src/turns/checked.js",
     "src/turns/decision.js",
     "src/turns/hit.js",

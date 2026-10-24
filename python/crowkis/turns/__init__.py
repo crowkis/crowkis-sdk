@@ -9,4 +9,5 @@ from .verdict import Verdict
 from .voice_call import VoiceCall
 from .voice_turn import VoiceTurn
 
-__all__ = ["CHAT", "REALTIME", "VOICE", "CachedAnswer", "Channel", "ModelAnswer", "Outcome", "SessionCall", "Verdict", "VoiceCall", "VoiceTurn"]
+__all__ = ["CHAT", "REALTIME", "VOICE", "CachedAnswer", "Channel", "ModelAnswer", "Outcome", "SessionCall", "Verdict",
+           "VoiceCall", "VoiceTurn"]

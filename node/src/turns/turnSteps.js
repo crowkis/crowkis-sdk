@@ -48,8 +48,8 @@
 /**
  * Stage 2: whether a hit may be served (RuleSet, ChatHitCheck).
  * @typedef {object} HitCheck
- * @property {(turn: object, hit: object, started: number) => import("./checked.js").Checked|Promise<import("./checked.js").Checked>} checkHit
- *   the hit as the hit rules read it and the objection to serving it, if any
+ * @property {(turn: object, hit: object, started: number) => import("./checked.js").Checked} checkHit
+ *   the hit as the hit rules read it and the objection to serving it, if any (it may still be pending)
  */
 
 /**

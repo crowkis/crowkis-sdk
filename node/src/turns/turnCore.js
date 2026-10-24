@@ -59,7 +59,6 @@ class TurnCore {
     // lookUp()'s steps, inline: the lookup's own promise is awaited here, with no extra step between.
     const started = performance.now();
     let looked = this._checkHit(checked.subject, await this._find(checked.subject, started), started);
-    if (isThenable(looked)) looked = await looked;
     if (isThenable(looked.objection)) looked = new LookedUp(looked.hit, looked.cached, await looked.objection);
     if (looked.objection) return this._report.missed(checked, looked);
     const served = this._report.served(checked, looked);
@@ -69,8 +68,9 @@ class TurnCore {
   /** The cache's hit for a turn's key, within the budget, and the hit check's word on it (a LookedUp). */
   async lookUp(turn) {
     const started = performance.now();
-    const looked = await this._checkHit(turn, await this._find(turn, started), started);
-    return isThenable(looked.objection) ? new LookedUp(looked.hit, looked.cached, await looked.objection) : looked;
+    let looked = this._checkHit(turn, await this._find(turn, started), started);
+    if (isThenable(looked.objection)) looked = new LookedUp(looked.hit, looked.cached, await looked.objection);
+    return looked;
   }
 
   // The lookup inside the budget the call has now. Not async: its promise is awaited by the caller.
@@ -84,11 +84,11 @@ class TurnCore {
     return this._cacheLookup.find(ask, started, settings.latencyBudgetMs);
   }
 
-  // What the lookup found ({ hit, verdict }), with the hit check's word on a hit it may serve.
+  // What the lookup found ({ hit, verdict }), with the hit check's word on a hit it may serve (that
+  // word may still be pending: the caller awaits it).
   _checkHit(turn, { hit, verdict }, started) {
     if (verdict) return new LookedUp(hit, null, verdict);
     const found = this._hitCheck.checkHit(turn, hit, started);
-    if (isThenable(found)) return found.then((checked) => new LookedUp(hit, checked.subject, checked.objection));
     return new LookedUp(hit, found.subject, found.objection);
   }
 

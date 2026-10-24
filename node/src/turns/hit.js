@@ -26,4 +26,4 @@ class Hit {
   }
 }
 
-module.exports = { Hit };
+module.exports = { CACHE_ROUTE, Hit };

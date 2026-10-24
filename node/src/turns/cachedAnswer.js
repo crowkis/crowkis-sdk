@@ -3,7 +3,8 @@
 const { fill } = require("../understanding/wordRules/index.js");
 
 /**
- * What the cache returned for a turn. `started` is when the lookup began (performance.now()).
+ * What the cache returned for a turn: a voice VoiceTurn, or the shared question a chat looked up
+ * (ChatHitTurn, never personal). `started` is when the lookup began (performance.now()).
  */
 class CachedAnswer {
   constructor(turn, hit, started) {

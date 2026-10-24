@@ -14,6 +14,9 @@ SLOW_WRITE = "slow_write"
 NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server"
 NOT_CONFIRMED_REASON = ("not confirmed: the server took longer than the latency budget, so the write finishes "
                         "in the background")
+# A turn waits for its answer's write at most this many latency budgets.
+BUDGETS_PER_WRITE = 2
+MS_PER_SECOND = 1000
 
 
 class BoundedWriter:
@@ -30,6 +33,15 @@ class BoundedWriter:
         self._max_pending = max_pending
         self._count = count
         self._log = log
+
+    def write_within(self, store: Callable[..., Any], *args: Any, budget_ms: Optional[float],
+                     **kwargs: Any) -> Optional[Verdict]:
+        """``write`` waited for no longer than twice the turn's latency budget; without a budget
+        (None) the store is waited for, as it always was. Voice and chat both write this way."""
+        if budget_ms is None:
+            store(*args, **kwargs)
+            return None
+        return self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND, **kwargs)
 
     def write(self, store: Callable[..., Any], *args: Any, deadline_s: float, **kwargs: Any) -> Optional[Verdict]:
         """None when the write is done; otherwise the BoundedWrite verdict (not written, or not

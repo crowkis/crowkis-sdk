@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Optional
+from typing import Any, Optional
 
 from ..understanding.word_rules import _fill
 from .hit import Hit
-from .voice_turn import VoiceTurn
 
 
 class CachedAnswer:
-    """What the cache returned for a turn. ``started`` is when the lookup began
+    """What the cache returned for a turn: a voice ``VoiceTurn``, or the shared question a chat
+    looked up (``ChatHitTurn``, never personal). ``started`` is when the lookup began
     (``time.monotonic()``)."""
 
-    def __init__(self, turn: VoiceTurn, hit: Hit, started: float) -> None:
+    def __init__(self, turn: Any, hit: Hit, started: float) -> None:
         self.turn = turn
         self.hit = hit
         self.started = started

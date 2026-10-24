@@ -878,10 +878,7 @@ class VoiceSession:
         running, or not written at all because too many writes wait on a slow server)."""
         if self._segment:
             kwargs.setdefault("segment", self._segment)
-        if self.latency_budget_ms is None:
-            self.agent.learn(*args, **kwargs)
-            return None
-        verdict = self._writer.write(self.agent.learn, *args, deadline_s=2 * self.latency_budget_ms / 1000, **kwargs)
+        verdict = self._writer.write_within(self.agent.learn, *args, budget_ms=self.latency_budget_ms, **kwargs)
         return None if verdict is None else _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
 
     def _count(self, name: str) -> None:

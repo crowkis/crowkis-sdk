@@ -60,7 +60,8 @@ class ChatSaving:
 
     def write(self, answered: ChatAnswered) -> str:
         verdict, answer = answered.result.verdict, answered.answer
-        slow = self._write(verdict, answer)
+        slow = self._writer.write_within(self._session.agent.learn, verdict.key, answer, ttl=verdict.ttl,
+                                         segment=verdict.segment, budget_ms=self._session.latency_budget_ms)
         if slow is not None:
             return slow.outcome
         self._session.counts[SAVED] += 1
@@ -75,12 +76,3 @@ class ChatSaving:
                                  private=private)
         objection = self._save_rules.first_objection(chat_answer)
         return None if objection is None else objection.reason
-
-    def _write(self, verdict: Any, answer: str) -> Optional[Verdict]:
-        """None when written; else the BoundedWrite verdict."""
-        learn = self._session.agent.learn
-        if self._session.latency_budget_ms is None:
-            learn(verdict.key, answer, ttl=verdict.ttl, segment=verdict.segment)
-            return None
-        return self._writer.write(learn, verdict.key, answer, ttl=verdict.ttl, segment=verdict.segment,
-                                  deadline_s=2 * self._session.latency_budget_ms / 1000)

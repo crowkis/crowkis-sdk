@@ -10,6 +10,7 @@ from bolna.llms.types import LLMStreamChunk
 
 from ...voice import TurnDecision
 from ...voice_turns import _earlier_callers, _field, _instructions
+from .call_links import CallLinks
 from .fail_open import FailOpenBoundary
 from .pending_answer import PendingAnswer
 from .served_reply import ServedReply
@@ -42,16 +43,23 @@ class CrowkisLLM:
     answered by the wrapped LLM reading the question alone (or the whole call when the
     answer must stay private) and its answer is held as a ``PendingAnswer`` until Bolna's
     history shows it was spoken in full. Every Crowkis failure goes through one
-    ``FailOpenBoundary`` and the wrapped LLM answers instead."""
+    ``FailOpenBoundary`` and the wrapped LLM answers instead.
+
+    With a ``CallLinks`` shared with the call's ``CrowkisSynthesizer``, it also tells the
+    synthesizer what each answer's audio is: a cached clip to play, or audio to keep once
+    the answer is saved word for word."""
 
     def __init__(self, inner: Any, session: Any, *, task_manager: Any = None, owns_session: bool = False,
-                 turn_filter: Optional[TurnFilter] = None, boundary: Optional[FailOpenBoundary] = None) -> None:
+                 turn_filter: Optional[TurnFilter] = None, boundary: Optional[FailOpenBoundary] = None,
+                 links: Optional[CallLinks] = None) -> None:
         self._inner = inner
         self._port = SessionPort(session)
         self._task_manager = task_manager
         self._owns_session = owns_session
         self._filter = turn_filter or TurnFilter.standard()
         self._boundary = boundary or FailOpenBoundary()
+        self._plan = (links or CallLinks()).plan_for(task_manager)
+        self._plan.bind_session(session, self._boundary)
         self._pending: Optional[PendingAnswer] = None
         self._closed = False
         self._chain_diverged = False
@@ -82,6 +90,7 @@ class CrowkisLLM:
     def cancel_in_flight_response(self) -> None:
         """Barge-in: the Crowkis turn is dropped too, so its answer is never saved."""
         self._port.cancel()
+        self._plan.drop_all()
         self._inner.cancel_in_flight_response()
 
     async def close(self) -> None:
@@ -114,6 +123,7 @@ class CrowkisLLM:
     async def _serve(self, call: GenerateCall, decision: TurnDecision) -> AsyncIterator[LLMStreamChunk]:
         self._inner.invalidate_response_chain()
         self._chain_diverged = True
+        await self._arrange_clip(call, decision)
         reply = ServedReply(decision.text, sequence_id=call.meta.get("sequence_id"),
                             buffer_size=getattr(self._inner, "buffer_size", DEFAULT_BUFFER_SIZE),
                             synthesize=call.synthesize)
@@ -121,8 +131,23 @@ class CrowkisLLM:
             for chunk in reply.chunks():
                 yield chunk
 
+    async def _arrange_clip(self, call: GenerateCall, decision: TurnDecision) -> None:
+        """Tell the synthesizer how to speak a served answer: its cached clip, or its own voice
+        and then keep that audio. An answer filled with this caller's values uses neither."""
+        if not decision.audio_shareable:
+            return
+        sequence_id = call.meta.get("sequence_id")
+        clip = await self._plan.fetch(decision.text)
+        if clip:
+            self._plan.play(sequence_id, decision.text, clip)
+        else:
+            self._plan.keep_served(sequence_id, decision.text)
+
     async def _answer_with_model(self, call: GenerateCall, decision: TurnDecision) -> AsyncIterator[LLMStreamChunk]:
         messages = self._model_messages(call, decision)
+        sequence_id = call.meta.get("sequence_id")
+        if decision.needs_model and decision.cacheable:
+            self._plan.keep_answer(sequence_id)
         pieces: List[str] = []
         went_to_tool = False
         with self._cancel_on_barge_in(lambda: not went_to_tool):
@@ -132,10 +157,12 @@ class CrowkisLLM:
                 elif isinstance(getattr(chunk, "data", None), str):
                     pieces.append(chunk.data)
                 yield chunk
-        if not went_to_tool and decision.needs_model:
+        if went_to_tool:
+            self._plan.drop(sequence_id)
+        elif decision.needs_model:
             self._pending = PendingAnswer(decision, " ".join(" ".join(pieces).split()),
                                           _instructions(list(call.messages)) or None,
-                                          call.meta.get("response_uid"))
+                                          call.meta.get("response_uid"), sequence_id)
 
     def _model_messages(self, call: GenerateCall, decision: TurnDecision) -> List[Any]:
         """The whole call, or the app's instructions plus only what Crowkis chose to share."""
@@ -160,8 +187,19 @@ class CrowkisLLM:
 
     async def _settle_pending(self) -> None:
         pending, self._pending = self._pending, None
-        if pending is not None:
-            await pending.settle(self._history(), self._record)
+        if pending is None:
+            return
+        recorded = await pending.settle(self._history(), self._record)
+        await self._plan.settle(pending.sequence_id, pending.text, await self._clip_shareable(pending, recorded))
+
+    async def _clip_shareable(self, pending: PendingAnswer, recorded: bool) -> bool:
+        """Whether the audio of a settled answer may be shared: only an answer saved word for word
+        (a template says this caller's values aloud), and not one the server holds until it vouches."""
+        decision = pending.decision
+        if not (recorded and decision.stored and decision.cacheable):
+            return False
+        holds = await self._boundary.attempt("audio", self._port.holds_new_answers())
+        return holds is False
 
     async def _record(self, decision: TurnDecision, text: str, instructions: Optional[str]) -> None:
         await self._boundary.attempt("record", self._port.record(decision, text, instructions))

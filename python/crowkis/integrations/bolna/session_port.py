@@ -41,6 +41,12 @@ class SessionPort:
         else:
             await asyncio.to_thread(self._session.close)
 
+    async def holds_new_answers(self) -> bool:
+        """Whether the server's decision engine holds a new answer until it vouches for it: its
+        audio is then made when the answer is first served, never before."""
+        agent = self._session.agent
+        return await asyncio.to_thread(lambda: agent.decides() and agent._holds)
+
     def heard(self, caller_said: str) -> None:
         """A caller turn this session never decided (see VoiceSession._heard)."""
         self._session._heard(caller_said)

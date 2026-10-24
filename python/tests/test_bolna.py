@@ -10,8 +10,14 @@ These tests run the real Bolna types (``LLMStreamChunk``, ``BaseLLM``, ``Convers
 and a real VoiceSession over a fake cache; the model is a stand-in. They need no server."""
 
 import asyncio
+import base64
 import contextlib
+import copy
+import gc
+import json
 import unittest
+import weakref
+from collections import Counter
 from types import SimpleNamespace
 
 import pytest
@@ -21,10 +27,14 @@ pytest.importorskip("bolna")
 from bolna import providers as bolna_providers  # noqa: E402
 from bolna.helpers.conversation_history import ConversationHistory  # noqa: E402
 from bolna.llms.llm import BaseLLM  # noqa: E402
+from bolna.helpers.utils import create_ws_data_packet  # noqa: E402
 from bolna.llms.types import LatencyData, LLMStreamChunk  # noqa: E402
+from bolna.synthesizer.base_synthesizer import BaseSynthesizer  # noqa: E402
 
 from crowkis import Agent, AsyncVoiceSession, CrowkisError, VoiceSession  # noqa: E402
-from crowkis.integrations.bolna import CrowkisBolnaError, CrowkisLLM, register_crowkis  # noqa: E402
+from crowkis.agent import _tts_key, _wait_for_audio_stores  # noqa: E402
+from crowkis.integrations.bolna import CrowkisBolnaError, CrowkisLLM, CrowkisSynthesizer, register_crowkis  # noqa: E402
+from crowkis.integrations.bolna.call_links import CallLinks  # noqa: E402
 from crowkis.voice import _reset_prompt_baselines  # noqa: E402
 
 from test_voice_prompt_guard import PROMPT  # noqa: E402
@@ -1046,6 +1056,666 @@ class EdgeTextTests(Base):
         await call.end()
         self.assertEqual(store.writes, [])
         self.assertEqual(store.tool_writes, [])
+
+
+
+# --- audio: cached voice clips --------------------------------------------------------------
+#
+# Bolna builds one synthesizer per call, next to its LLM, and the two never meet. The wrappers
+# meet through a CallLinks object that register_crowkis() hands to both; it is keyed by the
+# call's task manager. The synthesizer is faked here as a BaseSynthesizer whose generate()
+# yields one packet per pushed text, with the meta Bolna's own synthesizers stamp.
+
+
+FAKE_SYNTH = "crowkis-test-fake-synth"
+CLIP = b"\x01\x02\x03\x04-a-clip-made-earlier"
+OTHER_ANSWER = "We open at nine every morning."
+
+
+def audio_for(text):
+    """What the fake synthesizer 'says' for a text: the text itself, as bytes."""
+    return b"\x00" if not text or not text.strip() else f"<{text}>".encode()
+
+
+def audio_of(texts):
+    return b"".join(audio_for(text) for text in texts if text and text.strip())
+
+
+def pieces_of(chunks):
+    return [chunk.data for chunk in chunks if chunk.data]
+
+
+class FakeSynth(BaseSynthesizer):
+    """A Bolna synthesizer: push() queues text, generate() yields a packet for each."""
+
+    def __init__(self, *, task_manager_instance=None, voice="nova", wire_format="mulaw", sample_rate=8000,
+                 stream=False, **kwargs):
+        super().__init__(task_manager_instance, stream=stream, buffer_size=BUFFER)
+        self.voice = voice
+        self.sample_rate = sample_rate
+        self.wire_format = wire_format
+        self.model = "fake-tts"
+        self.pushed = []
+        self.calls = Counter()
+        self.kwargs = kwargs
+
+    def _get_audio_format(self):
+        return self.wire_format
+
+    def _get_http_audio_format(self):
+        return self.wire_format
+
+    async def push(self, message):
+        self.pushed.append(copy.deepcopy(message))
+        await super().push(message)
+
+    async def generate(self):
+        while True:
+            message = await self.internal_queue.get()
+            meta_info, text = message["meta_info"], message["data"]
+            self._stamp_first_chunk(meta_info)
+            self._stamp_end_of_stream(meta_info)
+            meta_info["format"] = self.wire_format
+            meta_info["text"] = text
+            meta_info["text_synthesized"] = f"{text} "
+            self._stamp_mark_id(meta_info)
+            yield create_ws_data_packet(audio_for(text), meta_info)
+
+    async def handle_interruption(self):
+        self.calls["handle_interruption"] += 1  # the queue is left alone: late audio can still arrive
+
+    async def flush_synthesizer_stream(self):
+        self.calls["flush_synthesizer_stream"] += 1
+
+    async def cleanup(self):
+        self.calls["cleanup"] += 1
+
+    async def monitor_connection(self):
+        self.calls["monitor_connection"] += 1
+
+    async def synthesize(self, text):
+        self.calls["synthesize"] += 1
+        return audio_for(text)
+
+    def clear_internal_queue(self):
+        self.calls["clear_internal_queue"] += 1
+
+    def get_engine(self):
+        self.calls["get_engine"] += 1
+        return self.model
+
+
+class ToolFailingStore(SceneStore):
+    """A cache whose audio reads and writes both raise."""
+
+    def ctoolget(self, tool, key, *, tenant=None):
+        raise RuntimeError("audio read exploded")
+
+    def ctoolset(self, tool, key, value, *, ex=None, tenant=None):
+        raise RuntimeError("audio write exploded")
+
+
+class UnshareableAudio:
+    """A session whose served answers are filled with this caller's values."""
+
+    def __init__(self, real):
+        self._real = real
+
+    async def decide(self, caller_said):
+        decision = await self._real.decide(caller_said)
+        decision._audio_shareable = False
+        return decision
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+class AudioCall(Call):
+    """A call with its synthesizer next to its LLM, linked the way register_crowkis() links them."""
+
+    def __init__(self, store, links, reply=ANSWER, *, voice="nova", wire_format="mulaw", sample_rate=8000,
+                 **options):
+        super().__init__(store, reply, **options)
+        self.voice = voice
+        self.wire_format = wire_format
+        self.sample_rate = sample_rate
+        self.synth_inner = FakeSynth(task_manager_instance=self.tm, voice=voice, wire_format=wire_format,
+                                     sample_rate=sample_rate)
+        self.llm = CrowkisLLM(self.inner, self.session, task_manager=self.tm, links=links)
+        self.synth = CrowkisSynthesizer(self.synth_inner, links)
+
+    @property
+    def key_format(self):
+        return "mulaw-8000" if self.wire_format == "mulaw" else f"pcm16-{self.sample_rate}"
+
+    def clip_key(self, text, key_format=None):
+        session = self.session
+        return _tts_key(text, (self.voice, session.language, str(session.speed), key_format or self.key_format))
+
+    def hear_clip(self, text, clip=CLIP):
+        """The server already holds a clip for this answer, in this call's voice and format."""
+        self.store.tool[self.clip_key(text)] = base64.b64encode(clip).decode("ascii")
+
+    def stored_clips(self):
+        """[text, format, audio] of every clip written to the cache's audio store."""
+        _wait_for_audio_stores()
+        return [[write[0]["text"], write[0]["format"], base64.b64decode(write[1])]
+                for write in self.store.tool_writes]
+
+    async def say(self, text, *, committed=True, system=SYSTEM):
+        """A caller turn, then the speech of its answer, as Bolna's task manager drives them."""
+        chunks = await self.turn(text, committed=False, system=system)
+        packets = await self.speak(chunks)
+        if committed:
+            self.tm.commit(f"r{self.sequence}", text_of(chunks))
+        return chunks, packets
+
+    async def push(self, chunk):
+        await self.push_text(chunk.data, chunk.end_of_stream)
+
+    async def push_text(self, text, end_of_llm_stream):
+        await self.synth.push({"data": text, "meta_info": {
+            "sequence_id": self.sequence, "turn_id": self.sequence, "end_of_llm_stream": end_of_llm_stream}})
+
+    async def speak(self, chunks):
+        """Push every text piece of an answer to the synthesizer, then read its audio."""
+        spoken = [chunk for chunk in chunks if not chunk.is_function_call]
+        for chunk in spoken:
+            await self.push(chunk)
+        if not any(chunk.end_of_stream for chunk in spoken):
+            await self.push_text("", True)  # the bare marker that closes a turn
+        return await self.packets()
+
+    async def packets(self, wanted=None):
+        """Packets from generate(), up to the end of the synthesizer stream (or ``wanted`` packets)."""
+        found = []
+        stream = self.synth.generate()
+        async with contextlib.aclosing(stream):
+            async with asyncio.timeout(3):
+                async for packet in stream:
+                    found.append(packet)
+                    if len(found) == wanted or packet["meta_info"].get("end_of_synthesizer_stream"):
+                        break
+        return found
+
+
+class AudioBase(Base):
+    def setUp(self):
+        super().setUp()
+        self.links = CallLinks()
+        _wait_for_audio_stores()
+
+
+class ServedClipTests(AudioBase):
+    async def test_a_served_answer_whose_clip_is_cached_plays_the_clip(self):
+        for wire_format, rate in (("mulaw", 8000), ("pcm", 24000)):
+            with self.subTest(wire_format=wire_format):
+                call = AudioCall(SceneStore({QUESTION: ANSWER}), self.links, wire_format=wire_format,
+                                 sample_rate=rate)
+                call.hear_clip(ANSWER)
+                chunks, packets = await call.say(QUESTION)
+                self.assertEqual(text_of(chunks), ANSWER)
+                self.assertEqual(call.synth_inner.pushed, [])  # the inner synthesizer is never given the text
+                self.assertEqual(len(packets), 1)
+                self.assertEqual(packets[0]["data"], CLIP)
+                self.assertEqual(call.stored_clips(), [])  # a clip heard from the cache is not stored again
+
+    async def test_the_clip_packet_carries_the_meta_bolna_needs(self):
+        call = AudioCall(SceneStore({QUESTION: LONG_ANSWER}), self.links)
+        call.hear_clip(LONG_ANSWER)
+        chunks, packets = await call.say(QUESTION)
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual(len(packets), 1)  # the whole answer is one clip, ended in the same packet
+        meta = packets[0]["meta_info"]
+        self.assertEqual(meta["format"], "mulaw")
+        self.assertEqual(meta["text"], LONG_ANSWER)
+        self.assertEqual(meta["text_synthesized"], LONG_ANSWER + " ")
+        self.assertEqual((meta["sequence_id"], meta["turn_id"]), (1, 1))
+        self.assertTrue(meta["is_first_chunk"])
+        self.assertTrue(meta["end_of_llm_stream"])
+        self.assertTrue(meta["end_of_synthesizer_stream"])
+        self.assertTrue(meta["mark_id"])
+        self.assertNotIn("cached", meta)  # Bolna reads cached=True as "play the welcome clip"
+
+    async def test_the_next_answer_is_an_ordinary_first_chunk_again(self):
+        call = AudioCall(SceneStore({QUESTION: ANSWER, "what are your hours": OTHER_ANSWER}), self.links)
+        call.hear_clip(ANSWER)
+        await call.say(QUESTION)
+        _, packets = await call.say("what are your hours")  # a hit with no clip: the inner synthesizer speaks
+        self.assertEqual(packets[0]["data"], audio_for(OTHER_ANSWER))
+        self.assertTrue(packets[0]["meta_info"]["is_first_chunk"])
+
+    async def test_control_a_served_answer_with_no_clip_is_spoken_by_the_inner_synth_and_then_stored(self):
+        for wire_format, rate, key_format in (("mulaw", 8000, "mulaw-8000"), ("pcm", 24000, "pcm16-24000")):
+            with self.subTest(key_format=key_format):
+                call = AudioCall(SceneStore({QUESTION: LONG_ANSWER}), self.links, wire_format=wire_format,
+                                 sample_rate=rate)
+                chunks, packets = await call.say(QUESTION)
+                self.assertEqual([m["data"] for m in call.synth_inner.pushed], pieces_of(chunks))
+                self.assertEqual(b"".join(p["data"] for p in packets), audio_of(pieces_of(chunks)))
+                self.assertEqual(call.stored_clips(), [[LONG_ANSWER, key_format, audio_of(pieces_of(chunks))]])
+                self.assertEqual(call.store.writes, [])  # the text was already shared; only audio is new
+
+    async def test_a_served_answer_that_is_not_audio_shareable_never_uses_the_shared_clip(self):
+        store = SceneStore({QUESTION: ANSWER})
+        call = AudioCall(store, self.links, session=UnshareableAudio(make_session(store)))
+        call.hear_clip(ANSWER)
+        chunks, packets = await call.say(QUESTION)
+        self.assertEqual(text_of(chunks), ANSWER)
+        self.assertEqual([m["data"] for m in call.synth_inner.pushed], [ANSWER])
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+        self.assertEqual(call.stored_clips(), [])  # nor is this caller's audio put in the shared cache
+
+    async def test_a_clip_for_another_format_is_not_this_calls_clip(self):
+        call = AudioCall(SceneStore({QUESTION: ANSWER}), self.links, wire_format="mulaw", sample_rate=8000)
+        call.store.tool[call.clip_key(ANSWER, "pcm16-24000")] = base64.b64encode(CLIP).decode("ascii")
+        _, packets = await call.say(QUESTION)
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+
+    async def test_a_clip_for_another_voice_is_not_this_calls_clip(self):
+        store = SceneStore({QUESTION: ANSWER})
+        AudioCall(store, self.links, voice="shimmer").hear_clip(ANSWER)
+        call = AudioCall(store, self.links, voice="nova")
+        _, packets = await call.say(QUESTION)
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+
+    async def test_a_damaged_clip_is_a_miss(self):
+        call = AudioCall(SceneStore({QUESTION: ANSWER}), self.links)
+        call.store.tool[call.clip_key(ANSWER)] = "not base64 !!"
+        _, packets = await call.say(QUESTION)
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+
+
+class SavedAnswerAudioTests(AudioBase):
+    async def test_an_answer_saved_word_for_word_has_its_audio_stored_for_its_format(self):
+        for wire_format, rate, key_format in (("mulaw", 8000, "mulaw-8000"), ("pcm", 24000, "pcm16-24000")):
+            with self.subTest(key_format=key_format):
+                call = AudioCall(SceneStore(), self.links, LONG_ANSWER, wire_format=wire_format, sample_rate=rate)
+                chunks, _ = await call.say(QUESTION)
+                await call.end()
+                self.assertEqual(call.store.writes, [[QUESTION, LONG_ANSWER, False]])
+                self.assertEqual(call.stored_clips(), [[LONG_ANSWER, key_format, audio_of(pieces_of(chunks))]])
+                self.assertEqual(call.store.tool_writes[0][0], json.loads(call.clip_key(LONG_ANSWER)))
+
+    async def test_the_stored_clip_is_played_to_the_next_caller(self):
+        store = SceneStore()
+        first = AudioCall(store, self.links, LONG_ANSWER)
+        chunks, _ = await first.say(QUESTION)
+        await first.end()
+        first.stored_clips()
+        second = AudioCall(store, self.links, "never asked")
+        heard, packets = await second.say(QUESTION)
+        self.assertEqual(text_of(heard), LONG_ANSWER)
+        self.assertEqual(second.synth_inner.pushed, [])
+        self.assertEqual(packets[0]["data"], audio_of(pieces_of(chunks)))
+
+    async def test_the_clip_waits_for_the_ruling_when_the_reply_is_committed_late(self):
+        call = AudioCall(SceneStore(), self.links)
+        await call.say(QUESTION, committed=False)
+        self.assertEqual(call.stored_clips(), [])  # spoken, but not yet known to be saved
+        call.tm.commit("r1", ANSWER)
+        await call.end()
+        self.assertEqual([clip[0] for clip in call.stored_clips()], [ANSWER])
+
+    async def test_the_ruling_can_come_before_the_audio_ends(self):
+        call = AudioCall(SceneStore(), self.links)
+        chunks = await call.turn(QUESTION, committed=True)
+        await call.end()  # settled: the answer is saved
+        await call.speak(chunks)
+        self.assertEqual([clip[0] for clip in call.stored_clips()], [ANSWER])
+
+    async def test_a_reply_trimmed_by_a_barge_in_has_no_clip(self):
+        call = AudioCall(SceneStore(), self.links, LONG_ANSWER)
+        await call.say(QUESTION, committed=False)
+        call.tm.commit("r1", "Refunds take five business days")  # what was spoken before the caller cut in
+        await call.end()
+        self.assertEqual(call.store.writes, [])
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_a_private_answer_has_no_clip(self):
+        system = "You are Acme's phone assistant.\nCaller name: Priya Sharma, phone 98450 12345"
+        call = AudioCall(SceneStore(), self.links, "Hi Priya! We open at nine.")
+        await call.say("what are your opening hours", system=system)
+        await call.end()
+        self.assertEqual(call.store.writes, [])
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_a_personal_turn_has_no_clip(self):
+        call = AudioCall(SceneStore(), self.links, PERSONAL_ANSWER)
+        await call.say(PERSONAL)
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_a_function_call_turn_has_no_clip(self):
+        call = AudioCall(SceneStore(), self.links, "Let me check the weather", function_call=True)
+        await call.say(QUESTION)
+        await call.end()
+        self.assertEqual(call.store.writes, [])
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_a_template_has_no_clip(self):
+        store = SceneStore()
+        session = AsyncVoiceSession.wrap(VoiceSession(Agent("caller", client=store), voice="v",
+                                                      values={"order_id": "ORD-111"}, share_templates=True))
+        call = AudioCall(store, self.links, "Your order ORD-111 arrives on Tuesday.", session=session)
+        await call.say("when will my order arrive")
+        await call.end()
+        self.assertEqual(store.writes,
+                         [["when will my order arrive", "Your order {order_id} arrives on Tuesday.", True]])
+        self.assertEqual(call.stored_clips(), [])  # the audio still says this caller's value
+
+    async def test_an_answer_the_server_holds_has_no_clip_until_it_is_served(self):
+        call = AudioCall(SceneStore(), self.links)
+        call.session.agent.decides = lambda: True  # the server's decision engine holds new answers
+        call.session.agent._holds = True
+        await call.say(QUESTION)
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_a_sequence_that_never_finished_has_no_clip(self):
+        call = AudioCall(SceneStore(), self.links, LONG_ANSWER)
+        chunks = await call.turn(QUESTION, committed=True)
+        await call.push(chunks[0])  # the rest of the text never reached the synthesizer
+        await call.packets(wanted=1)
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_audio_in_another_format_than_the_synth_declared_is_not_stored(self):
+        call = AudioCall(SceneStore(), self.links)
+        chunks = await call.turn(QUESTION, committed=True)
+        call.synth_inner.wire_format = "wav"  # what the packets say they carry, not what was declared
+        await call.speak(chunks)
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+    async def test_audio_of_other_words_is_not_stored_under_the_answer(self):
+        call = AudioCall(SceneStore(), self.links)
+        await call.turn(QUESTION, committed=True)
+        await call.speak([LLMStreamChunk(data="Something else entirely.", end_of_stream=True)])
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+
+class InterruptionAudioTests(AudioBase):
+    async def test_handle_interruption_mid_clip_drops_the_collected_audio(self):
+        call = AudioCall(SceneStore(), self.links, LONG_ANSWER)
+        chunks = await call.turn(QUESTION, committed=True)
+        for chunk in chunks:
+            await call.push(chunk)
+        await call.packets(wanted=1)  # the first piece is out
+        await call.synth.handle_interruption()
+        await call.packets()  # late audio of the cut-off answer still comes out of the provider
+        await call.end()  # and Bolna's history says the answer was complete
+        self.assertEqual(call.store.writes, [[QUESTION, LONG_ANSWER, False]])
+        self.assertEqual(call.stored_clips(), [])
+        self.assertEqual(call.synth_inner.calls["handle_interruption"], 1)
+
+    async def test_handle_interruption_drops_an_order_to_play_a_clip(self):
+        call = AudioCall(SceneStore({QUESTION: LONG_ANSWER}), self.links)
+        call.hear_clip(LONG_ANSWER)
+        chunks = await call.turn(QUESTION, committed=False)
+        await call.synth.handle_interruption()
+        await call.push(chunks[0])  # leftovers of the old answer arrive after the caller cut in
+        self.assertEqual([m["data"] for m in call.synth_inner.pushed], [chunks[0].data])  # no longer swallowed
+
+    async def test_cancelling_the_response_drops_the_audio_too(self):
+        call = AudioCall(SceneStore(), self.links)
+        chunks = await call.turn(QUESTION, committed=False)
+        await call.speak(chunks)
+        call.llm.cancel_in_flight_response()
+        call.tm.commit("r1", ANSWER)
+        await call.end()
+        self.assertEqual(call.stored_clips(), [])
+
+
+class CallLinkTests(AudioBase):
+    async def test_two_calls_never_mix_clips(self):
+        store = SceneStore({QUESTION: ANSWER})
+        first = AudioCall(store, self.links)
+        first.hear_clip(ANSWER)
+        second = AudioCall(store, self.links, OTHER_ANSWER)
+        first_chunks = await first.turn(QUESTION, committed=False)  # sequence 1 of the first call
+        second_chunks = await second.turn("what are your opening hours", committed=False)  # sequence 1 too
+        second_packets = await second.speak(second_chunks)
+        first_packets = await first.speak(first_chunks)
+        self.assertEqual(first_packets[0]["data"], CLIP)
+        self.assertEqual(first.synth_inner.pushed, [])
+        self.assertEqual([m["data"] for m in second.synth_inner.pushed], pieces_of(second_chunks))
+        self.assertEqual(b"".join(p["data"] for p in second_packets), audio_of(pieces_of(second_chunks)))
+        first.tm.commit("r1", text_of(first_chunks))
+        second.tm.commit("r1", text_of(second_chunks))
+        await first.end()
+        await second.end()
+        self.assertEqual(second.stored_clips(),
+                         [[OTHER_ANSWER, "mulaw-8000", audio_of(pieces_of(second_chunks))]])
+
+    async def test_the_link_between_a_calls_llm_and_synth_is_the_calls_task_manager(self):
+        call = AudioCall(SceneStore(), self.links)
+        other = AudioCall(SceneStore(), self.links)
+        self.assertIs(self.links.plan_for(call.tm), self.links.plan_for(call.tm))
+        self.assertIsNot(self.links.plan_for(call.tm), self.links.plan_for(other.tm))
+
+    async def test_a_call_with_two_synthesizers_keeps_no_clips(self):
+        # Bolna's multilingual pool builds one synthesizer per language for the same call, each
+        # with its own voice: one shared plan can't know which voice a clip is in.
+        call = AudioCall(SceneStore({QUESTION: ANSWER}), self.links)
+        call.hear_clip(ANSWER)
+        CrowkisSynthesizer(FakeSynth(task_manager_instance=call.tm, voice="shimmer"), self.links)
+        plan = self.links.plan_for(call.tm)
+        self.assertIsNone(plan.wire_format)
+        self.assertIsNone(await plan.fetch(ANSWER))
+
+    async def test_a_call_that_ended_leaves_nothing_behind(self):
+        links = CallLinks()
+        task_manager = FakeTaskManager()
+        reference = weakref.ref(task_manager)
+        links.plan_for(task_manager)
+        del task_manager
+        gc.collect()
+        self.assertIsNone(reference())
+
+    async def test_a_synth_with_no_task_manager_passes_everything_through(self):
+        inner = FakeSynth(task_manager_instance=None)
+        synth = CrowkisSynthesizer(inner, self.links)
+        await synth.push({"data": "hello there", "meta_info": {"sequence_id": 1, "end_of_llm_stream": True}})
+        self.assertEqual([m["data"] for m in inner.pushed], ["hello there"])
+
+
+class AudioFailOpenTests(AudioBase):
+    async def test_a_cache_that_cannot_read_or_write_audio_lets_the_inner_synth_speak(self):
+        call = AudioCall(ToolFailingStore({QUESTION: ANSWER}), self.links)
+        chunks, packets = await call.say(QUESTION)
+        self.assertEqual(text_of(chunks), ANSWER)
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+        self.assertEqual([m["data"] for m in call.synth_inner.pushed], [ANSWER])
+        _wait_for_audio_stores()
+
+    async def test_a_model_answer_still_speaks_when_its_clip_cannot_be_written(self):
+        call = AudioCall(ToolFailingStore(), self.links)
+        chunks, packets = await call.say(QUESTION)
+        await call.end()
+        self.assertEqual(b"".join(p["data"] for p in packets), audio_of(pieces_of(chunks)))
+        _wait_for_audio_stores()
+
+    async def test_a_clip_store_that_raises_is_counted_and_never_reaches_the_call(self):
+        class Exploding:
+            async def get(self, text):
+                raise RuntimeError("shelf exploded")
+
+            async def store_clip(self, text, clip):
+                raise RuntimeError("shelf exploded")
+
+        served = AudioCall(SceneStore({QUESTION: ANSWER}), self.links)
+        self.links.plan_for(served.tm)._shelf = Exploding()
+        _, packets = await served.say(QUESTION)
+        self.assertEqual(packets[0]["data"], audio_for(ANSWER))
+        self.assertEqual([m["data"] for m in served.synth_inner.pushed], [ANSWER])
+        asked = AudioCall(SceneStore(), self.links)
+        self.links.plan_for(asked.tm)._shelf = Exploding()
+        chunks, packets = await asked.say(QUESTION)
+        await asked.end()
+        self.assertEqual(b"".join(p["data"] for p in packets), audio_of(pieces_of(chunks)))
+        self.assertGreaterEqual(served.llm.failures["audio"], 1)
+        self.assertEqual(asked.llm.failures["audio"], 1)
+
+
+class SynthDelegationTests(AudioBase):
+    async def test_every_other_method_reaches_the_inner_synth(self):
+        call = AudioCall(SceneStore(), self.links)
+        synth, inner = call.synth, call.synth_inner
+        await synth.flush_synthesizer_stream()
+        await synth.cleanup()
+        await synth.monitor_connection()
+        self.assertEqual(await synth.synthesize("hi"), audio_for("hi"))
+        synth.clear_internal_queue()
+        self.assertEqual(synth.get_engine(), "fake-tts")
+        await synth.handle_interruption()
+        for name in ("flush_synthesizer_stream", "cleanup", "monitor_connection", "synthesize",
+                     "clear_internal_queue", "get_engine", "handle_interruption"):
+            self.assertEqual(inner.calls[name], 1, name)
+        self.assertEqual(synth.model, "fake-tts")
+        self.assertEqual(synth.buffer_size, BUFFER)
+        self.assertEqual(synth.get_sleep_time(), 0.2)
+        self.assertTrue(synth.supports_websocket())
+
+    async def test_a_sequence_with_no_order_is_pushed_untouched(self):
+        call = AudioCall(SceneStore(), self.links)
+        message = {"data": "Hello, welcome.", "meta_info": {"sequence_id": -1, "end_of_llm_stream": True,
+                                                            "message_category": "agent_welcome_message"}}
+        await call.synth.push(copy.deepcopy(message))
+        self.assertEqual(call.synth_inner.pushed, [message])
+        packets = await call.packets()
+        self.assertEqual(packets[0]["data"], audio_for("Hello, welcome."))
+
+    async def test_a_synth_that_fails_in_generate_fails_the_same_way(self):
+        call = AudioCall(SceneStore(), self.links)
+
+        async def broken():
+            raise ConnectionError("tts socket closed")
+            yield
+
+        call.synth_inner.generate = broken
+        with self.assertRaises(ConnectionError):
+            async for _ in call.synth.generate():
+                pass
+
+    async def test_generate_ends_when_the_inner_generate_ends(self):
+        call = AudioCall(SceneStore(), self.links)
+
+        async def finished():
+            return
+            yield
+
+        call.synth_inner.generate = finished
+        async with asyncio.timeout(3):
+            self.assertEqual([packet async for packet in call.synth.generate()], [])
+
+
+class RegisterSynthesizerTests(unittest.TestCase):
+    def setUp(self):
+        self._llms_before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        self._synths_before = dict(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
+        bolna_providers.SUPPORTED_LLM_PROVIDERS[FAKE_BASE] = FakeInner
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH] = FakeSynth
+        self._synths_with_fake = dict(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
+
+    def tearDown(self):
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.clear()
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.update(self._llms_before)
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.clear()
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.update(self._synths_before)
+
+    def register(self, **options):
+        return register_crowkis(name="crowkis-test", base=FAKE_BASE, session_factory=lambda: None, **options)
+
+    def test_without_a_synthesizer_the_audio_registry_is_untouched(self):
+        self.register()
+        self.assertEqual(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS, self._synths_with_fake)
+
+    def test_the_named_synthesizer_is_wrapped_and_the_others_are_not(self):
+        self.register(synthesizer=FAKE_SYNTH)
+        registry = bolna_providers.SUPPORTED_SYNTHESIZER_MODELS
+        self.assertTrue(issubclass(registry[FAKE_SYNTH], CrowkisSynthesizer))
+        for name, cls in self._synths_with_fake.items():
+            if name != FAKE_SYNTH:
+                self.assertIs(registry[name], cls)
+
+    def test_the_wrapper_builds_as_bolna_builds_a_synthesizer(self):
+        self.register(synthesizer=FAKE_SYNTH)
+        synth = bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH](
+            voice="alloy", sampling_rate=24000, caching=True, task_manager_instance=FakeTaskManager())
+        self.assertIsInstance(synth._inner, FakeSynth)
+        self.assertEqual(synth.voice, "alloy")
+        self.assertEqual(synth._inner.kwargs, {"sampling_rate": 24000, "caching": True})
+
+    def test_registering_twice_wraps_the_original_once(self):
+        self.register(synthesizer=FAKE_SYNTH)
+        self.register(synthesizer=FAKE_SYNTH)
+        synth = bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH](voice="alloy")
+        self.assertIs(type(synth._inner), FakeSynth)
+
+    def test_an_unknown_synthesizer_is_refused(self):
+        with self.assertRaises(CrowkisBolnaError):
+            self.register(synthesizer="no-such-synth")
+        self.assertEqual(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS, self._synths_with_fake)
+        self.assertNotIn("crowkis-test", bolna_providers.SUPPORTED_LLM_PROVIDERS)
+
+    def test_bolnas_task_manager_sees_the_wrapped_synthesizer(self):
+        from bolna.agent_manager import task_manager as tm
+
+        self.register(synthesizer=FAKE_SYNTH)
+        self.assertIs(tm.SUPPORTED_SYNTHESIZER_MODELS, bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
+        self.assertIsNot(tm.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH], FakeSynth)
+
+
+class RegisteredPairTests(Base):
+    def setUp(self):
+        super().setUp()
+        self._llms_before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        self._synths_before = dict(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
+        bolna_providers.SUPPORTED_LLM_PROVIDERS[FAKE_BASE] = FakeInner
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH] = FakeSynth
+
+    def tearDown(self):
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.clear()
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.update(self._llms_before)
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.clear()
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.update(self._synths_before)
+
+    async def test_the_registered_llm_and_synth_of_one_call_share_clips_through_the_links(self):
+        store = SceneStore()
+        register_crowkis(name="crowkis-test", base=FAKE_BASE, synthesizer=FAKE_SYNTH,
+                         session_factory=lambda: make_session(store))
+
+        async def one_call(reply):
+            task_manager = FakeTaskManager()
+            llm = bolna_providers.SUPPORTED_LLM_PROVIDERS["crowkis-test"](
+                language="en", model="m", provider="crowkis-test", task_manager_instance=task_manager)
+            llm._inner.reply = reply
+            synth = bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[FAKE_SYNTH](
+                voice="nova", sampling_rate=8000, task_manager_instance=task_manager)
+            chunks = [c async for c in llm.generate_stream(user_turn(QUESTION), meta_info=meta())]
+            for chunk in chunks:
+                await synth.push({"data": chunk.data, "meta_info": {
+                    "sequence_id": 1, "turn_id": 1, "end_of_llm_stream": chunk.end_of_stream}})
+            packets = []
+            stream = synth.generate()
+            async with contextlib.aclosing(stream), asyncio.timeout(3):
+                async for packet in stream:
+                    packets.append(packet)
+                    if packet["meta_info"].get("end_of_synthesizer_stream"):
+                        break
+            task_manager.commit("r1", text_of(chunks))
+            await llm.close()
+            return chunks, packets, synth
+
+        first_chunks, first_packets, _ = await one_call(LONG_ANSWER)
+        self.assertEqual(first_packets[-1]["meta_info"]["format"], "mulaw")
+        _wait_for_audio_stores()
+        self.assertEqual(len(store.tool_writes), 1)
+        _, second_packets, second_synth = await one_call("never asked")
+        self.assertEqual(second_synth._inner.pushed, [])
+        self.assertEqual([packet["data"] for packet in second_packets], [audio_of(pieces_of(first_chunks))])
 
 
 if __name__ == "__main__":  # pragma: no cover

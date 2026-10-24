@@ -31,6 +31,7 @@ class PendingAnswer:
     text: str
     instructions: Optional[str]
     response_uid: Optional[str]
+    sequence_id: Optional[int] = None
 
     def committed_in(self, history: Optional[Sequence[Any]]) -> bool:
         """Whether Bolna's history holds this answer, whole."""

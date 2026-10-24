@@ -387,14 +387,17 @@ try:
     from bolna.helpers.conversation_history import ConversationHistory
     from bolna.llms.llm import BaseLLM
     from bolna.llms.types import LatencyData, LLMStreamChunk
+    from bolna.synthesizer.base_synthesizer import BaseSynthesizer
 
     from crowkis.integrations.bolna import register_crowkis
 except ImportError:  # pragma: no cover - bolna not installed
-    BaseLLM = object
+    BaseLLM = BaseSynthesizer = object
     bolna_providers = None
 
 BOLNA_NAME = "crowkis-conformance"
 BOLNA_BASE = "crowkis-conformance-base"
+BOLNA_SYNTH = "crowkis-conformance-synth"
+BOLNA_QUIET_S = 0.02  # how long the synthesizer may stay silent before its audio is taken as read
 BOLNA_SYSTEM = "You are Acme's assistant."
 BOLNA_BUFFER = 40
 
@@ -441,6 +444,35 @@ class _BolnaInnerLLM(BaseLLM):
         pass
 
 
+class _BolnaInnerSynth(BaseSynthesizer):
+    """A Bolna synthesizer class (mu-law, HTTP style): one packet of audio for each text pushed.
+    It counts the texts it was asked to speak, which is how the driver knows the TTS was used."""
+
+    def __init__(self, counts=None, task_manager_instance=None, voice="v", **kwargs):
+        super().__init__(task_manager_instance, stream=False, buffer_size=BOLNA_BUFFER)
+        self.counts = counts
+        self.voice = voice
+
+    def _get_http_audio_format(self):
+        return "mulaw"
+
+    async def push(self, message):
+        if (message["data"] or "").strip():
+            self.counts.tts += 1
+        await super().push(message)
+
+    async def generate(self):
+        while True:
+            message = await self.internal_queue.get()
+            meta_info, text = message["meta_info"], message["data"]
+            self._stamp_first_chunk(meta_info)
+            self._stamp_end_of_stream(meta_info)
+            meta_info.update(format="mulaw", text=text, text_synthesized=f"{text} ")
+            self._stamp_mark_id(meta_info)
+            audio = f"<{text}>".encode() if (text or "").strip() else b"\x00"
+            yield {"data": audio, "meta_info": meta_info}
+
+
 class _BolnaTaskManager:
     """What the adapter reads of Bolna's TaskManager: its history and task config."""
 
@@ -469,61 +501,91 @@ class BolnaDriver:
     """The class register_crowkis() returns, driven the way Bolna drives an LLM: each turn
     a copy of the history goes to generate_stream(synthesize=True, meta_info=...), every
     chunk is consumed, then the reply is committed to the history; a barge-in commits the
-    trimmed reply and calls cancel_in_flight_response(). The adapter has no audio side yet,
-    so ``tts`` expectations are not checked (``checks_audio``)."""
+    trimmed reply and calls cancel_in_flight_response(). Each answer's text then goes to the
+    call's synthesizer (a CrowkisSynthesizer around a stand-in that counts what it is asked to
+    speak), so the ``tts`` expectations are checked too."""
 
     name = "Bolna (register_crowkis)"
     supported = bolna_providers is not None
-    checks_audio = False
 
     @contextlib.contextmanager
     def active(self):
-        before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        llms_before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        synths_before = dict(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
         bolna_providers.SUPPORTED_LLM_PROVIDERS[BOLNA_BASE] = _BolnaInnerLLM
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[BOLNA_SYNTH] = _BolnaInnerSynth
         try:
             yield
         finally:
             bolna_providers.SUPPORTED_LLM_PROVIDERS.clear()
-            bolna_providers.SUPPORTED_LLM_PROVIDERS.update(before)
+            bolna_providers.SUPPORTED_LLM_PROVIDERS.update(llms_before)
+            bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.clear()
+            bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.update(synths_before)
 
     async def call(self, store, turns, agent_id) -> List[Heard]:
         counts = Counts()
         script = _BolnaScript(counts)
-        provider = register_crowkis(name=BOLNA_NAME, base=BOLNA_BASE,
+        provider = register_crowkis(name=BOLNA_NAME, base=BOLNA_BASE, synthesizer=BOLNA_SYNTH,
                                     session_factory=lambda: crowkis.async_voice_session(
                                         client=store, agent_id=agent_id, voice="v"))
         task_manager = _BolnaTaskManager()
         llm = provider(language="en", model="fake", provider=BOLNA_NAME, conformance_script=script,
                        task_manager_instance=task_manager)
+        synth = bolna_providers.SUPPORTED_SYNTHESIZER_MODELS[BOLNA_SYNTH](
+            counts=counts, voice="v", task_manager_instance=task_manager)
         out = []
         try:
             for sequence, turn in enumerate(turns, start=1):
-                llm0 = counts.llm
+                llm0, tts0 = counts.llm, counts.tts
                 script.pieces, script.tool = list(turn["reply"]), bool(turn.get("tool"))
                 task_manager.hear(turn["say"])
                 started = time.perf_counter()
-                said = await self._turn(llm, task_manager, turn, sequence)
-                out.append(Heard(counts.llm > llm0, False, said, (time.perf_counter() - started) * 1000))
+                said, chunks, spoken_sequence = await self._turn(llm, task_manager, turn, sequence)
+                ms = (time.perf_counter() - started) * 1000
+                await self._speak(synth, chunks, spoken_sequence, interrupted=turn.get("barge_in_after") is not None)
+                out.append(Heard(counts.llm > llm0, counts.tts > tts0, said, ms))
         finally:
             await llm.close()
         return out
 
-    async def _turn(self, llm, task_manager, turn, sequence) -> str:
+    async def _turn(self, llm, task_manager, turn, sequence):
+        """What the caller heard, the chunks Bolna sends on to speak, and the sequence they are for."""
         uid = f"r{sequence}"
         meta = {"sequence_id": sequence, "response_uid": uid, "origin": "transcriber", "turn_id": sequence}
         if turn.get("barge_in_after") is not None:
             return await self._barge_in(llm, task_manager, meta, turn["barge_in_after"])
         chunks = await self._consume(llm, task_manager, meta)
+        spoken_sequence = sequence
         if turn.get("tool"):
             # The model asked for a tool: Bolna runs it and calls the LLM again with its result.
             task_manager.history.extend([
                 {"role": "assistant", "content": "", "tool_calls": [
                     {"id": "t1", "type": "function", "function": {"name": "weather", "arguments": "{}"}}]},
                 {"role": "tool", "tool_call_id": "t1", "content": "sunny, 22 degrees"}])
-            chunks = await self._consume(llm, task_manager, dict(meta, sequence_id=sequence + 1000))
+            spoken_sequence = sequence + 1000
+            chunks = await self._consume(llm, task_manager, dict(meta, sequence_id=spoken_sequence))
         said = _chunks_text(chunks)
         task_manager.commit(uid, said)
-        return said
+        return said, chunks, spoken_sequence
+
+    @staticmethod
+    async def _speak(synth, chunks, sequence, *, interrupted) -> None:
+        """Bolna's task manager gives each text chunk to the synthesizer and plays what comes
+        back; on a barge-in it tells the synthesizer to drop what is in flight."""
+        for chunk in chunks:
+            await synth.push({"data": chunk.data, "meta_info": {
+                "sequence_id": sequence, "turn_id": sequence, "end_of_llm_stream": chunk.end_of_stream}})
+        stream = synth.generate()
+        async with contextlib.aclosing(stream):
+            while True:
+                try:
+                    packet = await asyncio.wait_for(stream.__anext__(), BOLNA_QUIET_S)
+                except (asyncio.TimeoutError, StopAsyncIteration):
+                    break
+                if packet["meta_info"].get("end_of_synthesizer_stream"):
+                    break
+        if interrupted:
+            await synth.handle_interruption()
 
     @staticmethod
     async def _consume(llm, task_manager, meta):
@@ -540,7 +602,7 @@ class BolnaDriver:
         await stream.aclose()
         said = _chunks_text(chunks)
         task_manager.commit(meta["response_uid"], said)
-        return said
+        return said, chunks, meta["sequence_id"]
 
 
 DRIVERS = [CustomLoop(), AsyncCustomLoop(), PipecatDriver(), LiveKitDriver(), BolnaDriver()]

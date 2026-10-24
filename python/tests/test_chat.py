@@ -225,6 +225,16 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(replies[0].text, "Your balance is ₹2,400.")
         self.assertEqual((agent.saved, model.read), ([], []))
 
+    def test_a_failing_tool_or_monitoring_hook_never_ends_the_chat(self):
+        # v4 P5.5: AppHooks is the one boundary around the app's hooks.
+        def broken(*args):
+            raise RuntimeError("down")
+
+        frames = {"What is my balance?": {"kind": "live", "subject": "self", "confidence": 0.9}}
+        agent, model, replies = run(frames, list(frames), on_tools=broken, on_event=broken)
+        self.assertEqual(len(model.read), 1)  # the model answers instead
+        self.assertEqual(agent.saved, [])
+
     def test_expiry_follows_the_question_type(self):
         frames = {"Find hotels in Pune": dict(GENERAL, question="What hotels are in Pune?", question_type="search", entities=[{"text": "Pune", "type": "place"}]),
                   "What is your refund policy?": dict(GENERAL, question="What is your refund policy?", question_type="policy")}

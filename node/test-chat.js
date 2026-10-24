@@ -196,6 +196,14 @@ test("the business's tools answer personal and live turns", async () => {
   assert.deepStrictEqual([agent.saved, m.read], [[], []]);
 });
 
+test("a failing tool or monitoring hook never ends the chat", async () => {
+  // v4 P5.5: AppHooks is the one boundary around the app's hooks.
+  const broken = () => { throw new Error("down"); };
+  const { agent, m } = await run({ "What is my balance?": { kind: "live", subject: "self", confidence: 0.9 } }, ["What is my balance?"], { onTools: broken, onEvent: broken });
+  assert.strictEqual(m.read.length, 1); // the model answers instead
+  assert.deepStrictEqual(agent.saved, []);
+});
+
 test("expiry follows the question type", async () => {
   const frames = { "Find hotels in Pune": { ...GENERAL, question: "What hotels are in Pune?", question_type: "search", entities: [{ text: "Pune", type: "place" }] }, "What is your refund policy?": { ...GENERAL, question: "What is your refund policy?", question_type: "policy" } };
   const { agent } = await run(frames, Object.keys(frames));

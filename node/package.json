@@ -149,6 +149,7 @@
     "src/runtime/turnPairing.js",
     "src/runtime/writeResult.js",
     "src/turns/answered.js",
+    "src/turns/appHooks.js",
     "src/turns/cachedAnswer.js",
     "src/turns/channel.js",
     "src/turns/chatAnswer.js",

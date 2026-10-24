@@ -13,13 +13,14 @@ const TOOLS_REASON = "answered by the business's tools";
  * read: an empty turn goes to the agent, a registered filler answers it, and with sharing off the
  * agent answers everything. After the check: the app's `onUrgent` hook runs on an urgent turn and its
  * `urgentReply` answers it; `onTools` may answer a personal or live turn. None of these is ever
- * cached; a hook that fails never ends the chat. `session` is read live (state, counts, mode, fillers,
+ * cached; a hook that fails never ends the chat (`hooks`). `session` is read live (state, counts, mode, fillers,
  * the hooks, emit).
  */
 class ChatAnswers {
-  constructor(session, turns) {
+  constructor(session, turns, hooks) {
     this._session = session;
     this._turns = turns;
+    this._hooks = hooks;
   }
 
   beforeReading(said, turnId) {
@@ -51,12 +52,9 @@ class ChatAnswers {
 
   // The app's hook is awaited only when there is one; the reply follows it.
   _urgent(reading) {
-    return this._session.onUrgent ? this._urgentAfterHook(reading) : this._urgentReply(reading);
-  }
-
-  async _urgentAfterHook(reading) {
-    try { await this._session.onUrgent(reading.text, reading.frame); } catch { /* the hook must not take the call down */ }
-    return this._urgentReply(reading);
+    return this._session.onUrgent
+      ? this._hooks.urgent(reading.text, reading.frame, () => this._urgentReply(reading))
+      : this._urgentReply(reading);
   }
 
   _urgentReply(reading) {
@@ -70,13 +68,13 @@ class ChatAnswers {
 
   // Without the app's tools the model answers at once.
   _tools(reading) {
-    return this._session.onTools ? this._toolsAnswer(reading) : null;
+    return this._session.onTools
+      ? this._hooks.tools(reading.text, reading.frame, (answered) => this._toolsAnswer(reading, answered))
+      : null;
   }
 
-  async _toolsAnswer(reading) {
+  _toolsAnswer(reading, answered) {
     const session = this._session;
-    let answered = null;
-    try { answered = await session.onTools(reading.text, reading.frame); } catch { answered = null; /* a failing tool means the model answers */ }
     if (!answered) return null;
     session.counts.tools_answered += 1;
     session.state.noteAgentReply(masked(answered));

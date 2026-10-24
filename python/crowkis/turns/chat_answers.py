@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Optional, Protocol
 from ..state.call_state import CallState
 from ..understanding.chat_details import _masked, _norm
 from ..understanding.turn_frame import TurnFrame
+from .app_hooks import AppHooks
 from .chat_turns import ChatTurns
 from .checked import Checked
 from .routes import AGENT, FILLER, PERSONAL, TOOLS, URGENT
@@ -39,11 +40,12 @@ class ChatAnswers:
     """Before a turn is read: an empty turn goes to the agent, a registered filler answers it, and
     with sharing off the agent answers everything. After the check: the app's ``on_urgent`` hook
     runs on an urgent turn and its ``urgent_reply`` answers it; ``on_tools`` may answer a personal
-    or live turn. None of these is ever cached; a hook that fails never ends the chat."""
+    or live turn. None of these is ever cached; a hook that fails never ends the chat (``hooks``)."""
 
-    def __init__(self, session: ChatSessionHooks, turns: ChatTurns) -> None:
+    def __init__(self, session: ChatSessionHooks, turns: ChatTurns, hooks: AppHooks) -> None:
         self._session = session
         self._turns = turns
+        self._hooks = hooks
 
     def before_reading(self, said: str, turn_id: int) -> Optional[TurnResult]:
         session = self._session
@@ -75,10 +77,7 @@ class ChatAnswers:
     def _urgent(self, reading: Any) -> Optional[TurnResult]:
         session = self._session
         if session.on_urgent is not None:
-            try:
-                session.on_urgent(reading.text, reading.frame)
-            except Exception:  # noqa: BLE001 - the hook must not take the call down
-                pass
+            self._hooks.urgent(reading.text, reading.frame)
         if not session.urgent_reply:
             return None
         session.state.note_agent_reply(session.urgent_reply)
@@ -89,10 +88,7 @@ class ChatAnswers:
         session = self._session
         if session.on_tools is None:
             return None
-        try:
-            answered = session.on_tools(reading.text, reading.frame)
-        except Exception:  # noqa: BLE001 - a failing tool means the model answers
-            answered = None
+        answered = self._hooks.tools(reading.text, reading.frame)
         if not answered:
             return None
         session.counts["tools_answered"] += 1

@@ -19,6 +19,7 @@ const { ChatQuestionCheck } = require("../turns/chatQuestionCheck.js");
 const { ChatReader } = require("../turns/chatReader.js");
 const { ChatReading } = require("../turns/chatReading.js");
 const { ChatReport } = require("../turns/chatReport.js");
+const { AppHooks } = require("../turns/appHooks.js");
 const { ChatSaving } = require("../turns/chatSaving.js");
 const { ChatTurns } = require("../turns/chatTurns.js");
 const { TurnResult } = require("../turns/turnResult.js");
@@ -112,6 +113,7 @@ class CallSession {
    */
   _buildCore() {
     this._turns = new ChatTurns();
+    this._hooks = new AppHooks(this);
     this._report = new ChatReport(this, this._turns);
     const records = new QuestionRecords(this.agent, { track: trackRecord });
     this._cacheLookup = new CacheLookup({
@@ -126,7 +128,7 @@ class CallSession {
     });
     const hitCheck = new ChatHitCheck(this, { hitRules: ChatRuleSet.hitChain(), questionRecords: records });
     return new TurnCore(this, {
-      pairing: this._turns, answers: new ChatAnswers(this, this._turns), reader: new ChatReader(this), questionCheck,
+      pairing: this._turns, answers: new ChatAnswers(this, this._turns, this._hooks), reader: new ChatReader(this), questionCheck,
       cacheLookup: this._cacheLookup, hitCheck, report: this._report, saving: this._saving,
     });
   }
@@ -176,8 +178,7 @@ class CallSession {
 
   /** Send a monitoring event (never throws). */
   emit(event) {
-    if (!this.onEvent) return;
-    try { this.onEvent(event); } catch { /* monitoring must never affect the call */ }
+    if (this.onEvent) this._hooks.event(event);
   }
 
   /**

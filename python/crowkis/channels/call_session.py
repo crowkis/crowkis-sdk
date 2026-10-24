@@ -38,6 +38,7 @@ from . import voice_session as _voice
 from ..turns.channel import CHAT
 from ..rules.question import UrgentWords
 from ..turns.answered import ChatAnswered
+from ..turns.app_hooks import AppHooks
 from ..turns.chat_answers import ChatAnswers
 from ..turns.chat_hit_check import ChatHitCheck
 from ..turns.chat_question_check import ChatQuestionCheck
@@ -172,6 +173,7 @@ class CallSession:
         """The one TurnCore with a chat's parts (this session is their composition root). Its lookup
         serves a late hit, as Chat always did."""
         self._turns = ChatTurns()
+        self._hooks = AppHooks(self)
         self._report = ChatReport(self, self._turns)
         records = QuestionRecords(self.agent, read_pool=_LOOKUPS, submit_write=_voice._submit_write)
         self._cache_lookup = CacheLookup(_LOOKUPS, refuse_late_hits=False, deadline_counts=_LOOKUP_DEADLINE_COUNTS,
@@ -183,7 +185,7 @@ class CallSession:
         question_check = ChatQuestionCheck(self, shared_question_rules=ChatRuleSet.shared_question_chain(),
                                            urgent_words=UrgentWords())
         hit_check = ChatHitCheck(self, hit_rules=ChatRuleSet.hit_chain(), question_records=records)
-        return TurnCore(self, pairing=self._turns, answers=ChatAnswers(self, self._turns),
+        return TurnCore(self, pairing=self._turns, answers=ChatAnswers(self, self._turns, self._hooks),
                         reader=ChatReader(self, _UNDERSTAND), question_check=question_check,
                         cache_lookup=self._cache_lookup, hit_check=hit_check, report=self._report, saving=self._saving)
 
@@ -223,12 +225,8 @@ class CallSession:
 
     def emit(self, event: Dict[str, Any]) -> None:
         """Send a monitoring event (never raises)."""
-        if self.on_event is None:
-            return
-        try:
-            self.on_event(event)
-        except Exception:  # noqa: BLE001 - monitoring must never affect the call
-            pass
+        if self.on_event is not None:
+            self._hooks.event(event)
 
     def _lookup(self, key: str, segment: Optional[str]) -> Optional[str]:
         """The cached answer for a shared key, or None (kept for code that calls it; TurnCore looks up)."""

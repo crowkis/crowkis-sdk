@@ -51,15 +51,13 @@ exported wholesale by `wordRules/index.js`).
 
 - Clean: `__init__.py`; `answered` / `answered.js`; `chat_turn` / `chatTurn.js`; `hit` / `hit.js` (but typed late, see
   `cache_lookup`); `routes` / `routes.js` (public names); `voice_pairing` / `voicePairing.js`; `voice_reader` / `voiceReader.js`.
-- `turn_core` / `turnCore.js`: not clean: the write's `except Exception` lives here, not in `BoundedWriter` (error
-  outside its boundary class); `Any` in every signature (`decide -> Any`, `record(answered: Any)`); the lookup lambda
+- `turn_core` / `turnCore.js`: not clean: (the write's `except` moved into `BoundedWriter`: `6673dca`) `Any` in every signature (`decide -> Any`, `record(answered: Any)`); the lookup lambda
   calls `settings.agent.ask` and gets a raw dict. Node: `isThenable` exported by the core, imported by `chatReader.js`.
 - `turn_steps` / `turnSteps.js`: not clean: 15 `Any` (no step's subject or result is typed); `Report` has 6 methods
   and `VoiceReport` is also the `EarlyAnswers` (interfaces too wide).
 - `verdict` / `verdict.js`: not clean: carries rule+reason+counts *and* outcome+route+answer: more than one job;
   `counts: Union[Counter, str]` (two counter systems).
-- `decision` / `decision.js`: not clean: `_Outcome` is a private `str` subclass imported by 3 modules (Primitive
-  Obsession); `_audio_shareable`, `_session`, `_said` set from `VoiceReport`; actions as bare strings.
+- `decision` / `decision.js`: not clean: (`_Outcome` gone: `9a20210`, now `turns/outcome.RecordedOutcome`) `_audio_shareable`, `_session`, `_said` set from `VoiceReport`; actions as bare strings.
 - `checked` / `checked.js`: not clean: `subject: Any`; `LookedUp.hit` is the raw dict (typed `Hit` wanted).
 - `cached_answer` / `cachedAnswer.js`: not clean: private import `_fill`; `turn: Any`.
 - `channel` / `channel.js`: not clean: Speculative Generality: `isolates_context`, `audio`, `saves_answers` read by nothing.
@@ -70,25 +68,31 @@ exported wholesale by `wordRules/index.js`).
 - `voice_turn` / `voiceTurn.js`: not clean: private import `_CONTEXT_BOUND_THRESHOLD`; `reading: Any`; `getattr(reading, "frame")`.
 - `model_answer` / `modelAnswer.js`: not clean: private import `_is_non_answer`.
 - `voice_report` / `voiceReport.js`: not clean: three jobs (Report, EarlyAnswers, `model_messages`' privacy checks
-  inline); writes the decision's private fields; private imports `_asks`, `_lookup_only`, `_unfinished`, `_Outcome`.
+  inline); writes the decision's private fields; private imports `_asks`, `_lookup_only`, `_unfinished` (`_Outcome`: gone, `9a20210`).
 - `voice_saving` / `voiceSaving.js`: not clean: `_learn_personal` holds a privacy rule inline (the "undeclared" check,
-  7 word-rule privates) that belongs to a save rule; `Union[bool, _Outcome]` return, hence `isinstance`; 11 private
-  imports; `agent: Any`; `cacheable` differs between the languages (plan, commit 1).
-- `chat_answers` / `chatAnswers.js`: not clean: two `except Exception` around app hooks (outside a boundary class);
-  counts by magic strings (`"sharing_off"`, `"tools_answered"`); private imports `_masked`, `_norm`.
-- `chat_reader` / `chatReader.js`: not clean: re-implements `BudgetedUnderstanding` (budget, fallback, its own
-  `except Exception`: a second understanding boundary; Node: its own `within`, a copy of `runtime/deadline.js`);
-  6 private imports; `understander` / `replay: Any`.
+  7 word-rule privates) that belongs to a save rule; 11 private imports; `agent: Any`. (Done: `cacheable` the same in
+  both languages, `88a6480`; `_learn_personal` returns a `WriteResult` or None, no `Union` / `isinstance`, `9a20210`.)
+- `chat_answers` / `chatAnswers.js`: not clean: (the app hooks' `except`s moved into `AppHooks`: `39549dd`) counts by
+  magic strings (`"sharing_off"`, `"tools_answered"`); private imports `_masked`, `_norm`.
+- `chat_reader` / `chatReader.js`: not clean: 6 private imports. (Done, `12fc34d`: the understanding boundary moved
+  into `ChatUnderstanding`; Node's `within` copy gone, it uses `runtime/deadline.js`.)
 - `chat_question_check` / `chatQuestionCheck.js`: not clean: translates between two `Verdict` types; `checker` /
   `replay: Any`; `counts[verdict.route]` by string; private import `_private_words`.
 - `chat_hit_check` / `chatHitCheck.js`: not clean: reads the raw hit dict (`hit.get("route")`) before typing it; `turn: Any`.
-- `chat_reading` / `chatReading.js`: not clean: `lookup_options` sends `segment=None` (Python) but omits it (Node).
-- `chat_report` / `chatReport.js`: not clean: outcomes as strings (`"refused:write_failed"`); counts by string keys;
-  `SAVE_REFUSED` defined again in `chat_saving`; `reading: Any`.
-- `chat_saving` / `chatSaving.js`: not clean: outcome strings (`"refused:" + why`, `"saved"`); `verdict: Any`; private import `_masked`.
-- `chat_turns` / `chatTurns.js`: not clean: outcome words as strings (`"cancelled"`, `"stale"`); public mutable `next_turn`.
+- `chat_reading` / `chatReading.js`: clean (`88a6480`: `segment` sent only when set, in both languages).
+- `chat_report` / `chatReport.js`: not clean: counts by string keys; `SAVE_REFUSED` defined again in `chat_saving`;
+  `reading: Any`. (Outcomes from `Outcome`: `9a20210`.)
+- `chat_saving` / `chatSaving.js`: not clean: `verdict: Any`; private import `_masked`. (Outcomes from `Outcome`, a
+  typed `WriteResult`: `9a20210`; a refused write reported through `ChatReport`: `6673dca`.)
+- `chat_turns` / `chatTurns.js`: not clean: public mutable `next_turn`. (Outcome words from `Outcome`: `9a20210`.)
 - `chat_answer` / `chatAnswer.js`: not clean: `verdict: Any`; a second save subject beside `ModelAnswer` (paired save rules).
 - `turn_result` / `turnResult.js`: not clean: `verdict: Optional[Verdict]` names a class it never imports (undefined name).
+
+- New in the refactors, clean: `outcome` / `outcome.js` (`Outcome`, `RecordedOutcome`: a `str`, as callers compare it
+  with the word; Node's outcome stays the `{ outcome, why, rule }` object), `app_hooks` / `appHooks.js`,
+  `chat_understanding` / `chatUnderstanding.js` (`turns/`, beside `ChatReader`, so Node's `isThenable` import does not
+  point from `understanding/` to `turns/`); `runtime/write_result` / `writeResult.js`, `runtime/deadline.py` (Python
+  twin of `deadline.js`).
 
 ### `rules/` (2 clean, 4 not clean) and its stage folders
 
@@ -117,13 +121,14 @@ exported wholesale by `wordRules/index.js`).
   `chat_empty_answer`, `non_answer` / `chat_non_answer`, `tool_result` / `chat_tool_result`, `caller_identifier` /
   `chat_caller_identifier`, `prompt_caller_details` / `chat_prompt_details`, `private_word` / `voice_private_word`,
   `action_claim` / `voice_action_claim`); `declared_value`, `identifying_answer`, `personal_template` (private imports;
-  `personal_template` also has the extra `refusal()` API). Outcome words copied per file (`PRIVATE` x5, `KEPT` x4).
+  `personal_template` also has the extra `refusal()` API). (Outcome words copied per file: gone, `Outcome`, `9a20210`.)
 
 ### `runtime/` (2 clean, 5 not clean)
 
 - Clean: `__init__.py`; `write_workers` (Python only); Node-only `deadline.js`.
-- `bounded_writer` / `boundedWriter.js`: not clean: returns `Optional[Verdict]` (None = written), not a typed
-  `WriteResult`; the write's error boundary sits in `TurnCore`; imports `turns.Verdict` (runtime -> turns -> runtime).
+- `bounded_writer` / `boundedWriter.js`: not clean: imports `turns.Verdict` / `Outcome` (runtime -> turns -> runtime).
+  (Done: `write_within` returns a typed `WriteResult`, `9a20210`; the write's one error boundary, `6673dca`. `write()`
+  keeps its `Optional[Verdict]`, the bounded wait inside the boundary.)
 - `cache_lookup` / `cacheLookup.js`: not clean: returns `Tuple[raw dict, Verdict]` (typed `Hit` wanted); "voice budget" wording for chat too.
 - `question_records` / `questionRecords.js`: not clean: reads `agent._client` and sends raw `get` / `set` (server
   independence: `transport/`, P5.7); private imports `_QUESTION_KEY`, `_different_specifics`.
@@ -168,7 +173,7 @@ exported wholesale by `wordRules/index.js`).
   reporting, `warm_from_calls`, `VoiceResponse` with `_run` cognitive 29 / Node 31, `__init__` 104 lines); ~240 lines
   re-exporting private word-rule names; `agent._client.cvoicestat` (private attribute, raw command); `getattr(self, "_text_only")`.
 - `async_voice_session` (Python only): not clean: `AsyncVoiceResponse._run` 72 lines, cognitive 35.
-- `call_session` / `callSession.js`: not clean: re-exports 15 private names (`noqa: F401`); `__init__` 44 lines;
+- `call_session` / `callSession.js`: not clean (`emit` no longer catches: `AppHooks`, `39549dd`): re-exports 15 private names (`noqa: F401`); `__init__` 44 lines;
   `_lookup` builds a stand-in `ChatReading` to reach the core.
 - `chat` / `chat.js`: not clean: imports `_masked` through `call_session`; `turn` cognitive 16 (Node 17).
 - `realtime` / `realtime.js`: not clean: bare `except Exception:` around `decide`, no count or log (outside a boundary); `getattr` duck typing.
@@ -194,23 +199,29 @@ exported wholesale by `wordRules/index.js`).
 
 One concern per commit, Python and Node together, golden identical unless a line says otherwise. In order of value.
 
-1. **Python / Node parity.** *Voice `cacheable`*: Python's is right (`shareable and not private`): a tool-built answer
+1. **Done (`88a6480`). Python / Node parity.** *Voice `cacheable`*: Python's is right (`shareable and not private`): a tool-built answer
    is never shared even when an app turns `ToolResult` off with `without()`. Node takes only what decide() offered, so
    with `ToolResult` off it would share a tool-built answer today. Aligning Node changes nothing while `ToolResult` is on
    (golden unchanged); with it off, Node now keeps the answer: a privacy fix, failing-first Node test. *Chat `segment`*:
    Node's is right (sent only when set). `Agent.ask` drops a falsy segment in both languages, so the server sees the
    same command; only a fake agent's keyword arguments differ. Files: `voiceSaving.js`, `chat_reading.py` (+ tests).
-2. **`Outcome` enum and a typed `WriteResult`.** `Outcome(str, Enum)` with today's words (equality and JSON
+2. **Done (`9a20210`). `Outcome` enum and a typed `WriteResult`.** `Outcome(str, Enum)` with today's words (equality and JSON
    unchanged) replaces `_Outcome` (kept as an alias where re-exported) and the save rules' `KEPT` / `PRIVATE` copies;
    Chat's `"refused:<why>"` is built from it. `BoundedWriter.write_within` returns `WriteResult` (written, slow_write,
    not_written, refused); `_learn_personal` returns one too: no `Union`, no `isinstance`. Files: `turns/{decision,
    verdict, voice_report, voice_saving, voice_pairing, chat_report, chat_saving, chat_turns}`, `runtime/bounded_writer`,
    `rules/save/*` (11), `channels/voice_session`; twins.
-3. **Error boundaries only in their boundary classes.** The write's catch leaves `TurnCore` for `BoundedWriter`;
+3. **Partly done (`6673dca` the write, `39549dd` `AppHooks`, `12fc34d` `ChatUnderstanding`). Error boundaries only in
+   their boundary classes.** The write's catch leaves `TurnCore` for `BoundedWriter`;
    `ChatReader` uses `BudgetedUnderstanding` (Node: `runtime/deadline.within`), not its own copy; one `AppHooks`
    boundary for `on_urgent` / `on_tools` / `on_event`; `realtime` counts and logs its fallback; `engine_vouches`'
    deadline moves to runtime; one audio boundary. Files: `turn_core`, `bounded_writer`, `chat_reader`, `chat_answers`,
    `call_session`, `realtime`, `session_call`, `understanders`, `voice_turns`, `voice_session`; twins.
+   *Left:* `realtime`'s fallback count and log, `engine_vouches`' deadline, one audio boundary, `WithFallback`'s catch.
+   *Not as planned:* Chat's understanding could not use `BudgetedUnderstanding` without a behaviour change (it would add
+   a warning log per fallback, the 4-call in-flight limit, the word-rule fallback and `Counter` counts instead of the
+   replay fallback and `counts`); it got its own boundary, `ChatUnderstanding`, on `runtime/deadline`. Merging the two
+   needs the owner's go (and the one understanding interface, review-later 3).
 4. **`Verdict` doing one job.** `Verdict(rule, reason, counts)`; a save rule's outcome comes from the stage (an
    `Outcome` per rule), a rule that answers or routes returns an `EarlyAnswer(route, answer)` (`RegisteredFiller`,
    `UrgentTurn`, `TaskStep`, `UrgentWords`); `RuleChecker`'s verdict becomes an immutable `ChatVerdict` inside (public

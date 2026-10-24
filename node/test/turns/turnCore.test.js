@@ -58,3 +58,16 @@ test("record pairs the answer with its turn", async () => {
   assert.strictEqual(recorded.outcome, "saved");
   assert.deepStrictEqual(store.writes, [["what is your refund policy", "Refunds take five days.", false]]);
 });
+
+test("a tool-built answer is never shared, even with ToolResult off", async () => {
+  // v4 P5.5 parity: an answer is cacheable only when decide() offered it AND it is not private, so with
+  // ToolResult turned off the NotShareable rule still keeps a tool-built answer in the call.
+  const store = new Store();
+  const session = sessionOn(store);
+  const core = coreWithout(session, ["ToolResult"]);
+  session._pairing.offer(session._pairing.begin(), true);
+  const recorded = await core.record(new VoiceAnswered("what is your refund policy", "Refunds take five days.", undefined, true, null));
+  assert.strictEqual(recorded.outcome, "kept");
+  assert.strictEqual(recorded.rule, "NotShareable");
+  assert.deepStrictEqual(store.writes, []);
+});

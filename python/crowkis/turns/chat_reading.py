@@ -36,5 +36,5 @@ class ChatReading:
 
     @property
     def lookup_options(self) -> Dict[str, Any]:
-        """The shared question's segment (sent even when None, as Chat always did)."""
-        return {"segment": self.verdict.segment}
+        """The shared question's segment, sent only when there is one (Agent.ask drops an empty one anyway)."""
+        return {"segment": self.verdict.segment} if self.verdict.segment else {}

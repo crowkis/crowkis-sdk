@@ -42,7 +42,7 @@ class VoiceSaving {
 
   check(answered) {
     const answer = new ModelAnswer(answered.said, answered.modelSaid, null, this._call, {
-      private: answered.private, instructions: answered.instructions, cacheable: answered.shareable,
+      private: answered.private, instructions: answered.instructions, cacheable: answered.shareable && !answered.private,
     });
     const verdict = this._rules.answerGiven.firstObjection(answer);
     if (isThenable(verdict)) return verdict.then((given) => (given ? new Checked(answer, given) : this._keyed(answered, answer)));

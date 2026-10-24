@@ -28,6 +28,19 @@ class TurnCoreTests(unittest.TestCase):
         self.assertEqual(outcome, "saved")
         self.assertEqual(store.writes, [("what is your refund policy", "Refunds take five days.", False)])
 
+    def test_a_tool_built_answer_is_never_shared_even_with_tool_result_off(self):
+        # v4 P5.5 parity: an answer is cacheable only when decide() offered it AND it is not private,
+        # so with ToolResult turned off the NotShareable rule still keeps a tool-built answer in the call.
+        store = Store()
+        session = session_on(store)
+        core = core_without(session, ["ToolResult"])
+        session._pairing.offer(session._pairing.begin(), True)
+        outcome = core.record(VoiceAnswered("what is your refund policy", "Refunds take five days.", turn=None,
+                                            private=True, instructions=None))
+        self.assertEqual(outcome, "kept")
+        self.assertEqual(outcome.rule, "NotShareable")
+        self.assertEqual(store.writes, [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,7 +15,9 @@ import contextlib
 import copy
 import gc
 import json
+import os
 import unittest
+from unittest import mock
 import weakref
 from collections import Counter
 from types import SimpleNamespace
@@ -1716,6 +1718,109 @@ class RegisteredPairTests(Base):
         _, second_packets, second_synth = await one_call("never asked")
         self.assertEqual(second_synth._inner.pushed, [])
         self.assertEqual([packet["data"] for packet in second_packets], [audio_of(pieces_of(first_chunks))])
+
+
+# --- Bolna's real TaskManager ---------------------------------------------------------------
+
+REAL_TM_NAME = "crowkis-real-tm"
+REAL_TM_BASE = "crowkis-real-tm-base"
+REAL_TM_ENV = {
+    "OPENAI_API_KEY": "test-key",
+    "AZURE_OPENAI_BASE_URL": "https://test-resource.openai.azure.com",
+    "AZURE_OPENAI_API_KEY": "test-azure-key",
+    "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+}
+
+
+def _real_task_config(provider, synthesizer="elevenlabs"):
+    return {
+        "task_type": "conversation",
+        "toolchain": {"execution": "sequential", "pipelines": [["llm"]]},
+        "tools_config": {
+            "llm_agent": {
+                "agent_type": "simple_llm_agent",
+                "agent_flow_type": "streaming",
+                "llm_config": {"model": "gpt-4o-mini", "max_tokens": 150, "provider": provider, "temperature": 0.1},
+            },
+            "synthesizer": {
+                "provider": synthesizer,
+                "provider_config": {"voice": "nova", "voice_id": "test", "model": "m", "synthesizer_key": "test-key"},
+                "stream": True,
+                "buffer_size": 100,
+            },
+            "transcriber": {"provider": "deepgram", "model": "nova-3", "language": "en", "stream": True,
+                            "encoding": "linear16", "sampling_rate": 16000, "endpointing": 250},
+            "input": {"provider": "default"},
+            "output": {"provider": "default"},
+        },
+        "task_config": {},
+    }
+
+
+class RecordingInner(FakeInner):
+    """A fake base LLM that keeps the kwargs Bolna's TaskManager built it with."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**{k: v for k, v in kwargs.items() if k == "reply"})
+        self.kwargs = kwargs
+
+
+class RealTaskManagerTests(Base):
+    """Bolna's own TaskManager builds the wrapper: it must hand over what the adapter needs."""
+
+    def setUp(self):
+        super().setUp()
+        self._llms_before = dict(bolna_providers.SUPPORTED_LLM_PROVIDERS)
+        self._synths_before = dict(bolna_providers.SUPPORTED_SYNTHESIZER_MODELS)
+        bolna_providers.SUPPORTED_LLM_PROVIDERS[REAL_TM_BASE] = RecordingInner
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS["elevenlabs"] = FakeSynth
+        env = mock.patch.dict(os.environ, REAL_TM_ENV)
+        env.start()
+        self.addCleanup(env.stop)
+
+    def tearDown(self):
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.clear()
+        bolna_providers.SUPPORTED_LLM_PROVIDERS.update(self._llms_before)
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.clear()
+        bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.update(self._synths_before)
+
+    def build(self, store, *, synthesizer=None):
+        """A real TaskManager (inside the running loop) whose LLM provider is our registration."""
+        from bolna.agent_manager.task_manager import TaskManager
+
+        def factory():
+            self.session = make_session(store)
+            return self.session
+
+        register_crowkis(name=REAL_TM_NAME, base=REAL_TM_BASE, session_factory=factory, synthesizer=synthesizer)
+        try:
+            return TaskManager("agent", 0, _real_task_config(REAL_TM_NAME), mock.MagicMock())
+        except Exception as error:  # an environment problem, not the adapter's
+            self.skipTest(f"Bolna's TaskManager cannot be built here: {type(error).__name__}: {error}")
+
+    async def test_the_task_manager_builds_our_wrapper_with_itself_and_the_agent_config(self):
+        tm = self.build(SceneStore())
+        llm = tm.tools["llm_agent"].llm
+        self.assertIsInstance(llm, CrowkisLLM)
+        self.assertIs(llm._task_manager, tm)
+        self.assertIsInstance(llm._inner, RecordingInner)
+        self.assertIs(llm._inner.kwargs["task_manager_instance"], tm)
+        self.assertEqual(llm._inner.kwargs["provider"], REAL_TM_BASE)
+        self.assertEqual(llm._agent_type(), "simple_llm_agent")
+
+    async def test_a_turn_through_the_agent_is_decided_by_the_session_not_bypassed(self):
+        tm = self.build(SceneStore())
+        llm = tm.tools["llm_agent"].llm
+        chunks = [c async for c in tm.tools["llm_agent"].generate(
+            user_turn(QUESTION), synthesize=True, meta_info=meta())]
+        self.assertEqual(text_of(chunks), ANSWER)
+        self.assertEqual(llm._inner.calls[0]["messages"][-1]["content"], QUESTION)
+        self.assertEqual(self.session.stats()["turns"], 1)
+        await llm.close()
+
+    async def test_the_task_manager_builds_our_synthesizer(self):
+        tm = self.build(SceneStore(), synthesizer="elevenlabs")
+        self.assertIsInstance(tm.tools["synthesizer"], CrowkisSynthesizer)
 
 
 if __name__ == "__main__":  # pragma: no cover

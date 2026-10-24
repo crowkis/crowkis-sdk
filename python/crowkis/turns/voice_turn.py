@@ -13,16 +13,18 @@ class VoiceTurn:
     """What the caller said in one turn, the call it belongs to, and how it was understood:
     ``reading`` is the classifier's (personal, a follow-up) and ``rewritten`` the rewriter's
     stand-alone question, or None to key the turn on the caller's words. ``segment`` is where the
-    call's answers are looked up (None: no segment, as before)."""
+    call's answers are looked up (None: no segment, as before); ``number`` is the turn's number in
+    the call."""
 
     def __init__(self, said: str, call: VoiceCall, reading: Any, rewritten: Optional[str] = None, *,
-                 segment: Optional[str] = None) -> None:
+                 segment: Optional[str] = None, number: int = 0) -> None:
         self.said = said
         self.text = (said or "").strip()
         self.call = call
         self.reading = reading
         self.rewritten = rewritten
         self.segment = segment
+        self.number = number
 
     @cached_property
     def is_short(self) -> bool:

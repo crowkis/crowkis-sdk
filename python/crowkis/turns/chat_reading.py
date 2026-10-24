@@ -14,13 +14,15 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class ChatReading:
     """The user's words (``text``, spaces normalised), the frame read from them, the names given in
-    the turn, whether it tells something about the user (``about_caller``), and, once checked, the
-    rule checker's ``verdict`` (route, reasons, and for a shared question its key and segment)."""
+    the turn, whether it tells something about the user (``about_caller``), the turn's number
+    (``turn_id``), and, once checked, the rule checker's ``verdict`` (route, reasons, and for a shared
+    question its key and segment)."""
 
     text: str
     frame: Optional[TurnFrame] = None
     names: List[str] = field(default_factory=list)
     about_caller: bool = False
+    turn_id: int = 0
     verdict: Optional["ChatVerdict"] = None
 
     def checked_as(self, verdict: "ChatVerdict") -> "ChatReading":

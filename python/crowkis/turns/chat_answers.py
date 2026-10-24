@@ -45,8 +45,8 @@ class ChatAnswers:
         self._session = session
         self._turns = turns
 
-    def before_reading(self, said: str) -> Optional[TurnResult]:
-        session, turn_id = self._session, self._turns.deciding
+    def before_reading(self, said: str, turn_id: int) -> Optional[TurnResult]:
+        session = self._session
         text = " ".join((said or "").split())
         if not text:
             return self._turns.await_answer(TurnResult(turn_id, AGENT, reason="empty"))
@@ -82,7 +82,7 @@ class ChatAnswers:
         if not session.urgent_reply:
             return None
         session.state.note_agent_reply(session.urgent_reply)
-        return TurnResult(self._turns.deciding, URGENT, text=session.urgent_reply, needs_model=False,
+        return TurnResult(reading.turn_id, URGENT, text=session.urgent_reply, needs_model=False,
                           frame=reading.frame, verdict=reading.verdict, reason=URGENT_SCRIPT_REASON)
 
     def _tools(self, reading: Any) -> Optional[TurnResult]:
@@ -97,5 +97,5 @@ class ChatAnswers:
             return None
         session.counts["tools_answered"] += 1
         session.state.note_agent_reply(_masked(answered))
-        return TurnResult(self._turns.deciding, reading.verdict.route, text=answered, needs_model=False,
+        return TurnResult(reading.turn_id, reading.verdict.route, text=answered, needs_model=False,
                           frame=reading.frame, verdict=reading.verdict, reason=TOOLS_REASON)

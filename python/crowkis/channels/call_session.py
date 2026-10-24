@@ -200,10 +200,7 @@ class CallSession:
 
     def record_answer(self, result: TurnResult, answer: str, *, mentions: tuple = (),
                       task: Optional[str] = None, private: bool = False) -> str:
-        outcome = self._core.record(ChatAnswered(result, answer, mentions, task, private))
-        self._emit({"type": "answer", "turn_id": result.turn_id, "route": result.route, "outcome": outcome,
-                    "key": result.verdict.key if result.verdict else None})
-        return outcome
+        return self._core.record(ChatAnswered(result, answer, mentions, task, private))
 
 
 
@@ -225,11 +222,12 @@ class CallSession:
 
     def emit(self, event: Dict[str, Any]) -> None:
         """Send a monitoring event (never raises)."""
-        self._emit(event)
-
-    def prompt_key(self) -> tuple:
-        """Whose system prompts this chat's is compared with."""
-        return self._prompt_key()
+        if self.on_event is None:
+            return
+        try:
+            self.on_event(event)
+        except Exception:  # noqa: BLE001 - monitoring must never affect the call
+            pass
 
     def _lookup(self, key: str, segment: Optional[str]) -> Optional[str]:
         """The cached answer for a shared key, or None (kept for code that calls it; TurnCore looks up)."""
@@ -266,7 +264,7 @@ class CallSession:
     # --- the save check -----------------------------------------------------------------
 
 
-    def _prompt_key(self) -> tuple:
+    def prompt_key(self) -> tuple:
         """Which system prompts this call's is compared with: the same agent's on the same
         channel (a chat's prompt never stands in for a voice call's)."""
         agent = self.agent
@@ -295,13 +293,6 @@ class CallSession:
 
     # --- internals ----------------------------------------------------------------------
 
-    def _emit(self, event: Dict[str, Any]) -> None:
-        if self.on_event is None:
-            return
-        try:
-            self.on_event(event)
-        except Exception:  # noqa: BLE001 - monitoring must never affect the call
-            pass
 
 
 

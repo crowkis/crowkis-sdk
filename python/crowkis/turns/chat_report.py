@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Protocol
 
 from ..state.call_state import CallState
+from .answered import ChatAnswered
 from .chat_turns import ChatTurns
 from .checked import Checked, LookedUp
 from .routes import SHARED
@@ -30,7 +31,7 @@ class ChatSessionReports(Protocol):
 class ChatReport:
     """Adapter: what TurnCore found, as a chat reports it: a ``TurnResult`` for a turn (one the agent
     must answer awaits it in ``ChatTurns``), an outcome string for an answer, the ``counts`` each
-    verdict names, a "turn" event, and the agent's reply noted in the chat's state when it is
+    verdict names, a "turn" event (an "answer" event once recorded), and the agent's reply noted in the chat's state when it is
     already known (a hit)."""
 
     def __init__(self, session: ChatSessionReports, turns: ChatTurns) -> None:
@@ -40,21 +41,21 @@ class ChatReport:
     def to_model(self, checked: Checked) -> TurnResult:
         reading = checked.subject
         self._session.emit(dict(self._event(reading), hit=False))
-        return self._turns.await_answer(TurnResult(self._turns.deciding, reading.verdict.route, frame=reading.frame,
+        return self._turns.await_answer(TurnResult(reading.turn_id, reading.verdict.route, frame=reading.frame,
                                                    verdict=reading.verdict, reason=";".join(reading.verdict.reasons)))
 
     def missed(self, checked: Checked, looked: LookedUp) -> TurnResult:
         reading = checked.subject
         self.count(looked.objection)
         self._session.emit(dict(self._event(reading), hit=False))
-        return self._turns.await_answer(TurnResult(self._turns.deciding, SHARED, frame=reading.frame,
+        return self._turns.await_answer(TurnResult(reading.turn_id, SHARED, frame=reading.frame,
                                                    verdict=reading.verdict, messages=self._messages(reading),
                                                    reason=MISS_REASON))
 
     def served(self, checked: Checked, looked: LookedUp) -> TurnResult:
         reading, answer = checked.subject, looked.hit["answer"]
         self._session.counts["hits"] += 1
-        result = TurnResult(self._turns.deciding, SHARED, text=answer, needs_model=False, frame=reading.frame,
+        result = TurnResult(reading.turn_id, SHARED, text=answer, needs_model=False, frame=reading.frame,
                             verdict=reading.verdict, reason=HIT_REASON)
         self._session.state.note_agent_reply(answer)
         self._session.emit(dict(self._event(reading), hit=True))
@@ -67,6 +68,13 @@ class ChatReport:
     def refused(self, error: Exception) -> str:
         self._session.counts[SAVE_REFUSED] += 1
         return WRITE_FAILED
+
+    def recorded(self, answered: ChatAnswered, outcome: str) -> str:
+        """The "answer" event, whatever happened to the answer."""
+        result = answered.result
+        self._session.emit({"type": "answer", "turn_id": result.turn_id, "route": result.route, "outcome": outcome,
+                            "key": result.verdict.key if result.verdict else None})
+        return outcome
 
     def count(self, verdict: Verdict) -> None:
         """Add to the counters ``verdict`` names."""
@@ -91,7 +99,7 @@ class ChatReport:
 
     def _event(self, reading: Any) -> Dict[str, Any]:
         verdict, frame = reading.verdict, reading.frame
-        return {"type": "turn", "turn_id": self._turns.deciding, "route": verdict.route,
+        return {"type": "turn", "turn_id": reading.turn_id, "route": verdict.route,
                 "reasons": list(verdict.reasons), "shared": verdict.shared, "urgent": frame.urgent,
                 "kind": frame.kind, "confidence": frame.confidence, "question": verdict.question,
                 "key": verdict.key, "question_type": frame.question_type if verdict.shared else None}

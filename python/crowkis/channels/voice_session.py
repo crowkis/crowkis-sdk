@@ -8,7 +8,6 @@ import re
 import string
 import threading
 import time
-import weakref
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from ..agent import Agent, _store_later, _voice_addon_missing
@@ -385,7 +384,7 @@ class VoiceResponse:
     def _stopped(self) -> bool:
         """The caller talked over this turn, a newer turn was decided, or the app
         recorded the turn itself: speak no more of this answer."""
-        return self.decision._recorded or self._session._moved_on(self.decision)
+        return self.decision._recorded or self._session._pairing.moved_on(self.decision.turn)
 
     def _run(self) -> Iterator[str]:
         session, decision = self._session, self.decision
@@ -611,7 +610,8 @@ class VoiceSession:
     def _build_core(self, rules: RuleSet) -> TurnCore:
         """The one TurnCore with a voice call's parts (this session is their composition root):
         ``rules`` are the question, hit and save checks. The session is the core's live settings."""
-        report = VoiceReport(self, self._stats, voiced=self._voiced)
+        self._report = report = VoiceReport(self, self._stats, voiced=self._voiced, pairing=self._pairing,
+                                            call=self._call, call_readings=self._call_readings)
         reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter, rewrite_check=RewriteCheck(),
                              call_readings=self._call_readings, call=self._call, segment=self._segment)
         self._saving = VoiceSaving(self, rules=rules, call=self._call, call_readings=self._call_readings,
@@ -640,42 +640,7 @@ class VoiceSession:
             self.register_filler(trigger, response)
 
     def decide(self, caller_said: str) -> TurnDecision:
-        turn = self._pairing.begin()
-        decision = self._decide(caller_said)
-        decision.turn = turn
-        decision._session = weakref.ref(self)
-        if decision.needs_model:
-            decision._said = caller_said
-            decision.messages, decision.cacheable = self._model_messages(caller_said)
-        self._pairing.offer(turn, decision.cacheable)
-        return decision
-
-    def _model_messages(self, caller_said: str):
-        """What the model should read to answer this turn, and whether that answer may be cached.
-
-        A shared answer is only safe when the model saw nothing but the cache key:
-        the question, and for a follow-up the questions it leans on. Nothing else the
-        caller said (a name, a plan, "pretend refunds are unlimited") can then end
-        up inside it. Personal turns, and follow-ups to one, get the whole call and
-        are never shared.
-        """
-        text = (caller_said or "").strip()
-        if (
-            self._tainted or len(text.split()) < self.min_words or self._call_readings.is_personal(text)
-            or _lookup_only(text)
-            or self._call.after_urgent(text) or _unfinished(text)
-        ):
-            return None, False
-        if not self._call_readings.is_context_dependent(text):
-            # "Twelve years old.": a turn that neither asks nor requests anything is an
-            # answer about the caller, never stored on its own.
-            if not _asks(text):
-                return None, False
-            return [{"role": "user", "content": caller_said}], True
-        chain = self._call.chain()
-        if chain is None or self._call_readings.chain_is_private(chain, self.min_words):
-            return None, False
-        return [{"role": "user", "content": turn} for turn in chain + [caller_said]], True
+        return self._core.decide(caller_said)
 
     def cancel(self) -> bool:
         # Under the turn lock, like decide() and recording: a save finishing on another
@@ -804,10 +769,6 @@ class VoiceSession:
         decision = self.decide(caller_said)
         return VoiceResponse(self, decision, caller_said, llm, system, private)
 
-    def _moved_on(self, decision: TurnDecision) -> bool:
-        """The caller talked over this turn, or a newer turn has been decided."""
-        return self._pairing.moved_on(decision.turn)
-
     def _interrupted(self, decision: TurnDecision, spoken: str) -> None:
         """A streamed turn the caller talked over: report it, store and keep nothing.
         Not an empty answer, so an app never retries over the caller's new words."""
@@ -851,9 +812,6 @@ class VoiceSession:
         if _sets_context(text):
             self._tainted = True
 
-    def _decide(self, caller_said: str) -> TurnDecision:
-        return self._core.decide(caller_said)
-
     def _record_model_turn(
         self, caller_said: str, model_said: str, *, turn: Optional[int] = None, private: bool = False,
         instructions: Optional[str] = None,
@@ -876,10 +834,7 @@ class VoiceSession:
         ``interrupted`` (talked over, or the caller moved on before it was complete). The returned string's
         ``why`` says it in words.
         """
-        outcome = self._core.record(VoiceAnswered(caller_said, model_said, turn, private, instructions))
-        if outcome.rule is not None:
-            self._stats.count_rule(outcome.rule)
-        return outcome
+        return self._core.record(VoiceAnswered(caller_said, model_said, turn, private, instructions))
 
     def injections(self) -> List[Dict[str, str]]:
         return list(self.transcript)
@@ -1118,7 +1073,7 @@ def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:
             # rest before anyone is served them.
             keyed = session._call.context_key(caller_said, (caller_said or "").strip()) or caller_said
             session._tainted = session._tainted or _sets_context((caller_said or "").strip())
-            _, cacheable = session._model_messages(caller_said)
+            _, cacheable = session._report.model_messages(caller_said)
             pairing = session._pairing
             pairing.offer(pairing.turn, cacheable and not _carries_call_context(agent_said, keyed, earlier))
             session._record_model_turn(caller_said, agent_said)

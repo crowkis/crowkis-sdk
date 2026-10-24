@@ -28,8 +28,8 @@ class CallSettings(Protocol):
 class Pairing(Protocol):
     """Which turn an answer belongs to."""
 
-    def open(self) -> None:
-        """A turn is being decided."""
+    def open(self) -> int:
+        """A turn is being decided: its number."""
 
     def settle(self, answered: Any) -> Checked:
         """The answer paired with its turn, or the objection that drops it (the caller moved on)."""
@@ -38,8 +38,8 @@ class Pairing(Protocol):
 class EarlyAnswers(Protocol):
     """Answers a turn gets without the cache or the model."""
 
-    def before_reading(self, said: str) -> Optional[Any]:
-        """The channel's result for a turn answered before it is read, or None."""
+    def before_reading(self, said: str, turn: int) -> Optional[Any]:
+        """The channel's result for turn number ``turn``, answered before it is read, or None."""
 
     def after_check(self, checked: Checked) -> Optional[Any]:
         """The channel's result for a turn the question check stopped and something other than the
@@ -49,8 +49,8 @@ class EarlyAnswers(Protocol):
 class TurnReader(Protocol):
     """How a turn is understood."""
 
-    def read(self, said: str) -> Any:
-        """The turn, read: what the question and hit checks see."""
+    def read(self, said: str, turn: int) -> Any:
+        """Turn number ``turn``, read: what the question and hit checks see."""
 
 
 class QuestionCheck(Protocol):
@@ -84,6 +84,9 @@ class Report(Protocol):
 
     def refused(self, error: Exception) -> Any:
         """The write of an answer failed: the outcome."""
+
+    def recorded(self, answered: Any, outcome: Any) -> Any:
+        """Whatever happened to an answer: counted or reported as the channel does; the outcome."""
 
 
 class Saving(Protocol):

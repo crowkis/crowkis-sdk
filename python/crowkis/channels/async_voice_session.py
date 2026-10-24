@@ -103,7 +103,7 @@ class AsyncVoiceResponse:
 
     def _stopped(self) -> bool:
         session = self._owner.session
-        return self.decision._recorded or session._moved_on(self.decision)
+        return self.decision._recorded or session._pairing.moved_on(self.decision.turn)
 
     async def _run(self) -> AsyncIterator[str]:
         session, decision = self._owner.session, self.decision

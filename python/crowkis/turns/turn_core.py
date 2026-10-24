@@ -15,10 +15,10 @@ CHEAP_ABOVE = 0.60
 
 
 class TurnCore:
-    """Template Method: the fixed steps of a turn. decide(): open the turn, answers before reading,
-    read it, the question check, an early answer, the lookup inside the budget, the hit check, serve
-    or hand to the model. record(): pair the answer with its turn, the save check, the write (the one
-    place a failed write becomes an outcome).
+    """Template Method: the fixed steps of a turn. decide(): open (number) the turn, answers before
+    reading, read it, the question check, an early answer, the lookup inside the budget, the hit check,
+    serve or hand to the model. record(): pair the answer with its turn, the save check, the write (the
+    one place a failed write becomes an outcome), then the channel notes what was recorded.
 
     What differs between channels is injected (see ``turn_steps``); the facades pick the parts.
     ``settings`` is the call's live settings (agent, serve_above, latency_budget_ms)."""
@@ -38,11 +38,11 @@ class TurnCore:
 
     def decide(self, said: str) -> Any:
         """The channel's result for this turn: an early answer, a cached answer, or the model's turn."""
-        self._pairing.open()
-        early = self._answers.before_reading(said)
+        turn = self._pairing.open()
+        early = self._answers.before_reading(said, turn)
         if early is not None:
             return early
-        checked = self._question_check.check_question(self._reader.read(said))
+        checked = self._question_check.check_question(self._reader.read(said, turn))
         if checked.objection is not None:
             answered = self._answers.after_check(checked)
             return answered if answered is not None else self._report.to_model(checked)
@@ -71,6 +71,10 @@ class TurnCore:
         """What happens to the model's answer: dropped when the caller moved on, kept out of the shared
         cache by a save rule, or shared. Never raises for the write: a refused write (security
         pipeline, tenant limit, cache down) must not end a call; the channel reports it."""
+        return self._report.recorded(answered, self._outcome(answered))
+
+    def _outcome(self, answered: Any) -> Any:
+        """The pairing, the save check and the write: what happened to the answer."""
         paired = self._pairing.settle(answered)
         if paired.objection is not None:
             return self._report.kept(paired.objection)

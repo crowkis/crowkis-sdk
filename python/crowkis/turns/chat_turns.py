@@ -24,12 +24,12 @@ class ChatTurns:
 
     def __init__(self) -> None:
         self.next_turn = 1
-        self.deciding = 0
         self._awaiting: Optional[TurnResult] = None
         self._cancelled: Set[int] = set()
 
-    def open(self) -> None:
-        self.deciding, self.next_turn = self.next_turn, self.next_turn + 1
+    def open(self) -> int:
+        turn, self.next_turn = self.next_turn, self.next_turn + 1
+        return turn
 
     def await_answer(self, result: TurnResult) -> TurnResult:
         """``result``'s turn is the one the agent's next answer belongs to."""

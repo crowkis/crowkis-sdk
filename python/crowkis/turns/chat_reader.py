@@ -37,7 +37,7 @@ class ChatReader:
         self._session = session
         self._pool = pool
 
-    def read(self, said: str) -> ChatReading:
+    def read(self, said: str, turn: int) -> ChatReading:
         state = self._session.state
         text = " ".join((said or "").split())
         words = _words(text)
@@ -55,7 +55,7 @@ class ChatReader:
         state.note_identifiers(_identifiers([text]))
         if frame.language and _instructs(text, words):
             state.language = frame.language  # "reply only in Hindi": kept for the rest of the chat
-        return ChatReading(text, frame, names, about_caller)
+        return ChatReading(text, frame, names, about_caller, turn)
 
     def _understand(self, text: str) -> TurnFrame:
         """The model's frame within the budget; otherwise the safe fallback's, or an uncertain one."""

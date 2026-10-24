@@ -26,9 +26,9 @@ class VoiceReader:
         self._call = call
         self._segment = segment
 
-    def read(self, said: str) -> VoiceTurn:
+    def read(self, said: str, turn: int) -> VoiceTurn:
         text = (said or "").strip()
         reading = self._classifier.classify(text, self._call_readings.facts)
         rewritten = self._rewrite_check.accept(text, reading, self._rewriter.rewrite(text, reading), self._call)
         self._call_readings.note(text, reading, rewritten)
-        return VoiceTurn(said, self._call, reading, rewritten, segment=self._segment)
+        return VoiceTurn(said, self._call, reading, rewritten, segment=self._segment, number=turn)

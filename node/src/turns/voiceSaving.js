@@ -7,15 +7,8 @@ const {
 } = require("../understanding/wordRules/index.js");
 const { Checked } = require("./checked.js");
 const { ModelAnswer } = require("./modelAnswer.js");
+const { OUTCOME } = require("./outcome.js");
 const { isThenable } = require("./turnCore.js");
-
-const SAVED = "saved";
-const TEMPLATE = "template";
-
-/** The bounded write's verdict as an answer's outcome: null when the write is done, else slow_write. */
-function slowWrite(verdict) {
-  return verdict ? { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule } : null;
-}
 
 /**
  * check(): the answer as the save rules read it: `answerGiven` first, then, once it is known to be an
@@ -55,10 +48,11 @@ class VoiceSaving {
     let verdict = this._rules.sharing.firstObjection(answer);
     if (isThenable(verdict)) verdict = await verdict;
     if (verdict) return this._report.kept(verdict);
-    const slow = slowWrite(await this._learn(answer.key, answer.answer, { ttl: this._session.ttl }));
+    const written = await this._learn(answer.key, answer.answer, { ttl: this._session.ttl });
     this.lastStored = answer.key;
-    if (!slow) this._call.questionRecords().keep(answer.key, answer.answer, this._session.ttl); // a slow server gets no extra write
-    return slow || { outcome: SAVED, why: "", rule: null };
+    if (!written.written) return this._report.kept(written.objection); // a slow server gets no extra write
+    this._call.questionRecords().keep(answer.key, answer.answer, this._session.ttl);
+    return { outcome: OUTCOME.SAVED, why: "", rule: null };
   }
 
   // Once it is known to be an answer: its cache key (worked out before it joins the transcript), then
@@ -71,7 +65,8 @@ class VoiceSaving {
   }
 
   // agent.learn() through the bounded write (twice the latency budget; waited for without one), in the
-  // call's segment. Not async: the caller awaits the writer's own promise, with no extra step between.
+  // call's segment; resolves to a WriteResult. Not async: the caller awaits the writer's own promise,
+  // with no extra step between.
   _learn(key, answer, options) {
     const learnOptions = this._segment ? { segment: this._segment, ...options } : options;
     return this._writer.writeWithin(() => this._session.agent.learn(key, answer, learnOptions), this._session.latencyBudgetMs);
@@ -83,20 +78,20 @@ class VoiceSaving {
     let verdict = personal.check(answer);
     if (!verdict) {
       const templated = await this._learnPersonal(answer.key, answer.answer);
-      if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
-      if (templated) return { outcome: TEMPLATE, why: "", rule: null };
-      verdict = personal.refusal();
+      if (templated === null) verdict = personal.refusal();
+      else if (templated.written) return { outcome: OUTCOME.TEMPLATE, why: "", rule: null };
+      else verdict = templated.objection; // slow_write: the shape was not confirmed written
     }
     return this._report.kept(verdict);
   }
 
-  // Store a personal answer as a shape. False when it cannot be made generic, or when this session
-  // does not share templates; the slow_write outcome when the write was not confirmed.
+  // Store a personal answer as a shape: what the write did (a WriteResult), or null (nothing written)
+  // when it cannot be made generic, or when this session does not share templates.
   async _learnPersonal(keyed, modelSaid) {
     const session = this._session;
     if (!session.shareTemplates) {
       this._stats.add(COUNTER.UNCACHEABLE_PERSONAL);
-      return false;
+      return null;
     }
     const shaped = abstract(modelSaid, session.values);
     // The model read the whole call: what is left outside the slots must say nothing
@@ -109,10 +104,10 @@ class VoiceSaving {
       readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
       carriesCallContext(outside, keyed, earlier);
     if (this._call.hasValues && slotNames(shaped).length && !leaks(shaped, session.values) && !undeclared) {
-      return slowWrite(await this._learn(keyed, shaped, { ttl: session.ttl, template: true })) || true;
+      return await this._learn(keyed, shaped, { ttl: session.ttl, template: true });
     }
     this._stats.add(COUNTER.UNCACHEABLE_PERSONAL);
-    return false;
+    return null;
   }
 }
 

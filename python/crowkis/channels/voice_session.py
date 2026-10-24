@@ -16,7 +16,9 @@ from ..rules import RuleSet
 from ..runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
 from ..runtime.stats import Counter, CounterField, Stats
 from ..turns import SessionCall
-from ..turns.decision import TurnDecision, _Outcome  # noqa: F401 - re-exported
+from ..turns.decision import TurnDecision
+from ..turns.outcome import Outcome
+from ..turns.outcome import RecordedOutcome as _Outcome  # noqa: F401 - re-exported (old name)
 from ..turns.answered import VoiceAnswered
 from ..turns.turn_core import TurnCore
 from ..turns.voice_pairing import VoicePairing
@@ -346,7 +348,7 @@ _wait_for_writes = _WRITES.wait
 
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.
-_STORED = frozenset({"saved", "template"})
+_STORED = frozenset({Outcome.SAVED, Outcome.TEMPLATE})
 
 
 class VoiceResponse:

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns import ModelAnswer, Verdict
-
-NOT_SAVED = "not_saved"
+from ...turns import ModelAnswer, Outcome, Verdict
 
 
 class NoKey:
@@ -18,4 +16,4 @@ class NoKey:
     def check(self, answer: ModelAnswer) -> Optional[Verdict]:
         if answer.key is not None:
             return None
-        return Verdict(self.name, "a follow-up with no earlier turn to key it on", (), NOT_SAVED)
+        return Verdict(self.name, "a follow-up with no earlier turn to key it on", (), Outcome.NOT_SAVED)

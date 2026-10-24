@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
 
 from ..runtime.bounded_writer import BoundedWriter
+from ..runtime.write_result import WriteResult
 from ..runtime.stats import Counter, Stats
 from ..understanding.call_readings import CallReadings
 from ..understanding.word_rules import (
@@ -22,16 +23,13 @@ from ..understanding.word_rules import (
 )
 from .answered import VoiceAnswered
 from .checked import Checked
-from .decision import _Outcome
 from .model_answer import ModelAnswer
+from .outcome import Outcome, RecordedOutcome
 from .session_call import SessionCall
 from .voice_report import VoiceReport
 
 if TYPE_CHECKING:
     from ..rules.rule_set import RuleSet
-
-SAVED = "saved"
-TEMPLATE = "template"
 
 
 class VoiceSessionSaves(Protocol):
@@ -80,49 +78,50 @@ class VoiceSaving:
         self._session.transcript.append({"role": "assistant", "content": answered.model_said})
         return Checked(answer, self._rules.before_sharing.first_objection(answer))
 
-    def write(self, answer: ModelAnswer) -> _Outcome:
+    def write(self, answer: ModelAnswer) -> RecordedOutcome:
         if answer.is_personal:
             return self._write_personal(answer)
         verdict = self._rules.sharing.first_objection(answer)
         if verdict is not None:
             return self._report.kept(verdict)
-        slow = self._learn(answer.key, answer.answer, ttl=self._session.ttl)
+        written = self._learn(answer.key, answer.answer, ttl=self._session.ttl)
         self.last_stored = answer.key
-        if slow is None:  # a slow server gets no extra write
-            self._call.question_records().keep(answer.key, answer.answer, self._session.ttl)
-        return slow or _Outcome(SAVED)
+        if not written.written:  # a slow server gets no extra write
+            return self._report.kept(written.objection)
+        self._call.question_records().keep(answer.key, answer.answer, self._session.ttl)
+        return RecordedOutcome(Outcome.SAVED)
 
-    def _learn(self, *args: Any, **kwargs: Any) -> Optional[_Outcome]:
+    def _learn(self, *args: Any, **kwargs: Any) -> WriteResult:
         """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter); without
-        a budget it is waited for, as it always was. None when the write is done; otherwise the
-        ``slow_write`` outcome to report (still running, or not written at all because too many
-        writes wait on a slow server)."""
+        a budget it is waited for, as it always was. Not written in time: the ``slow_write`` verdict
+        to report (still running, or not written at all because too many writes wait on a slow
+        server)."""
         if self._segment:
             kwargs.setdefault("segment", self._segment)
-        verdict = self._writer.write_within(self._session.agent.learn, *args,
-                                            budget_ms=self._session.latency_budget_ms, **kwargs)
-        return None if verdict is None else _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
+        return self._writer.write_within(self._session.agent.learn, *args,
+                                         budget_ms=self._session.latency_budget_ms, **kwargs)
 
-    def _write_personal(self, answer: ModelAnswer) -> _Outcome:
+    def _write_personal(self, answer: ModelAnswer) -> RecordedOutcome:
         """A personal answer is shared only as a shape with this call's values taken out."""
         personal = self._rules.personal
         verdict = personal.check(answer)
         if verdict is None:
             templated = self._learn_personal(answer.key, answer.answer)
-            if isinstance(templated, _Outcome):
-                return templated  # slow_write: the shape was not confirmed written
-            if templated:
-                return _Outcome(TEMPLATE)
-            verdict = personal.refusal()
+            if templated is None:
+                verdict = personal.refusal()
+            elif templated.written:
+                return RecordedOutcome(Outcome.TEMPLATE)
+            else:
+                verdict = templated.objection  # slow_write: the shape was not confirmed written
         return self._report.kept(verdict)
 
-    def _learn_personal(self, keyed: str, model_said: str) -> Union[bool, _Outcome]:
-        """Store a personal answer as a shape. False when it cannot be made generic, or when this
-        session does not share templates; the slow_write outcome when the write was not confirmed."""
+    def _learn_personal(self, keyed: str, model_said: str) -> Optional[WriteResult]:
+        """Store a personal answer as a shape: what the write did, or None (nothing written) when it
+        cannot be made generic, or when this session does not share templates."""
         session = self._session
         if not session.share_templates:
             self._stats.add(Counter.UNCACHEABLE_PERSONAL)
-            return False
+            return None
         shaped = _abstract(model_said, session.values)
         # The model read the whole call: what is left outside the slots must say nothing
         # of this caller that was not declared (a name, an address, a number, a matter).
@@ -140,6 +139,6 @@ class VoiceSaving:
             and not _leaks(shaped, session.values)
             and not undeclared
         ):
-            return self._learn(keyed, shaped, ttl=session.ttl, template=True) or True
+            return self._learn(keyed, shaped, ttl=session.ttl, template=True)
         self._stats.add(Counter.UNCACHEABLE_PERSONAL)
-        return False
+        return None

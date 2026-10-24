@@ -1,13 +1,13 @@
 "use strict";
 
 const { Checked } = require("./checked.js");
+const { OUTCOME } = require("./outcome.js");
 const { Verdict } = require("./verdict.js");
 
-const CANCELLED = "cancelled";
-const STALE = "stale";
-const CANCELLED_VERDICT = new Verdict("Cancelled", "the user talked over this turn", [CANCELLED], CANCELLED);
+const CANCELLED_COUNT = "cancelled";
+const CANCELLED_VERDICT = new Verdict("Cancelled", "the user talked over this turn", [CANCELLED_COUNT], OUTCOME.CANCELLED);
 // An older turn finishing after a newer one started: never saved.
-const STALE_VERDICT = new Verdict("Stale", "a newer turn awaits the answer", [], STALE);
+const STALE_VERDICT = new Verdict("Stale", "a newer turn awaits the answer", [], OUTCOME.STALE);
 
 /**
  * A chat's turns, as TurnCore's Pairing. Every turn gets the next number (open). A turn the agent

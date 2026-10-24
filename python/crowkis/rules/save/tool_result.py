@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...runtime.stats import Counter
-
-KEPT = "kept"
 
 
 class ToolResult:
@@ -20,4 +18,4 @@ class ToolResult:
         if not answer.private:
             return None
         return Verdict(self.name, "kept to this call: the answer was built from a tool's result",
-                       (Counter.NOT_SHAREABLE,), KEPT)
+                       (Counter.NOT_SHAREABLE,), Outcome.KEPT)

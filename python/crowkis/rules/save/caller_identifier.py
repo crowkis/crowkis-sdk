@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...understanding.word_rules import _repeats_identifier
 from ...runtime.stats import Counter
-
-PRIVATE = "private"
 
 
 class CallerIdentifier:
@@ -22,4 +20,4 @@ class CallerIdentifier:
         if not _repeats_identifier(answer.answer, answer.call.said_identifiers()):
             return None
         return Verdict(self.name, "kept to this call: the answer repeats a number or ID this caller said",
-                       (Counter.NOT_SHAREABLE,), PRIVATE)
+                       (Counter.NOT_SHAREABLE,), Outcome.PRIVATE)

@@ -6,11 +6,13 @@ import concurrent.futures
 import logging
 from typing import Any, Callable, Optional
 
+from ..turns.outcome import Outcome
 from ..turns.verdict import Verdict
+from .write_result import WRITTEN, WriteResult
 from .write_workers import WriteWorkers
 from .stats import Counter
 
-SLOW_WRITE = "slow_write"
+BOUNDED_WRITE = "BoundedWrite"
 NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server"
 NOT_CONFIRMED_REASON = ("not confirmed: the server took longer than the latency budget, so the write finishes "
                         "in the background")
@@ -35,13 +37,14 @@ class BoundedWriter:
         self._log = log
 
     def write_within(self, store: Callable[..., Any], *args: Any, budget_ms: Optional[float],
-                     **kwargs: Any) -> Optional[Verdict]:
+                     **kwargs: Any) -> WriteResult:
         """``write`` waited for no longer than twice the turn's latency budget; without a budget
         (None) the store is waited for, as it always was. Voice and chat both write this way."""
         if budget_ms is None:
             store(*args, **kwargs)
-            return None
-        return self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND, **kwargs)
+            return WRITTEN
+        return WriteResult(self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND,
+                                      **kwargs))
 
     def write(self, store: Callable[..., Any], *args: Any, deadline_s: float, **kwargs: Any) -> Optional[Verdict]:
         """None when the write is done; otherwise the BoundedWrite verdict (not written, or not
@@ -54,14 +57,14 @@ class BoundedWriter:
         if full:
             self._count(Counter.SLOW_WRITES)
             self._log.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
-            return Verdict("BoundedWrite", NOT_WRITTEN_REASON, (), SLOW_WRITE)
+            return Verdict(BOUNDED_WRITE, NOT_WRITTEN_REASON, (), Outcome.SLOW_WRITE)
         self._workers.hand_over(future)
         try:
             future.result(timeout=deadline_s)
         except concurrent.futures.TimeoutError:
             self._count(Counter.SLOW_WRITES)
             future.add_done_callback(self._late)
-            return Verdict("BoundedWrite", NOT_CONFIRMED_REASON, (), SLOW_WRITE)
+            return Verdict(BOUNDED_WRITE, NOT_CONFIRMED_REASON, (), Outcome.SLOW_WRITE)
         return None
 
     def _late(self, future: concurrent.futures.Future) -> None:

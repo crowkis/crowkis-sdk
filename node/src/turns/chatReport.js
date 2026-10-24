@@ -1,11 +1,12 @@
 "use strict";
 
+const { OUTCOME, because } = require("./outcome.js");
 const { SHARED } = require("./routes.js");
 const { TurnResult } = require("./turnResult.js");
 
 const HIT_REASON = "cache hit";
 const MISS_REASON = "cache miss";
-const WRITE_FAILED = "refused:write_failed";
+const WRITE_FAILED = because(OUTCOME.REFUSED, "write_failed");
 const SAVE_REFUSED = "save_refused";
 
 /**

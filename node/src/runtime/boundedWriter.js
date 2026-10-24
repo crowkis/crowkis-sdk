@@ -1,9 +1,11 @@
 "use strict";
 
+const { OUTCOME } = require("../turns/outcome.js");
 const { Verdict } = require("../turns/verdict.js");
 const { COUNTER } = require("./stats.js");
+const { WRITTEN, WriteResult } = require("./writeResult.js");
 
-const SLOW_WRITE = "slow_write";
+const BOUNDED_WRITE = "BoundedWrite";
 const NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server";
 const NOT_CONFIRMED_REASON =
   "not confirmed: the server took longer than the latency budget, so the write finishes in the background";
@@ -28,14 +30,15 @@ class BoundedWriter {
   /**
    * write() waited for no longer than twice the turn's latency budget; without a budget (null or
    * undefined) the store is waited for, as it always was. Voice and chat both write this way.
+   * Resolves to a WriteResult.
    */
   async writeWithin(store, budgetMs) {
     if (budgetMs === null || budgetMs === undefined) {
       await store();
-      return null;
+      return WRITTEN;
     }
     // Awaited here, so the write takes one step, as it did when each session waited for it itself.
-    return await this.write(store, BUDGETS_PER_WRITE * budgetMs);
+    return new WriteResult(await this.write(store, BUDGETS_PER_WRITE * budgetMs));
   }
 
   /**
@@ -46,7 +49,7 @@ class BoundedWriter {
     if (this._pending.size >= this._maxPending()) {
       this._count(COUNTER.SLOW_WRITES);
       this._warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
-      return new Verdict("BoundedWrite", NOT_WRITTEN_REASON, [], SLOW_WRITE);
+      return new Verdict(BOUNDED_WRITE, NOT_WRITTEN_REASON, [], OUTCOME.SLOW_WRITE);
     }
     let late = false; // set by the timer itself, so an error at any later moment is counted here
     const write = Promise.resolve().then(store);
@@ -70,7 +73,7 @@ class BoundedWriter {
     });
     if (finished) return null;
     this._count(COUNTER.SLOW_WRITES);
-    return new Verdict("BoundedWrite", NOT_CONFIRMED_REASON, [], SLOW_WRITE);
+    return new Verdict(BOUNDED_WRITE, NOT_CONFIRMED_REASON, [], OUTCOME.SLOW_WRITE);
   }
 }
 

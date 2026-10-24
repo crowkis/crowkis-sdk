@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...understanding.word_rules import _unfinished
-
-PRIVATE = "private"
 
 
 class PersonalTemplate:
@@ -28,4 +26,4 @@ class PersonalTemplate:
 
     def refusal(self) -> Verdict:
         """The verdict when no shared shape is made from a personal answer."""
-        return Verdict(self.name, self.REASON, (), PRIVATE)
+        return Verdict(self.name, self.REASON, (), Outcome.PRIVATE)

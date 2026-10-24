@@ -3,8 +3,10 @@
 const { COUNTER } = require("../runtime/stats.js");
 const { asks, lookupOnly, unfinished } = require("../understanding/wordRules/index.js");
 const { TurnDecision } = require("./decision.js");
+const { OUTCOME } = require("./outcome.js");
 
 const SERVED_REASON = "confident cache hit";
+const WRITE_REFUSED = "WriteRefused";
 
 /**
  * Adapter: what TurnCore found, as a voice call reports it: a TurnDecision for a turn and an outcome
@@ -76,7 +78,7 @@ class VoiceReport {
   refused(error) {
     this._stats.add(COUNTER.LEARN_ERRORS);
     const why = `the server refused the write: ${(error && error.message) || (error && error.name) || String(error)}`;
-    return { outcome: "refused", why, rule: "WriteRefused" };
+    return { outcome: OUTCOME.REFUSED, why, rule: WRITE_REFUSED };
   }
 
   /** The rule that kept an answer out of the shared cache is counted in stats(). */

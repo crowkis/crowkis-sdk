@@ -8,6 +8,7 @@ const { BoundedWriter } = require("../runtime/boundedWriter.js");
 const { CacheLookup } = require("../runtime/cacheLookup.js");
 const { TurnPairing } = require("../runtime/turnPairing.js");
 const { TurnDecision } = require("../turns/decision.js");
+const { OUTCOME } = require("../turns/outcome.js");
 const { TurnCore } = require("../turns/turnCore.js");
 const { VoiceAnswered } = require("../turns/answered.js");
 const { VoicePairing } = require("../turns/voicePairing.js");
@@ -329,7 +330,7 @@ function setWritesMax(max) {
 // How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
 const HEARD_MAX = 2048;
 // What _recordModelTurn did with an answer; the two that put it in the shared cache.
-const STORED = new Set(["saved", "template"]);
+const STORED = new Set([OUTCOME.SAVED, OUTCOME.TEMPLATE]);
 
 
 // What VoiceSession.respond() resolves to: read it with `for await` for the text to

@@ -8,13 +8,14 @@ from ..state.call_state import CallState
 from .answered import ChatAnswered
 from .chat_turns import ChatTurns
 from .checked import Checked, LookedUp
+from .outcome import Outcome
 from .routes import SHARED
 from .turn_result import Message, TurnResult
 from .verdict import Verdict
 
 HIT_REASON = "cache hit"
 MISS_REASON = "cache miss"
-WRITE_FAILED = "refused:write_failed"
+WRITE_FAILED = Outcome.REFUSED.because("write_failed")
 SAVE_REFUSED = "save_refused"
 
 
@@ -63,7 +64,7 @@ class ChatReport:
 
     def kept(self, verdict: Verdict) -> str:
         self.count(verdict)
-        return verdict.outcome
+        return str(verdict.outcome)
 
     def refused(self, error: Exception) -> str:
         self._session.counts[SAVE_REFUSED] += 1

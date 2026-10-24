@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...understanding.word_rules import _leaks
 from ...runtime.stats import Counter
-
-PRIVATE = "private"
 
 
 class DeclaredValue:
@@ -21,4 +19,4 @@ class DeclaredValue:
         if not _leaks(answer.answer, answer.call.values):
             return None
         return Verdict(self.name, "kept to this call: the answer contains a value declared for this call",
-                       (Counter.NOT_SHAREABLE,), PRIVATE)
+                       (Counter.NOT_SHAREABLE,), Outcome.PRIVATE)

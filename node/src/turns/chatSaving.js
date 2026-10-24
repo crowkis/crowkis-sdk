@@ -3,12 +3,13 @@
 const { masked } = require("../understanding/chatDetails.js");
 const { ChatAnswer } = require("./chatAnswer.js");
 const { Checked } = require("./checked.js");
+const { OUTCOME, because } = require("./outcome.js");
 const { SHARED } = require("./routes.js");
 const { Verdict } = require("./verdict.js");
 
-const SAVED = "saved";
+const SAVED_COUNT = "saved";
 const SAVE_REFUSED = "save_refused";
-const NOT_SHARED = new Verdict("NotShared", "not a shared question the model answered", [], "not_shared");
+const NOT_SHARED = new Verdict("NotShared", "not a shared question the model answered", [], OUTCOME.NOT_SHARED);
 
 /**
  * check(): the agent's reply is noted in the chat's state (names masked unless the question was
@@ -31,7 +32,7 @@ class ChatSaving {
     this._session.state.noteAgentReply(kept, answered.mentions, answered.task);
     if (result.route !== SHARED || result.text !== null || !result.verdict) return new Checked(answered, NOT_SHARED);
     const why = this.saveCheck(answer, result.verdict, result.frame, answered.private);
-    if (why) return new Checked(answered, new Verdict("SaveCheck", why, [SAVE_REFUSED], "refused:" + why));
+    if (why) return new Checked(answered, new Verdict("SaveCheck", why, [SAVE_REFUSED], because(OUTCOME.REFUSED, why)));
     return new Checked(answered);
   }
 
@@ -41,11 +42,11 @@ class ChatSaving {
     const learn = () => this._session.agent.learn(verdict.key, answer, {
       ttl: verdict.ttl ?? undefined, ...(verdict.segment ? { segment: verdict.segment } : {}),
     });
-    const slow = await this._writer.writeWithin(learn, this._session.latencyBudgetMs);
-    if (slow) return slow.outcome;
-    this._session.counts[SAVED] += 1;
+    const written = await this._writer.writeWithin(learn, this._session.latencyBudgetMs);
+    if (!written.written) return written.objection.outcome;
+    this._session.counts[SAVED_COUNT] += 1;
     this._questionRecords.keep(verdict.key, answer, verdict.ttl ?? null);
-    return SAVED;
+    return OUTCOME.SAVED;
   }
 
   /** Why an answer to a shared question must not be saved, or null. */

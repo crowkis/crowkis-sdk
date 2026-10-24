@@ -2,10 +2,9 @@
 
 // The PersonalTemplate rule (stage 3, save).
 
+const { OUTCOME } = require("../../turns/outcome.js");
 const { Verdict } = require("../../turns/verdict.js");
 const { unfinished } = require("../../understanding/wordRules/index.js");
-
-const PRIVATE = "private";
 
 /**
  * An answer about the caller's own records is shared only as a shape with this call's declared
@@ -29,7 +28,7 @@ class PersonalTemplate {
 
   /** The verdict when no shared shape is made from a personal answer. */
   refusal() {
-    return new Verdict(this.name, "about this caller, with no declared value to make a shared answer shape from", [], PRIVATE);
+    return new Verdict(this.name, "about this caller, with no declared value to make a shared answer shape from", [], OUTCOME.PRIVATE);
   }
 }
 

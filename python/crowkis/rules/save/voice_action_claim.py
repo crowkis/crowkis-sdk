@@ -5,10 +5,8 @@ from __future__ import annotations
 from typing import Optional
 
 from ...runtime.stats import Counter
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...understanding.answer_patterns import _ACTION_CLAIM
-
-KEPT = "kept"
 
 
 class VoiceActionClaim:
@@ -22,4 +20,4 @@ class VoiceActionClaim:
         if not _ACTION_CLAIM.search(answer.answer or ""):
             return None
         return Verdict(self.name, "kept to this call: the answer says something was done for this caller",
-                       (Counter.NOT_SHAREABLE,), KEPT)
+                       (Counter.NOT_SHAREABLE,), Outcome.KEPT)

@@ -1,24 +1,9 @@
-"""TurnDecision: what a voice session decided for one turn; _Outcome: what record() did with an answer."""
+"""TurnDecision: what a voice session decided for one turn."""
 
 from __future__ import annotations
 
 import weakref
 from typing import Dict, List, Optional
-
-
-class _Outcome(str):
-    """An outcome word ("saved", "kept", ...) that also says, in ``why``, why an answer
-    was not stored, and in ``rule`` which save rule decided it. Compares and serialises as
-    the plain word."""
-
-    why: str
-    rule: Optional[str]
-
-    def __new__(cls, word: str, why: str = "", rule: Optional[str] = None) -> "_Outcome":
-        outcome = super().__new__(cls, word)
-        outcome.why = why
-        outcome.rule = rule
-        return outcome
 
 
 class TurnDecision:

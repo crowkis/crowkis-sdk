@@ -7,13 +7,14 @@ from typing import Optional, Set
 from .answered import ChatAnswered
 from .checked import Checked
 from .turn_result import TurnResult
+from .outcome import Outcome
 from .verdict import Verdict
 
-CANCELLED = "cancelled"
-STALE = "stale"
-CANCELLED_VERDICT = Verdict("Cancelled", "the user talked over this turn", (CANCELLED,), outcome=CANCELLED)
+CANCELLED_COUNT = "cancelled"
+CANCELLED_VERDICT = Verdict("Cancelled", "the user talked over this turn", (CANCELLED_COUNT,),
+                            outcome=Outcome.CANCELLED)
 # An older turn finishing after a newer one started: never saved.
-STALE_VERDICT = Verdict("Stale", "a newer turn awaits the answer", outcome=STALE)
+STALE_VERDICT = Verdict("Stale", "a newer turn awaits the answer", outcome=Outcome.STALE)
 
 
 class ChatTurns:

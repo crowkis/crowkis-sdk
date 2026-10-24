@@ -7,9 +7,10 @@ from typing import Dict, List, Protocol
 from ..runtime.turn_pairing import TurnPairing
 from .answered import VoiceAnswered
 from .checked import Checked
+from .outcome import Outcome
 from .verdict import Verdict
 
-INTERRUPTED = Verdict("Interrupted", "the caller moved on before this answer was complete", outcome="interrupted")
+INTERRUPTED = Verdict("Interrupted", "the caller moved on before this answer was complete", outcome=Outcome.INTERRUPTED)
 
 
 class VoiceSessionTranscript(Protocol):

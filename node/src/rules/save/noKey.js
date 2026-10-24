@@ -2,9 +2,8 @@
 
 // The NoKey rule (stage 3, save).
 
+const { OUTCOME } = require("../../turns/outcome.js");
 const { Verdict } = require("../../turns/verdict.js");
-
-const NOT_SAVED = "not_saved";
 
 /** A follow-up with no earlier turn to key it on cannot be saved. */
 class NoKey {
@@ -18,7 +17,7 @@ class NoKey {
 
   check(answer) {
     if (answer.key !== null) return null;
-    return new Verdict(this.name, "a follow-up with no earlier turn to key it on", [], NOT_SAVED);
+    return new Verdict(this.name, "a follow-up with no earlier turn to key it on", [], OUTCOME.NOT_SAVED);
   }
 }
 

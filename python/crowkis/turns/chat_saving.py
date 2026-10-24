@@ -13,11 +13,12 @@ from ..understanding.turn_frame import TurnFrame
 from .answered import ChatAnswered
 from .chat_answer import ChatAnswer
 from .checked import Checked
+from .outcome import Outcome
 from .routes import SHARED
 from .verdict import Verdict
 
-SAVED = "saved"
-NOT_SHARED = Verdict("NotShared", "not a shared question the model answered", outcome="not_shared")
+SAVED_COUNT = "saved"
+NOT_SHARED = Verdict("NotShared", "not a shared question the model answered", outcome=Outcome.NOT_SHARED)
 SAVE_REFUSED = "save_refused"
 
 
@@ -55,18 +56,18 @@ class ChatSaving:
             return Checked(answered, NOT_SHARED)
         why = self.save_check(answer, result.verdict, result.frame, private=answered.private)
         if why:
-            return Checked(answered, Verdict("SaveCheck", why, (SAVE_REFUSED,), outcome="refused:" + why))
+            return Checked(answered, Verdict("SaveCheck", why, (SAVE_REFUSED,), outcome=Outcome.REFUSED.because(why)))
         return Checked(answered)
 
     def write(self, answered: ChatAnswered) -> str:
         verdict, answer = answered.result.verdict, answered.answer
-        slow = self._writer.write_within(self._session.agent.learn, verdict.key, answer, ttl=verdict.ttl,
-                                         segment=verdict.segment, budget_ms=self._session.latency_budget_ms)
-        if slow is not None:
-            return slow.outcome
-        self._session.counts[SAVED] += 1
+        written = self._writer.write_within(self._session.agent.learn, verdict.key, answer, ttl=verdict.ttl,
+                                            segment=verdict.segment, budget_ms=self._session.latency_budget_ms)
+        if not written.written:
+            return str(written.objection.outcome)
+        self._session.counts[SAVED_COUNT] += 1
         self._question_records.keep(verdict.key, answer, verdict.ttl)
-        return SAVED
+        return str(Outcome.SAVED)
 
     def save_check(self, answer: str, verdict: Any, frame: Optional[TurnFrame] = None,
                    private: bool = False) -> Optional[str]:

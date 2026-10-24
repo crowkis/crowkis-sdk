@@ -1,9 +1,10 @@
 "use strict";
 
 const { Checked } = require("./checked.js");
+const { OUTCOME } = require("./outcome.js");
 const { Verdict } = require("./verdict.js");
 
-const INTERRUPTED = new Verdict("Interrupted", "the caller moved on before this answer was complete", [], "interrupted");
+const INTERRUPTED = new Verdict("Interrupted", "the caller moved on before this answer was complete", [], OUTCOME.INTERRUPTED);
 
 /**
  * Adapter: a call's TurnPairing as TurnCore's Pairing. Every decided turn gets the next number and

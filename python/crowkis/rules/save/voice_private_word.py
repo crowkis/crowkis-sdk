@@ -5,10 +5,8 @@ from __future__ import annotations
 from typing import Optional
 
 from ...runtime.stats import Counter
-from ...turns import ModelAnswer, Verdict
+from ...turns import ModelAnswer, Outcome, Verdict
 from ...understanding.word_rules import _words
-
-PRIVATE = "private"
 
 
 class VoicePrivateWord:
@@ -24,4 +22,4 @@ class VoicePrivateWord:
         if not any(w not in asked and w in private for w in _words(answer.answer)):
             return None
         return Verdict(self.name, "kept to this call: the answer holds a word that identified this caller",
-                       (Counter.NOT_SHAREABLE,), PRIVATE)
+                       (Counter.NOT_SHAREABLE,), Outcome.PRIVATE)

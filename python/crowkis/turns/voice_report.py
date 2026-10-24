@@ -11,7 +11,8 @@ from ..runtime.turn_pairing import TurnPairing
 from ..understanding.word_rules import _asks, _lookup_only, _unfinished
 from .answered import VoiceAnswered
 from .checked import Checked, LookedUp
-from .decision import TurnDecision, _Outcome
+from .decision import TurnDecision
+from .outcome import Outcome, RecordedOutcome
 from .verdict import Verdict
 from .voice_call import VoiceCall
 from .voice_turn import VoiceTurn
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 _LOG = logging.getLogger("crowkis")
 SERVED_REASON = "confident cache hit"
+WRITE_REFUSED = "WriteRefused"
 Messages = Optional[List[Dict[str, str]]]
 
 
@@ -32,7 +34,7 @@ class VoiceSessionTranscript(Protocol):
 
 class VoiceReport:
     """Adapter: what TurnCore found, as a voice call reports it: a ``TurnDecision`` for a turn and an
-    ``_Outcome`` for an answer, counted in ``Stats``. A served turn joins the transcript and carries
+    ``RecordedOutcome`` for an answer, counted in ``Stats``. A served turn joins the transcript and carries
     its audio when the session caches audio. A rule that answered the turn itself (a filler) is the
     only early answer voice has. ``voiced`` is the session's audio for an answer (None without it).
 
@@ -88,18 +90,18 @@ class VoiceReport:
         decision._audio_shareable = not turn.is_personal
         return self._handed(decision, turn)
 
-    def kept(self, verdict: Verdict) -> _Outcome:
+    def kept(self, verdict: Verdict) -> RecordedOutcome:
         """A save rule (or the pairing) kept the answer out of the shared cache."""
         self._count(verdict)
-        return _Outcome(verdict.outcome, verdict.reason, rule=verdict.rule)
+        return RecordedOutcome(verdict.outcome, verdict.reason, rule=verdict.rule)
 
-    def refused(self, error: Exception) -> _Outcome:
+    def refused(self, error: Exception) -> RecordedOutcome:
         self._stats.add(Counter.LEARN_ERRORS)
         why = f"the server refused the write: {str(error) or type(error).__name__}"
         _LOG.warning("crowkis voice answer not stored, %s", why)
-        return _Outcome("refused", why, rule="WriteRefused")
+        return RecordedOutcome(Outcome.REFUSED, why, rule=WRITE_REFUSED)
 
-    def recorded(self, answered: VoiceAnswered, outcome: _Outcome) -> _Outcome:
+    def recorded(self, answered: VoiceAnswered, outcome: RecordedOutcome) -> RecordedOutcome:
         """The rule that kept an answer out of the shared cache is counted in ``stats()``."""
         if outcome.rule is not None:
             self._stats.count_rule(outcome.rule)

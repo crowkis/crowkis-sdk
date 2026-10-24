@@ -15,7 +15,8 @@ class Verdict:
 
     ``rule`` names the rule (in decisions, logs and ``stats()``), ``reason`` says why in words,
     ``counts`` are the session counters it adds to (``runtime.stats.Counter``),
-    ``outcome`` is, for a save rule, what happened to the answer ("kept", "private", ...), and
+    ``outcome`` is, for a save rule, what happened to the answer (an ``Outcome``; Chat's refusal adds
+    its reason: ``Outcome.REFUSED.because(why)``), and
     ``route`` is, for a rule that decides alone, where the turn goes ("urgent", "task", "filler"),
     and ``answer`` is what to say at once when the rule answers the turn itself (a filler).
     """

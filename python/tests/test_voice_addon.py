@@ -81,13 +81,16 @@ class SpeakTests(unittest.TestCase):
         self.assertEqual(client.calls.count("caudioget"), 1, "asked once, then the basic path")
         self.assertEqual(agent.audio_hits, 1, "the basic path still reuses the clip")
 
-    def test_any_other_error_is_not_swallowed(self):
+    def test_any_other_error_is_a_miss_and_never_ends_the_turn(self):
+        # This test used to assert the error was raised, which ended a live turn over
+        # the audio cache (fixed in Phase 1, step 6). It is now a miss: the clip is made,
+        # nothing is stored, and the failure is counted.
         class Broken(AudioClient):
             def caudioget(self, *args, **kwargs):
                 raise CrowkisError("ERR tenant is paused")
         agent = Agent("bot", client=Broken())
-        with self.assertRaises(CrowkisError):
-            agent.speak("Hello there.", lambda text: b"audio", voice="aria")
+        self.assertEqual(agent.speak("Hello there.", lambda text: b"audio", voice="aria"), b"audio")
+        self.assertEqual(agent.audio_errors, 1)
 
     def test_the_caller_never_waits_for_a_clip_to_be_stored(self):
         client = AudioClient(store_delay=0.5)

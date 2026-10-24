@@ -5,12 +5,17 @@
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./agent": "./agent.js",
-    "./voice": "./voice.js",
-    "./realtime": "./realtime.js",
-    "./langchain": "./langchain.js",
-    "./memory": "./memory.js"
+    ".": { "types": "./index.d.ts", "import": "./index.mjs", "require": "./index.js", "default": "./index.js" },
+    "./agent": { "types": "./agent.d.ts", "default": "./agent.js" },
+    "./voice": { "types": "./voice.d.ts", "default": "./voice.js" },
+    "./realtime": { "types": "./realtime.d.ts", "default": "./realtime.js" },
+    "./voiceTurns": { "types": "./voiceTurns.d.ts", "default": "./voiceTurns.js" },
+    "./livekit": { "types": "./livekit.d.ts", "default": "./livekit.js" },
+    "./langchain": { "types": "./langchain.d.ts", "default": "./langchain.js" },
+    "./memory": { "types": "./memory.d.ts", "default": "./memory.js" },
+    "./chat": { "types": "./chat.d.ts", "default": "./chat.js" },
+    "./session": { "types": "./session.d.ts", "default": "./session.js" },
+    "./package.json": "./package.json"
   },
   "license": "Apache-2.0",
   "author": "Mohit Rohilla",
@@ -47,9 +52,11 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "config.js",
     "agent.js",
     "voice.js",
     "realtime.js",
+    "voiceTurns.js",
     "langchain.js",
     "memory.js",
     "langchain.d.ts",
@@ -62,10 +69,20 @@
     "turn.js",
     "callstate.js",
     "crowkis.proto",
+    "index.mjs",
+    "agent.d.ts",
+    "voice.d.ts",
+    "realtime.d.ts",
+    "voiceTurns.d.ts",
+    "livekit.js",
+    "livekit.d.ts",
+    "chat.d.ts",
+    "session.d.ts",
     "README.md"
   ],
   "scripts": {
     "check": "node --check index.js",
+    "test": "node run-tests.js",
     "typecheck": "tsc --noEmit --strict --module node16 --moduleResolution node16 --types node test-types.ts"
   },
   "devDependencies": {

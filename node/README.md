@@ -38,15 +38,61 @@ This is the official **Node / TypeScript SDK**, with typings included.
 npm install @crowkis/client
 ```
 
+CommonJS and ES modules both work, and give the same objects; TypeScript types are
+included for the package and every subpath (`/voice`, `/agent`, `/realtime`,
+`/voiceTurns`, `/livekit`, `/langchain`, `/memory`, `/chat`, `/session`):
+
+```js
+const { Crowkis, voiceSession } = require("@crowkis/client");   // CommonJS
+import { Crowkis, voiceSession } from "@crowkis/client";         // ES modules
+```
+
+A client opens one connection, shared by calls made at the same time. While no request is
+running it doesn't keep your process alive, so a script exits when its work is done even if
+it never calls `close()` (call it anyway in a server, when shutting down).
+
 ## Run a Crowkis server
 
 ```bash
-docker run -d -p 6383:6383 -v "$(pwd)/.crow:/data/.crow" \
-  crowkis/crowkis:latest server --data /data/.crow
+docker run -d --name crowkis -p 127.0.0.1:6383:6383 -p 127.0.0.1:6384:6384 -e CROWKIS_PROTECTED_MODE=off -e CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0 -v crowkis-data:/data crowkis/crowkis:latest
+# Reachable from this machine only. To serve other machines, publish 6383 and set
+# -e CROWKIS_AUTH_TOKEN=<a long random secret> instead of CROWKIS_PROTECTED_MODE=off.
 ```
 
 The server listens on `6383` (cache/RESP), `6384` (dashboard/HTTP), and `6385` (gRPC).
 Image → [hub.docker.com/r/crowkis/crowkis](https://hub.docker.com/r/crowkis/crowkis).
+
+## Connect to your server
+
+Put the server's details in the environment (or a `.env` file) once, and create clients
+with no options:
+
+```bash
+# .env
+CROWKIS_HOST=10.0.0.5
+CROWKIS_PORT=6383
+CROWKIS_AUTH_TOKEN=change-me      # only if the server sets one
+CROWKIS_TENANT=my-app             # optional
+# or all in one line:  CROWKIS_URL=crowkis://:change-me@10.0.0.5:6383/my-app
+```
+
+```js
+// node --env-file=.env app.js   (or dotenv, or set the variables any other way)
+const { Crowkis } = require("@crowkis/client");
+const { Agent } = require("@crowkis/client/agent");
+
+const cache = new Crowkis();            // 10.0.0.5:6383, with the token and tenant above
+const agent = new Agent("support");     // every class that connects reads the same settings
+```
+
+An option you pass in code always wins: `new Crowkis({ port: 7000 })` uses 7000 and takes
+the rest from the environment. For each setting the order is: your code, then
+`CROWKIS_HOST` / `CROWKIS_PORT` / `CROWKIS_AUTH_TOKEN` (or `CROWKIS_TOKEN`) /
+`CROWKIS_TENANT`, then the matching part of `CROWKIS_URL`, then the default
+(`127.0.0.1:6383`, no token, no tenant). With nothing set, nothing changes. The variables
+are read when a client is created, so `.env` loaded later still applies; the SDK never
+loads a `.env` itself. A bad value (`CROWKIS_PORT=abc`) throws at once with an error naming
+the variable, and the token is never printed.
 
 ## Cache any model — the wrapper
 
@@ -135,7 +181,8 @@ client.close(); // when your app shuts down
 question, and answering). `reply.outcome` is `served` (from the cache), `saved` (answered and
 shared), `not_shared` (answered for this user only; `reply.reason` says why) or `refused:<why>`
 (answered, but the answer was not kept). If the cache cannot be reached the user still gets the
-model's answer, with `outcome` `refused:write_failed`. Per thread, `Chat` keeps a small memory (facts, topic,
+model's answer, with `outcome` `refused:write_failed`. Keep a user's details out of `system`: an
+answer that repeats one ("Hi Asha! ...") is answered but never saved (`refused:prompt_detail`). Per thread, `Chat` keeps a small memory (facts, topic,
 reply language), never the transcript; pass `store` with `load`/`save` to keep it across
 several servers. The reply language is part of the cache identity: a Hindi chat never gets
 the English answer.
@@ -145,17 +192,45 @@ the English answer.
 `VoiceSession` decides, turn by turn, whether a caller can be answered from cache or needs
 the model. An answer about one caller's own records is never spoken to another caller.
 
-```ts
-import { Agent, VoiceSession } from "@crowkis/client";
+```js
+const { voiceSession } = require("@crowkis/client");
 
-const agent = new Agent("support-line", { tenant: "my-app" });
-const session = new VoiceSession(agent, { voice: "my-voice" });
+const session = voiceSession();     // server settings from the environment
 
 // myModel(messages) resolves to a string. It is called only when the cache cannot
 // answer, with exactly the messages Crowkis chose, and its answer is cached when
 // it is safe to share.
 const decision = await session.answer(callerSaid, myModel);
 speak(decision.text);
+```
+
+`voiceSession()` builds the connection and the agent for you, with defaults for a live
+call, where a caller is waiting:
+
+| Option | Default | Why |
+|---|---|---|
+| `latencyBudgetMs` | `250` | The longest a turn waits for a cache lookup before it asks the model. `null` turns it off. |
+| `timeoutMs` | `1000`, no retries | A request to a stuck server gives up within a second, not ~15 s. Saving the model's answer waits at most twice the latency budget (500 ms); a slower save finishes in the background, and the answer is reported as `slow_write` (`stats().slowWrites`). The cost: a request that fails once (the first after a server restart, or a `BUSY` reply) is not retried, so that turn goes to the model or that answer isn't stored. |
+| `agentId` | `"voice"` | The agent the session's cache belongs to. |
+| server | from the environment | `host`, `port`, `authToken`, `tenant` still win; or pass your own `client`. |
+
+`voice` is your TTS voice id. Without it the session caches text only and never reads or
+stores audio, so two voices can never share a clip. To cache audio too:
+
+```js
+const session = voiceSession({ voice: "eleven-rachel", synthesise: myTts });
+```
+
+Every other `VoiceSession` option (`serveAbove`, `fillers`, `ttl`, `values`, ...) can be
+passed to `voiceSession()` as well; an unknown one throws. For bulk work such as
+`warmFromCalls`, build an `Agent` with an ordinary client rather than reusing the session's
+live-call one. To build it yourself, as before:
+
+```js
+const { Agent, VoiceSession } = require("@crowkis/client");
+
+const agent = new Agent("support-line", { tenant: "my-app" });
+const session = new VoiceSession(agent, { voice: "my-voice" });  // no budget, 5 s timeout with 2 retries
 ```
 
 `decision.stored` says whether the model's answer was cached and, when it was not,
@@ -177,6 +252,105 @@ const system =
   `If the caller may be in danger or mentions self-harm, give this helpline: ${helpline}.`;
 const decision = await session.answer(callerSaid, myModel, { system });
 ```
+
+### Cached audio
+
+With `voice` and `synthesise`, a cached answer comes with its audio
+(`decision.audio`), so the next caller who asks skips the TTS too. Two things to know:
+
+- **Audio never breaks a call.** If the audio cache can't be read or written, or your own
+  `synthesise` fails, the turn still gets its text (`decision.audio` is `null`) and your
+  TTS speaks it. Failures are logged and counted (`stats().audioUnavailable`,
+  `agent.audioErrors`).
+- **Name the audio format when your bots differ.** A clip is only reused for the same
+  voice, language, speed and `audioFormat`. If a phone bot (8 kHz) and a web bot (24 kHz)
+  share a voice, set `audioFormat: "pcm16-8000"` / `"pcm16-24000"` so neither plays the
+  other's clip.
+
+### Streaming the answer
+
+Voice bots send the model's words to the TTS as they arrive, so the caller hears a reply
+sooner. `respond()` does that and still caches the answer:
+
+```js
+const stream = await session.respond(callerSaid, myStreamingModel);
+if (stream.decision.audio) {
+  play(stream.decision.audio);          // a cached answer with its audio: skip the TTS
+} else {
+  for await (const piece of stream) tts.send(piece);   // cached text, or the model's words
+}
+```
+
+`myStreamingModel(messages)` gives the model's text as it writes it (an async iterable or
+iterable of strings), or the whole answer as a string. With an OpenAI-style client:
+
+```js
+async function* myStreamingModel(messages) {
+  const chunks = await client.chat.completions.create({ model: "gpt-4o-mini", messages, stream: true });
+  for await (const chunk of chunks) yield chunk.choices[0]?.delta?.content;
+}
+```
+
+The model is only called when the cache can't answer, and only with the messages Crowkis
+chose. When its stream ends, the full answer is saved under the same rules as `answer()`
+(`stream.decision.stored` / `notStored` say what happened). If the caller talks over the
+answer, call `session.cancel()`: the stream stops at the next piece, the model's stream is
+closed (no more tokens billed) and nothing is saved. The same happens when the caller says
+something new (`decide()` / `respond()` again). If the model fails mid-stream, the error is
+thrown and nothing is saved; leaving the loop early or `await stream.close()` saves nothing
+too. `respond()` takes `{ system, private }` like `answer()` and `record()`.
+
+### LiveKit Agents
+
+Wrap your agent; nothing else changes:
+
+```js
+const { voice } = require("@livekit/agents");
+const { withCrowkis } = require("@crowkis/client/livekit");
+
+const agent = withCrowkis(new voice.Agent({ instructions: "You are Acme's phone assistant." }));
+```
+
+- A question the cache can answer is spoken without the LLM, and with its cached audio,
+  without the TTS. Otherwise your LLM answers, reading your instructions and only the
+  caller's question (the whole call for a personal turn), with your tools.
+- A new answer is saved once its TTS has spoken it, so a reply LiveKit discards
+  (preemptive generation) or the caller cuts off is never saved. With audio off, it is saved
+  when the LLM has finished. An answer built from a tool's result, or from RAG/CRM messages
+  you add for the turn, stays in that call; `generateReply({ instructions })` replies are
+  passed through.
+- Each agent makes its own `voiceSession()` (server settings from the environment); pass
+  `withCrowkis(agent, { crowkis })` or `{ options }` to change it. The voice and sample rate
+  come from the agent's TTS. `agent.crowkis` is the session.
+
+### Calling your model yourself
+
+`answer()` calls your model for you. When you need to call it yourself (to stream it to your
+TTS, use your own retries, or run it inside a framework), split the turn in three:
+
+```js
+const decision = await session.decide(callerSaid);
+if (decision.needsModel) {
+  // null means a personal turn: the model reads the whole call.
+  const messages = decision.messages ?? [...session.injections(), { role: "user", content: callerSaid }];
+  const reply = await myModel(messages);
+  await session.record(decision, reply);           // same rules as answer()
+}
+speak(decision.text);
+```
+
+`decision.messages` is what the model may read: the question alone (or with the questions it
+follows on from) when the answer may be shared, or `null` when the turn is personal, and then
+give the model the whole call (`session.injections()` plus the question). `record()` then
+saves the answer under exactly the same rules as `answer()`, and fills in `decision.text`,
+`stored`, `notStored` and `empty`. If your model read a system prompt, pass it too (`record(decision, reply, { system })`, and `{ system }` to `answer()` and `respond()`): an answer that repeats a detail it gives about this caller (a name, an account number) is kept to the call. Better still, keep caller details out of the system prompt and use `setValues()`. Pass `{ private: true }` for an answer that must stay in
+this call even though the question was general, such as one built from a tool's result.
+
+`record()` rejects for a decision from another session, a turn served from the cache or a
+filler, or a turn already recorded. It never rejects because the server refused the write:
+that is reported in `decision.notStored`. If the caller talks over the answer, call
+`session.cancel()`; a later `record()` for that turn then stores nothing. Each call needs
+its own session: decisions can't be recorded in another call's session.
 
 ### With the decision engine
 
@@ -245,7 +419,8 @@ to the model instead of being read out.
 A Crowkis server has one secret, `CROWKIS_AUTH_TOKEN`. It protects cache commands (sent as
 RESP `AUTH`) and management writes (sent as `Authorization: Bearer`); the dashboard and reads
 need nothing. There are no users or per-user API keys (removed in 0.5.2). Keep the token in a
-gitignored `.env` and pass it from your environment — never hard-code it.
+gitignored `.env` — never hard-code it. Cache clients read it from `CROWKIS_AUTH_TOKEN`
+by themselves (see [Connect to your server](#connect-to-your-server)).
 
 ```bash
 # .env
@@ -253,15 +428,11 @@ CROWKIS_AUTH_TOKEN=change-me
 ```
 
 ```ts
-const token = process.env.CROWKIS_AUTH_TOKEN;   // from .env, not the code
+const cache = new Crowkis({ tenant: "my-app" });   // token from CROWKIS_AUTH_TOKEN
+// or pass it yourself: new Crowkis({ tenant: "my-app", token })  (authToken still works)
 
-const cache = new Crowkis({
-  host: process.env.CROWKIS_HOST ?? "127.0.0.1",
-  port: Number(process.env.CROWKIS_PORT ?? 6383),
-  tenant: "my-app",
-  token,                                       // authToken still works
-});
-const admin = new CrowkisAdmin({ baseUrl: "http://127.0.0.1:6380", token });
+const token = process.env.CROWKIS_AUTH_TOKEN;       // the admin client takes it explicitly
+const admin = new CrowkisAdmin({ baseUrl: "http://127.0.0.1:6384", token });   // the dashboard / management port
 ```
 
 `new CrowkisAdmin({ apiKey })` still works exactly as before (sent as `X-Crowkis-Api-Key`, which

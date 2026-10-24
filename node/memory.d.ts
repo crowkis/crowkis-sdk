@@ -1,8 +1,16 @@
-import { CrowkisClient, CrowkisClientOptions } from "./index";
+// Types for @crowkis/client/memory.
+import type { CrowkisClient, CrowkisClientOptions } from "./index";
 
-/** Durable, semantic, per-user agent memory. Every recall is scoped to its agent and user. */
+export interface CrowkisMemoryOptions extends CrowkisClientOptions {
+  /** A client to use; left out, one is built from the other options (and the environment). */
+  client?: CrowkisClient;
+  /** Keep memories per user of this agent. */
+  user?: string;
+}
+
+/** Long-term agent memory backed by Crowkis, for LangGraph.js or any agent loop. */
 export class CrowkisMemory {
-  constructor(agent: string, options?: CrowkisClientOptions & { user?: string; client?: CrowkisClient });
+  constructor(agent: string, options?: CrowkisMemoryOptions);
   readonly agent: string;
   readonly user?: string;
   readonly client: CrowkisClient;

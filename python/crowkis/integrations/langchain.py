@@ -19,6 +19,7 @@ For long-term agent memory in LangGraph/CrewAI/AutoGen, use
 
 from __future__ import annotations
 
+import inspect
 from typing import Any, Optional
 
 from ..client import CrowkisClient
@@ -31,6 +32,9 @@ except ImportError as exc:  # pragma: no cover - exercised only without langchai
     raise ImportError(
         "CrowkisCache requires LangChain. Install it with: pip install crowkis[langchain]"
     ) from exc
+
+# langchain-core 1.x can restrict which classes loads() rebuilds; older versions cannot.
+_LOADS_RESTRICTS = "allowed_objects" in inspect.signature(loads).parameters
 
 
 class CrowkisCache(BaseCache):
@@ -50,8 +54,8 @@ class CrowkisCache(BaseCache):
         ttl: Optional[int] = None,
         threshold: Optional[float] = None,
         tenant: Optional[str] = None,
-        host: str = "127.0.0.1",
-        port: int = 6383,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         auth_token: Optional[str] = None,
     ) -> None:
         self.client = client or CrowkisClient(
@@ -65,7 +69,11 @@ class CrowkisCache(BaseCache):
         if hit is None:
             return None
         try:
-            # Full-fidelity restore (handles chat vs completion generations).
+            # Full-fidelity restore (handles chat vs completion generations). Only
+            # LangChain's own classes are rebuilt from cached data ("core"); older
+            # langchain-core versions take no allowed_objects.
+            if _LOADS_RESTRICTS:
+                return loads(hit.text, allowed_objects="core")
             return loads(hit.text)
         except Exception:
             # Value predates serialization or came from another writer — treat as text.

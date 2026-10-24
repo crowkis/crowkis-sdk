@@ -12,7 +12,7 @@ import threading
 import time
 import unittest
 
-from crowkis.agent import Agent
+from crowkis.agent import Agent, _wait_for_audio_stores
 from crowkis.voice import VoiceSession, _is_personal
 
 from test_voice_stress_bugs import ANSWER, Store, _pipecat, call, session_on, user
@@ -334,6 +334,7 @@ class PipecatTurnBindingTests(unittest.TestCase):
 
         self.gate, self.writeback, self.audio = self.pc.crowkis_processors(self.session, sample_rate=16000)
         asyncio.run(run())
+        _wait_for_audio_stores()  # clips are stored by background workers
         self.assertEqual(len(clips), 1)
         self.assertIn("Yes, Sundays too.", clips[0])
         self.assertNotIn("55123", str(clips))

@@ -1,0 +1,2199 @@
+[
+ {
+  "name": "a shared answer is saved",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take "
+   },
+   {
+    "ev": "text",
+    "t": "five business days."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a personal answer stays in the call",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "my order 48213 has not arrived where is it"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Order 48213 left the depot this morning."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "my order 48213 has not arrived where is it",
+     "answer": "Order 48213 left the depot this morning.",
+     "saved": "private",
+     "stored": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "my order 48213 has not arrived where is it"
+    },
+    {
+     "role": "assistant",
+     "content": "Order 48213 left the depot this morning."
+    }
+   ]
+  }
+ },
+ {
+  "name": "Hinglish general question is saved",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "refund kitne din mein milta hai"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Paanch din mein."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "refund kitne din mein milta hai",
+     "Paanch din mein.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "refund kitne din mein milta hai",
+     "answer": "Paanch din mein.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "refund kitne din mein milta hai"
+    },
+    {
+     "role": "assistant",
+     "content": "Paanch din mein."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a barge-in drops the answer in progress",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds "
+   },
+   {
+    "ev": "interrupt"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a tool's answer is kept to the call",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tool_context",
+    "messages": [
+     {
+      "role": "user",
+      "content": "what is the weather in paris today"
+     },
+     {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+       {
+        "id": "t1",
+        "type": "function",
+        "function": {
+         "name": "weather",
+         "arguments": "{}"
+        }
+       }
+      ]
+     },
+     {
+      "role": "tool",
+      "tool_call_id": "t1",
+      "content": "sunny, 22 degrees"
+     }
+    ]
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "It is sunny and 22 degrees in Paris."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is the weather in paris today",
+     "answer": "It is sunny and 22 degrees in Paris.",
+     "saved": "kept",
+     "stored": false,
+     "not_stored": "kept to this call: the answer was built from a tool's result"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is the weather in paris today"
+    },
+    {
+     "role": "assistant",
+     "content": "It is sunny and 22 degrees in Paris."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a held answer is settled by the tool's context",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tool_context",
+    "messages": [
+     {
+      "role": "user",
+      "content": "what is the weather in paris today"
+     },
+     {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+       {
+        "id": "t1",
+        "type": "function",
+        "function": {
+         "name": "weather",
+         "arguments": "{}"
+        }
+       }
+      ]
+     },
+     {
+      "role": "tool",
+      "tool_call_id": "t1",
+      "content": "sunny, 22 degrees"
+     }
+    ]
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "It is sunny in Paris."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    },
+    {
+     "question": "what is the weather in paris today",
+     "answer": "It is sunny in Paris.",
+     "saved": "interrupted",
+     "stored": false,
+     "not_stored": "the caller moved on before this answer was complete"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a held answer is dropped when the caller moves on",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "what are your opening hours"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "We open at nine."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "",
+     "answer": "Open settings, then security.",
+     "saved": "not_saved",
+     "stored": false,
+     "not_stored": "could not be told apart from a tool's late answer"
+    }
+   ],
+   "transcript": []
+  }
+ },
+ {
+  "name": "a tool that never answers is taken as hung, then re-armed by its result",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "what are your opening hours"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "We open at nine."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tool_result"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "It is sunny in Paris after all."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "",
+     "answer": "Open settings, then security.",
+     "saved": "not_saved",
+     "stored": false,
+     "not_stored": "could not be told apart from a tool's late answer"
+    },
+    {
+     "question": "",
+     "answer": "We open at nine.",
+     "saved": "not_saved",
+     "stored": false,
+     "not_stored": "could not be told apart from a tool's late answer"
+    },
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    },
+    {
+     "question": "what is the weather in paris today",
+     "answer": "It is sunny in Paris after all.",
+     "saved": "interrupted",
+     "stored": false,
+     "not_stored": "the caller moved on before this answer was complete"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "tools done settles a held answer as the caller's",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tools_done"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "two responses with no context between them while a tool is in flight",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "It is sunny."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "",
+     "answer": "Open settings, then security.",
+     "saved": "not_saved",
+     "stored": false,
+     "not_stored": "could not be told apart from a tool's late answer"
+    }
+   ],
+   "transcript": []
+  }
+ },
+ {
+  "name": "a context the caller did not say is never paired",
+  "events": [
+   {
+    "ev": "other_context"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Sorry, could you repeat that?"
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": []
+  }
+ },
+ {
+  "name": "an empty response",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "",
+     "saved": "non_answer",
+     "stored": false,
+     "not_stored": "the model returned an empty answer"
+    }
+   ],
+   "transcript": []
+  }
+ },
+ {
+  "name": "a served answer's clip is kept, then replayed",
+  "seed": {
+   "what is your refund policy": "Refunds take five business days."
+  },
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   },
+   {
+    "ev": "bot_stopped"
+   },
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ],
+    [
+     "serve",
+     "Refunds take five business days.",
+     true
+    ]
+   ],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    },
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a clip whose run said something else is never kept",
+  "seed": {
+   "what is your refund policy": "Refunds take five business days."
+  },
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Something else entirely."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a new answer's clip waits for the ruling, then is kept",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "an untrusted run the TTS did not report is never kept",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a personal answer's clip is never kept",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "my order 48213 has not arrived where is it"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Order 48213 left the depot."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Order 48213 left the depot."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "my order 48213 has not arrived where is it",
+     "answer": "Order 48213 left the depot.",
+     "saved": "private",
+     "stored": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "my order 48213 has not arrived where is it"
+    },
+    {
+     "role": "assistant",
+     "content": "Order 48213 left the depot."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a filler answers and its run is spoken",
+  "options": {
+   "fillers": {
+    "hello": "Hi, how can I help?"
+   }
+  },
+  "events": [
+   {
+    "ev": "caller",
+    "said": "hello"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Hi, how can I help?"
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "filler",
+     "Hi, how can I help?",
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Hi, how can I help?",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": []
+  }
+ },
+ {
+  "name": "a run named with expect() is trusted by its order",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "expect",
+    "t": "Refunds take five business days.",
+    "shareable": true
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": []
+  }
+ },
+ {
+  "name": "expect() replaces a trusted run that never started",
+  "events": [
+   {
+    "ev": "expect",
+    "t": "An answer never spoken.",
+    "shareable": true
+   },
+   {
+    "ev": "expect",
+    "t": "Refunds take five business days.",
+    "shareable": true
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": []
+  }
+ },
+ {
+  "name": "a gate with no queue pairs with its current question",
+  "no_queue": true,
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "too many runs reserved: no clip until a barge-in resets the order",
+  "seed": {
+   "what is your refund policy": "Refunds take five business days."
+  },
+  "events": [
+   {
+    "ev": "speak",
+    "t": "Notice 0."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 1."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 2."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 3."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 4."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 5."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 6."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 7."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 8."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 9."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 10."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 11."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 12."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 13."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 14."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 15."
+   },
+   {
+    "ev": "speak",
+    "t": "Notice 16."
+   },
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   },
+   {
+    "ev": "interrupt"
+   },
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ],
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "while the decision engine holds answers a new answer's clip is not kept",
+  "holds": true,
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "with the Voice add-on a served answer's clip goes to the server's audio cache",
+  "seed": {
+   "what is your refund policy": "Refunds take five business days."
+  },
+  "addon": true,
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   },
+   {
+    "ev": "bot_stopped"
+   },
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ],
+    [
+     "serve",
+     "Refunds take five business days.",
+     true
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [
+    [
+     "Refunds take five business days.",
+     [
+      "v",
+      "und",
+      "1",
+      "pcm16-16000"
+     ],
+     10
+    ]
+   ],
+   "reports": [],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    },
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a tool result that does not run the model settles a held answer",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is the weather in paris today"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "tool_call"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tool_result_no_llm"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "an empty tool_calls list is not a tool context",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tool_context",
+    "messages": [
+     {
+      "role": "user",
+      "content": "what is your refund policy"
+     },
+     {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": []
+     }
+    ]
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "what is your refund policy",
+     "Refunds take five business days.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what is your refund policy",
+     "answer": "Refunds take five business days.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    }
+   ]
+  }
+ },
+ {
+  "name": "an empty response releases its run, and the next run gets its own clip",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what are your opening hours"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Open settings, then security.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what are your opening hours",
+     "answer": "",
+     "saved": "non_answer",
+     "stored": false,
+     "not_stored": "the model returned an empty answer"
+    },
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a Devanagari question is never shared",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "मेरा रिफंड कब आएगा"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "पाँच दिन में।"
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "मेरा रिफंड कब आएगा",
+     "answer": "पाँच दिन में।",
+     "saved": "private",
+     "stored": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from"
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "मेरा रिफंड कब आएगा"
+    },
+    {
+     "role": "assistant",
+     "content": "पाँच दिन में।"
+    }
+   ]
+  }
+ },
+ {
+  "name": "the model reads the system prompt; an answer repeating the caller's details from it stays private",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what are your opening hours",
+    "system": "You are Acme's phone assistant. The caller is Asha Rao, account 99812."
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Hi Asha! We open at nine."
+   },
+   {
+    "ev": "end"
+   },
+   {
+    "ev": "caller",
+    "said": "how do I reset my password",
+    "system": "You are Acme's phone assistant. The caller is Asha Rao, account 99812."
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Open settings, then security."
+   },
+   {
+    "ev": "end"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ],
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [
+    [
+     "how do I reset my password",
+     "Open settings, then security.",
+     false
+    ]
+   ],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [
+    {
+     "question": "what are your opening hours",
+     "answer": "Hi Asha! We open at nine.",
+     "saved": "private",
+     "stored": false,
+     "not_stored": "kept to this call: the answer repeats a detail about the caller from the system prompt"
+    },
+    {
+     "question": "how do I reset my password",
+     "answer": "Open settings, then security.",
+     "saved": "saved",
+     "stored": true,
+     "not_stored": ""
+    }
+   ],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what are your opening hours"
+    },
+    {
+     "role": "assistant",
+     "content": "Hi Asha! We open at nine."
+    },
+    {
+     "role": "user",
+     "content": "how do I reset my password"
+    },
+    {
+     "role": "assistant",
+     "content": "Open settings, then security."
+    }
+   ]
+  }
+ },
+ {
+  "name": "a fallback spoken after a barge-in keeps its own run",
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "start"
+   },
+   {
+    "ev": "text",
+    "t": "Refunds"
+   },
+   {
+    "ev": "interrupt"
+   },
+   {
+    "ev": "speak",
+    "t": "Sorry, go ahead."
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Sorry, go ahead."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "infer",
+     null,
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": []
+  }
+ }
+]

@@ -1,6 +1,8 @@
 "use strict";
 
-const { voiceAddonMissing } = require("./agent.js");
+const crypto = require("node:crypto");
+const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("./agent.js");
+const { CrowkisClient } = require("./index.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -245,6 +247,54 @@ function wordsOf(text) {
   const source = String(text === null || text === undefined ? "" : text).toLowerCase();
   return source.match(WORDS) || [];
 }
+
+// Which question a shared answer was saved for, kept beside it as a plain key (keyed by the
+// answer, per tenant), so a hit can be checked against the question it really answers. A
+// plain GET/SET key, not the tool cache: that is an Enterprise feature.
+const QUESTIONS_KEPT = 8;
+// Words that change how a question is put, not what it asks about.
+const FRAMING_WORDS = new Set([
+  "what", "when", "where", "which", "who", "whom", "whose", "why", "you", "your", "yours",
+  "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
+  "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
+  "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question",
+  "kya", "kab", "kahan", "kaise", "kaun", "kyun", "kyon", "kitna", "kitne", "kitni", "hai",
+  "hain", "ho", "hun", "hoon", "aap", "tum", "ko", "ka", "ki", "ke", "se", "par", "bhi", "toh",
+]);
+// How long a question record lives when the answer has no TTL of its own.
+const QUESTION_TTL = 30 * 24 * 3600;
+
+function stem(word) {
+  // "boxes", "dishes"; "prices" and "rates" just drop the "s". As in Python's _stem.
+  if (word.endsWith("es") && /(s|x|z|ch|sh)$/.test(word.slice(0, -2)) && word.length >= 5) return word.slice(0, -2);
+  for (const [suffix, keep] of [["ies", "y"], ["ing", ""], ["ed", ""], ["s", ""]]) {
+    if (word.endsWith(suffix) && word.length - suffix.length >= 3 && !word.endsWith("ss")) {
+      return word.slice(0, word.length - suffix.length) + keep;
+    }
+  }
+  return word;
+}
+
+function contentWords(text) {
+  return new Set(wordsOf(text).filter((w) => !FUNCTION_WORDS.has(w) && !FRAMING_WORDS.has(w)).map(stem));
+}
+
+// Two questions about different things: each has content words the other does not ("on
+// Saturday" / "on Sunday"). A rewording only adds or drops words on one side, or changes
+// how it asks ("can I" / "do I"). Same as Python's _different_specifics.
+function differentSpecifics(asked, stored) {
+  const a = contentWords(asked);
+  const s = contentWords(stored);
+  return [...a].some((w) => !s.has(w)) && [...s].some((w) => !a.has(w));
+}
+
+function questionKey(tenant, answer) {
+  const trimmed = String(answer).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); // as Python's strip(" \t\r\n")
+  const digest = crypto.createHash("sha256").update(trimmed, "utf8").digest("hex").slice(0, 32);
+  return `crowkis:question:${tenant || "default"}:${digest}`;
+}
+
+const tenantOf = (agent) => (agent && (agent.tenant || (agent.client && agent.client.tenant))) || null;
 
 function splitPlain(text) {
   return text.split(/\s+/).filter(Boolean);
@@ -571,6 +621,8 @@ const DIGITS = /[0-9]{5,}/;
 // out, so a price ("1,499") or a weight ("1.5") is not an identifier.
 const SPACED_DIGITS = /[0-9]+(?:[ \t-]+[0-9]+)+/g;
 const EMAIL = /[A-Za-z0-9._%+-]@[A-Za-z0-9-]/;
+// An IPv4 address: personal data, as an IPv6 address already counts (its digit runs).
+const IPV4 = /(?<![0-9.])(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?![0-9]|\.[0-9])/;
 const CLAUSES = /([,.!?;:]+)/;
 const LETTER = /\p{L}/u;
 
@@ -1066,7 +1118,7 @@ function tellsOwnStory(words) {
 // Whether a turn's answer must never be shared, whatever the rest of the rules say.
 function neverShare(text, words) {
   if (unreadable(text)) return true;
-  if (DIGITS.test(text) || EMAIL.test(text) || readsOutDigits(text, words)) return true;
+  if (DIGITS.test(text) || EMAIL.test(text) || IPV4.test(text) || readsOutDigits(text, words)) return true;
   if (words.includes("at") && words.includes("dot") && words.some((w) => EMAIL_ENDINGS.has(w))) return true;
   if (words.some((w) => SINGLE_WORDS.has(w)) || hasPhrase(words, NEVER_PHRASES_BY_FIRST)) return true;
   if (identifies(text, words) || namesSomeone(text, words)) return true;
@@ -1304,6 +1356,40 @@ function leaks(shaped, values) {
   return Object.values(values).some((value) => value && flat.includes(flatten(value)));
 }
 
+// What the server puts in a stored answer in place of a caller's detail (its PII scrubber):
+// "pii_email_k3fa9". Spoken, it is noise at best. As in Python.
+const PII_PLACEHOLDER = /(?<![A-Za-z0-9_])pii_(?:email|phone|natid|card|person|location|ip|dob|passport|iban)_[A-Za-z0-9]+/i;
+
+// A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
+const ID_TOKEN = /[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]/g;
+const YEAR = /^(?:19|20)[0-9]{2}$/;
+
+// The ID-like values said in `texts`, flattened as leaks() compares them: tokens with four
+// or more digits (not a bare year) or an @, and digit groups said with spaces
+// ("2345 6789 0123"). As in Python's _identifiers.
+function identifiers(texts) {
+  const found = new Set();
+  for (const text of texts) {
+    for (const token of String(text || "").match(ID_TOKEN) || []) {
+      const digits = (token.match(/[0-9]/g) || []).length;
+      if (token.includes("@") || (digits >= 4 && !YEAR.test(token))) found.add(flatten(token));
+    }
+    for (const group of String(text || "").match(SPACED_DIGITS) || []) {
+      const joined = group.replace(/[^0-9]/g, "");
+      if (joined.length >= 5) found.add(joined);
+    }
+  }
+  return new Set([...found].filter((value) => value.length >= 4));
+}
+
+// Whether `answer` says one of `ids`. A short value must be a whole token of the answer
+// ("1800" is not in "21,800"); a long one may appear anywhere in it. As in Python.
+function repeatsIdentifier(answer, ids) {
+  const flat = flatten(answer);
+  const tokens = new Set([...(String(answer || "").match(ID_TOKEN) || []).map(flatten), ...wordsOf(answer)]);
+  return [...ids].some((value) => (value.length >= 6 ? flat.includes(value) : tokens.has(value)));
+}
+
 // A hard deadline: a slow or hung cache must never hold a live call past its budget.
 function within(ms, promise) {
   let timer;
@@ -1314,6 +1400,26 @@ function within(ms, promise) {
 }
 
 const LATE = Symbol("late");
+
+// Writes a turn stopped waiting for (past twice the latency budget), finishing in the background.
+// At most WRITES_MAX wait at once: past it (a hung server) a new answer is not written at all.
+let WRITES_MAX = 256;
+const pendingWrites = new Set();
+
+/** For tests: every write handed to the background has finished. */
+// Question records being written in the background (not capped like answer writes).
+const pendingRecords = new Set();
+
+async function waitForWrites() {
+  await Promise.allSettled([...pendingWrites, ...pendingRecords]);
+}
+
+// For tests: a smaller cap; returns a function that puts the old one back.
+function setWritesMax(max) {
+  const old = WRITES_MAX;
+  WRITES_MAX = max;
+  return () => { WRITES_MAX = old; };
+}
 
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.
 const CHAIN_LIMIT = 6;
@@ -1353,6 +1459,168 @@ const STEERING = [
 const STEERING_BY_FIRST = firstWords(STEERING);
 // Phrases after which the caller gives a name: "my name is sarah", "this is raj".
 const NAMING = [["name", "is"], ["call", "me"], ["this", "is"], ["i", "m"], ["i", "am"]];
+
+// A system prompt can carry one caller's details ("The caller is Asha Rao, account
+// 99812"). An answer that repeats them must never be shared. Same rules as Python
+// (voice.py, _caller_details); fixtures/prompt-guard-cases.json checks both.
+//
+// 1. Across calls (the reliable one): a bot's own instructions are the same on every
+//    call, so once an agent has been seen with two different system prompts, every word
+//    and number of this call's prompt not in all of them is a caller detail.
+// 2. Before that: the sentences of the prompt that are about a person.
+
+// Words that make a sentence about one person, not the business.
+const PERSON_WORDS = new Set([
+  "caller", "customer", "user", "client", "patient", "member", "guest", "student",
+  "name", "named", "account", "acct", "dob", "birthday", "born", "called", "calling",
+  "talking", "speaking", "mr", "mrs", "ms", "mx", "miss", "dr", "prof", "he", "she", "him",
+  "his", "her", "hers",
+]);
+// A "label: value" line about one person's record or contact ("Phone: 555 0199",
+// "Location: Pune"), unless the label says it is the business's own.
+const RECORD_LABELS = new Set([
+  "phone", "mobile", "email", "address", "order", "booking", "reservation", "ticket", "case",
+  "policy", "plan", "balance", "dob", "id", "city", "location", "company", "employer",
+]);
+// Words that make a sentence about the business even when it names a person word.
+const BUSINESS_WORDS = new Set([
+  "support", "our", "office", "helpline", "help", "toll", "free", "business", "sales",
+  "main", "head", "store", "shop", "branch", "service", "services", "care", "line", "we",
+  "us", "customers", "callers", "users", "clients", "patients", "members", "guests",
+]);
+const LABEL_WORDS = new Set([...RECORD_LABELS, ...PERSON_WORDS]);
+// Sentence ends: . ! ? or ; then space, or a line break; never the dots inside an email
+// address or a decimal, nor the one after a title ("Mr. Sharma", "Prof. Rao").
+const SENTENCE_END =
+  /(?<!\bMr\.)(?<!\bMs\.)(?<!\bMx\.)(?<!\bDr\.)(?<!\bSt\.)(?<!\bSr\.)(?<!\bJr\.)(?<!\bMrs\.)(?<!\bProf\.)(?<=[.!?;])\s+/;
+// Runs of digits that belong together ("555 0199", "1800-555-0100", "99,812") make one number.
+const NUMBER_RUN = /[0-9]+(?:[ ,\-./][0-9]+)*/g;
+const EMAIL_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g;
+const LABEL = /^\s*([^:=\n]{1,40}?)\s*[:=]\s*(.*)$/;
+
+const isDecimalWord = (word) => /\p{Nd}/u.test(word);
+const startsUpper = (word) => /^\p{Lu}/u.test(word);
+
+function numbersOf(text) {
+  return (String(text || "").match(NUMBER_RUN) || []).map((run) => run.replace(/[^0-9]/g, ""));
+}
+
+function labelOf(sentence) {
+  const match = LABEL.exec(sentence);
+  return match ? [match[1], match[2]] : ["", ""];
+}
+
+function aboutAPerson(sentence, words) {
+  const present = new Set(words);
+  if ([...present].some((w) => PERSON_WORDS.has(w)) && ![...present].some((w) => BUSINESS_WORDS.has(w))) return true;
+  const [label, value] = labelOf(sentence);
+  const labelWords = new Set(wordsOf(label));
+  return Boolean(
+    value.trim() && [...labelWords].some((w) => LABEL_WORDS.has(w)) && ![...labelWords].some((w) => BUSINESS_WORDS.has(w))
+  );
+}
+
+function valueWords(value) {
+  return wordsOf(value).filter(
+    (w) => !FUNCTION_WORDS.has(w) && !LABEL_WORDS.has(w) && !isDecimalWord(w) && !EMAIL_ENDINGS.has(w)
+  );
+}
+
+// Caller details in one system prompt, read on its own, as { words, numbers }: in its
+// sentences about a person, the capitalised words (a sentence's first only when the next
+// is capitalised too), email words, every number, and the whole value of a "Label: value"
+// / "key=value" about a person's record. Lines under a heading about a person ("Caller
+// record:"), up to a blank line, are all details.
+function promptDetails(instructions) {
+  const words = new Set();
+  const numbers = new Set();
+  let inBlock = false;
+  for (const line of String(instructions || "").split("\n")) {
+    if (!line.trim()) {
+      inBlock = false;
+      continue;
+    }
+    if (inBlock) {
+      for (const w of valueWords(line)) words.add(w);
+      for (const n of numbersOf(line)) if (n) numbers.add(n);
+      continue;
+    }
+    for (const sentence of line.split(SENTENCE_END)) {
+      const lowered = wordsOf(sentence);
+      if (!lowered.length || !aboutAPerson(sentence, lowered)) continue;
+      const [label, value] = labelOf(sentence);
+      if (sentence.trimEnd().endsWith(":") && !value.trim()) inBlock = true;
+      for (const n of numbersOf(sentence)) if (n) numbers.add(n);
+      if (value.trim() && wordsOf(label).some((w) => LABEL_WORDS.has(w))) {
+        for (const w of valueWords(value)) words.add(w);
+      }
+      const tokens = sentence.match(WORDS) || [];
+      tokens.forEach((word, index) => {
+        const low = word.toLowerCase();
+        if (LABEL_WORDS.has(low) || FUNCTION_WORDS.has(low) || !startsUpper(word) || isDecimalWord(word)) return;
+        if (index === 0 && !(index + 1 < tokens.length && startsUpper(tokens[index + 1]))) return;
+        words.add(low);
+      });
+      for (const address of sentence.match(EMAIL_ADDRESS) || []) {
+        for (const w of wordsOf(address)) if (!EMAIL_ENDINGS.has(w) && !/^\p{Nd}+$/u.test(w)) words.add(w);
+      }
+    }
+  }
+  return { words, numbers };
+}
+
+// What every system prompt an agent was seen with has in common, in this process.
+const BASELINES = new Map();
+const BASELINES_MAX = 1024;
+
+function resetPromptBaselines() {
+  BASELINES.clear();
+}
+
+// Caller details in this call's system prompt: what differs from the agent's other calls
+// once its prompt has been seen to vary, the sentences about a person before that.
+function callerDetails(instructions, agentKey = null) {
+  if (agentKey === null || agentKey === undefined) return promptDetails(instructions);
+  const words = new Set(wordsOf(instructions));
+  const numbers = new Set(numbersOf(instructions).filter(Boolean));
+  const key = JSON.stringify(agentKey);
+  const baseline = BASELINES.get(key) || { prompts: new Set(), words: null, numbers: null };
+  BASELINES.delete(key);
+  BASELINES.set(key, baseline); // the most recent last; the oldest is dropped
+  while (BASELINES.size > BASELINES_MAX) BASELINES.delete(BASELINES.keys().next().value);
+  const text = String(instructions || "").trim();
+  if (!baseline.prompts.has(text) && baseline.prompts.size < 2) baseline.prompts.add(text);
+  baseline.words = baseline.words === null ? words : new Set([...baseline.words].filter((w) => words.has(w)));
+  baseline.numbers = baseline.numbers === null ? numbers : new Set([...baseline.numbers].filter((n) => numbers.has(n)));
+  // The sentences about a person always count: the first two prompts seen can both be one
+  // caller's (only a date differs), so what is common to them is never taken as not a detail.
+  const own = promptDetails(instructions);
+  if (baseline.prompts.size < 2) return own;
+  return {
+    words: new Set([...[...words].filter((w) => !baseline.words.has(w) && !FUNCTION_WORDS.has(w)), ...own.words]),
+    numbers: new Set([...[...numbers].filter((n) => !baseline.numbers.has(n)), ...own.numbers]),
+  };
+}
+
+// One number, written with or without its country code or leading part: equal, or the
+// longer ends with the shorter of at least 4 digits.
+function sameNumber(said, detail) {
+  if (said === detail) return true;
+  const [short, long] = said.length <= detail.length ? [said, detail] : [detail, said];
+  return short.length >= 4 && long.endsWith(short);
+}
+
+// Whether the answer repeats a detail the system prompt gave about this caller ("Hi
+// Asha! We open at nine.", "account 99812") that the question itself did not contain.
+// Such an answer was shaped by this caller's details and is never shared.
+function repeatsPromptDetails(answer, question, instructions, agentKey = null) {
+  const { words, numbers } = callerDetails(instructions, agentKey);
+  if (!words.size && !numbers.size) return false;
+  const askedWords = new Set(wordsOf(question));
+  const askedNumbers = new Set(numbersOf(question));
+  if (wordsOf(answer).some((w) => words.has(w) && !askedWords.has(w))) return true;
+  return numbersOf(answer).some((n) => !askedNumbers.has(n) && [...numbers].some((d) => sameNumber(n, d)));
+}
 
 // Words capitalised mid-sentence ("... my agent Priya said"), lower-cased.
 function properNouns(text) {
@@ -1583,6 +1851,9 @@ function describesSelf(words) {
 // on ("reply only in Hindi"). Each is a match on what was said, never a default: small
 // talk, "I have a question", "I'm frustrated", "I have 2 orders" and a name or number change no answer, and a
 // call that starts with them keeps its shared answers.
+// How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
+const HEARD_MAX = 2048;
+
 function setsContext(text) {
   const words = wordsOf(text);
   return tellsFacts(text) || (words.length > 0 && instructs(text, words));
@@ -1709,6 +1980,14 @@ class TurnDecision {
     // Not enumerable: read through `empty`, never set by callers or copied out with the decision.
     Object.defineProperty(this, "_empty", { value: false, writable: true, enumerable: false });
     Object.defineProperty(this, "_audioShareable", { value: false, writable: true, enumerable: false });
+    // Set by decide(): the session that made it (a WeakRef, so a kept decision never
+    // keeps a call alive) and, for a model turn, what the caller said, so record()
+    // takes a decision only from its own session, and only once. Not enumerable, so a
+    // logged or serialised decision never carries them; the caller's words are dropped
+    // once recorded.
+    Object.defineProperty(this, "_session", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_said", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_recorded", { value: false, writable: true, enumerable: false });
   }
 
   /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
@@ -1738,6 +2017,105 @@ class TurnDecision {
       `TurnDecision('${this.action}', confidence=${this.confidence.toFixed(4)}, ` +
       `reason='${this.reason}')`
     );
+  }
+}
+
+// What VoiceSession.respond() resolves to: read it with `for await` for the text to
+// speak, piece by piece as the model writes it. `decision` is ready at once, before the
+// first piece: decision.servedFromCache and decision.audio say whether a cached answer
+// (and its audio) can be played instead of running the TTS. A response is read once.
+class VoiceResponse {
+  constructor(session, decision, callerSaid, llm, system, keep) {
+    this.decision = decision;
+    for (const [name, value] of Object.entries({ session, callerSaid, llm, system, keep })) {
+      Object.defineProperty(this, `_${name}`, { value, enumerable: false });
+    }
+    Object.defineProperty(this, "_pieces", { value: null, writable: true, enumerable: false });
+    Object.defineProperty(this, "_closed", { value: false, writable: true, enumerable: false });
+  }
+
+  [Symbol.asyncIterator]() {
+    if (this._pieces) throw new Error("a VoiceResponse is read once");
+    this._pieces = this._run();
+    return this._pieces;
+  }
+
+  // Stop early: the model's stream is closed and nothing is stored.
+  async close() {
+    this._closed = true;
+    if (!this._pieces) {
+      this._pieces = (async function* () {})();
+      return;
+    }
+    await this._pieces.return();
+  }
+
+  // The caller talked over this turn, a newer turn was decided, or the app recorded the
+  // turn itself: speak no more of this answer.
+  _stopped() {
+    return this.decision._recorded || this._session._movedOn(this.decision);
+  }
+
+  async *_run() {
+    const session = this._session;
+    const decision = this.decision;
+    if (!decision.needsModel) {
+      if (decision.text) yield decision.text;
+      return;
+    }
+    if (this._stopped()) {
+      // Talked over before a word was read: never call the model.
+      session._interrupted(decision, "");
+      return;
+    }
+    // As answer() does, so a subclass whose decide() returns its own decision works.
+    decision._said = this._callerSaid;
+    let messages = decision.messages || [...session.injections(), { role: "user", content: this._callerSaid }];
+    if (this._system) messages = [{ role: "system", content: this._system }, ...messages];
+    let source = await this._llm(messages);
+    if (typeof source === "string" || source instanceof String) source = [String(source)];
+    let upstream;
+    if (source && typeof source[Symbol.asyncIterator] === "function") upstream = source[Symbol.asyncIterator]();
+    else if (source && typeof source[Symbol.iterator] === "function") upstream = source[Symbol.iterator]();
+    else throw new TypeError("respond() expects the model to give text: a string, or an (async) iterable of text pieces");
+    const parts = [];
+    let ended = false;
+    let movedOn = false;
+    try {
+      for (;;) {
+        const { value: piece, done } = await upstream.next();
+        if (done) {
+          ended = true;
+          break;
+        }
+        if (piece === null || piece === undefined) continue;
+        if (typeof piece !== "string") {
+          throw new TypeError(
+            `respond() expects the model to give text pieces (strings), got ${typeof piece}; map each chunk to its text first`
+          );
+        }
+        if (this._stopped()) {
+          movedOn = true;
+          break;
+        }
+        parts.push(piece);
+        if (piece) yield piece;
+      }
+    } finally {
+      if (!ended && typeof upstream.return === "function") {
+        try {
+          await upstream.return();
+        } catch {
+          // the model's stream failed to close; nothing of it is kept either way
+        }
+      }
+      if (movedOn) {
+        session._interrupted(decision, parts.join(""));
+      } else if (ended && !this._closed && !decision._recorded) {
+        // A full answer is recorded under answer()'s rules.
+        await session._recordDecision(decision, parts.join(""), this._keep, this._system);
+      }
+    }
   }
 }
 
@@ -1810,10 +2188,15 @@ class VoiceSession {
     this.bargeIns = 0;
     this.lookupErrors = 0;
     this.learnErrors = 0;
+    // Writes the turn stopped waiting for at the latency budget (they finish in the background).
+    this.slowWrites = 0;
+    // Hits refused because the stored answer was saved for a different question.
+    this.differentQuestion = 0;
     this.notShareable = 0;
     this.heldCommitments = 0;
     this.unspeakable = 0;
     this.emptyAnswers = 0;
+    this.audioUnavailable = 0;
     // The question the latest stored answer was stored under.
     this._lastStored = null;
     this._fillers = new Map();
@@ -1821,10 +2204,15 @@ class VoiceSession {
     this._cancelled = false;
     this._turnMark = 0;
     this._turn = 0;
-    this._cacheable = false;
+    // [turn, whether that turn's answer may be shared]: read with the turn it belongs
+    // to, so a decide() that finishes after a newer one never lends the newer turn its
+    // flag (two decide() calls in flight at once). Same as Python's _shareable.
+    this._shareable = [0, false];
     // Set once the caller tells the call something a later answer may depend on;
     // from then on nothing in this call is looked up or shared.
     this._tainted = false;
+    // Caller turns _heard() has already checked (history is re-read every turn).
+    this._heardTexts = new Set();
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
   }
@@ -1856,11 +2244,13 @@ class VoiceSession {
     const turn = this._turn;
     const decision = await this._decide(callerSaid);
     decision.turn = turn;
-    this._cacheable = false;
+    decision._session = new WeakRef(this);
     if (decision.needsModel) {
+      decision._said = callerSaid;
       [decision.messages, decision.cacheable] = this._modelMessages(callerSaid);
-      this._cacheable = decision.cacheable;
     }
+    // A newer turn's flag is never overwritten by an older one.
+    if (turn === this._turn) this._shareable = [turn, decision.cacheable];
     return decision;
   }
 
@@ -2028,6 +2418,28 @@ class VoiceSession {
       }
     }
 
+    if (PII_PLACEHOLDER.test(answer)) {
+      this.refusedPrivate += 1;
+      this.inferred += 1;
+      return new TurnDecision("infer", {
+        confidence: hit.confidence,
+        reason:
+          "the cached answer holds a placeholder the server put in place of a caller's detail; " +
+          "reading it aloud is worse than a model call",
+      });
+    }
+
+    if (!personal && !hit.exact && (await this._answersAnotherQuestion(keyed, answer, performance.now() - started))) {
+      this.differentQuestion += 1;
+      this.inferred += 1;
+      return new TurnDecision("infer", {
+        confidence: hit.confidence,
+        reason:
+          "the cached answer was saved for a different question (it asks about something " +
+          "this one does not); a model call is better than a wrong answer",
+      });
+    }
+
     const held = this._held(hit, answer, short);
     if (held) {
       this.inferred += 1;
@@ -2102,8 +2514,60 @@ class VoiceSession {
     if (!decision.needsModel) return decision;
     let messages = decision.messages || [...this.injections(), { role: "user", content: callerSaid }];
     if (system) messages = [{ role: "system", content: system }, ...messages];
-    decision.text = await llm(messages);
-    const { outcome, why: reason } = await this._record(callerSaid, decision.text, { turn: decision.turn });
+    // Straight to the recording step: answer() made this decision itself, so a
+    // subclass whose decide() returns its own decision object keeps working.
+    decision._said = callerSaid;
+    return this._recordDecision(decision, await llm(messages), false, system);
+  }
+
+  // Save the answer to a turn you sent to your own model: decide(), then call the
+  // model with decision.messages, then record(decision, its answer).
+  //
+  // The same rules as answer() decide what happens to it: shared with other callers
+  // only when decide() said it may be (decision.cacheable), kept to this call
+  // otherwise, and dropped when the caller talked over it (cancel()) or a newer turn
+  // was decided since. `private: true` keeps a shareable answer to this call, e.g. one
+  // built from a tool's result. Never rejects for the server: a refused write is
+  // reported, not thrown.
+  //
+  // Resolves to `decision` with `text` set to the answer and stored / notStored /
+  // empty filled in, as answer() does. Rejects for a decision this session did not
+  // make, one that did not need the model (served from the cache or a filler), or one
+  // already recorded.
+  async record(decision, answer, { private: keep = false, system = null } = {}) {
+    if (!(decision instanceof TurnDecision)) {
+      throw new Error("record() takes the TurnDecision decide() returned");
+    }
+    if (decision._recorded) throw new Error("record() got a decision that was already recorded");
+    const owner = decision._session ? decision._session.deref() : undefined;
+    if (owner !== this) {
+      throw new Error(
+        decision._session
+          ? "record() got a decision from another session: each call's answers are recorded in the session that decided them"
+          : "record() takes a decision from this session's decide(); one from another session (another call) or made by hand is refused"
+      );
+    }
+    if (!decision.needsModel) {
+      throw new Error(
+        `record() is for a turn that needed the model; this one was answered by ${
+          decision.servedFromFiller ? "a filler" : "the cache"
+        } ("${decision.action}")`
+      );
+    }
+    return this._recordDecision(decision, answer, keep, system);
+  }
+
+  // record() and answer(): store the answer and fill in the decision.
+  async _recordDecision(decision, answer, keep, system = null) {
+    decision._recorded = true;
+    const said = decision._said;
+    decision._said = null;
+    decision.text = answer;
+    const { outcome, why: reason } = await this._record(said, answer, {
+      turn: decision.turn,
+      private: keep,
+      instructions: system,
+    });
     decision.stored = STORED.has(outcome);
     const why = decision.stored ? "" : reason || outcome;
     decision.notStored = why;
@@ -2116,16 +2580,163 @@ class VoiceSession {
     return decision;
   }
 
+  // answer(), streamed: decide now, then give the text to speak piece by piece.
+  //
+  // llm(messages) gives the model's text as it writes it: an async iterable or iterable
+  // of strings (null pieces are skipped), or the whole answer as a string (or a promise
+  // of one). It is called with the same messages answer() would use, only when the turn
+  // needs the model, and only once the response is read.
+  //
+  // A turn the cache or a filler answers yields that text once (decision.audio has its
+  // audio when the session caches audio). A model turn yields the model's pieces and,
+  // when its stream ends, records the full answer under answer()'s rules (`private` as
+  // in record()). If the caller talks over it (cancel()) or a newer turn is decided, the
+  // stream stops at the next piece, the model's stream is closed and nothing is stored.
+  // A model error rejects and stores nothing, as does stopping early (close(), or
+  // leaving the loop); the decision can then still be recorded with record().
+  async respond(callerSaid, llm, { system = null, private: keep = false } = {}) {
+    const decision = await this.decide(callerSaid);
+    return new VoiceResponse(this, decision, callerSaid, llm, system, keep);
+  }
+
+  // Which agent's system prompts this call's is compared with.
+  _agentKey() {
+    const agent = this.agent || {};
+    return [agent.tenant || (agent.client && agent.client.tenant) || null, agent.agentId || null];
+  }
+
+  // The caller talked over this turn, or a newer turn has been decided.
+  _movedOn(decision) {
+    return this._cancelled || decision.turn !== this._turn;
+  }
+
+  // A streamed turn the caller talked over: report it, store and keep nothing. Not an
+  // empty answer, so an app never retries over the caller's new words.
+  _interrupted(decision, spoken) {
+    if (decision._recorded) return;
+    decision._recorded = true;
+    decision._said = null;
+    decision.text = spoken;
+    decision.stored = false;
+    decision.notStored = "the caller moved on before this answer was complete";
+    decision.reason = `${decision.reason}; not stored: ${decision.notStored}`;
+  }
+
   // Keep a turn in this call's transcript and never cache it. For a model that
   // holds the whole conversation itself (a realtime speech model): it cannot be
   // given decision.messages, so nothing it says is shared.
   recordPrivateTurn(callerSaid, modelSaid) {
+    this._heard(callerSaid);
     if (this._cancelled) return;
     this._open = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
-    if (this._cacheable) this.notShareable += 1;
-    this._cacheable = false;
+    if (this._shareable[1]) this.notShareable += 1;
+    this._shareable = [0, false];
+  }
+
+  // Note, in the background, that `answer` was saved for `question`. A failure only means a
+  // later hit can't be checked, which is how it was before.
+  _keepQuestion(question, answer) {
+    const client = this.agent && this.agent.client;
+    if (!client || typeof client.set !== "function") return;
+    const key = questionKey(tenantOf(this.agent), answer);
+    const ttl = this.ttl || QUESTION_TTL;
+    const record = (async () => {
+      try {
+        const raw = await client.get(key);
+        let kept = raw ? JSON.parse(String(raw)) : [];
+        kept = (Array.isArray(kept) ? kept : []).filter((q) => typeof q === "string" && q !== question).slice(-(QUESTIONS_KEPT - 1));
+        await client.set(key, JSON.stringify([...kept, question]), { ttl });
+      } catch {
+        // see above
+      }
+    })(); // never on the audio-clip queue
+    pendingRecords.add(record);
+    record.finally(() => pendingRecords.delete(record));
+  }
+
+  // Whether every question this answer was saved for asks about something else. Unknown
+  // (no record, or it can't be read in time) means no: as before.
+  async _answersAnotherQuestion(asked, answer, spentMs = 0) {
+    const client = this.agent && this.agent.client;
+    if (!client || typeof client.get !== "function") return false;
+    try {
+      const read = Promise.resolve().then(() => client.get(questionKey(tenantOf(this.agent), answer)));
+      read.catch(() => {});
+      const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
+      const left = budgeted ? this.latencyBudgetMs - spentMs : null; // what the lookup left of the budget
+      if (budgeted && left <= 0) return false;
+      const raw = budgeted ? await within(left, read) : await read;
+      if (raw === LATE || !raw) return false;
+      const questions = JSON.parse(String(raw));
+      if (!Array.isArray(questions)) return false;
+      const kept = questions.filter((q) => typeof q === "string");
+      return kept.length > 0 && kept.every((q) => differentSpecifics(asked, q));
+    } catch {
+      return false;
+    }
+  }
+
+  // agent.learn(), waited for no longer than twice the latency budget: a slow server never
+  // stalls the turn after a miss. A write still running then finishes in the background
+  // (an error it ends with is counted). An error within the budget is thrown, as before.
+  // Without a budget it is waited for, as it always was. False when the turn stopped waiting.
+  //
+  // Resolves to null when the write is done; otherwise to the "slow_write" outcome to
+  // report (still running, or not written at all because too many writes wait).
+  async _learn(...args) {
+    if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) {
+      await this.agent.learn(...args);
+      return null;
+    }
+    if (pendingWrites.size >= WRITES_MAX) {
+      this.slowWrites += 1;
+      console.warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
+      return { outcome: "slow_write", why: "not written: too many writes are waiting on a slow server" };
+    }
+    let late = false; // set by the timer itself, so an error at any later moment is counted here
+    const write = Promise.resolve().then(() => this.agent.learn(...args));
+    const tracked = write
+      .catch((error) => {
+        if (!late) return; // before the turn stopped waiting: thrown to the caller, counted there
+        this.learnErrors += 1;
+        console.warn(`crowkis voice: a write that passed the latency budget then failed (${(error && error.name) || "Error"})`);
+      })
+      .finally(() => pendingWrites.delete(tracked));
+    pendingWrites.add(tracked);
+    const finished = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        late = true;
+        resolve(false);
+      }, 2 * this.latencyBudgetMs);
+      write.then(
+        () => { clearTimeout(timer); resolve(true); },
+        (error) => { clearTimeout(timer); if (!late) reject(error); }
+      );
+    });
+    if (finished) return null;
+    this.slowWrites += 1;
+    return { outcome: "slow_write", why: "not confirmed: the server took longer than the latency budget, so the write finishes in the background" };
+  }
+
+  // The ID-like values this caller said earlier in the call: its earlier turns in the
+  // transcript and the turns the session only heard (private turns, loaded history).
+  // Called once the turn being recorded is in the transcript, so that turn is left out:
+  // it passed the personal rules, so its numbers are not private. As in Python.
+  _saidIdentifiers() {
+    const said = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content).slice(0, -1);
+    return identifiers([...said, ...[...this._heardTexts].sort()]);
+  }
+
+  // A caller turn this session never decided (a private turn, history the app gave the
+  // model): one that tells the call something a later answer may depend on keeps the
+  // rest of the call off the shared cache, as decide() does for its own turns.
+  _heard(callerSaid) {
+    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
+    if (this._tainted || !text || this._heardTexts.has(text)) return;
+    if (this._heardTexts.size < HEARD_MAX) this._heardTexts.add(text);
+    if (setsContext(text)) this._tainted = true;
   }
 
   // Record the model's answer to the turn decide() last handled, and cache it if
@@ -2139,21 +2750,24 @@ class VoiceSession {
   // as a shape, this caller's values removed), "kept" (the model read the whole
   // call, so it stays in this call), "private" (personal, or repeats this caller's
   // details), "non_answer", "not_saved" (a follow-up with nothing to key it to),
-  // "refused" (the write failed) or "interrupted" (talked over, or the caller moved
-  // on before it was complete).
-  async _recordModelTurn(callerSaid, modelSaid, { turn } = {}) {
-    return (await this._record(callerSaid, modelSaid, { turn })).outcome;
+  // "refused" (the write failed), "slow_write" (a session with a latency budget stopped
+  // waiting for the write: not confirmed) or "interrupted" (talked over, or the caller
+  // moved on before it was complete).
+  async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
+    return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
   }
 
   // The same, with why an answer was not stored, in words.
-  async _record(callerSaid, modelSaid, { turn } = {}) {
+  async _record(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
     const outcome = (word, why = "") => ({ outcome: word, why });
     if (this._cancelled || (turn !== undefined && turn !== null && turn !== this._turn)) {
       return outcome("interrupted", "the caller moved on before this answer was complete");
     }
     this._open = false;
-    const cacheable = this._cacheable;
-    this._cacheable = false;
+    const expected = turn === undefined || turn === null ? this._turn : turn;
+    const shareable = this._shareable;
+    this._shareable = [0, false];
+    const cacheable = shareable[1] && shareable[0] === expected;
     if (!(typeof modelSaid === "string" && modelSaid.trim())) {
       this.emptyAnswers += 1;
       return outcome("non_answer", "the model returned an empty answer");
@@ -2163,10 +2777,22 @@ class VoiceSession {
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (keyed === null) return outcome("not_saved", "a follow-up with no earlier turn to key it on");
+    if (keep) {
+      this.notShareable += 1;
+      return outcome("kept", "kept to this call: the answer was built from a tool's result");
+    }
+    if (instructions && repeatsPromptDetails(modelSaid, text, instructions, this._agentKey())) {
+      // The model read a system prompt that names this caller, and its answer repeats
+      // that: right for this caller only, never a shared answer or template.
+      this.notShareable += 1;
+      return outcome("private", "kept to this call: the answer repeats a detail about the caller from the system prompt");
+    }
     try {
       if (isPersonal(text)) {
-        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text) && (await this._learnPersonal(keyed, modelSaid))) {
-          return outcome("template");
+        if (!this._tainted && !isNonAnswer(modelSaid) && !unfinished(text)) {
+          const templated = await this._learnPersonal(keyed, modelSaid);
+          if (templated && templated.outcome) return templated; // slow_write: the shape was not confirmed written
+          if (templated) return outcome("template");
         }
         return outcome("private", "about this caller, with no declared value to make a shared answer shape from");
       }
@@ -2182,13 +2808,20 @@ class VoiceSession {
         this.notShareable += 1;
         return outcome("private", "kept to this call: the answer contains a value declared for this call");
       }
+      if (repeatsIdentifier(modelSaid, this._saidIdentifiers())) {
+        // Its model read only the question, so this can only come from an app that sent
+        // it the whole call: never share it.
+        this.notShareable += 1;
+        return outcome("private", "kept to this call: the answer repeats a number or ID this caller said");
+      }
       if (isNonAnswer(modelSaid)) {
         this.notShareable += 1;
         return outcome("non_answer", "not saved: the answer asks back or does not answer");
       }
-      await this.agent.learn(keyed, modelSaid, { ttl: this.ttl });
+      const slow = await this._learn(keyed, modelSaid, { ttl: this.ttl });
       this._lastStored = keyed;
-      return outcome("saved");
+      if (!slow) this._keepQuestion(keyed, modelSaid); // a slow server gets no extra write
+      return slow || outcome("saved");
     } catch (error) {
       this.learnErrors += 1;
       return outcome(
@@ -2254,10 +2887,13 @@ class VoiceSession {
       bargeIns: this.bargeIns,
       cacheUnavailable: this.lookupErrors,
       failedWrites: this.learnErrors,
+      slowWrites: this.slowWrites,
+      differentQuestion: this.differentQuestion,
       notShareable: this.notShareable,
       commitmentsSentToModel: this.heldCommitments,
       unspeakableAnswers: this.unspeakable,
       emptyAnswers: this.emptyAnswers,
+      audioUnavailable: this.audioUnavailable,
       cacheHitPct: pct(this.served),
       fillerHitPct: pct(this.filled),
       modelCallsAvoidedPct: pct(this.served + this.filled),
@@ -2320,16 +2956,31 @@ class VoiceSession {
       readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
       carriesCallContext(outside, keyed, earlier);
     if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values) && !undeclared) {
-      await this.agent.learn(keyed, shaped, { ttl: this.ttl, template: true });
-      return true;
+      return (await this._learn(keyed, shaped, { ttl: this.ttl, template: true })) || true;
     }
     this.uncacheablePersonal += 1;
     return false;
   }
 
+  // The audio for an answer this turn speaks, or null. Never rejects: when the audio
+  // step fails (the cache, or the app's own synthesiser) the turn keeps its text and the
+  // app's TTS speaks it. It used to reject the whole turn, losing the cached answer.
   async _voiced(answer, { cacheable = true } = {}) {
     if (!this.synthesise) return null;
-    if (!cacheable) return this.synthesise(answer);
+    try {
+      return await this._voice(answer, cacheable);
+    } catch (error) {
+      this.audioUnavailable += 1;
+      // The type only: an app's TTS error can quote the (possibly personal) text.
+      console.warn(`crowkis voice: no audio for this answer, the text is still served (${(error && error.name) || typeof error})`);
+      return null;
+    }
+  }
+
+  async _voice(answer, cacheable) {
+    // A text-only session (voiceSession() with no voice) has no real voice id to key a
+    // clip on: speak, but never read or store a cached clip.
+    if (!cacheable || this._textOnly) return this.synthesise(answer);
     return this.agent.speak(answer, this.synthesise, {
       voice: this.voice,
       ttl: this.ttl,
@@ -2379,7 +3030,10 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
       const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
       const keyed = session._contextKey(callerSaid, text) || callerSaid;
       session._tainted = session._tainted || setsContext(text);
-      session._cacheable = session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier);
+      session._shareable = [
+        session._turn,
+        session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier),
+      ];
       await session._recordModelTurn(callerSaid, agentSaid);
       earlier.push(callerSaid);
       totals.turns += 1;
@@ -2415,12 +3069,119 @@ async function judgedInTime(agent, query, ms) {
   return !query;
 }
 
+// The voice id of a text-only session. Never used as a cache key: every audio path
+// checks `_textOnly` first.
+const TEXT_ONLY_VOICE = "crowkis:text-only";
+
+// Every option new VoiceSession() takes, so a misspelt one is an error here, as in Python.
+const SESSION_OPTIONS = new Set([
+  "serveAbove", "minWords", "synthesise", "ttl", "fillers", "values", "commitments",
+  "shortTurns", "shareTemplates", "language", "speed", "audioFormat", "bytesPerSecond",
+]);
+
+/**
+ * A ready VoiceSession in one call, with defaults for live calls (same as Python's
+ * crowkis.voice_session()).
+ *
+ * It builds the client and the Agent itself. Server settings not passed here come from
+ * the environment, then the defaults (see the README, "Connect to your server"). The
+ * defaults differ from a bare VoiceSession because a caller is waiting:
+ * - latencyBudgetMs 250: the longest a turn waits for a cache lookup before it goes to
+ *   the model. null turns the budget off.
+ * - timeoutMs 1000 per server request, with no retries. Saving the model's answer
+ *   happens while the caller waits; 5 s tried three times would leave a stuck server
+ *   holding the turn for about 15 s. The cost of no retries: a request that fails once
+ *   (the first after a server restart, or a BUSY reply) is not tried again, so that
+ *   lookup goes to the model or that answer is not stored. Pass your own `client` for
+ *   other settings, e.g. for warmFromCalls, which should not use this live-call client.
+ *
+ * `voice` is the TTS voice id. Without it the session caches text only and never reads
+ * or stores audio, so two voices can never share a clip; passing `synthesise` then is
+ * an error. Every other VoiceSession option is passed on as it is.
+ *
+ * `client` uses a client you built, as it is: passing host/port/authToken/token/tenant/
+ * timeoutMs with it is an error, and closing the agent leaves it open.
+ */
+function voiceSession(options = {}) {
+  const {
+    voice,
+    agentId = "voice",
+    client: given,
+    host,
+    port,
+    authToken,
+    auth_token: authTokenAlias,
+    token,
+    tenant,
+    timeoutMs,
+    latencyBudgetMs = 250,
+    ...rest
+  } = options;
+  if (timeoutMs !== undefined && timeoutMs !== null && !(timeoutMs > 0)) {
+    throw new Error(`timeoutMs must be a positive number of milliseconds, got ${timeoutMs}`);
+  }
+  const unknown = Object.keys(rest).filter((name) => !SESSION_OPTIONS.has(name));
+  if (unknown.length) {
+    throw new TypeError(`voiceSession() got unknown option(s): ${unknown.join(", ")}`);
+  }
+  if (given) {
+    const passed = Object.entries({ host, port, authToken, auth_token: authTokenAlias, token, tenant, timeoutMs })
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([name]) => name);
+    if (passed.length) {
+      throw new Error(
+        `voiceSession() got client and ${passed.join(", ")}: a client passed in is used as it is, ` +
+          "so set these on the client instead"
+      );
+    }
+  }
+  const textOnly = voice === undefined || voice === null;
+  if (textOnly && rest.synthesise) {
+    throw new Error(
+      "voiceSession() got synthesise without voice. Cached audio is keyed on the voice that " +
+        "spoke it: pass your TTS voice id, or leave out synthesise to cache text only"
+    );
+  }
+  const client =
+    given ||
+    new CrowkisClient({
+      host,
+      port,
+      authToken: authToken || authTokenAlias || token,
+      tenant,
+      timeoutMs: timeoutMs ?? 1000,
+      maxRetries: 0,
+    });
+  const agent = new Agent(agentId, { client, tenant: client.tenant });
+  agent._ownsClient = !given;
+  const session = new VoiceSession(agent, {
+    ...rest,
+    voice: textOnly ? TEXT_ONLY_VOICE : voice,
+    latencyBudgetMs,
+  });
+  session._textOnly = textOnly;
+  return session;
+}
+
 module.exports = {
   VoiceSession,
+  VoiceResponse,
   TurnDecision,
+  voiceSession,
   warmFromCalls,
+  _SESSION_OPTIONS: SESSION_OPTIONS,
   _speakable: speakable,
+  _words: wordsOf,
+  _promptDetails: promptDetails,
+  _repeatsPromptDetails: repeatsPromptDetails,
+  _callerDetails: callerDetails,
+  _resetPromptBaselines: resetPromptBaselines,
+  _differentSpecifics: differentSpecifics,
+  _waitForWrites: waitForWrites,
+  _setWritesMax: setWritesMax,
   _isPersonal: isPersonal,
+  _IPV4: IPV4,
+  _PII_PLACEHOLDER: PII_PLACEHOLDER,
   _isContextDependent: isContextDependent,
   _setsContext: setsContext,
   _tellsFacts: tellsFacts,

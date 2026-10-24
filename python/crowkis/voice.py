@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import collections
 import concurrent.futures
+import hashlib
+import inspect
+import json
 import logging
+import queue
 import re
 import string
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+import weakref
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Union
 
-from .agent import Agent, _voice_addon_missing
-from .client import CrowkisError
+from .agent import Agent, _store_later, _voice_addon_missing
+from .client import CrowkisClient, CrowkisError
 
 # The server takes at most this per count in one report.
 _REPORT_MAX = 1_000_000
@@ -198,6 +204,55 @@ def _normalise(text: str) -> str:
 
 def _words(text: str) -> List[str]:
     return _WORDS.findall((text or "").lower())
+
+
+# Which question a shared answer was saved for, kept beside it as a plain key (keyed by
+# the answer, per tenant), so a hit can be checked against the question it really answers.
+# A plain GET/SET key, not the tool cache: that is an Enterprise feature.
+_QUESTION_KEY = "crowkis:question:{tenant}:{answer}"
+_QUESTIONS_KEPT = 8
+# Words that change how a question is put, not what it asks about.
+_FRAMING_WORDS = frozenset(
+    {"what", "when", "where", "which", "who", "whom", "whose", "why", "you", "your", "yours",
+     "we", "us", "tell", "know", "like", "want", "need", "help", "get", "got", "have", "has",
+     "had", "give", "show", "find", "let", "would", "will", "may", "might", "must", "just",
+     "also", "really", "kindly", "hi", "hello", "hey", "thanks", "thank", "question",
+     "kya", "kab", "kahan", "kaise", "kaun", "kyun", "kyon", "kitna", "kitne", "kitni", "hai",
+     "hain", "ho", "hun", "hoon", "aap", "tum", "ko", "ka", "ki", "ke", "se", "par", "bhi", "toh"}
+)
+# How long a question record lives when the answer has no TTL of its own.
+_QUESTION_TTL = 30 * 24 * 3600
+
+
+def _stem(word: str) -> str:
+    if word.endswith("es") and word[:-2].endswith(("s", "x", "z", "ch", "sh")) and len(word) >= 5:
+        return word[:-2]  # "boxes", "dishes"; "prices" and "rates" just drop the "s"
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
+            return word[: len(word) - len(suffix)] + keep
+    return word
+
+
+def _content_words(text: str) -> set:
+    return {_stem(w) for w in _words(text) if w not in _FUNCTION_WORDS and w not in _FRAMING_WORDS}
+
+
+def _different_specifics(asked: str, stored: str) -> bool:
+    """Two questions about different things: each has content words the other does
+    not ("on Saturday" / "on Sunday", "the city museum" / "the riverside greenhouse").
+    A rewording only adds or drops words on one side ("when are you open" / "what
+    are your opening hours"), or changes how it asks ("can I" / "do I")."""
+    a, s = _content_words(asked), _content_words(stored)
+    return bool(a - s) and bool(s - a)
+
+
+def _question_key(tenant: Optional[str], answer: str) -> str:
+    digest = hashlib.sha256(answer.strip(" \t\r\n").encode("utf-8")).hexdigest()[:32]
+    return _QUESTION_KEY.format(tenant=tenant or "default", answer=digest)
+
+
+def _tenant_of(agent: Any) -> Optional[str]:
+    return getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
 
 
 # Question words in front of a pronoun that are not what it refers to: "how long
@@ -613,6 +668,9 @@ _DIGITS = re.compile(r"[0-9]{5,}")
 # out, so a price ("1,499") or a weight ("1.5") is not an identifier.
 _SPACED_DIGITS = re.compile(r"[0-9]+(?:[ \t-]+[0-9]+)+")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]@[A-Za-z0-9-]")
+# An IPv4 address: personal data, as an IPv6 address already counts (its digit runs).
+_OCTET = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
+_IPV4 = re.compile(r"(?<![0-9.])" + _OCTET + r"(?:\." + _OCTET + r"){3}(?![0-9]|\.[0-9])")
 _CLAUSES = re.compile(r"([,.!?;:]+)")
 
 # A turn longer than this is private without being read: every rule is linear in
@@ -1109,7 +1167,7 @@ def _never_share(text: str, words: List[str]) -> bool:
     """Whether a turn's answer must never be shared, whatever the rest of the rules say."""
     if _unreadable(text):
         return True
-    if _DIGITS.search(text) or _EMAIL.search(text) or _reads_out_digits(text, words):
+    if _DIGITS.search(text) or _EMAIL.search(text) or _IPV4.search(text) or _reads_out_digits(text, words):
         return True
     if "at" in words and "dot" in words and any(w in _EMAIL_ENDINGS for w in words):
         return True
@@ -1346,6 +1404,43 @@ def _leaks(shaped: str, values: Dict[str, str]) -> bool:
     return any(value and _flatten(value) in flat for value in values.values())
 
 
+# What the server puts in a stored answer in place of a caller's detail (its PII scrubber):
+# "pii_email_k3fa9". Spoken, it is noise at best.
+_PII_PLACEHOLDER = re.compile(
+    r"(?<![A-Za-z0-9_])pii_(?:email|phone|natid|card|person|location|ip|dob|passport|iban)_[A-Za-z0-9]+",
+    re.IGNORECASE,
+)
+
+# A token that can identify someone: an order number, a PAN or IBAN, an email, an IP address.
+_ID_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]")
+_YEAR = re.compile(r"(?:19|20)[0-9]{2}")
+
+
+def _identifiers(texts: Iterable[str]) -> set:
+    """The ID-like values said in ``texts``, flattened as _leaks compares them: tokens
+    with four or more digits (not a bare year) or an @, and digit groups said with
+    spaces ("2345 6789 0123")."""
+    found: set = set()
+    for text in texts:
+        for token in _ID_TOKEN.findall(text or ""):
+            digits = sum(c in "0123456789" for c in token)
+            if "@" in token or (digits >= 4 and not _YEAR.fullmatch(token)):
+                found.add(_flatten(token))
+        for group in _SPACED_DIGITS.findall(text or ""):
+            joined = "".join(c for c in group if c in "0123456789")
+            if len(joined) >= 5:
+                found.add(joined)
+    return {value for value in found if len(value) >= 4}
+
+
+def _repeats_identifier(answer: str, identifiers: set) -> bool:
+    """Whether ``answer`` says one of ``identifiers``. A short value must be a whole token
+    of the answer ("1800" is not in "21,800"); a long one may appear anywhere in it."""
+    flat = _flatten(answer)
+    tokens = {_flatten(token) for token in _ID_TOKEN.findall(answer or "")} | set(_words(answer))
+    return any(value in flat if len(value) >= 6 else value in tokens for value in identifiers)
+
+
 # The checks below are for past transcripts only (warm_from_calls). A live turn
 # needs none of them: its model reads only what decide() hands it. A past
 # answer was written with the whole call in view.
@@ -1399,6 +1494,196 @@ def _carries_call_context(answer: str, question: str, earlier: List[str]) -> boo
     asked = set(_words(question))
     before = set().union(*(_identifying(turn) for turn in earlier)) if earlier else set()
     return any(w in before and w not in asked for w in _words(answer))
+
+
+# A system prompt can carry one caller's details ("The caller is Asha Rao, account 99812").
+# An answer that repeats them must never be shared. Two ways to find them:
+#
+# 1. Across calls (the reliable one). A bot's own instructions are the same on every call;
+#    what changes from call to call is about the caller. Once an agent has been seen with
+#    two different system prompts, every word and number of this call's prompt that is not
+#    in all of them is a caller detail: any name, in any case or script, any record or
+#    JSON value, any number. The business's fixed text never blocks sharing.
+# 2. Before that (the first call an agent makes in this process, or a prompt that has
+#    never changed): the sentences of the prompt that are about a person. The capitalised
+#    words (names), email words and numbers in them are caller details.
+
+# Words that make a sentence about one person, not the business.
+_PERSON_WORDS = frozenset({
+    "caller", "customer", "user", "client", "patient", "member", "guest", "student",
+    "name", "named", "account", "acct", "dob", "birthday", "born", "called", "calling",
+    "talking", "speaking", "mr", "mrs", "ms", "mx", "miss", "dr", "prof", "he", "she", "him",
+    "his", "her", "hers",
+})
+# A "label: value" line about one person's record or contact ("Phone: 555 0199",
+# "Location: Pune"), unless the label says it is the business's own ("Support phone: ...").
+_RECORD_LABELS = frozenset({
+    "phone", "mobile", "email", "address", "order", "booking", "reservation", "ticket", "case",
+    "policy", "plan", "balance", "dob", "id", "city", "location", "company", "employer",
+})
+# Words that make a sentence about the business even when it names a person word:
+# "Our customer service line is 1800 555 0100", "We help our customers with ...".
+_BUSINESS_WORDS = frozenset({
+    "support", "our", "office", "helpline", "help", "toll", "free", "business", "sales",
+    "main", "head", "store", "shop", "branch", "service", "services", "care", "line", "we",
+    "us", "customers", "callers", "users", "clients", "patients", "members", "guests",
+})
+# Sentence ends: . ! ? or ; then space, or a line break; never the dots inside an email
+# address or a decimal, nor the one after a title ("Mr. Sharma", "Prof. Rao").
+_SENTENCE_END = re.compile(
+    r"(?<!\bMr\.)(?<!\bMs\.)(?<!\bMx\.)(?<!\bDr\.)(?<!\bSt\.)(?<!\bSr\.)(?<!\bJr\.)(?<!\bMrs\.)(?<!\bProf\.)"
+    r"(?<=[.!?;])\s+|\n+"
+)
+# Runs of digits that belong together ("555 0199", "1800-555-0100", "99,812") make one number.
+_NUMBER_RUN = re.compile(r"[0-9]+(?:[ ,\-./][0-9]+)*")
+
+
+def _numbers(text: str) -> List[str]:
+    return [re.sub(r"[^0-9]", "", run) for run in _NUMBER_RUN.findall(text or "")]
+
+
+def _is_decimal_word(word: str) -> bool:
+    return any(c.isdecimal() for c in word)
+
+
+_LABEL = re.compile(r"^\s*([^:=\n]{1,40}?)\s*[:=]\s*(.*)$")
+_LABEL_WORDS = _RECORD_LABELS | _PERSON_WORDS
+
+
+def _label(sentence: str) -> tuple:
+    """("label", "value") of a "Label: value" or "key=value" sentence, else ("", "")."""
+    match = _LABEL.match(sentence)
+    return (match.group(1), match.group(2)) if match else ("", "")
+
+
+def _about_a_person(sentence: str, words: List[str]) -> bool:
+    present = set(words)
+    if present & _PERSON_WORDS and not present & _BUSINESS_WORDS:
+        return True
+    label, value = _label(sentence)
+    label_words = set(_words(label))
+    return bool(value.strip() and label_words & _LABEL_WORDS and not label_words & _BUSINESS_WORDS)
+
+
+def _value_words(value: str) -> set:
+    return {w for w in _words(value) if w not in _FUNCTION_WORDS and w not in _LABEL_WORDS
+            and not _is_decimal_word(w) and w not in _EMAIL_ENDINGS}
+
+
+def _prompt_details(instructions: str) -> tuple:
+    """Caller details in one system prompt, read on its own (see above), as
+    (words, numbers). In its sentences about a person: the capitalised words (a
+    sentence's first only when the next is capitalised too, as in "Asha Rao called"),
+    email words, every number, and the whole value of a "Label: value" / "key=value"
+    about a person's record. Lines under a heading about a person ("Caller record:"), up
+    to a blank line, are all details."""
+    words_found: set = set()
+    numbers_found: set = set()
+    in_block = False
+    for line in (instructions or "").split("\n"):
+        if not line.strip():
+            in_block = False
+            continue
+        if in_block:
+            words_found |= _value_words(line)
+            numbers_found.update(n for n in _numbers(line) if n)
+            continue
+        for sentence in _SENTENCE_END.split(line):
+            words = _words(sentence)
+            if not words or not _about_a_person(sentence, words):
+                continue
+            if sentence.rstrip().endswith(":") and not _label(sentence)[1].strip():
+                in_block = True  # a heading: what follows is this person's record
+            numbers_found.update(n for n in _numbers(sentence) if n)
+            label, value = _label(sentence)
+            if value.strip() and set(_words(label)) & _LABEL_WORDS:
+                words_found |= _value_words(value)
+            tokens = [t.group() for t in _TOKEN.finditer(sentence)]
+            for index, word in enumerate(tokens):
+                low = word.lower()
+                if low in _LABEL_WORDS or low in _FUNCTION_WORDS or not word[0].isupper() or _is_decimal_word(word):
+                    continue
+                if index == 0 and not (index + 1 < len(tokens) and tokens[index + 1][0].isupper()):
+                    continue  # "Always greet ...": a sentence's first word, not a name
+                words_found.add(low)
+            for address in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", sentence):
+                words_found |= {w for w in _words(address) if w not in _EMAIL_ENDINGS and not w.isdecimal()}
+    return words_found, numbers_found
+
+
+class _PromptBaseline:
+    """What every system prompt an agent was seen with has in common, in this process."""
+
+    __slots__ = ("prompts", "words", "numbers")
+
+    def __init__(self) -> None:
+        self.prompts: set = set()  # up to two distinct prompts: enough to know it varies
+        self.words: Optional[set] = None
+        self.numbers: Optional[set] = None
+
+
+_BASELINES: "collections.OrderedDict[tuple, _PromptBaseline]" = collections.OrderedDict()
+_BASELINES_MAX = 1024
+_BASELINES_LOCK = threading.Lock()
+
+
+def _reset_prompt_baselines() -> None:
+    """For tests: forget every agent's prompts."""
+    with _BASELINES_LOCK:
+        _BASELINES.clear()
+
+
+def _caller_details(instructions: str, agent_key: Optional[tuple] = None) -> tuple:
+    """Caller details in this call's system prompt, as (words, numbers): the sentences
+    about a person, and once the agent's prompt has been seen to vary, also whatever
+    differs from its other calls. The first two prompts seen can both be one caller's
+    (only a date differs), so what is common to them is never taken as not a detail."""
+    if agent_key is None:
+        return _prompt_details(instructions)
+    words = set(_words(instructions))
+    numbers = {n for n in _numbers(instructions) if n}
+    with _BASELINES_LOCK:
+        baseline = _BASELINES.pop(agent_key, None) or _PromptBaseline()
+        _BASELINES[agent_key] = baseline  # the most recent last; the oldest is dropped
+        while len(_BASELINES) > _BASELINES_MAX:
+            _BASELINES.popitem(last=False)
+        text = (instructions or "").strip()
+        if text not in baseline.prompts and len(baseline.prompts) < 2:
+            baseline.prompts.add(text)
+        baseline.words = words if baseline.words is None else baseline.words & words
+        baseline.numbers = numbers if baseline.numbers is None else baseline.numbers & numbers
+        varied = len(baseline.prompts) >= 2
+        common_words, common_numbers = set(baseline.words), set(baseline.numbers)
+    own_words, own_numbers = _prompt_details(instructions)
+    if not varied:
+        return own_words, own_numbers
+    return (words - common_words - _FUNCTION_WORDS) | own_words, (numbers - common_numbers) | own_numbers
+
+
+def _same_number(said: str, detail: str) -> bool:
+    """One number, written with or without its country code or leading part
+    ("98765 43210" and "+91 98765 43210"): equal, or the longer ends with the shorter of
+    at least 4 digits."""
+    if said == detail:
+        return True
+    short, long = sorted((said, detail), key=len)
+    return len(short) >= 4 and long.endswith(short)
+
+
+def _repeats_prompt_details(answer: str, question: str, instructions: str,
+                            agent_key: Optional[tuple] = None) -> bool:
+    """Whether the answer repeats a detail the system prompt gave about this caller
+    ("Hi Asha! We open at nine.", "account 99812") that the question itself did not
+    contain. Such an answer was shaped by this caller's details and is never shared."""
+    words, numbers = _caller_details(instructions, agent_key)
+    if not (words or numbers):
+        return False
+    asked_words, asked_numbers = set(_words(question)), set(_numbers(question))
+    if any(w in words and w not in asked_words for w in _words(answer)):
+        return True
+    return any(
+        _same_number(n, d) for n in _numbers(answer) if n not in asked_numbers for d in numbers
+    )
 
 
 # What a caller tells the call can change the right answer to a later question
@@ -1717,8 +2002,60 @@ def _answers_after_but(lead: str) -> bool:
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
 _CHAIN_LIMIT = 6
+# How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
+_HEARD_MAX = 2048
 
 _LOOKUPS = concurrent.futures.ThreadPoolExecutor(max_workers=32, thread_name_prefix="crowkis-voice")
+# A write a turn stopped waiting for (past twice the latency budget) finishes on these
+# workers. Daemon threads, so a write to a hung server never holds up the program's exit
+# (a cache write lost at exit costs a later hit). At most _WRITES_MAX wait at once: past
+# it (a hung server) a new answer is not written at all.
+_WRITE_WORKERS = 16
+_WRITES_MAX = 256
+_WRITE_QUEUE: "queue.Queue" = queue.Queue()
+_PENDING_WRITES: set = set()
+_PENDING_LOCK = threading.Lock()
+_write_workers_started = False
+# Counters a write worker and a turn may both update.
+_COUNT_LOCK = threading.Lock()
+
+
+def _write_worker() -> None:
+    while True:
+        future, fn, args, kwargs = _WRITE_QUEUE.get()
+        try:
+            if future.set_running_or_notify_cancel():
+                try:
+                    future.set_result(fn(*args, **kwargs))
+                except BaseException as err:  # noqa: BLE001 - handed to the waiting turn
+                    future.set_exception(err)
+        finally:
+            _WRITE_QUEUE.task_done()
+
+
+def _submit_write(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> "concurrent.futures.Future":
+    global _write_workers_started
+    if not _write_workers_started:
+        for n in range(_WRITE_WORKERS):
+            threading.Thread(target=_write_worker, name=f"crowkis-voice-write-{n}", daemon=True).start()
+        _write_workers_started = True
+    future: "concurrent.futures.Future" = concurrent.futures.Future()
+    _WRITE_QUEUE.put((future, fn, args, kwargs))
+    return future
+
+
+def _wait_for_writes() -> None:
+    """For tests: every write handed to the background has finished."""
+    with _PENDING_LOCK:
+        pending = list(_PENDING_WRITES)
+    concurrent.futures.wait(pending)
+    if _write_workers_started:
+        _WRITE_QUEUE.join()  # and everything else on the write workers (question records)
+
+
+def _write_done(future: "concurrent.futures.Future") -> None:
+    with _PENDING_LOCK:
+        _PENDING_WRITES.discard(future)
 
 
 # What _record_model_turn did with an answer; the two that put it in the shared cache.
@@ -1764,6 +2101,13 @@ class TurnDecision:
         self.not_stored = ""
         self._empty = False
         self._audio_shareable = False
+        # Set by decide(): the session that made it (a weak reference, so a kept
+        # decision never keeps a call alive) and, for a model turn, what the caller
+        # said, so record() takes a decision only from its own session, and only once.
+        # The caller's words are dropped once recorded.
+        self._session: Optional["weakref.ReferenceType[VoiceSession]"] = None
+        self._said: Optional[str] = None
+        self._recorded = False
 
     @property
     def audio_shareable(self) -> bool:
@@ -1794,6 +2138,114 @@ class TurnDecision:
             f"TurnDecision({self.action!r}, confidence={self.confidence:.4f}, "
             f"reason={self.reason!r})"
         )
+
+
+class VoiceResponse:
+    """What VoiceSession.respond() returns: iterate it for the text to speak, piece by
+    piece as the model writes it.
+
+    ``decision`` is ready at once, before the first piece: ``decision.served_from_cache``
+    and ``decision.audio`` say whether a cached answer (and its audio) can be played
+    instead of running the TTS. A response is read once.
+    """
+
+    def __init__(self, session: "VoiceSession", decision: "TurnDecision", caller_said: str,
+                 llm, system, private) -> None:
+        self.decision = decision
+        self._session = session
+        self._caller_said = caller_said
+        self._llm = llm
+        self._system = system
+        self._private = private
+        self._pieces: Optional[Iterator[str]] = None
+
+    def __iter__(self) -> Iterator[str]:
+        if self._pieces is not None:
+            raise RuntimeError("a VoiceResponse is read once")
+        self._pieces = self._run()
+        return self._pieces
+
+    def close(self) -> None:
+        """Stop early: the model's stream is closed and nothing is stored."""
+        if self._pieces is None:
+            self._pieces = iter(())
+        else:
+            self._pieces.close()  # type: ignore[union-attr]
+
+    def _stopped(self) -> bool:
+        """The caller talked over this turn, a newer turn was decided, or the app
+        recorded the turn itself: speak no more of this answer."""
+        return self.decision._recorded or self._session._moved_on(self.decision)
+
+    def _run(self) -> Iterator[str]:
+        session, decision = self._session, self.decision
+        if not decision.needs_model:
+            if decision.text:
+                yield decision.text
+            return
+        if self._stopped():  # talked over before a word was read: never call the model
+            session._interrupted(decision, "")
+            return
+        # As answer() does, so a subclass whose decide() returns its own decision works.
+        decision._said = self._caller_said
+        messages = decision.messages
+        if messages is None:
+            messages = session.injections() + [{"role": "user", "content": self._caller_said}]
+        if self._system:
+            messages = [{"role": "system", "content": self._system}] + messages
+        source = self._llm(messages)
+        if inspect.isawaitable(source) or hasattr(source, "__aiter__"):
+            if inspect.iscoroutine(source):
+                source.close()  # never awaited: closed so it raises no warning
+            raise TypeError(
+                "respond() got an async model: VoiceSession.respond() reads a sync iterable "
+                "of text; for an async model use crowkis.async_voice_session() or AsyncVoiceSession"
+            )
+        if isinstance(source, (bytes, bytearray)):
+            raise TypeError("respond() expects the model to give text (str), got bytes; decode it first")
+        if isinstance(source, str):
+            source = [source]
+        try:
+            upstream = iter(source)
+        except TypeError:
+            raise TypeError(
+                f"respond() expects the model to give text: a str, or an iterable of str "
+                f"pieces; got {type(source).__name__}"
+            ) from None
+        parts: List[str] = []
+        ended = moved_on = False
+        try:
+            for piece in upstream:
+                if piece is None:
+                    continue
+                if not isinstance(piece, str):
+                    raise TypeError(
+                        f"respond() expects the model to give text pieces (str), got "
+                        f"{type(piece).__name__}; map each chunk to its text first"
+                    )
+                if self._stopped():
+                    moved_on = True
+                    break
+                parts.append(piece)
+                if piece:
+                    yield piece
+            else:
+                ended = True
+        finally:
+            closer = getattr(upstream, "close", None)
+            if closer is not None:
+                try:
+                    closer()
+                except Exception:  # noqa: BLE001 — the stream is over either way
+                    pass
+            if moved_on:
+                session._interrupted(decision, "".join(parts))
+            elif ended:
+                # A full answer is recorded under answer()'s rules.
+                with session._turn_lock:
+                    recorded, decision._recorded = decision._recorded, True
+                if not recorded:
+                    session._record_decision(decision, "".join(parts), private=self._private, system=self._system)
 
 
 class VoiceSession:
@@ -1865,10 +2317,15 @@ class VoiceSession:
         self.barge_ins = 0
         self.lookup_errors = 0
         self.learn_errors = 0
+        # Writes the turn stopped waiting for at the latency budget (they finish in the background).
+        self.slow_writes = 0
+        # Hits refused because the stored answer was saved for a different question.
+        self.different_question = 0
         self.not_shareable = 0
         self.held_commitments = 0
         self.unspeakable = 0
         self.empty_answers = 0
+        self.audio_unavailable = 0
         # The question the latest stored answer was stored under.
         self._last_stored: Optional[str] = None
         self._fillers: Dict[str, str] = {}
@@ -1882,6 +2339,8 @@ class VoiceSession:
         # Set once the caller tells the call something a later answer may depend on;
         # from then on nothing in this call is looked up or shared.
         self._tainted = False
+        # Caller turns _heard() has already checked (history is re-read every turn).
+        self._heard_texts: set = set()
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = threading.RLock()
         if values:
@@ -1914,7 +2373,9 @@ class VoiceSession:
             turn = self._turn
         decision = self._decide(caller_said)
         decision.turn = turn
+        decision._session = weakref.ref(self)
         if decision.needs_model:
+            decision._said = caller_said
             decision.messages, decision.cacheable = self._model_messages(caller_said)
         with self._turn_lock:
             if turn == self._turn:  # a newer turn's flag is never overwritten by an older one
@@ -2099,6 +2560,31 @@ class VoiceSession:
                     ),
                 )
 
+        if _PII_PLACEHOLDER.search(answer):
+            self.refused_private += 1
+            self.inferred += 1
+            return TurnDecision(
+                "infer",
+                confidence=hit["confidence"],
+                reason=(
+                    "the cached answer holds a placeholder the server put in place of a "
+                    "caller's detail; reading it aloud is worse than a model call"
+                ),
+            )
+
+        if not personal and not hit.get("exact") and self._answers_another_question(
+                keyed, answer, (time.monotonic() - started) * 1000.0):
+            self.different_question += 1
+            self.inferred += 1
+            return TurnDecision(
+                "infer",
+                confidence=hit["confidence"],
+                reason=(
+                    "the cached answer was saved for a different question (it asks about "
+                    "something this one does not); a model call is better than a wrong answer"
+                ),
+            )
+
         held = self._held(hit, answer, short)
         if held:
             self.inferred += 1
@@ -2146,13 +2632,16 @@ class VoiceSession:
         return None
 
     def cancel(self) -> bool:
-        if not self._open:
-            return False
-        self._open = False
-        self._cancelled = True
-        self.barge_ins += 1
-        del self.transcript[self._turn_mark:]
-        return True
+        # Under the turn lock, like decide() and recording: a save finishing on another
+        # thread never adds to the transcript while it is being trimmed.
+        with self._turn_lock:
+            if not self._open:
+                return False
+            self._open = False
+            self._cancelled = True
+            self.barge_ins += 1
+            del self.transcript[self._turn_mark:]
+            return True
 
     def answer(
         self,
@@ -2179,8 +2668,60 @@ class VoiceSession:
             messages = self.injections() + [{"role": "user", "content": caller_said}]
         if system:
             messages = [{"role": "system", "content": system}] + messages
-        decision.text = llm(messages)
-        outcome = self._record_model_turn(caller_said, decision.text, turn=decision.turn)
+        # Straight to the recording step: answer() made this decision itself, so a
+        # subclass whose decide() returns its own decision object keeps working.
+        decision._said = caller_said
+        return self._record_decision(decision, llm(messages), private=False, system=system)
+
+    def record(self, decision: TurnDecision, answer: Optional[str], *, private: bool = False,
+               system: Optional[str] = None) -> TurnDecision:
+        """Save the answer to a turn you sent to your own model: decide(), then call
+        the model with ``decision.messages``, then record(decision, its answer).
+
+        The same rules as answer() decide what happens to it: shared with other
+        callers only when decide() said it may be (``decision.cacheable``), kept to
+        this call otherwise, and dropped when the caller talked over it (cancel()) or
+        a newer turn was decided since. ``private=True`` keeps a shareable answer to
+        this call, e.g. one built from a tool's result. ``system`` is the system prompt
+        the model read, if any: an answer that repeats a detail it gives about this
+        caller (a name, an account number) is kept to this call. Never raises for the
+        server: a refused write is reported, not thrown.
+
+        Returns ``decision`` with ``text`` set to the answer and ``stored`` /
+        ``not_stored`` / ``empty`` filled in, as answer() does. Raises ValueError for a
+        decision this session did not make, one that did not need the model (served
+        from the cache or a filler), or one already recorded.
+        """
+        if not isinstance(decision, TurnDecision):
+            raise ValueError(f"record() takes the TurnDecision decide() returned, got {type(decision).__name__}")
+        with self._turn_lock:  # two threads recording one decision: only one gets through
+            if decision._recorded:
+                raise ValueError("record() got a decision that was already recorded")
+            owner = decision._session() if decision._session is not None else None
+            if owner is not self:
+                raise ValueError(
+                    "record() takes a decision from this session's decide(); one from another "
+                    "session (another call) or made by hand is refused"
+                    if decision._session is None else
+                    "record() got a decision from another session: each call's answers are "
+                    "recorded in the session that decided them"
+                )
+            if not decision.needs_model:
+                where = "a filler" if decision.served_from_filler else "the cache"
+                raise ValueError(
+                    f"record() is for a turn that needed the model; this one was answered "
+                    f"by {where} ({decision.action!r})"
+                )
+            decision._recorded = True
+        return self._record_decision(decision, answer, private=private, system=system)
+
+    def _record_decision(self, decision: TurnDecision, answer: Optional[str], *, private: bool,
+                         system: Optional[str] = None) -> TurnDecision:
+        """record() and answer(): store the answer and fill in the decision."""
+        decision._recorded = True
+        said, decision._said = decision._said, None
+        decision.text = answer
+        outcome = self._record_model_turn(said, answer, turn=decision.turn, private=private, instructions=system)
         decision.stored = outcome in _STORED
         why = "" if decision.stored else (outcome.why or str(outcome))
         decision.not_stored = why
@@ -2191,12 +2732,64 @@ class VoiceSession:
             decision.reason = f"{decision.reason}; not stored: {why}"
         return decision
 
+    def respond(
+        self,
+        caller_said: str,
+        llm: Callable[[List[Dict[str, str]]], Union[str, Iterable[Optional[str]]]],
+        *,
+        system: Optional[str] = None,
+        private: bool = False,
+    ) -> VoiceResponse:
+        """answer(), streamed: decide now, then give the text to speak piece by piece.
+
+        ``llm(messages)`` returns the model's text pieces as it writes them (any
+        iterable of str; None pieces are skipped) or the whole answer as one str. It is
+        called with the same messages answer() would use, only when the turn needs
+        the model, and only once the response is read.
+
+        A turn the cache or a filler answers yields that text once (``decision.audio``
+        has its audio when the session caches audio). A model turn yields the model's
+        pieces and, when its stream ends, records the full answer under answer()'s rules
+        (``private`` as in record()). If the caller talks over it (cancel()) or a newer
+        turn is decided, the stream stops at the next piece, the model's stream is
+        closed and nothing is stored. A model error is raised and stores nothing, as
+        does stopping early (``close()``, or leaving the loop); the decision can then
+        still be recorded with record().
+        """
+        decision = self.decide(caller_said)
+        return VoiceResponse(self, decision, caller_said, llm, system, private)
+
+    def _agent_key(self) -> tuple:
+        """Which agent's system prompts this call's is compared with."""
+        agent = self.agent
+        tenant = getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
+        return (tenant, getattr(agent, "agent_id", None))
+
+    def _moved_on(self, decision: TurnDecision) -> bool:
+        """The caller talked over this turn, or a newer turn has been decided."""
+        with self._turn_lock:
+            return self._cancelled or decision.turn != self._turn
+
+    def _interrupted(self, decision: TurnDecision, spoken: str) -> None:
+        """A streamed turn the caller talked over: report it, store and keep nothing.
+        Not an empty answer, so an app never retries over the caller's new words."""
+        with self._turn_lock:
+            if decision._recorded:
+                return
+            decision._recorded = True
+        decision._said = None
+        decision.text = spoken
+        decision.stored = False
+        decision.not_stored = "the caller moved on before this answer was complete"
+        decision.reason = f"{decision.reason}; not stored: {decision.not_stored}"
+
     def record_private_turn(self, caller_said: str, model_said: str) -> None:
         """Keep a turn in this call's transcript and never cache it.
 
         For a model that holds the whole conversation itself (a realtime speech
         model): it cannot be given ``decision.messages``, so nothing it says is shared.
         """
+        self._heard(caller_said)
         if self._cancelled:
             return
         self._open = False
@@ -2207,8 +2800,109 @@ class VoiceSession:
                 self.not_shareable += 1
             self._shareable = (0, False)
 
+    def _keep_question(self, question: str, answer: str) -> None:
+        """Note, in the background, that ``answer`` was saved for ``question``. A
+        failure only means a later hit can't be checked, which is how it was before."""
+        client = getattr(self.agent, "_client", None)
+        if client is None or not hasattr(client, "set"):
+            return
+        key, ttl = _question_key(_tenant_of(self.agent), answer), self.ttl or _QUESTION_TTL
+
+        def keep() -> None:
+            try:
+                raw = client.get(key)
+                kept = json.loads(raw) if raw else []
+                kept = [q for q in kept if isinstance(q, str) and q != question][-(_QUESTIONS_KEPT - 1):]
+                client.set(key, json.dumps(kept + [question], separators=(",", ":"), ensure_ascii=False), ttl=ttl)
+            except Exception as err:  # noqa: BLE001 — see docstring
+                _LOG.debug("crowkis voice: the answer's question was not kept (%s)", type(err).__name__)
+
+        _submit_write(keep)  # never on the audio-clip queue
+
+    def _answers_another_question(self, asked: str, answer: str, spent_ms: float = 0.0) -> bool:
+        """Whether every question this answer was saved for asks about something else.
+        Unknown (no record, or it can't be read in time) means no: as before."""
+        client = getattr(self.agent, "_client", None)
+        if client is None or not hasattr(client, "get"):
+            return False
+        read = lambda: client.get(_question_key(_tenant_of(self.agent), answer))  # noqa: E731
+        try:
+            if self.latency_budget_ms is None:
+                raw = read()
+            else:
+                left = self.latency_budget_ms - spent_ms  # what the lookup left of the budget
+                if left <= 0:
+                    return False
+                raw = _LOOKUPS.submit(read).result(timeout=left / 1000.0)
+            questions = json.loads(raw) if raw else []
+        except Exception:  # noqa: BLE001 — see docstring
+            return False
+        questions = [q for q in questions if isinstance(q, str)] if isinstance(questions, list) else []
+        return bool(questions) and all(_different_specifics(asked, q) for q in questions)
+
+    def _learn(self, *args: Any, **kwargs: Any) -> Optional["_Outcome"]:
+        """agent.learn(), waited for no longer than twice the latency budget: a slow server
+        never stalls the turn after a miss. A write still running then finishes in the
+        background (an error it ends with is counted). An error before that is raised, as
+        before. Without a budget it is waited for, as it always was.
+
+        None when the write is done; otherwise the ``slow_write`` outcome to report (still
+        running, or not written at all because too many writes wait on a slow server)."""
+        if self.latency_budget_ms is None:
+            self.agent.learn(*args, **kwargs)
+            return None
+        with _PENDING_LOCK:
+            full = len(_PENDING_WRITES) >= _WRITES_MAX
+            if not full:
+                future = _submit_write(self.agent.learn, *args, **kwargs)
+                _PENDING_WRITES.add(future)
+        if full:
+            self._count("slow_writes")
+            _LOG.warning("crowkis voice: too many writes waiting on a slow server; this answer is not written")
+            return _Outcome("slow_write", "not written: too many writes are waiting on a slow server")
+        future.add_done_callback(_write_done)
+        try:
+            future.result(timeout=2 * self.latency_budget_ms / 1000)
+        except concurrent.futures.TimeoutError:
+            self._count("slow_writes")
+            future.add_done_callback(self._late_write)
+            return _Outcome("slow_write", "not confirmed: the server took longer than the latency "
+                                          "budget, so the write finishes in the background")
+        return None
+
+    def _count(self, name: str) -> None:
+        with _COUNT_LOCK:
+            setattr(self, name, getattr(self, name) + 1)
+
+    def _late_write(self, future: "concurrent.futures.Future") -> None:
+        if future.exception() is not None:
+            self._count("learn_errors")
+            _LOG.warning("crowkis voice: a write that passed the latency budget then failed (%s)",
+                         type(future.exception()).__name__)
+
+    def _said_identifiers(self) -> set:
+        """The ID-like values this caller said earlier in the call: its earlier turns in
+        the transcript and the turns the session only heard (private turns, loaded
+        history). Called once the turn being recorded is in the transcript, so that
+        turn is left out: it passed the personal rules, so its numbers are not private."""
+        said = [turn["content"] for turn in self.transcript if turn["role"] == "user"][:-1]
+        return _identifiers(said + sorted(self._heard_texts))
+
+    def _heard(self, caller_said: Optional[str]) -> None:
+        """A caller turn this session never decided (a private turn, history the app gave
+        the model): one that tells the call something a later answer may depend on keeps
+        the rest of the call off the shared cache, as decide() does for its own turns."""
+        text = caller_said.strip() if isinstance(caller_said, str) else ""
+        if self._tainted or not text or text in self._heard_texts:
+            return
+        if len(self._heard_texts) < _HEARD_MAX:
+            self._heard_texts.add(text)
+        if _sets_context(text):
+            self._tainted = True
+
     def _record_model_turn(
-        self, caller_said: str, model_said: str, *, turn: Optional[int] = None, private: bool = False
+        self, caller_said: str, model_said: str, *, turn: Optional[int] = None, private: bool = False,
+        instructions: Optional[str] = None,
     ) -> str:
         """Record the model's answer to the turn decide() last handled, and cache it if allowed.
 
@@ -2223,8 +2917,9 @@ class VoiceSession:
         as a shape, this caller's values removed), ``kept`` (the model read the whole
         call, or a tool's result, so it stays in this call), ``private`` (personal, or
         repeats this caller's details), ``non_answer``, ``not_saved`` (a follow-up with
-        nothing to key it to), ``refused`` (the write failed) or ``interrupted`` (talked
-        over, or the caller moved on before it was complete). The returned string's
+        nothing to key it to), ``refused`` (the write failed), ``slow_write`` (a session
+        with a latency budget stopped waiting for the write: not confirmed) or
+        ``interrupted`` (talked over, or the caller moved on before it was complete). The returned string's
         ``why`` says it in words.
         """
         with self._turn_lock:
@@ -2246,11 +2941,20 @@ class VoiceSession:
         if private:
             self.not_shareable += 1
             return _Outcome("kept", "kept to this call: the answer was built from a tool's result")
+        if instructions and _repeats_prompt_details(model_said, text, instructions, self._agent_key()):
+            # The model read a system prompt that names this caller, and its answer repeats
+            # that: right for this caller only, never a shared answer or template.
+            self.not_shareable += 1
+            return _Outcome("private", "kept to this call: the answer repeats a detail about the caller "
+                                       "from the system prompt")
         try:
             if _is_personal(text):
-                if (not self._tainted and not _is_non_answer(model_said) and not _unfinished(text)
-                        and self._learn_personal(keyed, model_said)):
-                    return _Outcome("template")
+                if not self._tainted and not _is_non_answer(model_said) and not _unfinished(text):
+                    templated = self._learn_personal(keyed, model_said)
+                    if isinstance(templated, _Outcome):
+                        return templated  # slow_write: the shape was not confirmed written
+                    if templated:
+                        return _Outcome("template")
                 return _Outcome("private", "about this caller, with no declared value to make a shared answer shape from")
             if self._tainted:
                 self.not_shareable += 1
@@ -2261,12 +2965,19 @@ class VoiceSession:
             if _leaks(model_said, self.values):
                 self.not_shareable += 1
                 return _Outcome("private", "kept to this call: the answer contains a value declared for this call")
+            if _repeats_identifier(model_said, self._said_identifiers()):
+                # Its model read only the question, so this can only come from an app
+                # that sent it the whole call: never share it.
+                self.not_shareable += 1
+                return _Outcome("private", "kept to this call: the answer repeats a number or ID this caller said")
             if _is_non_answer(model_said):
                 self.not_shareable += 1
                 return _Outcome("non_answer", "not saved: the answer asks back or does not answer")
-            self.agent.learn(keyed, model_said, ttl=self.ttl)
+            slow = self._learn(keyed, model_said, ttl=self.ttl)
             self._last_stored = keyed
-            return _Outcome("saved")
+            if slow is None:  # a slow server gets no extra write
+                self._keep_question(keyed, model_said)
+            return slow or _Outcome("saved")
         except Exception as error:  # noqa: BLE001 — see docstring
             self.learn_errors += 1
             why = f"the server refused the write: {str(error) or type(error).__name__}"
@@ -2293,10 +3004,13 @@ class VoiceSession:
             "barge_ins": self.barge_ins,
             "cache_unavailable": self.lookup_errors,
             "failed_writes": self.learn_errors,
+            "slow_writes": self.slow_writes,
+            "different_question": self.different_question,
             "not_shareable": self.not_shareable,
             "commitments_sent_to_model": self.held_commitments,
             "unspeakable_answers": self.unspeakable,
             "empty_answers": self.empty_answers,
+            "audio_unavailable": self.audio_unavailable,
             "cache_hit_pct": pct(self.served),
             "filler_hit_pct": pct(self.filled),
             "model_calls_avoided_pct": pct(self.served + self.filled),
@@ -2396,15 +3110,29 @@ class VoiceSession:
             and not _leaks(shaped, self.values)
             and not undeclared
         ):
-            self.agent.learn(keyed, shaped, ttl=self.ttl, template=True)
-            return True
+            return self._learn(keyed, shaped, ttl=self.ttl, template=True) or True
         self.uncacheable_personal += 1
         return False
 
     def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
+        """The audio for an answer this turn speaks, or None. Never raises: when the
+        audio step fails (the cache, or the app's own synthesiser) the turn keeps its
+        text and the app's TTS speaks it."""
         if self.synthesise is None:
             return None
-        if not cacheable:
+        try:
+            return self._voice(answer, cacheable)
+        except Exception as err:  # noqa: BLE001 — see docstring
+            self.audio_unavailable += 1
+            # The type only: an app's TTS error can quote the (possibly personal) text.
+            _LOG.warning("crowkis voice: no audio for this answer, the text is still served (%s)",
+                         type(err).__name__)
+            return None
+
+    def _voice(self, answer: str, cacheable: bool) -> Optional[bytes]:
+        # A text-only session (voice_session() with no voice) has no real voice id to
+        # key a clip on: speak, but never read or store a cached clip.
+        if not cacheable or getattr(self, "_text_only", False):
             return self.synthesise(answer)
         return self.agent.speak(
             answer,
@@ -2425,6 +3153,84 @@ def _private_chain(chain: List[str], min_words: int = 0) -> bool:
     if chain and (len(root.split()) < min_words or not _asks(root)):
         return True
     return any(_is_personal(turn) or _lookup_only(turn) for turn in chain)
+
+
+# The voice id of a text-only session. Never used as a cache key: every audio path
+# checks `_text_only` first.
+_TEXT_ONLY_VOICE = "crowkis:text-only"
+
+
+def voice_session(
+    *,
+    voice: Optional[str] = None,
+    agent_id: str = "voice",
+    client: Optional[CrowkisClient] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    auth_token: Optional[str] = None,
+    token: Optional[str] = None,
+    tenant: Optional[str] = None,
+    timeout: Optional[float] = None,
+    latency_budget_ms: Optional[float] = 250,
+    **options: Any,
+) -> VoiceSession:
+    """A ready VoiceSession in one call, with defaults for live calls.
+
+    It builds the client and the Agent itself. Server settings not passed here come
+    from the environment, then the defaults (see the README, "Connect to your server").
+    The defaults differ from a bare VoiceSession because a caller is waiting:
+
+    - ``latency_budget_ms=250``: the longest a turn waits for a cache lookup before it
+      goes to the model. ``None`` turns the budget off.
+    - ``timeout=1.0`` seconds per server request, with no retries. Saving the model's
+      answer happens while the caller waits; a 5 s timeout tried three times would
+      leave a stuck server holding the turn for about 15 s. The cost of no retries: a
+      request that fails once (the first on each pooled connection after a server
+      restart, or a BUSY reply) is not tried again, so that lookup goes to the model or
+      that answer is not stored. Pass your own ``client`` for other settings, e.g. for
+      ``warm_from_calls``, which should not use this live-call client.
+
+    ``voice`` is the TTS voice id. Without it the session caches text only and never
+    reads or stores audio, so two voices can never share a clip; passing
+    ``synthesise`` then is an error. Every other VoiceSession option (``serve_above``,
+    ``fillers``, ``ttl``, ...) is passed on as it is.
+
+    ``client`` uses a client you built, as it is: its server settings and timeouts are
+    yours, so passing ``host``/``port``/``auth_token``/``token``/``tenant``/``timeout`` with
+    it is an error, and closing the agent leaves it open.
+    """
+    if timeout is not None and not timeout > 0:
+        raise ValueError(f"timeout must be a positive number of seconds, got {timeout}")
+    if client is not None:
+        given = [name for name, value in (("host", host), ("port", port), ("auth_token", auth_token),
+                                          ("token", token), ("tenant", tenant), ("timeout", timeout))
+                 if value is not None]
+        if given:
+            raise ValueError(
+                f"voice_session() got client= and {', '.join(given)}: a client passed in is "
+                "used as it is, so set these on the client instead"
+            )
+    if voice is None and options.get("synthesise") is not None:
+        raise ValueError(
+            "voice_session() got synthesise= without voice=. Cached audio is keyed on the "
+            "voice that spoke it: pass your TTS voice id, or leave out synthesise to cache text only"
+        )
+    owns_client = client is None
+    if client is None:
+        client = CrowkisClient(
+            host, port, auth_token=auth_token, token=token, tenant=tenant,
+            timeout=1.0 if timeout is None else timeout, max_retries=0,
+        )
+    agent = Agent(agent_id, client=client, tenant=client.tenant)
+    agent._owns_client = owns_client
+    session = VoiceSession(
+        agent,
+        voice=_TEXT_ONLY_VOICE if voice is None else voice,
+        latency_budget_ms=latency_budget_ms,
+        **options,
+    )
+    session._text_only = voice is None
+    return session
 
 
 def warm_from_calls(agent: Agent, calls, *, wait: float = 30.0) -> dict:

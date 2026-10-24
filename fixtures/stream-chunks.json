@@ -1,0 +1,19 @@
+{
+  "about": "How stream() cuts a cached answer into chunks, the same in Python (tests/test_stream_spacing.py) and Node (test-stream-spacing.js). Spaces are the ASCII ones (tab, newline, vertical tab, form feed, carriage return, space) and the Unicode space separators (U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000); nothing else. chunk_tokens (a number): 0 or missing means 4, a fraction is cut to a whole number, and the result is kept between 1 and 128.",
+  "cases": [
+    {"text": "It waters at dawn for ten minutes.", "chunk_tokens": 4, "chunks": ["It waters at dawn ", "for ten minutes."]},
+    {"text": "a b c d e", "chunk_tokens": 2.5, "chunks": ["a b ", "c d ", "e"]},
+    {"text": "one two three", "chunk_tokens": 0.5, "chunks": ["one ", "two ", "three"]},
+    {"text": "a b c d e f", "chunk_tokens": 0, "chunks": ["a b c d ", "e f"]},
+    {"text": "a b c d e f", "chunk_tokens": -3, "chunks": ["a ", "b ", "c ", "d ", "e ", "f"]},
+    {"text": "a b c", "chunk_tokens": 500, "chunks": ["a b c"]},
+    {"text": "a\u0085b c", "chunk_tokens": 1, "chunks": ["a\u0085b ", "c"]},
+    {"text": "a\u001fb c", "chunk_tokens": 1, "chunks": ["a\u001fb ", "c"]},
+    {"text": "a\ufeffb c", "chunk_tokens": 1, "chunks": ["a\ufeffb ", "c"]},
+    {"text": "a\u00a0b\u3000c", "chunk_tokens": 1, "chunks": ["a\u00a0", "b\u3000", "c"]},
+    {"text": "\u2003lead word", "chunk_tokens": 1, "chunks": ["\u2003lead ", "word"]},
+    {"text": "line\r\nnext\tend", "chunk_tokens": 1, "chunks": ["line\r\n", "next\t", "end"]},
+    {"text": "हमारा स्टोर खुला है।", "chunk_tokens": 2, "chunks": ["हमारा स्टोर ", "खुला है।"]},
+    {"text": " \u00a0 ", "chunk_tokens": 4, "chunks": []}
+  ]
+}

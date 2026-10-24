@@ -1,13 +1,28 @@
+/**
+ * Server settings left out here are read from the environment when the client is
+ * created: CROWKIS_HOST, CROWKIS_PORT, CROWKIS_AUTH_TOKEN (or CROWKIS_TOKEN),
+ * CROWKIS_TENANT, then the parts of CROWKIS_URL (crowkis://:token@host:port/tenant),
+ * then the defaults (127.0.0.1:6383, no token, no tenant). A value passed here wins.
+ */
 export interface CrowkisClientOptions {
+  /** Default: CROWKIS_HOST, else the host in CROWKIS_URL, else "127.0.0.1". */
   host?: string;
+  /** Default: CROWKIS_PORT, else the port in CROWKIS_URL, else 6383. */
   port?: number;
+  /** Default: CROWKIS_TENANT, else the path of CROWKIS_URL, else none. */
   tenant?: string;
   model?: string;
+  /** Default: CROWKIS_AUTH_TOKEN, else CROWKIS_TOKEN, else the token in CROWKIS_URL, else none. */
   authToken?: string;
   auth_token?: string;
   /** The server's CROWKIS_AUTH_TOKEN, sent as RESP AUTH. Same as `authToken`. */
   token?: string;
+  /** Per request, connecting included. Default 5000. */
   timeoutMs?: number;
+  /** Retries of a request that failed at the connection (or a BUSY reply). Default 2. */
+  maxRetries?: number;
+  /** The first retry's wait; each next one doubles it. Default 100. */
+  backoffBaseMs?: number;
 }
 
 export interface CacheSetOptions {
@@ -295,9 +310,13 @@ export type Synthesise = (
 
 export interface AgentOptions {
   client?: CrowkisClient;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   host?: string;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   port?: number;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   tenant?: string;
+  /** Left out: read from the environment, as for CrowkisClientOptions. */
   authToken?: string;
   sharesWith?: string[];
 }
@@ -359,6 +378,8 @@ export class Agent {
   routeCounts: { cache: number; cheap: number; expensive: number };
   audioHits: number;
   audioMisses: number;
+  /** Audio cache reads and writes that failed; each was a miss, never an error. */
+  audioErrors: number;
   toolHits: number;
   toolMisses: number;
   remember(fact: string, options?: { ttl?: number }): Promise<unknown>;
@@ -415,7 +436,8 @@ export interface TurnDecisionOptions {
 export class TurnDecision {
   constructor(action: TurnAction, options?: TurnDecisionOptions);
   readonly action: TurnAction;
-  readonly text: string | null;
+  /** What to speak. Set by answer(), record() and respond(); an app may set its own fallback. */
+  text: string | null;
   readonly audio: Buffer | null;
   readonly confidence: number;
   readonly reason: string;
@@ -452,6 +474,28 @@ export interface ModelMessage {
 
 /** The app's model: reads exactly the messages Crowkis chose, returns its answer. */
 export type ModelCall = (messages: ModelMessage[]) => string | Promise<string>;
+
+/** What respond() calls: the model's text as it writes it, or the whole answer. */
+export type StreamingModelCall = (
+  messages: ModelMessage[],
+) =>
+  | string
+  | Promise<string>
+  | Iterable<string | null | undefined>
+  | AsyncIterable<string | null | undefined>
+  | Promise<Iterable<string | null | undefined> | AsyncIterable<string | null | undefined>>;
+
+/**
+ * What VoiceSession.respond() resolves to. Read it with `for await` for the text to
+ * speak, piece by piece. `decision` is ready before the first piece (servedFromCache,
+ * audio). Read once.
+ */
+export declare class VoiceResponse implements AsyncIterable<string> {
+  readonly decision: TurnDecision;
+  [Symbol.asyncIterator](): AsyncIterator<string>;
+  /** Stop early: the model's stream is closed and nothing is stored. */
+  close(): Promise<void>;
+}
 
 export interface VoiceValues {
   [slot: string]: string | number | null | undefined;
@@ -507,6 +551,8 @@ export interface VoiceStats {
   cacheUnavailable: number;
   /** Model answers that could not be cached (refused write); the call went on. */
   failedWrites: number;
+  /** Writes the turn stopped waiting for at the latency budget; they finish in the background. */
+  slowWrites: number;
   /** Shareable-looking model answers that were kept to this call (a declared value in them, or a private turn). */
   notShareable: number;
   /** Cached commitments the `commitments` option did not allow speaking. */
@@ -515,6 +561,8 @@ export interface VoiceStats {
   unspeakableAnswers: number;
   /** Model answers that were empty: never stored, reported as `decision.empty`. */
   emptyAnswers: number;
+  /** Answers served without audio because the audio step failed (the text was still served). */
+  audioUnavailable: number;
   cacheHitPct: number;
   fillerHitPct: number;
   modelCallsAvoidedPct: number;
@@ -532,6 +580,13 @@ export class VoiceSession {
   readonly commitments: Commitments;
   readonly values: Record<string, string>;
   readonly transcript: TranscriptTurn[];
+  /** What changes the sound besides the voice: a clip is reused only when all match. */
+  readonly language: string;
+  readonly speed: string | number;
+  readonly audioFormat: string;
+  readonly bytesPerSecond?: number;
+  readonly shortTurns: boolean;
+  readonly shareTemplates: boolean;
   served: number;
   inferred: number;
   filled: number;
@@ -541,6 +596,14 @@ export class VoiceSession {
   overBudget: number;
   bargeIns: number;
   emptyAnswers: number;
+  lookupErrors: number;
+  learnErrors: number;
+  /** Writes the turn stopped waiting for at the latency budget (a slow server); they finish in the background. */
+  slowWrites: number;
+  notShareable: number;
+  heldCommitments: number;
+  unspeakable: number;
+  audioUnavailable: number;
   setValues(values: VoiceValues): void;
   registerFiller(trigger: string, response: string): void;
   registerFillers(pairs: Record<string, string>): void;
@@ -551,6 +614,28 @@ export class VoiceSession {
    * the messages Crowkis chose, then remembered. `text` on the result is what to speak.
    */
   answer(callerSaid: string, llm: ModelCall, options?: { system?: string }): Promise<TurnDecision>;
+  /**
+   * Save the answer to a turn you sent to your own model: `decide()`, call the model
+   * with `decision.messages`, then `record(decision, answer)`. Same rules as `answer()`;
+   * `private: true` keeps a shareable answer to this call (e.g. from a tool's result).
+   * Resolves to `decision` with `text`, `stored`, `notStored` and `empty` filled in.
+   * Rejects for a decision from another session or made by hand, one served from the
+   * cache or a filler, or one already recorded. Never rejects for a refused write.
+   */
+  record(decision: TurnDecision, answer: string | null | undefined, options?: { private?: boolean }): Promise<TurnDecision>;
+  /**
+   * answer(), streamed: decides now, then yields the text to speak piece by piece. A
+   * cache or filler turn yields that text and never calls `llm`. A model turn yields
+   * the model's pieces and records the full answer when its stream ends, under
+   * answer()'s rules. The stream stops, closes the model's stream and stores nothing
+   * if the caller talks over it (cancel()) or a newer turn is decided; a model error or
+   * stopping early stores nothing either (the decision can still be record()ed).
+   */
+  respond(
+    callerSaid: string,
+    llm: StreamingModelCall,
+    options?: { system?: string; private?: boolean },
+  ): Promise<VoiceResponse>;
   /** Keep a turn in the transcript, never cached: for a model that holds the whole call itself. */
   recordPrivateTurn(callerSaid: string, modelSaid: string): void;
   injections(): TranscriptTurn[];
@@ -583,6 +668,34 @@ export function warmFromCalls(
   calls: Iterable<Iterable<PastTurn>>,
   options?: { wait?: number },
 ): Promise<WarmStartTotals>;
+
+/** Options for voiceSession(): every VoiceSession option, with `voice` optional. */
+export interface VoiceSessionFactoryOptions extends Omit<VoiceSessionOptions, "voice" | "latencyBudgetMs"> {
+  /** The TTS voice id. Left out: text is cached, audio never is; `synthesise` is then refused. */
+  voice?: string;
+  /** Default "voice". */
+  agentId?: string;
+  /** A client you built, used as it is. Not allowed together with the server settings below. */
+  client?: CrowkisClient;
+  /** Server settings; left out: the environment, then the defaults (see CrowkisClientOptions). */
+  host?: string;
+  port?: number;
+  authToken?: string;
+  auth_token?: string;
+  token?: string;
+  tenant?: string;
+  /** Per server request. Default 1000, with no retries. */
+  timeoutMs?: number;
+  /** The longest a turn waits for a cache lookup. Default 250; null turns it off. */
+  latencyBudgetMs?: number | null;
+}
+
+/**
+ * A ready VoiceSession in one call, with defaults for live calls: a 250 ms lookup
+ * budget and a 1 s server timeout with no retries, so a stuck server costs a turn about
+ * a second. Unknown options throw. Same as Python's crowkis.voice_session().
+ */
+export function voiceSession(options?: VoiceSessionFactoryOptions): VoiceSession;
 
 /**
  * Names of the three events this realtime provider uses. They are data, not
@@ -851,6 +964,9 @@ export interface CallSessionOptions {
   urgentReply?: string | null;
   /** The business's own system for "my balance", "my booking": the reply, or null for the model. Never cached. */
   onTools?: (turn: string, frame: TurnFrame) => string | null | Promise<string | null>;
+  /** The system prompt the model reads with a shared question (Chat passes its `system`): a shared
+   *  answer repeating a detail it gives about this caller is never saved ("refused:prompt_detail"). */
+  instructions?: string;
 }
 
 /** One call or chat thread on turn understanding v2.2. */

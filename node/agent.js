@@ -51,6 +51,19 @@ function stableArgs(args) {
   }
 }
 
+const DEFAULT_SOUND = ["und", "1", "default"];
+
+// The basic (no Voice add-on) audio cache key: the voice and the text, plus the
+// language, speed and format when any of them is not the default, so a clip made for
+// one sound is never played for another. With the defaults it is the key earlier
+// versions used, so their clips stay valid. Same rule as Python's _tts_key.
+function ttsKey(text, [voice, language, speed, format]) {
+  if (language === DEFAULT_SOUND[0] && String(speed) === DEFAULT_SOUND[1] && format === DEFAULT_SOUND[2]) {
+    return JSON.stringify({ text, voice });
+  }
+  return JSON.stringify({ format, language, speed: String(speed), text, voice });
+}
+
 class Agent {
   constructor(agentId, options = {}) {
     const id = typeof agentId === "string" ? agentId.trim() : "";
@@ -69,6 +82,8 @@ class Agent {
     this.routeCounts = { cache: 0, cheap: 0, expensive: 0 };
     this.audioHits = 0;
     this.audioMisses = 0;
+    // Audio cache reads and writes that failed (each one a miss, never an error).
+    this.audioErrors = 0;
     // The server's audio cache (Voice add-on): null until the first clip asks.
     this._audioV2 = null;
     this._audioV2RecheckAt = 0;
@@ -78,11 +93,14 @@ class Agent {
     this.client =
       options.client ||
       new CrowkisClient({
-        host: options.host || "127.0.0.1",
-        port: options.port || 6383,
+        host: options.host,
+        port: options.port,
         tenant: options.tenant,
         authToken: options.authToken,
       });
+    // The client's tenant (from CROWKIS_TENANT, or the client given): commands go there
+    // anyway, so the agent says so too.
+    if (this.tenant === undefined || this.tenant === null) this.tenant = this.client.tenant;
   }
 
   async remember(fact, { ttl } = {}) {
@@ -310,9 +328,8 @@ class Agent {
       );
     }
     const labels = [voiceId, language || "und", String(speed || "1"), audioFormat || "default"];
-    if (typeof this.client.caudioget !== "function") this._audioV2 = false;
-    else if (this._audioV2 === false && this._audioV2RecheckAt && Date.now() >= this._audioV2RecheckAt) this._audioV2 = null;
-    let useV2 = this._audioV2 !== false && fitsAudioCache(text, labels);
+    let useV2 = this._audioCacheUsable(text, labels);
+    let skipStore = false;
     if (useV2) {
       try {
         const clip = await this.client.caudioget(text, ...labels, { tenant: this.tenant });
@@ -322,17 +339,20 @@ class Agent {
           return clip;
         }
       } catch (error) {
-        if (!voiceAddonMissing(error)) throw error;
-        this._audioV2 = false;
-        this._audioV2RecheckAt = Date.now() + ADDON_RECHECK_MS;
-        useV2 = false;
+        // A failed read is a miss: the clip is made and nothing is stored, so a failing
+        // server is not waited on twice. It used to end the turn.
+        [useV2, skipStore] = this._audioCacheFailed(error);
       }
     }
-    const key = JSON.stringify({ text, voice: voiceId });
-    if (!useV2) {
-      const cached = await this.client.ctoolget("crowkis.tts", key, {
-        tenant: this.tenant,
-      });
+    const key = ttsKey(text, labels);
+    if (!useV2 && !skipStore) {
+      let cached = null;
+      try {
+        cached = await this.client.ctoolget("crowkis.tts", key, { tenant: this.tenant });
+      } catch (error) {
+        this._audioCacheError("read", error);
+        skipStore = true;
+      }
       if (cached !== null && cached !== undefined) {
         const raw = Buffer.isBuffer(cached) ? cached.toString("utf8") : String(cached);
         const audio = Buffer.from(raw, "base64");
@@ -344,22 +364,53 @@ class Agent {
     }
     const audio = await synthesise(text);
     this.audioMisses += 1;
-    if (audio && audio.length) {
+    if (audio && audio.length && !skipStore) {
       if (useV2) {
         const ms = bytesPerSecond ? Math.floor((audio.length * 1000) / bytesPerSecond) : undefined;
         // A copy now: the caller may reuse its buffer before the store runs.
         const clip = Buffer.from(audio);
         storeLater(() => this.client.caudioset(text, ...labels, clip, { ex: ttl, ms, tenant: this.tenant }));
       } else {
-        await this.client.ctoolset(
-          "crowkis.tts",
-          key,
-          Buffer.from(audio).toString("base64"),
-          { ex: ttl, tenant: this.tenant }
-        );
+        try {
+          await this.client.ctoolset("crowkis.tts", key, Buffer.from(audio).toString("base64"), {
+            ex: ttl,
+            tenant: this.tenant,
+          });
+        } catch (error) {
+          this._audioCacheError("written", error); // the clip just made is still spoken
+        }
       }
     }
     return audio;
+  }
+
+  // Whether to ask the server's audio cache (Voice add-on) for this clip.
+  _audioCacheUsable(text, labels) {
+    if (typeof this.client.caudioget !== "function") {
+      this._audioV2 = false;
+      return false;
+    }
+    if (this._audioV2 === false && this._audioV2RecheckAt && Date.now() >= this._audioV2RecheckAt) {
+      this._audioV2 = null; // ask again: a licence may have been installed or renewed
+    }
+    return this._audioV2 !== false && fitsAudioCache(text, labels);
+  }
+
+  // After the audio cache answered an error: [use it, skip storing]. No Voice add-on: the
+  // basic path, asked again later. Any other error is a miss with nothing stored.
+  _audioCacheFailed(error) {
+    if (voiceAddonMissing(error)) {
+      this._audioV2 = false;
+      this._audioV2RecheckAt = Date.now() + ADDON_RECHECK_MS;
+      return [false, false];
+    }
+    this._audioCacheError("read", error);
+    return [true, true];
+  }
+
+  _audioCacheError(what, error) {
+    this.audioErrors += 1;
+    console.warn(`crowkis: an audio clip could not be ${what}, so it is not cached this time: ${(error && error.message) || error}`);
   }
 
   audioStats() {
@@ -395,4 +446,4 @@ class Agent {
   }
 }
 
-module.exports = { Agent, voiceAddonMissing, waitForAudioStores };
+module.exports = { Agent, voiceAddonMissing, waitForAudioStores, _ttsKey: ttsKey, _storeLater: storeLater };

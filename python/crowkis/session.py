@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .callstate import IDENTITIES, CallState, word_digest
-from .voice import _instructs, _proper_nouns, _is_non_answer as is_non_answer, _tells_about_caller, _urgent, _words
+from .voice import _PII_PLACEHOLDER, _instructs, _proper_nouns, _is_non_answer as is_non_answer, _repeats_prompt_details, _tells_about_caller, _urgent, _words
 from .turn import NOT_GENERAL_TYPES, TurnFrame
 from .understand import ReplayUnderstander, Understander
 from .verify import _FUNCTION, _NUMWORDS, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
@@ -167,6 +167,9 @@ class CallSession:
     ``on_event``      monitoring hook, called with a dict after each turn ("turn") and each
                       recorded answer ("answer"). Carries routes, reasons and de-identified keys,
                       never the caller's raw words. Errors in the hook are ignored.
+    ``instructions``  the system prompt the model reads with a shared question. A shared
+                      answer that repeats a detail it gives about this caller ("Hi Asha!")
+                      is never saved (``refused:prompt_detail``).
     """
 
     def __init__(
@@ -185,6 +188,7 @@ class CallSession:
         on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
         urgent_reply: Optional[str] = None,
         on_tools: Optional[Callable[[str, TurnFrame], Optional[str]]] = None,
+        instructions: str = "",
     ) -> None:
         for name, value in (("latency_budget_ms", latency_budget_ms), ("understand_budget_ms", understand_budget_ms)):
             if value is not None and value <= 0:
@@ -204,6 +208,7 @@ class CallSession:
         # The business's own system for "my balance", "my booking": returns the reply, or None
         # for the model to answer with the whole call. Never cached.
         self.on_tools = on_tools
+        self.instructions = (instructions or "").strip()
         self.mode = "full"
         self.set_mode(mode)
         self.state = CallState()
@@ -439,7 +444,17 @@ class CallSession:
         asked = set(_words(verdict.question or ""))
         if any(w not in asked and self.state.is_private(w) for w in _words(text)):
             return "private_word"
+        if self.instructions and _repeats_prompt_details(text, verdict.question or "", self.instructions,
+                                                         self._prompt_key()):
+            return "prompt_detail"
         return None
+
+    def _prompt_key(self) -> tuple:
+        """Which system prompts this call's is compared with: the same agent's on the same
+        channel (a chat's prompt never stands in for a voice call's)."""
+        agent = self.agent
+        tenant = getattr(agent, "tenant", None) or getattr(getattr(agent, "_client", None), "tenant", None)
+        return (tenant, getattr(agent, "agent_id", None), getattr(self.checker, "channel", None))
 
     # --- saved with the chat thread ----------------------------------------------------------
 
@@ -517,7 +532,8 @@ class CallSession:
             self.counts["lookup_errors"] += 1
             return None
         if hit.get("route") == "cache" and hit.get("answer"):
-            return hit["answer"]
+            # A placeholder the server put in place of someone's detail is never served.
+            return None if _PII_PLACEHOLDER.search(hit["answer"]) else hit["answer"]
         return None
 
     @staticmethod

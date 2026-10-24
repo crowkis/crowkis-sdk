@@ -72,7 +72,7 @@ _GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
         [
             ("crowkis.integrations.langchain.CrowkisCache", "set_llm_cache(...) — semantic cache for LangChain & LangGraph"),
             ("crowkis.CrowkisMemory", "agent memory for LangGraph / CrewAI / AutoGen / custom loops"),
-            ("crowkis.CachedOpenAI", "drop-in OpenAI client wrapper (change 2 lines)"),
+            ("crowkis.openai_wrapper.CachedOpenAI", "drop-in OpenAI client wrapper (change 2 lines)"),
         ],
     ),
 ]

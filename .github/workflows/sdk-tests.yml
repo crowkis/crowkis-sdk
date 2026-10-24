@@ -1,0 +1,107 @@
+name: SDK tests
+
+# The Python and Node suites, the voice adapter conformance suite (fixtures/adapter-conformance.json)
+# on pinned framework versions, and on demand the conformance suite against a real Crowkis server.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      real_server:
+        description: "Also run the conformance suite against the Crowkis server in the CROWKIS_* secrets"
+        type: boolean
+        default: false
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }} (${{ matrix.framework }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.9", framework: core, install: "" }
+          - { python: "3.12", framework: core, install: "" }
+          - { python: "3.12", framework: pipecat, install: "pipecat-ai==1.13.0" }
+          - { python: "3.12", framework: livekit, install: "livekit-agents==1.8.8" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install pytest ${{ matrix.install }}
+      - name: Test (twice)
+        working-directory: python
+        run: |
+          python -m pytest -q -p no:cacheprovider
+          python -m pytest -q -p no:cacheprovider
+
+  node:
+    name: Node ${{ matrix.node }} (${{ matrix.framework }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { node: "18", framework: core, install: "" }
+          - { node: "22", framework: core, install: "" }
+          - { node: "22", framework: livekit, install: "@livekit/agents@1.9.3 @livekit/rtc-node@1.1.0" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5   # test-voice.js checks the Node classifier against Python's
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install
+        working-directory: node
+        run: |
+          npm ci
+          if [ -n "${{ matrix.install }}" ]; then npm install --no-save ${{ matrix.install }}; fi
+      - name: Type check
+        working-directory: node
+        run: npm run typecheck
+      - name: Test (twice)
+        working-directory: node
+        run: |
+          npm test
+          npm test
+      - name: LiveKit adapter and conformance with the real package
+        if: matrix.framework == 'livekit'
+        working-directory: node
+        run: node --test test-livekit.js test-conformance.js
+
+  real-server:
+    name: Conformance against a real server
+    if: github.event_name == 'workflow_dispatch' && inputs.real_server
+    runs-on: ubuntu-latest
+    env:
+      CROWKIS_CONFORMANCE_SERVER: "1"
+      CROWKIS_HOST: ${{ secrets.CROWKIS_HOST }}
+      CROWKIS_PORT: ${{ secrets.CROWKIS_PORT }}
+      CROWKIS_AUTH_TOKEN: ${{ secrets.CROWKIS_AUTH_TOKEN }}
+      CROWKIS_TENANT: ${{ secrets.CROWKIS_TENANT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python (with Pipecat, then with Pipecat and LiveKit)
+        working-directory: python
+        run: |
+          python -m pip install pytest pipecat-ai==1.13.0
+          python -m pytest -q -p no:cacheprovider tests/test_conformance.py
+          python -m pip install livekit-agents==1.8.8
+          python -m pytest -q -p no:cacheprovider tests/test_conformance.py
+      - name: Node (LiveKit)
+        working-directory: node
+        run: |
+          npm ci
+          npm install --no-save @livekit/agents@1.9.3 @livekit/rtc-node@1.1.0
+          node --test test-conformance.js

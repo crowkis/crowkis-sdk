@@ -1,6 +1,7 @@
 "use strict";
 
 const net = require("node:net");
+const { resolveSettings } = require("./config.js");
 
 class CrowkisError extends Error {
   constructor(message) {
@@ -265,12 +266,22 @@ function warnNotStored(reply) {
 
 const NO_SERVER_TOKEN = /called without any password configured/i;
 
+// The spaces a cached answer is cut at, written out (not \s, which differs between Python and
+// Node) so both SDKs cut it the same way: fixtures/stream-chunks.json.
+const SPACES = "\\t\\n\\x0b\\x0c\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+// A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
+const WORD_WITH_SPACE = new RegExp(`[^${SPACES}]+[${SPACES}]*`, "g");
+const LEADING_SPACE = new RegExp(`^[${SPACES}]*`);
+
 function tokenChunks(text, chunkTokens = 4) {
-  const size = Math.max(1, Math.min(Number(chunkTokens) || 4, 128));
-  const words = String(text).split(/\s+/).filter(Boolean);
+  // A fraction is cut to a whole number, as Python's int() does.
+  const size = Math.max(1, Math.min(Math.trunc(Number(chunkTokens) || 4), 128));
+  text = String(text);
+  const words = text.match(WORD_WITH_SPACE) || [];
+  if (words.length) words[0] = LEADING_SPACE.exec(text)[0] + words[0];
   const chunks = [];
   for (let i = 0; i < words.length; i += size) {
-    chunks.push(words.slice(i, i + size).join(" "));
+    chunks.push(words.slice(i, i + size).join(""));
   }
   return chunks;
 }
@@ -294,13 +305,21 @@ async function* streamValues(value) {
 
 class CrowkisClient {
   constructor(options = {}) {
-    this.host = options.host || "127.0.0.1";
-    this.port = options.port || 6383;
-    this.tenant = options.tenant;
+    // Not passed here: CROWKIS_HOST / _PORT / _AUTH_TOKEN / _TENANT / _URL, then
+    // 127.0.0.1:6383 with no token or tenant (see config.js).
+    const settings = resolveSettings({
+      host: options.host,
+      port: options.port,
+      authToken: options.authToken || options.auth_token || options.token,
+      tenant: options.tenant,
+    });
+    this.host = settings.host;
+    this.port = settings.port;
+    this.tenant = settings.tenant;
     this.model = options.model;
     // Not enumerable: logging or JSON.stringify of a client must not print it.
     Object.defineProperty(this, "authToken", {
-      value: options.authToken || options.auth_token || options.token,
+      value: settings.authToken,
       enumerable: false,
       writable: true,
     });
@@ -310,10 +329,26 @@ class CrowkisClient {
     this.socket = null;
     this.reader = null;
     this.resp3 = false;
+    this._connecting = null; // the connection attempt in progress, shared by every caller
+    this._closing = false; // close() was called while connecting: drop that connection
+    this._busy = 0; // commands in flight: the socket keeps the process alive only then
   }
 
   connect() {
+    // Calls that arrive together share one attempt, until it has finished (AUTH included):
+    // each used to open its own socket, and every one but the last was never closed.
+    if (this._connecting) return this._connecting;
     if (this.socket) return Promise.resolve();
+    this._closing = false;
+    this._connecting = this._open().finally(() => {
+      this._connecting = null;
+      // Opened by connect() alone, with nothing to send: idle until the first command.
+      if (this.socket && !this._busy) this.socket.unref();
+    });
+    return this._connecting;
+  }
+
+  _open() {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host: this.host, port: this.port });
       const timer = setTimeout(() => {
@@ -322,6 +357,12 @@ class CrowkisClient {
       }, this.timeoutMs);
       socket.once("connect", () => {
         clearTimeout(timer);
+        if (this._closing) {
+          // close() was called while this connection was being made: it is not used.
+          socket.destroy();
+          reject(new CrowkisError("connection closed"));
+          return;
+        }
         this.socket = socket;
         this.reader = new RespReader(socket);
         if (!this.authToken) {
@@ -360,6 +401,7 @@ class CrowkisClient {
   }
 
   close() {
+    if (this._connecting) this._closing = true;
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -369,6 +411,18 @@ class CrowkisClient {
   }
 
   async execute(...args) {
+    // While a command is in flight the socket keeps the process alive; once nothing is,
+    // it no longer does, so a script that never calls close() still exits.
+    this._busy += 1;
+    try {
+      return await this._execute(args);
+    } finally {
+      this._busy -= 1;
+      if (this._busy === 0 && this.socket) this.socket.unref();
+    }
+  }
+
+  async _execute(args) {
     // Retry connection-level failures with exponential backoff +
     // jitter. RESP-level errors (CrowkisError from a live reply) are
     // NOT retried — the server answered; retrying a rejected command
@@ -377,6 +431,7 @@ class CrowkisClient {
     for (;;) {
       try {
         await this.connect();
+        this.socket.ref();
         this.socket.write(encode(args));
         return await this._readWithin(this.timeoutMs);
       } catch (error) {
@@ -1174,7 +1229,7 @@ let apiKeyWarned = false;
 
 class CrowkisAdmin {
   constructor(options = {}) {
-    this.baseUrl = options.baseUrl || "http://127.0.0.1:6380";
+    this.baseUrl = options.baseUrl || "http://127.0.0.1:6384"; // the management port (the RESP port + 1)
     // The server's CROWKIS_AUTH_TOKEN; reading needs none. `apiKey` is its old name.
     // Not enumerable: logging or JSON.stringify of a client must not print them.
     for (const name of ["token", "apiKey"]) {
@@ -1306,6 +1361,12 @@ module.exports = {
   },
   get TurnDecision() {
     return require("./voice.js").TurnDecision;
+  },
+  get VoiceResponse() {
+    return require("./voice.js").VoiceResponse;
+  },
+  get voiceSession() {
+    return require("./voice.js").voiceSession;
   },
   get warmFromCalls() {
     return require("./voice.js").warmFromCalls;

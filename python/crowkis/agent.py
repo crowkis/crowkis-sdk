@@ -76,6 +76,21 @@ def _fits_audio_cache(text: str, labels: tuple) -> bool:
     )
 
 
+_DEFAULT_SOUND = ("und", "1", "default")
+
+
+def _tts_key(text: str, labels: tuple) -> str:
+    """The basic (no Voice add-on) audio cache key: the voice and the text, plus the
+    language, speed and format when any of them is not the default, so a clip made for
+    one sound is never played for another. With the defaults it is the key earlier
+    versions used, so their clips stay valid."""
+    voice, language, speed, audio_format = labels
+    key = {"voice": voice, "text": text}
+    if (language, str(speed), audio_format) != _DEFAULT_SOUND:
+        key.update(language=language, speed=str(speed), format=audio_format)
+    return json.dumps(key, sort_keys=True)
+
+
 def _stable_args(args: tuple, kwargs: dict) -> str:
     try:
         return json.dumps([args, kwargs], sort_keys=True, default=repr)
@@ -90,8 +105,8 @@ class Agent:
         agent_id: str,
         *,
         client: Optional[CrowkisClient] = None,
-        host: str = "127.0.0.1",
-        port: int = 6383,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         tenant: Optional[str] = None,
         auth_token: Optional[str] = None,
         shares_with: Iterable[str] = (),
@@ -109,6 +124,8 @@ class Agent:
         self.route_counts = {"cache": 0, "cheap": 0, "expensive": 0}
         self.audio_hits = 0
         self.audio_misses = 0
+        # Audio cache reads and writes that failed (each one a miss, never an error).
+        self.audio_errors = 0
         # The server's audio cache (Voice add-on): None until the first clip
         # asks, then whether this server has it.
         self._audio_v2: Optional[bool] = None
@@ -123,6 +140,10 @@ class Agent:
         self._client = client or CrowkisClient(
             host=host, port=port, tenant=tenant, auth_token=auth_token
         )
+        if self.tenant is None:
+            # The client's tenant (from CROWKIS_TENANT, or the client given): commands go
+            # there anyway, so the agent says so too.
+            self.tenant = getattr(self._client, "tenant", None)
 
     def remember(self, fact: str, *, ttl: Optional[int] = None) -> None:
         self._client.cmemset(self.agent_id, fact, ex=ttl, tenant=self.tenant)
@@ -298,7 +319,12 @@ class Agent:
         it, otherwise `synthesise(text)` once and kept. With the server's Voice
         add-on the clip is keyed by voice, language, speed and format and stored
         as raw bytes; without it, by voice and text as before. `bytes_per_second`
-        lets the Voice page count the seconds of speech saved."""
+        lets the Voice page count the seconds of speech saved.
+
+        The cache never breaks the call: a read that fails is a miss (the clip is made
+        and nothing is stored, so a failing server is not waited on twice), and a write
+        that fails still returns the clip. Both are logged and counted in
+        ``audio_errors``. An error from ``synthesise`` is the app's own and is raised."""
         voice = (voice or "").strip()
         if not voice:
             raise ValueError(
@@ -311,16 +337,20 @@ class Agent:
         if use_v2:
             try:
                 audio = self._client.caudioget(text, *labels, tenant=self.tenant)
-            except CrowkisError as err:
+            except Exception as err:  # noqa: BLE001 — see docstring: a failed read is a miss
                 use_v2, skip_store = self._audio_cache_failed(err)
             else:
                 self._audio_v2 = True
                 if audio:
                     self.audio_hits += 1
                     return audio
-        key = json.dumps({"voice": voice, "text": text}, sort_keys=True)
+        key = _tts_key(text, labels)
         if not use_v2 and not skip_store:
-            cached = self._client.ctoolget("crowkis.tts", key, tenant=self.tenant)
+            try:
+                cached = self._client.ctoolget("crowkis.tts", key, tenant=self.tenant)
+            except Exception as err:  # noqa: BLE001 — a failed read is a miss
+                self._audio_cache_error("read", err)
+                cached, skip_store = None, True
             if cached is not None:
                 raw = cached if isinstance(cached, bytes) else str(cached).encode()
                 try:
@@ -337,14 +367,21 @@ class Agent:
                 ms = int(len(audio) * 1000 // bytes_per_second) if bytes_per_second else None
                 _store_later(self._client.caudioset, text, *labels, bytes(audio), ex=ttl, ms=ms, tenant=self.tenant)
             else:
-                self._client.ctoolset(
-                    "crowkis.tts",
-                    key,
-                    base64.b64encode(audio).decode("ascii"),
-                    ex=ttl,
-                    tenant=self.tenant,
-                )
+                try:
+                    self._client.ctoolset(
+                        "crowkis.tts",
+                        key,
+                        base64.b64encode(audio).decode("ascii"),
+                        ex=ttl,
+                        tenant=self.tenant,
+                    )
+                except Exception as err:  # noqa: BLE001 — the clip just made is still spoken
+                    self._audio_cache_error("written", err)
         return audio
+
+    def _audio_cache_error(self, what: str, err: BaseException) -> None:
+        self.audio_errors += 1
+        _log.warning("crowkis: an audio clip could not be %s, so it is not cached this time: %s", what, err)
 
     def _audio_cache_usable(self, text: str, labels: tuple) -> bool:
         """Whether to ask the server's audio cache for this clip."""
@@ -355,18 +392,17 @@ class Agent:
             self._audio_v2 = None  # ask again: a licence may have been installed or renewed
         return self._audio_v2 is not False and _fits_audio_cache(text, labels)
 
-    def _audio_cache_failed(self, err: CrowkisError) -> tuple:
+    def _audio_cache_failed(self, err: BaseException) -> tuple:
         """After the audio cache answered an error: (use it, skip storing).
-        No Voice add-on: the basic path, asked again later. With fail_soft any
-        other error is a miss with nothing stored; without it, it is raised."""
-        if _voice_addon_missing(err):
+        No Voice add-on: the basic path, asked again later. Any other error is a
+        miss with nothing stored (it used to be raised unless the client was
+        fail_soft, ending the turn over an optimisation)."""
+        if isinstance(err, CrowkisError) and _voice_addon_missing(err):
             self._audio_v2 = False
             self._audio_v2_recheck_at = time.monotonic() + _ADDON_RECHECK_SECS
             return False, False
-        if getattr(self._client, "fail_soft", False):
-            _log.warning("crowkis: the audio cache could not be read: %s", err)
-            return True, True
-        raise err
+        self._audio_cache_error("read", err)
+        return True, True
 
     def audio_stats(self) -> dict:
         total = self.audio_hits + self.audio_misses

@@ -28,6 +28,8 @@ from typing import (
 )
 from urllib.parse import urlencode, urlparse
 
+from . import _config
+
 BytesLike = Union[str, bytes, bytearray, memoryview]
 
 
@@ -282,11 +284,21 @@ def _plain(value: Any) -> Any:
     return value
 
 
+# The spaces a cached answer is cut at, written out (not \s, which differs between Python and
+# Node) so both SDKs cut it the same way: fixtures/stream-chunks.json.
+_SPACES = r"\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"
+# A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
+_WORD_WITH_SPACE = re.compile(f"[^{_SPACES}]+[{_SPACES}]*")
+_LEADING_SPACE = re.compile(f"[{_SPACES}]*")
+
+
 def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
     chunk_tokens = max(1, min(int(chunk_tokens or 4), 128))
-    words = text.split()
+    words = _WORD_WITH_SPACE.findall(text)
+    if words:
+        words[0] = _LEADING_SPACE.match(text).group() + words[0]
     for idx in range(0, len(words), chunk_tokens):
-        yield " ".join(words[idx : idx + chunk_tokens])
+        yield "".join(words[idx : idx + chunk_tokens])
 
 
 def _cut(piece: str) -> List[str]:
@@ -453,8 +465,8 @@ async def _stream_values(value: Any) -> AsyncIterator[Any]:
 class CrowkisClient:
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 6383,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         *,
         tenant: Optional[str] = None,
         model: Optional[str] = None,
@@ -470,12 +482,15 @@ class CrowkisClient:
         fail_soft: bool = False,
         on_error: Optional[Callable[[BaseException], None]] = None,
     ) -> None:
-        self.host = host
-        self.port = port
-        self.tenant = tenant
+        # Not passed here: CROWKIS_HOST / _PORT / _AUTH_TOKEN / _TENANT / _URL, then
+        # 127.0.0.1:6383 with no token or tenant (see _config).
+        settings = _config.resolve(host, port, auth_token or token or None, tenant)
+        self.host = settings.host
+        self.port = settings.port
+        self.tenant = settings.tenant
         self.model = model
         self.user = user
-        self.auth_token = auth_token or token
+        self.auth_token = settings.auth_token
         self.timeout = timeout
         self.connect_timeout = float(timeout if connect_timeout is None else connect_timeout)
         self.read_timeout = float(timeout if read_timeout is None else read_timeout)
@@ -2019,7 +2034,7 @@ class CrowkisAdmin:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:6380",
+        base_url: str = "http://127.0.0.1:6384",
         *,
         token: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -2036,7 +2051,7 @@ class CrowkisAdmin:
             )
         parsed = urlparse(base_url)
         self.host = parsed.hostname or "127.0.0.1"
-        self.port = parsed.port or 6380
+        self.port = parsed.port or 6384  # the management port (the RESP port + 1)
         self.token = token
         self.api_key = api_key
         self.timeout = timeout

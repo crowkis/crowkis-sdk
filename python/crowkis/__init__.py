@@ -1,3 +1,5 @@
+__version__ = "0.5.2"  # the same as pyproject.toml and the Node package; tests/test_version.py checks
+
 from .client import (
     AsyncCrowkis,
     AsyncCrowkisClient,
@@ -15,7 +17,8 @@ from .integrations.memory import CrowkisMemory
 from ._help import help, render as help_text
 from .agent import Agent
 from .realtime import RealtimeAdapter, RealtimeGate
-from .voice import TurnDecision, VoiceSession, warm_from_calls
+from .voice import TurnDecision, VoiceResponse, VoiceSession, voice_session, warm_from_calls
+from .voice_async import AsyncVoiceResponse, AsyncVoiceSession, async_voice_session
 
 # Turn understanding: understand once, check with fixed rules, route by contract.
 from .turn import TurnFrame
@@ -30,8 +33,14 @@ from .chat import Chat, ChatConflict, ChatReply, MemoryStore
 # for that specific convenience, but it is intentionally not a headline export.
 
 __all__ = [
+    "__version__",
     "Agent",
     "VoiceSession",
+    "VoiceResponse",
+    "AsyncVoiceSession",
+    "AsyncVoiceResponse",
+    "async_voice_session",
+    "voice_session",
     "TurnDecision",
     "warm_from_calls",
     "RealtimeAdapter",

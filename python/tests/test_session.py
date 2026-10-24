@@ -308,5 +308,20 @@ class PersonalShapeTests(unittest.TestCase):
             CallSession(FakeAgent(), Scripted({})).register_shape("eta", "Your order arrives soon.")
 
 
+class PlaceholderLookupTests(unittest.TestCase):
+    """A cached answer the server scrubbed ("Write to pii_email_k3fa9 ...") is never
+    served: it would read a placeholder to the user. As VoiceSession (T1, review)."""
+
+    def test_a_cached_answer_with_a_pii_placeholder_is_a_miss(self):
+        agent = FakeAgent()
+        agent.store["refunds"] = "Write to pii_email_k3fa9 and we refund you in five days."
+        self.assertIsNone(CallSession(agent, Scripted({}))._lookup("refunds", None))
+
+    def test_must_still_work_an_ordinary_cached_answer_is_served(self):
+        agent = FakeAgent()
+        agent.store["refunds"] = "Our PII policy: refunds take five days."
+        self.assertEqual(CallSession(agent, Scripted({}))._lookup("refunds", None), agent.store["refunds"])
+
+
 if __name__ == "__main__":
     unittest.main()

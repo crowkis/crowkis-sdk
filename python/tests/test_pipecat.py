@@ -50,13 +50,20 @@ class FakeAgent:
 class FakeSession:
     voice = "test-voice"
     ttl = 60
+    language = "und"
+    speed = "1"
+    audio_format = "default"
 
     def __init__(self):
         self.agent = FakeAgent()
 
 
 def _key(text):
-    return json.dumps({"voice": FakeSession.voice, "text": text}, sort_keys=True)
+    # The basic cache key names the sample rate since Phase 1, step 6 (it used to be the
+    # voice and the text only, so a clip could be played at the wrong rate).
+    from crowkis.agent import _tts_key
+
+    return _tts_key(text, (FakeSession.voice, "und", "1", "pcm16-24000"))
 
 
 @unittest.skipIf(CrowkisAudioCache is None, "pipecat-ai not installed")
@@ -79,6 +86,9 @@ class AudioCacheTests(unittest.TestCase):
         asyncio.run(run())
 
     def stored(self, text):
+        from crowkis.agent import _wait_for_audio_stores
+
+        _wait_for_audio_stores()  # clips are written on the background audio workers
         clip = self.session.agent._client.stored.get((TTS_TOOL, _key(text)))
         return base64.b64decode(clip) if clip else None
 
@@ -123,6 +133,7 @@ class AudioCacheTests(unittest.TestCase):
         self.cache.expect(answer)
         self.settle(answer, False)
         self.speak()
+        self.assertIsNone(self.stored(answer))  # waits for the audio workers first
         self.assertEqual(self.session.agent._client.stored, {})
 
     def test_replayed_hit_is_not_glued_onto_the_next_answer(self):

@@ -157,3 +157,17 @@ class RespTokenTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdminDefaultPortTests(unittest.TestCase):
+    """The management API listens on 6384 (the RESP port + 1); 6380 is nothing."""
+
+    def test_the_default_url_is_the_management_port(self):
+        admin = CrowkisAdmin()
+        self.assertEqual((admin.host, admin.port), ("127.0.0.1", 6384))
+
+    def test_a_url_without_a_port_uses_the_management_port(self):
+        self.assertEqual(CrowkisAdmin("http://10.0.0.5").port, 6384)
+
+    def test_must_still_work_a_given_port_wins(self):
+        self.assertEqual(CrowkisAdmin("http://10.0.0.5:7000").port, 7000)

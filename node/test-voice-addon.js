@@ -57,11 +57,15 @@ test("without the add-on the basic path is used and v2 is not asked again", asyn
   assert.strictEqual(agent.audioHits, 1, "the basic path still reuses the clip");
 });
 
-test("any other error is not swallowed", async () => {
+// This test used to assert the error was raised, which ended a live turn over the
+// audio cache (fixed in Phase 1, step 6). It is now a miss: the clip is made, nothing
+// is stored, and the failure is counted.
+test("any other error is a miss and never ends the turn", async () => {
   const client = new AudioClient();
   client.caudioget = async () => { throw new Error("tenant is paused"); };
   const agent = new Agent("bot", { client });
-  await assert.rejects(agent.speak("Hello there.", async () => Buffer.from("a"), { voice: "aria" }), /paused/);
+  assert.strictEqual(String(await agent.speak("Hello there.", async () => Buffer.from("a"), { voice: "aria" })), "a");
+  assert.strictEqual(agent.audioErrors, 1);
 });
 
 test("the caller never waits for a clip to be stored", async () => {

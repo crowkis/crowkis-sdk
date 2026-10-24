@@ -84,6 +84,8 @@ class Chat:
         self.store = store if store is not None else MemoryStore()
         self.system = system.strip()
         session_options.setdefault("checker", RuleChecker(channel=channel, knowledge_version=knowledge_version))
+        # What the model reads with a shared question: an answer repeating a user's detail from it is never saved.
+        session_options.setdefault("instructions", self.system)
         # A chat waits for its model anyway: understanding gets seconds, not a voice turn's 250 ms.
         session_options.setdefault("understand_budget_ms", 10_000.0)
         self.session_options = session_options

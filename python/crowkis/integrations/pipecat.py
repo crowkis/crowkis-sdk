@@ -1,5 +1,19 @@
 """Crowkis in front of the LLM and the TTS of a Pipecat voice pipeline.
 
+The one-line way: wrap the two services you already have.
+
+    from crowkis.integrations.pipecat import CrowkisLLM, CrowkisTTS
+
+    llm = CrowkisLLM(OpenAILLMService(api_key=...))       # the cache in front of the LLM
+    tts = CrowkisTTS(CartesiaTTSService(voice_id=...))    # optional: replays cached audio
+    Pipeline([transport.input(), stt, user_aggregator, llm, tts, transport.output(),
+              assistant_aggregator])
+
+CrowkisLLM builds a crowkis.voice_session() (server settings from the environment, live
+call defaults) unless you pass ``session=``; CrowkisTTS takes the voice id and sample rate
+from the TTS service and finds the CrowkisLLM ahead of it in the pipeline by itself. The
+three processors below are what they are made of, and still work on their own:
+
     stt -> user aggregator -> gate -> llm -> writeback -> tts -> audio -> output
 
     from crowkis.integrations.pipecat import crowkis_processors
@@ -44,11 +58,7 @@ keep the event loop free.
 
 from __future__ import annotations
 
-import asyncio
-import base64
-import binascii
 import collections
-import json
 import time
 from typing import Any, Awaitable, Callable, Optional
 
@@ -69,12 +79,29 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from ..agent import _store_later
-from ..client import CrowkisError
-from ..voice import VoiceSession, _words
+try:  # the one-line wrappers are pipelines of their own
+    from pipecat.pipeline.pipeline import Pipeline as _Pipeline
+except ImportError:  # pragma: no cover - a Pipecat without nested pipelines
+    _Pipeline = None
 
-# Same tool name and key shape as Agent.speak(), so both share one audio cache.
-TTS_TOOL = "crowkis.tts"
+from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
+from ..client import CrowkisError  # noqa: F401  (kept importable from here)
+from ..voice import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
+from ..voice_async import _on_server_pool
+from ..voice_turns import (  # noqa: F401  (the shared layer; names kept importable from here)
+    _HUNG_AFTER,
+    _MAX_TOOLS,
+    _RUNS_AHEAD,
+    _WAITING,
+    TTS_TOOL,
+    AnswerPairing,
+    AudioClips,
+    _earlier_callers,
+    _field,
+    _last_user,
+    _remember,
+    _tool_context,
+)
 
 Report = Optional[Callable[[dict], Awaitable[Optional[Frame]]]]
 
@@ -88,32 +115,42 @@ _TOOL_CANCELS = tuple(getattr(_frames, name) for name in ("FunctionCallCancelFra
 _TOOL_RESULTS = tuple(getattr(_frames, name) for name in ("FunctionCallResultFrame",) if hasattr(_frames, name))
 # The words a TTS run speaks, where the TTS reports them.
 _TTS_TEXT = getattr(_frames, "TTSTextFrame", None)
-# Answered caller turns a tool may say nothing through before it is taken as hung, and
-# how many silent tools are remembered at most.
-_HUNG_AFTER = 2
-_MAX_TOOLS = 4
+
+# A cached clip the gate plays is marked, so the audio processor never keeps it again.
+_REPLAY = "crowkis_replay"
 
 
-def _field(message: Any, name: str) -> Any:
-    return message.get(name) if isinstance(message, dict) else getattr(message, name, None)
+def _mark_replay(frame: Frame) -> Frame:
+    meta = getattr(frame, "metadata", None)
+    if isinstance(meta, dict):
+        meta[_REPLAY] = True
+    else:
+        setattr(frame, _REPLAY, True)
+    return frame
 
 
-def _last_user(messages: list) -> tuple:
-    """The last user message's text, and the messages after it."""
-    for index in range(len(messages) - 1, -1, -1):
-        if _field(messages[index], "role") == "user":
-            return _field(messages[index], "content") or "", messages[index + 1:]
-    return None, list(messages)
+def _is_replay(frame: Frame) -> bool:
+    meta = getattr(frame, "metadata", None)
+    return bool((isinstance(meta, dict) and meta.get(_REPLAY)) or getattr(frame, _REPLAY, False))
 
 
-def _tool_context(messages: list) -> bool:
-    """Whether a context carries a tool call or a tool's result after its last user message."""
-    _, after = _last_user(messages)
-    return any(
-        _field(m, "role") in ("tool", "function") or _field(m, "tool_calls") or _field(m, "function_call")
-        or _field(m, "type") in ("function_call", "function_call_output", "tool_use", "tool_result")
-        for m in after
-    )
+def _replay_frames(text: str, audio: bytes, sample_rate: int) -> list:
+    """A cached clip played like any spoken answer: a TTS run with its text, so captions and
+    transcripts show it and Pipecat's assistant aggregator adds it to the context. The text
+    is marked skip_tts, so the TTS passes it on without speaking it."""
+    caption = None
+    try:
+        caption = _TTS_TEXT(text, aggregated_by="sentence")
+    except TypeError:
+        caption = _TTS_TEXT(text)
+    caption.skip_tts = True
+    frames = [TTSStartedFrame(), TTSAudioRawFrame(audio, sample_rate, 1), caption, TTSStoppedFrame()]
+    push = getattr(_frames, "LLMAssistantPushAggregationFrame", None)
+    if push is not None:
+        # The assistant aggregator writes to the context on a response end; a replayed
+        # clip has none, so ask it to write now (not when the caller next speaks).
+        frames.append(push())
+    return [_mark_replay(f) for f in frames]
 
 
 def _runs_llm(result: Frame) -> bool:
@@ -128,166 +165,54 @@ def _runs_llm(result: Frame) -> bool:
     return run_llm is not False
 
 
-# Answers whose clip or ruling is still waiting for the other. One turn is in flight at
-# a time; a few cover a barge-in that leaves one behind.
-_WAITING = 4
-# TTS runs that may be reserved ahead of the one playing.
-_RUNS_AHEAD = 16
+def _leading_instructions(messages: list) -> list:
+    """The system / developer messages before the conversation starts: the app's own
+    instructions to the model."""
+    leading = []
+    for message in messages:
+        if _field(message, "role") not in ("system", "developer"):
+            break
+        leading.append(message)
+    return leading
 
 
-def _remember(waiting: dict, key: str, value: Any) -> None:
-    waiting.pop(key, None)
-    waiting[key] = value
-    while len(waiting) > _WAITING:
-        waiting.pop(next(iter(waiting)))
+def _model_context(original: Any, messages: list, chosen: list) -> Any:
+    """The context the model reads on a model turn: the app's instructions, then only
+    what Crowkis chose (the question, or the questions it follows on from), with the
+    original context's tools and tool choice."""
+    kwargs = {name: getattr(original, name) for name in ("tools", "tool_choice") if hasattr(original, name)}
+    return LLMContext(messages=_leading_instructions(messages) + list(chosen), **kwargs)
 
 
-class CrowkisAudioCache(FrameProcessor):
+class CrowkisAudioCache(AudioClips, FrameProcessor):
+    """Pipecat frames to the shared AudioClips events (crowkis.voice_turns)."""
+
     def __init__(self, session: VoiceSession, sample_rate: int):
         super().__init__()
-        self._session = session
-        self.sample_rate = sample_rate
-        self._pcm = bytearray()
-        # By answer text: finished clips waiting for a ruling, and rulings waiting for
-        # their clip. The TTS can finish before or after the write-back has ruled.
-        self._clips: dict = {}
-        self._rulings: dict = {}
-        # One slot per TTS run still to come, in the order the runs will happen: [text].
-        # A run's audio belongs to the slot it starts with, never to whatever text was
-        # named last, so a clip cannot be stored under another answer's text.
-        self._runs: collections.deque = collections.deque()
-        self._run: Optional[list] = None  # the slot of the TTS run in progress
-        self._unsynced = False
-        self._spoken: list = []  # what that run said, where the TTS reports it
-
-    def _key(self, text: str) -> str:
-        return json.dumps({"voice": self._session.voice, "text": text}, sort_keys=True)
-
-    def _labels(self) -> tuple:
-        """Voice, language, speed and format: a clip is reused only when all match.
-        The format names the sample rate, so a 16 kHz bot never gets a 24 kHz clip."""
-        session = self._session
-        audio_format = session.audio_format if session.audio_format != "default" else f"pcm16-{self.sample_rate}"
-        return (session.voice, session.language, str(session.speed), audio_format)
-
-    def _uses_audio_cache(self, text: str) -> bool:
-        """The agent's rule for the server's audio cache (Voice add-on), the same as `speak`."""
-        usable = getattr(self._session.agent, "_audio_cache_usable", None)
-        return bool(usable and usable(text, self._labels()))
-
-    async def get(self, text: str) -> Optional[bytes]:
-        agent = self._session.agent
-        if self._uses_audio_cache(text):
-            try:
-                clip = await asyncio.to_thread(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
-            except CrowkisError as err:
-                use, _ = agent._audio_cache_failed(err)
-                if use:
-                    return None  # fail_soft: a miss
-            else:
-                agent._audio_v2 = True
-                return clip or None
-        raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
-        if not raw:
-            return None
-        # Strict: a damaged clip is a miss, never noise played to the caller.
-        try:
-            return base64.b64decode(raw, validate=True) or None
-        except (ValueError, binascii.Error):
-            return None
-
-    def expect(self, text: str, *, shareable: Optional[bool] = None) -> None:
-        """Name the answer that the next TTS run speaks.
-
-        ``shareable=True`` for an answer the cache just served: its clip may be stored.
-        Left out for a new answer: its clip waits for ``settle``. A run named here is
-        trusted by its order; naming another before it starts replaces it."""
-        for waiting in [slot for slot in self._runs if slot[1]]:
-            self._runs.remove(waiting)  # its run never happened: no slot is left behind
-        self.reserve(text, trusted=True)
-        if shareable is not None:
-            _remember(self._rulings, text, shareable)
-
-    def reserve(self, text: Optional[str] = None, *, trusted: bool = False) -> list:
-        """Hold the place of a TTS run that is coming, in stream order; its text can be
-        filled in later (``slot[0] = text``), before the run ends. Unless ``trusted``,
-        its clip is kept only when the TTS reports having spoken that text."""
-        slot = [text, trusted]
-        self._runs.append(slot)
-        if len(self._runs) > _RUNS_AHEAD:
-            # ponytail: far more runs waiting than a call ever has; rather than guess which
-            # run is which, keep no clip until a barge-in resets the order.
-            self._runs.clear()
-            self._unsynced = True
-        return slot
-
-    def release(self, slot: list) -> None:
-        """A reserved run that will not happen (an answer with nothing to speak)."""
-        if slot in self._runs:
-            self._runs.remove(slot)
-
-    def vouch(self, text: str) -> None:
-        """An answer the cache served: its clip may be stored once its own run ends."""
-        _remember(self._rulings, text, True)
-
-    async def settle(self, text: str, shareable: bool) -> None:
-        """The write-back's ruling on a new answer: store its clip, or drop it."""
-        clip = self._clips.pop(text, None)
-        if clip is None:
-            _remember(self._rulings, text, shareable)
-        elif shareable:
-            await self._store(text, clip)
-
-    async def _finish_clip(self) -> None:
-        """The audio of a TTS run is complete: it belongs to the slot the run started with."""
-        run, self._run = self._run, None
-        text, clip, spoken = (run[0] if run else None), bytes(self._pcm), _words(" ".join(self._spoken))
-        self._pcm, self._spoken = bytearray(), []
-        if not (text and clip) or self._unsynced:
-            return
-        if spoken and spoken != _words(text)[:len(spoken)]:
-            return  # the run said something else: never store it under this text
-        if not spoken and not run[1]:
-            return  # fail closed: the TTS did not say what it spoke
-        ruling = self._rulings.pop(text, None)
-        if ruling is None:
-            _remember(self._clips, text, clip)
-        elif ruling:
-            await self._store(text, clip)
-
-    async def _store(self, text: str, clip: bytes) -> None:
-        agent = self._session.agent
-        if getattr(agent, "_audio_v2", None) is True and self._uses_audio_cache(text):
-            # In the background: the next frame is never held for a store.
-            ms = len(clip) * 1000 // (self.sample_rate * 2) if self.sample_rate else None
-            _store_later(
-                agent._client.caudioset, text, *self._labels(), bytes(clip),
-                ex=self._session.ttl, ms=ms, tenant=agent.tenant,
-            )
-            return
-        await asyncio.to_thread(
-            agent._client.ctoolset, TTS_TOOL, self._key(text), base64.b64encode(clip).decode("ascii"),
-            ex=self._session.ttl, tenant=agent.tenant,
-        )
+        self._init_clips(session, sample_rate)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+        await self.on_frame(frame)
+        await self.push_frame(frame, direction)
+
+    async def on_frame(self, frame: Frame) -> None:
+        """The TTS-side frames, as AudioClips events."""
+        if _is_replay(frame):
+            return  # a cached clip the gate played: already kept
         if isinstance(frame, InterruptionFrame):
-            self._pcm, self._run, self._spoken, self._unsynced = bytearray(), None, [], False
-            self._runs.clear()
+            self.interrupted()
         elif isinstance(frame, TTSStartedFrame):
             # A new answer starts a new clip. A cached clip the gate replayed has no
             # TTSStartedFrame/TTSStoppedFrame around it, so without this it would be
             # stored as the start of the next answer. One per answer, not per sentence.
-            self._pcm, self._spoken = bytearray(), []
-            self._run = self._runs.popleft() if self._runs else None
-        elif _TTS_TEXT is not None and isinstance(frame, _TTS_TEXT) and self._run is not None:
-            self._spoken.append(getattr(frame, "text", "") or "")
+            self.tts_started()
+        elif _TTS_TEXT is not None and isinstance(frame, _TTS_TEXT):
+            self.tts_text(getattr(frame, "text", "") or "")
         elif isinstance(frame, TTSAudioRawFrame):
-            self._pcm += frame.audio
+            self.tts_audio(frame.audio)
         elif isinstance(frame, TTSStoppedFrame):
-            await self._finish_clip()
-        await self.push_frame(frame, direction)
+            await self.tts_stopped()
 
 
 class CrowkisGate(FrameProcessor):
@@ -311,6 +236,11 @@ class CrowkisGate(FrameProcessor):
         await super().process_frame(frame, direction)
         if isinstance(frame, LLMContextFrame):
             await self._answer(frame)
+            return
+        if _START is not None and isinstance(frame, _START) and getattr(self, "_announce", False):
+            # A CrowkisLLM: tell the CrowkisTTS further down which audio cache it serves.
+            await self.push_frame(frame, direction)
+            await self.push_frame(CrowkisLinkFrame(audio=self._audio))
             return
         if isinstance(frame, InterruptionFrame):
             if self._serving or self._model_turn:
@@ -344,14 +274,21 @@ class CrowkisGate(FrameProcessor):
         if self.writeback is not None:
             await self.writeback.caller_moved_on()
         started = time.perf_counter()
-        decision = await asyncio.to_thread(self._session.decide, self.question)
+        for said in _earlier_callers(messages):
+            # History the app gave the model: what the caller told the call there counts too.
+            self._session._heard(said)
+        decision = await _on_server_pool(self._session.decide, self.question)
         gate_ms = (time.perf_counter() - started) * 1000
         # A served answer filled with this caller's values never uses the shared audio cache.
         shared_audio = decision.audio_shareable
         audio = None if decision.needs_model or not shared_audio else await self._audio.get(decision.text)
         if decision.needs_model and decision.messages is not None:
-            # The full call stays in the Pipecat context; the model just doesn't read it.
-            frame = LLMContextFrame(context=LLMContext(messages=decision.messages))
+            # The full call stays in the Pipecat context; the model just doesn't read it. It
+            # does read the app's own instructions (the system messages before the call)
+            # and keeps its tools: these used to be dropped on every model turn. An answer
+            # that repeats a detail those instructions give about this caller is never
+            # shared (see VoiceSession: the instructions go with the answer when recorded).
+            frame = LLMContextFrame(context=_model_context(frame.context, messages, decision.messages))
         self.messages = list(frame.context.messages)
         await _report(self, self._on_turn, {
             "question": self.question,
@@ -368,7 +305,13 @@ class CrowkisGate(FrameProcessor):
             await self.push_frame(frame)
             return
         self._serving = True
-        if audio:
+        if audio and _TTS_TEXT is not None:
+            # Played like any spoken answer (see _replay_frames): the assistant aggregator
+            # adds it to the context, once.
+            for out in _replay_frames(decision.text, audio, self._audio.sample_rate):
+                await self.push_frame(out)
+        elif audio:
+            # A Pipecat without TTSTextFrame: the answer goes into the context directly.
             frame.context.add_message({"role": "assistant", "content": decision.text})
             await self.push_frame(TTSAudioRawFrame(audio, self._audio.sample_rate, 1))
         else:
@@ -380,25 +323,27 @@ class CrowkisGate(FrameProcessor):
             await self.push_frame(TTSSpeakFrame(decision.text))
 
 
-class CrowkisWriteBack(FrameProcessor):
+class CrowkisWriteBack(AnswerPairing, FrameProcessor):
+    """Pipecat frames to the shared AnswerPairing events (crowkis.voice_turns)."""
+
     def __init__(
         self, session: VoiceSession, gate: CrowkisGate, audio: CrowkisAudioCache, *, on_answer: Report = None
     ):
         super().__init__()
-        self._session = session
-        self._gate = gate
+        self._init_pairing(session, gate, audio, on_answer)
         gate.writeback = self
-        self._audio = audio
-        self._on_answer = on_answer
-        self._parts: Optional[list] = None
-        self._bound: Optional[tuple] = None  # the context the response in progress was generated from
-        self._held = False  # that response could be a tool's late answer: hold it until settled
-        self._calling = False  # the response in progress asked for a tool
-        self._pending: list = []  # (turn, question, messages) of tool calls whose answer is still to come
-        self._moves = 0  # caller turns answered, unrecorded, while a tool said nothing
-        self._hung: list = []  # tools taken as hung; a result from one re-arms it
-        self._deferred: Optional[tuple] = None  # (context, answer) of a held response
-        self._slot: Optional[list] = None  # the audio run reserved for the response in progress
+        self._llm_service: Any = None  # set by CrowkisLLM: its system_instruction is read too
+
+    @property
+    def _service_instructions(self) -> Optional[str]:
+        """The LLM service's own system instruction (Pipecat setting), which the model
+        reads on every turn: an answer repeating a caller's detail from it is not shared."""
+        settings = getattr(self._llm_service, "_settings", None)
+        instruction = getattr(settings, "system_instruction", None)
+        return instruction if isinstance(instruction, str) else None
+
+    async def _report_answer(self, info: dict) -> None:
+        await _report(self, self._on_answer, info)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -411,160 +356,169 @@ class CrowkisWriteBack(FrameProcessor):
                 await self._settle(True)
             return
         elif isinstance(frame, LLMFullResponseStartFrame):
-            # Its TTS run, in stream order. A gate with no queue of contexts keeps the
-            # original contract: the run is trusted by its order.
-            self._slot = self._audio.reserve(trusted=getattr(self._gate, "asked", None) is None)
-            await self._start()
+            await self.response_start()
         elif isinstance(frame, TTSSpeakFrame):
-            self._audio.reserve(frame.text)
+            self.speak_requested(frame.text)
         elif isinstance(frame, LLMTextFrame) and self._parts is not None:
-            self._parts.append(frame.text)
+            self.response_text(frame.text)
         elif _TOOL_CALLS and isinstance(frame, _TOOL_CALLS):
-            self._calling = True
+            self.tool_call()
         elif (_TOOL_CANCELS and isinstance(frame, _TOOL_CANCELS)) or (
             _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS) and not _runs_llm(frame)
         ):
-            self._pending.clear()  # no answer will follow these tools
-            self._hung.clear()
+            self.tools_done()  # no answer will follow these tools
             await self.push_frame(frame, direction)  # forwarded first; the report can be slow
             await self._settle(True)
             return
-        elif _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS) and not self._pending and self._hung:
-            # A tool taken as hung has answered after all: what follows is its answer.
-            self._pending.append(self._hung.pop(0))
+        elif _TOOL_RESULTS and isinstance(frame, _TOOL_RESULTS):
+            self.tool_result()
         elif isinstance(frame, InterruptionFrame):
-            self._parts, self._bound, self._calling, self._held, self._slot = None, None, False, False, None
+            self.interrupted()
             await self.push_frame(frame, direction)  # forwarded first; the report can be slow
             await self._settle(False)
             return
         elif isinstance(frame, LLMFullResponseEndFrame) and self._parts is not None:
-            answer, self._parts = "".join(self._parts).strip(), None
-            bound, self._bound = self._bound, None
-            calling, self._calling = self._calling, False
-            slot, self._slot = self._slot, None
-            if slot is not None and answer:
-                slot[0] = answer  # its clip waits for the ruling below
-            elif slot is not None:
-                self._audio.release(slot)
-            if bound is not None and calling:
-                # Nothing to record until the tool's result is answered.
-                if not self._pending:
-                    self._moves = 0
-                self._pending = (self._pending + [bound[1:]])[-_MAX_TOOLS:]
-                await self._audio.settle(answer, False)
-            elif bound is not None and bound[0] == "caller" and self._held:
-                self._deferred = (bound, answer)
-            elif bound is not None:
+            todo = await self.response_end()
+            if todo is not None:
                 await self.push_frame(frame, direction)
-                await self._record(bound, answer)
+                await self._record(*todo)
                 return
-            else:
-                await self._audio.settle(answer, False)
         await self.push_frame(frame, direction)
 
-    def queue_context(self, messages: list) -> bool:
-        """Queue a context the LLM will answer that the caller did not just say. No await:
-        the caller pushes it right after. True when a held answer is now known to be the
-        caller's own (the tool's answer comes from this context): settle it then."""
-        if not _tool_context(messages):
-            self._gate.asked.append(None)
-            return False
-        question, _ = _last_user(messages)
-        tool = next((t for t in self._pending if t[1] == question), None)
-        if tool is not None:
-            self._pending.remove(tool)
-        self._gate.asked.append(("tool", tool[0] if tool else None, question, messages))
-        return True
 
-    async def caller_moved_on(self) -> None:
-        """A new caller turn: a held response can no longer be told apart from a tool's.
-        A tool that has said nothing while two of the caller's turns were answered is
-        taken as hung, so it stops holding the call's answers; a result from it later
-        re-arms it."""
-        if self._pending and self._deferred is not None:
-            # The caller's previous turn was answered while the tool said nothing. Only such
-            # turns count: a tool can still answer, without its context seen, across turns
-            # that were merely asked. The queue of silent tools is capped instead.
-            self._moves += 1
-        if self._pending and self._moves >= _HUNG_AFTER:
-            self._hung, self._pending, self._moves = self._pending[-_MAX_TOOLS:], [], 0
-        await self._settle(False)
+_START = getattr(_frames, "StartFrame", None)
+_TTS_SETTINGS = getattr(_frames, "TTSUpdateSettingsFrame", None)
+_SYSTEM_FRAME = getattr(_frames, "SystemFrame", Frame)
 
-    async def _start(self) -> None:
-        self._parts, self._held = [], False
-        asked = getattr(self._gate, "asked", None)
-        if asked is None:
-            # A gate that keeps no queue of contexts: pair with its current question, as before.
-            self._bound = ("caller", None, self._gate.question, self._gate.messages)
-            return
-        if self._deferred is not None:
-            # Two responses with no context between them while a tool was in flight:
-            # either could be the tool's answer, so neither is stored or paired. Between
-            # them they answered the held one's context and the next one waiting (or the
-            # tool's, if its context was never seen).
-            if asked:
-                asked.popleft()
-            elif self._pending:
-                self._pending.pop(0)
-            self._bound = None
-            await self._settle(False)
-            return
-        if asked:
-            self._bound = asked.popleft()
-        elif self._pending:
-            self._bound = ("tool",) + self._pending.pop(0)  # the answer after the tool's result
-        else:
-            self._bound = None
-        self._held = bool(
-            self._bound and self._bound[0] == "caller"
-            and (self._pending or any(e and e[0] == "tool" for e in asked))
-        )
 
-    async def _settle(self, answered: bool) -> None:
-        """Record a held response as its caller's answer, or drop it."""
-        deferred, self._deferred = self._deferred, None
-        if deferred is None:
-            return
-        if answered:
-            await self._record(*deferred)
-            return
-        await self._audio.settle(deferred[1], False)
-        # Reported with no question: it is never paired with a caller turn.
-        await _report(self, self._on_answer, {
-            "question": "", "answer": deferred[1], "messages": [], "saved": "not_saved",
-            "stored": False, "not_stored": "could not be told apart from a tool's late answer",
-        })
+class CrowkisLinkFrame(_SYSTEM_FRAME):  # type: ignore[misc,valid-type]
+    """Sent by a CrowkisLLM when the pipeline starts, so the CrowkisTTS after it finds
+    the audio cache it serves without being told. Never leaves a CrowkisTTS."""
 
-    async def _record(self, bound: tuple, answer: str) -> None:
-        kind, turn, question, messages = bound
-        if not question or (kind == "tool" and turn is None):
-            # Only what the caller said is recorded, and only for a turn it belongs to.
-            await self._audio.settle(answer, False)
-            return
-        # Record first, so the report can say what happened to the answer.
-        if turn is None and kind == "caller":
-            saved = await asyncio.to_thread(self._session._record_model_turn, question, answer)
-        else:
-            saved = await asyncio.to_thread(
-                self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool"
-            )
-        await self._audio.settle(answer, await asyncio.to_thread(self._clip_allowed, saved))
-        stored = saved in ("saved", "template")
-        await _report(self, self._on_answer, {
-            "question": question, "answer": answer, "messages": messages, "saved": saved,
-            "stored": stored, "not_stored": "" if stored else (getattr(saved, "why", "") or str(saved)),
-        })
+    def __init__(self, audio: Any = None):
+        super().__init__()
+        self.audio = audio
 
-    def _clip_allowed(self, saved: str) -> bool:
-        """Whether the spoken audio of a new answer may be kept, given what happened to
-        its text. Only an answer saved word for word: a template is saved with this
-        caller's values taken out, but its audio still says them. And not while the
-        server's decision engine holds answers until it vouches for them: the text is
-        not shared yet and may be removed, so the clip is made when it is first served."""
-        if saved != "saved":
-            return False
-        agent = self._session.agent
-        return not (agent.decides() and agent._holds)
+
+def _voice_of(service: Any) -> Optional[str]:
+    """The voice id a Pipecat TTS service speaks with, where it says."""
+    settings = getattr(service, "_settings", None)
+    for value in (getattr(settings, "voice", None), getattr(service, "_voice_id", None)):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+class _AudioRelay(FrameProcessor):
+    """Inside a CrowkisTTS, after the TTS service: feeds the linked audio cache the
+    TTS frames, and gives it the service's sample rate and voice."""
+
+    def __init__(self, tts: Any, audio: Optional[CrowkisAudioCache] = None):
+        super().__init__()
+        self._tts = tts
+        self._target = audio
+        self._started = False
+        self._owns_voice = False  # the session's voice came from this TTS, so follows it
+
+    def _attach(self) -> None:
+        audio = self._target
+        if audio is None or not self._started:
+            return
+        rate = getattr(self._tts, "sample_rate", None)
+        if isinstance(rate, int) and rate > 0:
+            audio.sample_rate = rate
+        session = audio._session
+        voice = _voice_of(self._tts)
+        if voice and (getattr(session, "_text_only", False) or self._owns_voice):
+            # voice_session() made with no voice: the TTS names it, so audio is cached
+            # (keyed on this voice) from now on, and follows the TTS if it changes voice.
+            session.voice = voice
+            session._text_only = False
+            self._owns_voice = True
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, CrowkisLinkFrame):
+            if self._target is None:
+                self._target = frame.audio
+            self._attach()
+            return  # it ends here
+        if _START is not None and isinstance(frame, _START):
+            self._started = True  # the TTS service ahead has started: its rate is known
+            self._attach()
+        elif _TTS_SETTINGS is not None and isinstance(frame, _TTS_SETTINGS):
+            self._attach()  # the TTS ahead has applied it: a new voice keys new clips
+        elif self._target is not None:
+            await self._target.on_frame(frame)
+        await self.push_frame(frame, direction)
+
+
+if _Pipeline is not None:
+
+    class CrowkisLLM(_Pipeline):
+        """Crowkis in front of a Pipecat LLM service: ``CrowkisLLM(OpenAILLMService(...))``.
+
+        A cache hit is spoken without the LLM; on a miss the LLM answers as before and the
+        answer is cached when it is safe to share. ``session`` is the VoiceSession to use;
+        left out, one is made with crowkis.voice_session(**session_options) (server
+        settings from the environment). ``on_turn`` / ``on_answer`` are the same callbacks
+        as crowkis_processors(). The parts: ``.session``, ``.gate``, ``.writeback``,
+        ``.audio``.
+        """
+
+        def __init__(self, service: FrameProcessor, session: Optional[VoiceSession] = None, *,
+                     on_turn: Report = None, on_answer: Report = None, **session_options: Any):
+            if session is not None and session_options:
+                raise ValueError(
+                    f"CrowkisLLM got session= and {', '.join(sorted(session_options))}: "
+                    "set these on the session you pass, or leave session out"
+                )
+            if session is None:
+                from ..voice import voice_session
+
+                session = voice_session(**session_options)
+            self.session = session
+            # The sample rate is the TTS service's: CrowkisTTS sets it when the pipeline starts.
+            self.audio = CrowkisAudioCache(session, sample_rate=0)
+            self.gate = CrowkisGate(session, self.audio, on_turn=on_turn)
+            self.gate._announce = True
+            self.writeback = CrowkisWriteBack(session, self.gate, self.audio, on_answer=on_answer)
+            self.writeback._llm_service = service
+            self.service = service
+            super().__init__([self.gate, service, self.writeback])
+
+        # The LLM service's own calls (register_function, register_direct_function, ...)
+        # work on the wrapper. Event handlers belong to the service: use
+        # ``llm.service.event_handler(...)``.
+        def __getattr__(self, name: str) -> Any:
+            service = self.__dict__.get("service")
+            if service is None or name.startswith("_"):
+                raise AttributeError(name)
+            return getattr(service, name)
+
+    class CrowkisTTS(_Pipeline):
+        """Cached audio for a Pipecat TTS service: ``CrowkisTTS(CartesiaTTSService(...))``.
+
+        Place it where the TTS service was, after a CrowkisLLM. A cached answer whose audio
+        is known is played without the TTS; a new answer's audio is kept once its text is
+        shared. The voice id and sample rate come from the service. ``llm`` names the
+        CrowkisLLM to serve; left out, the one ahead in the pipeline is found when it starts.
+        """
+
+        def __init__(self, service: FrameProcessor, llm: Optional["CrowkisLLM"] = None):
+            self.service = service
+            self._relay = _AudioRelay(service, llm.audio if llm is not None else None)
+            super().__init__([service, self._relay])
+
+else:  # pragma: no cover
+
+    class CrowkisLLM:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any):
+            raise ImportError("CrowkisLLM needs a Pipecat with pipecat.pipeline.pipeline.Pipeline")
+
+    class CrowkisTTS:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any):
+            raise ImportError("CrowkisTTS needs a Pipecat with pipecat.pipeline.pipeline.Pipeline")
 
 
 async def _report(processor: FrameProcessor, callback: Report, info: dict) -> None:
@@ -588,4 +542,4 @@ def crowkis_processors(
     return gate, CrowkisWriteBack(session, gate, audio, on_answer=on_answer), audio
 
 
-__all__ = ["CrowkisGate", "CrowkisWriteBack", "CrowkisAudioCache", "crowkis_processors"]
+__all__ = ["CrowkisLLM", "CrowkisTTS", "CrowkisGate", "CrowkisWriteBack", "CrowkisAudioCache", "crowkis_processors"]

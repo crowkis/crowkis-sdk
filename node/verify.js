@@ -10,8 +10,22 @@
 //   V4 owned record / own purchase     V9 a step of a task in progress goes to the agent
 //   V5 identifying details in the key  V10 a follow-up whose key still says "it"/"that" and names nothing
 
-const zlib = require("node:zlib");
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("./turn.js");
+
+// CRC-32 (the zlib polynomial), the same hash as Python's zlib.crc32, so both SDKs key a
+// tailored answer the same way. Written out because zlib.crc32 needs Node 20.15 or 22.2.
+const CRC32_POLYNOMIAL = 0xedb88320;
+const CRC32_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let bit = 0; bit < 8; bit++) c = c & 1 ? CRC32_POLYNOMIAL ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
 
 // Facts that tailor an answer to the caller: what they have, how old, where and when.
 // Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from fixed
@@ -198,7 +212,7 @@ class RuleChecker {
       ...frame.entities.filter((e) => e.type === "condition" && !e.identifying).map((e) => e.text)];
     const toldStems = new Set(told.flatMap((t) => toks(t)).filter((w) => !FUNCTION.has(w)).map(stem));
     const carried = [...new Set(toks(question).filter((w) => !FUNCTION.has(w)).map(stem))].filter((w) => toldStems.has(w)).sort();
-    return carried.length ? (zlib.crc32(Buffer.from(carried.join(" "))) >>> 0).toString(16).padStart(8, "0") : null;
+    return carried.length ? crc32(Buffer.from(carried.join(" "))).toString(16).padStart(8, "0") : null;
   }
 
   _keyAttributes(frame, state, question) {

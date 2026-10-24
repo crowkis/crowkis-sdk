@@ -284,11 +284,17 @@ def _plain(value: Any) -> Any:
     return value
 
 
+# A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
+_WORD_WITH_SPACE = re.compile(r"\S+\s*")
+
+
 def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
     chunk_tokens = max(1, min(int(chunk_tokens or 4), 128))
-    words = text.split()
+    words = _WORD_WITH_SPACE.findall(text)
+    if words:
+        words[0] = text[: len(text) - len(text.lstrip())] + words[0]
     for idx in range(0, len(words), chunk_tokens):
-        yield " ".join(words[idx : idx + chunk_tokens])
+        yield "".join(words[idx : idx + chunk_tokens])
 
 
 def _cut(piece: str) -> List[str]:

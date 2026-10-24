@@ -266,12 +266,17 @@ function warnNotStored(reply) {
 
 const NO_SERVER_TOKEN = /called without any password configured/i;
 
+// A word with the spacing after it, so the chunks of a cached answer join back to it exactly.
+const WORD_WITH_SPACE = /\S+\s*/g;
+
 function tokenChunks(text, chunkTokens = 4) {
   const size = Math.max(1, Math.min(Number(chunkTokens) || 4, 128));
-  const words = String(text).split(/\s+/).filter(Boolean);
+  text = String(text);
+  const words = text.match(WORD_WITH_SPACE) || [];
+  if (words.length) words[0] = text.slice(0, text.length - text.trimStart().length) + words[0];
   const chunks = [];
   for (let i = 0; i < words.length; i += size) {
-    chunks.push(words.slice(i, i + size).join(" "));
+    chunks.push(words.slice(i, i + size).join(""));
   }
   return chunks;
 }

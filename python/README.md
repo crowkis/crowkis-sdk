@@ -119,6 +119,12 @@ else:
     cache.store("what's the refund timeline?", "5–7 business days.", ttl=3600)
 ```
 
+`ttl` is in seconds; `None` or `0` sends no lifetime, so the server applies its default
+lifetime for that kind of question. An answer holding personal details its
+question does not name is never served, so the server does not keep it: the call returns as
+usual and the `crowkis` logger warns once per reason. Store such an answer with
+`template=True` and `{slot}` placeholders to cache its shape.
+
 ## Streaming
 
 Serve a cached answer in chunks so a hit feels like live model output:
@@ -156,6 +162,9 @@ mem = CrowkisMemory(agent="support-bot", user="alice")
 mem.remember("Alice prefers email over phone")
 mem.recall("how should I contact Alice?")   # semantic recall
 ```
+
+`mem.extract(transcript)` takes text of any length: long text is sent in parts the server
+accepts (under 64 KiB and 64 facts each), in order, and the facts come back as one list.
 
 ## Chat apps
 

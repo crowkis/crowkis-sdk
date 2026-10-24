@@ -26,6 +26,7 @@ export interface CrowkisClientOptions {
 }
 
 export interface CacheSetOptions {
+  /** Seconds; 0 or none sends no EX, so the server applies its default lifetime. */
   ttl?: number;
   tenant?: string;
   model?: string;
@@ -148,6 +149,7 @@ export class CrowkisClient {
   ping(): Promise<boolean>;
   get(key: string | Buffer | Uint8Array): Promise<Buffer | null>;
   set(key: string | Buffer | Uint8Array, value: string | Buffer | Uint8Array, options?: { ttl?: number }): Promise<void>;
+  /** A `NOTSTORED <reason>` reply does not reject: it emits a `CrowkisWarning` once per reason. */
   cset(query: string | Buffer | Uint8Array, response: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<void>;
   cget(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<Buffer | null>;
   cgetHit(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<CacheHit | null>;
@@ -171,6 +173,8 @@ export class CrowkisClient {
   cvoicestat(counts: Record<string, number>, options?: { tenant?: string }): Promise<unknown>;
   /** Remove expired keys now; the number removed. */
   sweep(): Promise<number>;
+  /** One page of cache keys; the cursor is a number string and "0" ends the scan. */
+  cscan(cursor?: string | number, options?: { match?: string; count?: number; intent?: string; tenant?: string }): Promise<{ cursor: string; keys: Buffer[] }>;
   /** TENANT is sent only when passed, as cpromptSet/cpromptGet send none. */
   cpromptDel(name: string, options?: { tenant?: string }): Promise<boolean>;
   cpromptRollback(name: string, version: number, options?: { tenant?: string }): Promise<number>;
@@ -222,6 +226,7 @@ export class CrowkisClient {
   // Agent memory (also through `@crowkis/client/memory`); each replies with the server's answer.
   cmemset(agent: string, fact: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
   cmemget(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
+  /** Long text is sent in parts under the server's caps; the facts stored come back as one list. */
   cmemextract(agent: string, conversation: string, options?: { user?: string; ex?: number; tenant?: string }): Promise<unknown>;
   cmemhistory(agent: string, query: string, options?: { user?: string; k?: number; tenant?: string }): Promise<unknown>;
   cmemforget(agent: string, options?: { query?: string; user?: string; threshold?: number; tenant?: string }): Promise<unknown>;

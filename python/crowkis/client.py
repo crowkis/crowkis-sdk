@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import random
+import re
 import socket
 import threading
 import time
@@ -40,6 +41,14 @@ class CrowkisError(Exception):
 _LOG = logging.getLogger("crowkis")
 
 MAX_LINE_BYTES = 512 * 1024
+# CMEMEXTRACT refuses text over 64 KiB or yielding over 64 facts (at most one
+# per clause, the server splitting on the same ends as below).
+MEMEXTRACT_MAX_BYTES = 64 * 1024
+MEMEXTRACT_MAX_CLAUSES = 64
+MEMEXTRACT_PART_BYTES = 60 * 1024
+MEMEXTRACT_PART_CLAUSES = 40
+_CLAUSE_END = re.compile(r"(?<=[\n.!?])")
+NOT_STORED_REASONS_KEPT = 64
 BUSY_DEFAULT_RETRY_SECONDS = 0.05
 BUSY_MAX_RETRY_SECONDS = 2.0
 
@@ -282,6 +291,57 @@ def _token_chunks(text: str, chunk_tokens: int) -> Iterable[str]:
         yield " ".join(words[idx : idx + chunk_tokens])
 
 
+def _cut(piece: str) -> List[str]:
+    """A clause longer than one part, cut under the byte limit on character
+    boundaries, at the last space when there is one."""
+    data = piece.encode("utf-8")
+    out: List[str] = []
+    start = 0
+    while len(data) - start > MEMEXTRACT_PART_BYTES:
+        end = start + MEMEXTRACT_PART_BYTES
+        while data[end] & 0xC0 == 0x80:
+            end -= 1
+        space = data.rfind(b" ", start, end)
+        if space > start:
+            end = space + 1
+        out.append(data[start:end].decode("utf-8"))
+        start = end
+    out.append(data[start:].decode("utf-8"))
+    return out
+
+
+def _memextract_parts(text: str) -> List[str]:
+    """`text` as one part when the server takes it whole, else in order as parts of
+    at most 40 clauses and 60 KiB; joined they are `text` again."""
+    clauses = _CLAUSE_END.split(text)
+    if len(text.encode("utf-8")) <= MEMEXTRACT_MAX_BYTES and len(clauses) <= MEMEXTRACT_MAX_CLAUSES:
+        return [text]
+    parts: List[str] = []
+    part, part_bytes, part_clauses = "", 0, 0
+    for clause in clauses:
+        for piece in _cut(clause):
+            size = len(piece.encode("utf-8"))
+            if part and (part_clauses >= MEMEXTRACT_PART_CLAUSES or part_bytes + size > MEMEXTRACT_PART_BYTES):
+                parts.append(part)
+                part, part_bytes, part_clauses = "", 0, 0
+            part += piece
+            part_bytes += size
+            part_clauses += 1
+    if part:
+        parts.append(part)
+    return parts
+
+
+def _combined_facts(replies: List[Any]) -> Any:
+    if len(replies) == 1:
+        return replies[0]
+    facts: List[Any] = []
+    for reply in replies:
+        if isinstance(reply, list):
+            facts.extend(reply)
+    return facts
+
+
 def _scope(
     tenant: Optional[str], user: Optional[str], topic: Optional[str]
 ) -> List[BytesLike]:
@@ -331,6 +391,16 @@ def _transport_error(host: str, port: int, attempts: int, cause: BaseException) 
     return CrowkisError(
         f"connection to {host}:{port} failed after {attempts} attempt(s): {cause}"
     )
+
+
+def _auth_refused(denied: CrowkisError) -> CrowkisError:
+    if "without any password configured" in str(denied):
+        denied = CrowkisError(
+            "the server has no CROWKIS_AUTH_TOKEN set; remove auth_token "
+            "or set the same token on the server"
+        )
+    denied.retryable = False
+    return denied
 
 
 class _Conn:
@@ -421,6 +491,7 @@ class CrowkisClient:
         self.on_error = on_error
         self._pool: List[_Conn] = []
         self._pool_lock = threading.Lock()
+        self._not_stored_said: set = set()
         self._slots = threading.BoundedSemaphore(self.pool_size)
 
     def __repr__(self) -> str:
@@ -464,8 +535,7 @@ class CrowkisClient:
                 sock.sendall(_encode(["AUTH", self.auth_token]))
                 denied = _read_frame(conn.reader)
                 if isinstance(denied, CrowkisError):
-                    denied.retryable = False
-                    raise denied
+                    raise _auth_refused(denied)
             sock.sendall(_encode(["HELLO", "3"]))
             _read_frame(conn.reader)
         except BaseException:
@@ -498,6 +568,19 @@ class CrowkisClient:
             handler(error)
         except Exception:
             pass
+
+    def _note_not_stored(self, reply: Any) -> None:
+        """CSET may answer `NOTSTORED <reason>`: accepted, deliberately not kept.
+        Said once per reason, not raised."""
+        if not (isinstance(reply, str) and reply.startswith("NOTSTORED")):
+            return
+        reason = reply[len("NOTSTORED") :].strip() or "no reason given"
+        if reason in self._not_stored_said:
+            return
+        # ponytail: reasons are the server's fixed texts; the cap only bounds a misbehaving one.
+        if len(self._not_stored_said) < NOT_STORED_REASONS_KEPT:
+            self._not_stored_said.add(reason)
+        _LOG.warning("crowkis answer not stored: %s", reason)
 
     def _backoff(self, attempt: int) -> float:
         delay = self.backoff_base * (2 ** attempt)
@@ -598,7 +681,8 @@ class CrowkisClient:
         segment: Optional[str] = None,
     ) -> None:
         args: List[BytesLike] = ["CSET", query, response]
-        if ttl is not None:
+        # ttl=0 sends no EX, so the server's default lifetime applies; it refuses EX 0.
+        if ttl:
             args += ["EX", str(ttl)]
         if tenant or self.tenant:
             args += ["TENANT", tenant or self.tenant or ""]
@@ -613,7 +697,7 @@ class CrowkisClient:
             args += ["TEMPLATE"]
         if segment:
             args += ["SEGMENT", segment]
-        self.execute(*args)
+        self._note_not_stored(self.execute(*args))
 
     def cget(
         self,
@@ -923,7 +1007,12 @@ class CrowkisClient:
         tenant: Optional[str] = None,
         topic: Optional[str] = None,
     ) -> Any:
-        return self.execute(*self._args_cmemextract(agent, conversation, user=user, ex=ex, tenant=tenant, topic=topic))
+        """Long text goes as several calls, in order, under the server's limits;
+        the facts come back as one list."""
+        return _combined_facts([
+            self.execute(*self._args_cmemextract(agent, part, user=user, ex=ex, tenant=tenant, topic=topic))
+            for part in _memextract_parts(conversation)
+        ])
 
 
     def _args_cmemhistory(
@@ -1262,7 +1351,10 @@ class CrowkisClient:
         match: Optional[str] = None,
         count: Optional[int] = None,
         intent: Optional[str] = None,
+        tenant: Optional[str] = None,
     ) -> Tuple[str, List[bytes]]:
+        """One page of one tenant's keys. The cursor is opaque: pass back the one
+        returned until it is "0"."""
         args: List[BytesLike] = ["CSCAN", str(cursor)]
         if match is not None:
             args += ["MATCH", match]
@@ -1270,6 +1362,8 @@ class CrowkisClient:
             args += ["COUNT", str(count)]
         if intent is not None:
             args += ["INTENT", intent]
+        if tenant or self.tenant:
+            args += ["TENANT", tenant or self.tenant or ""]
         value = self.execute(*args)
         if isinstance(value, list) and len(value) == 2:
             nxt = value[0].decode() if isinstance(value[0], bytes) else str(value[0])
@@ -1630,8 +1724,7 @@ class AsyncCrowkisClient(CrowkisClient):
                 await writer.drain()
                 denied = await _aread_frame(reader)
                 if isinstance(denied, CrowkisError):
-                    denied.retryable = False
-                    raise denied
+                    raise _auth_refused(denied)
             writer.write(_encode(["HELLO", "3"]))
             await writer.drain()
             await _aread_frame(reader)
@@ -1751,7 +1844,10 @@ class AsyncCrowkisClient(CrowkisClient):
         return await self.execute_async(*self._args_cmemget(agent, query, **kwargs))
 
     async def cmemextract_async(self, agent: str, conversation: str, **kwargs: Any) -> Any:
-        return await self.execute_async(*self._args_cmemextract(agent, conversation, **kwargs))
+        return _combined_facts([
+            await self.execute_async(*self._args_cmemextract(agent, part, **kwargs))
+            for part in _memextract_parts(conversation)
+        ])
 
     async def cmemhistory_async(self, agent: str, query: str, **kwargs: Any) -> Any:
         return await self.execute_async(*self._args_cmemhistory(agent, query, **kwargs))
@@ -1815,7 +1911,7 @@ class AsyncCrowkisClient(CrowkisClient):
 
     async def cset_async(self, query: BytesLike, response: BytesLike, **kwargs: Any) -> None:
         args: List[BytesLike] = ["CSET", query, response]
-        if kwargs.get("ttl") is not None:
+        if kwargs.get("ttl"):
             args += ["EX", str(kwargs["ttl"])]
         tenant = kwargs.get("tenant") or self.tenant
         model = kwargs.get("model") or self.model
@@ -1831,7 +1927,7 @@ class AsyncCrowkisClient(CrowkisClient):
             args += ["IMAGE", image_payload]
         if kwargs.get("segment"):
             args += ["SEGMENT", kwargs["segment"]]
-        await self.execute_async(*args)
+        self._note_not_stored(await self.execute_async(*args))
 
     async def get_or_compute_async(
         self,

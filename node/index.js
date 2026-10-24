@@ -203,6 +203,69 @@ function busyRetryMs(error) {
   return Math.min(Math.max(Number(digits[1]), 1), 2000);
 }
 
+// The server refuses CMEMEXTRACT over 65,536 bytes or 64 facts, and finds at
+// most one fact per sentence; a part stays well under both.
+const EXTRACT_MAX_BYTES = 60 * 1024;
+const EXTRACT_MAX_SENTENCES = 40;
+
+// Sentence ends are the server's: . ! ? and new lines. A sentence over the byte
+// cap is cut at character boundaries.
+function extractParts(text) {
+  const units = [];
+  for (const sentence of String(text).split(/(?<=[\n.!?])/)) {
+    if (Buffer.byteLength(sentence) < EXTRACT_MAX_BYTES) {
+      units.push(sentence);
+      continue;
+    }
+    let cut = "";
+    let bytes = 0;
+    for (const ch of sentence) {
+      const size = Buffer.byteLength(ch);
+      if (bytes + size >= EXTRACT_MAX_BYTES) {
+        units.push(cut);
+        cut = "";
+        bytes = 0;
+      }
+      cut += ch;
+      bytes += size;
+    }
+    if (cut) units.push(cut);
+  }
+  const parts = [];
+  let part = "";
+  let bytes = 0;
+  let sentences = 0;
+  for (const unit of units) {
+    const size = Buffer.byteLength(unit);
+    const counts = /[^\s.!?]/.test(unit);
+    if (part && (bytes + size >= EXTRACT_MAX_BYTES || (counts && sentences >= EXTRACT_MAX_SENTENCES))) {
+      parts.push(part);
+      part = "";
+      bytes = 0;
+      sentences = 0;
+    }
+    part += unit;
+    bytes += size;
+    if (counts) sentences += 1;
+  }
+  if (part) parts.push(part);
+  return parts;
+}
+
+const notStoredWarned = new Set();
+
+// CSET answers `NOTSTORED <reason>` when it kept nothing; the caller still has
+// its answer, so this is a warning, once per reason, never the answer itself.
+function warnNotStored(reply) {
+  if (typeof reply !== "string" || !reply.startsWith("NOTSTORED")) return;
+  const reason = reply.slice("NOTSTORED".length).trim();
+  if (notStoredWarned.has(reason)) return;
+  notStoredWarned.add(reason);
+  process.emitWarning(`crowkis: an answer was not cached: ${reason}`, "CrowkisWarning");
+}
+
+const NO_SERVER_TOKEN = /called without any password configured/i;
+
 function tokenChunks(text, chunkTokens = 4) {
   const size = Math.max(1, Math.min(Number(chunkTokens) || 4, 128));
   const words = String(text).split(/\s+/).filter(Boolean);
@@ -301,7 +364,9 @@ class CrowkisClient {
         // the next command to use.
         this.reader.read().then(resolve, (error) => {
           this.close();
-          reject(error);
+          reject(NO_SERVER_TOKEN.test(error.message)
+            ? new CrowkisError("the server has no CROWKIS_AUTH_TOKEN set; remove authToken or set the same token on the server")
+            : error);
         });
       });
       socket.once("error", (error) => {
@@ -419,7 +484,8 @@ class CrowkisClient {
 
   async cset(query, response, options = {}) {
     const args = ["CSET", query, response];
-    if (options.ttl !== undefined) args.push("EX", String(options.ttl));
+    // The server refuses EX 0; a ttl of 0 (or null) sends no EX, so its default lifetime applies.
+    if (options.ttl != null && Number(options.ttl) !== 0) args.push("EX", String(options.ttl));
     if (this._tenant(options)) args.push("TENANT", this._tenant(options));
     if (this._model(options)) args.push("MODEL", this._model(options));
     if (options.modelVersion || options.model_version) {
@@ -429,7 +495,7 @@ class CrowkisClient {
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
     if (options.segment) args.push("SEGMENT", options.segment);
-    await this.execute(...args);
+    warnNotStored(await this.execute(...args));
   }
 
   async cget(query, options = {}) {
@@ -624,13 +690,22 @@ class CrowkisClient {
     return this.execute(...args);
   }
 
+  // Long text goes in parts, in order, under the server's caps; the facts each
+  // part stored come back as one list. A refused part stops the rest.
   async cmemextract(agent, conversation, { user, ex, tenant } = {}) {
     await this._hello3();
-    const args = ["CMEMEXTRACT", agent, conversation];
-    if (user) args.push("USER", user);
-    if (ex !== undefined) args.push("EX", String(ex));
-    if (this._tenant({ tenant })) args.push("TENANT", this._tenant({ tenant }));
-    return this.execute(...args);
+    const options = [];
+    if (user) options.push("USER", user);
+    if (ex !== undefined) options.push("EX", String(ex));
+    if (this._tenant({ tenant })) options.push("TENANT", this._tenant({ tenant }));
+    const parts = extractParts(conversation);
+    if (parts.length <= 1) return this.execute("CMEMEXTRACT", agent, conversation, ...options);
+    const facts = [];
+    for (const part of parts) {
+      const stored = await this.execute("CMEMEXTRACT", agent, part, ...options);
+      if (Array.isArray(stored)) facts.push(...stored);
+    }
+    return facts;
   }
 
   async cmemhistory(agent, query, { user, k, tenant } = {}) {
@@ -929,6 +1004,7 @@ class CrowkisClient {
     if (options.match) args.push("MATCH", options.match);
     if (options.count != null) args.push("COUNT", String(options.count));
     if (options.intent) args.push("INTENT", options.intent);
+    if (this._tenant(options)) args.push("TENANT", this._tenant(options));
     const value = await this.execute(...args);
     if (Array.isArray(value) && value.length === 2) {
       const next = Buffer.isBuffer(value[0]) ? value[0].toString() : String(value[0]);

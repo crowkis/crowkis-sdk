@@ -13,7 +13,8 @@ const { isThenable } = require("./turnCore.js");
 /**
  * check(): the answer as the save rules read it: `answerGiven` first, then, once it is known to be an
  * answer, its cache key and its place in the transcript, then `beforeSharing`.
- * write(): the shared form of the answer and its write, inside TurnCore's write boundary: a personal
+ * write(): the shared form of the answer and its write (the writer's boundary turns a failed one into
+ * the refused outcome): a personal
  * answer only as a shape with this call's values taken out (`personal`, and only when the session
  * shares templates), any other after the `sharing` rules; through the bounded write (in the call's
  * `segment`, if any), with the question it was saved for. `lastStored` is the question the latest
@@ -49,6 +50,7 @@ class VoiceSaving {
     if (isThenable(verdict)) verdict = await verdict;
     if (verdict) return this._report.kept(verdict);
     const written = await this._learn(answer.key, answer.answer, { ttl: this._session.ttl });
+    if (written.refused) return this._report.refused(written.error);
     this.lastStored = answer.key;
     if (!written.written) return this._report.kept(written.objection); // a slow server gets no extra write
     this._call.questionRecords().keep(answer.key, answer.answer, this._session.ttl);
@@ -80,6 +82,7 @@ class VoiceSaving {
       const templated = await this._learnPersonal(answer.key, answer.answer);
       if (templated === null) verdict = personal.refusal();
       else if (templated.written) return { outcome: OUTCOME.TEMPLATE, why: "", rule: null };
+      else if (templated.refused) return this._report.refused(templated.error);
       else verdict = templated.objection; // slow_write: the shape was not confirmed written
     }
     return this._report.kept(verdict);

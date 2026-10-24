@@ -118,7 +118,7 @@ class CallSession {
       refuseLateHits: false, deadlineCounts: LOOKUP_DEADLINE_COUNTS, unavailableCounts: LOOKUP_UNAVAILABLE_COUNTS,
     });
     this._saving = new ChatSaving(this, {
-      saveRules: ChatRuleSet.saveChain(), questionRecords: records,
+      saveRules: ChatRuleSet.saveChain(), questionRecords: records, report: this._report,
       writer: new BoundedWriter(pendingWrites, writesMax, (counter) => this._countWrite(counter), (message) => console.warn(message)),
     });
     const questionCheck = new ChatQuestionCheck(this, {

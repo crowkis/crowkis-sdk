@@ -31,14 +31,22 @@ class BoundedWriter {
    * write() waited for no longer than twice the turn's latency budget; without a budget (null or
    * undefined) the store is waited for, as it always was. Voice and chat both write this way.
    * Resolves to a WriteResult.
+   *
+   * The write's one error boundary: a store that fails before the deadline (a security pipeline
+   * refusal, a tenant limit, the cache down) is a refused result, never a rejection that ends the
+   * call; the channel reports it.
    */
   async writeWithin(store, budgetMs) {
-    if (budgetMs === null || budgetMs === undefined) {
-      await store();
-      return WRITTEN;
+    try {
+      if (budgetMs === null || budgetMs === undefined) {
+        await store();
+        return WRITTEN;
+      }
+      // Awaited here, so the write takes one step, as it did when each session waited for it itself.
+      return new WriteResult(await this.write(store, BUDGETS_PER_WRITE * budgetMs));
+    } catch (error) {
+      return new WriteResult(null, error);
     }
-    // Awaited here, so the write takes one step, as it did when each session waited for it itself.
-    return new WriteResult(await this.write(store, BUDGETS_PER_WRITE * budgetMs));
   }
 
   /**

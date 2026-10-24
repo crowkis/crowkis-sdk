@@ -46,7 +46,8 @@ class VoiceSessionSaves(Protocol):
 class VoiceSaving:
     """check(): the answer as the save rules read it: ``answer_given`` first, then, once it is known
     to be an answer, its cache key and its place in the transcript, then ``before_sharing``.
-    write(): the shared form of the answer and its write, inside TurnCore's write boundary: a personal
+    write(): the shared form of the answer and its write (the writer's boundary turns a failed one into
+    the ``refused`` outcome): a personal
     answer only as a shape with this call's values taken out (``personal``, and only when the session
     shares templates), any other after the ``sharing`` rules; through the bounded write (in the
     call's ``segment``, if any), with the question it was saved for. ``last_stored`` is the question
@@ -85,6 +86,8 @@ class VoiceSaving:
         if verdict is not None:
             return self._report.kept(verdict)
         written = self._learn(answer.key, answer.answer, ttl=self._session.ttl)
+        if written.refused:
+            return self._report.refused(written.error)
         self.last_stored = answer.key
         if not written.written:  # a slow server gets no extra write
             return self._report.kept(written.objection)
@@ -95,7 +98,7 @@ class VoiceSaving:
         """agent.learn(), waited for no longer than twice the latency budget (BoundedWriter); without
         a budget it is waited for, as it always was. Not written in time: the ``slow_write`` verdict
         to report (still running, or not written at all because too many writes wait on a slow
-        server)."""
+        server); failed: refused."""
         if self._segment:
             kwargs.setdefault("segment", self._segment)
         return self._writer.write_within(self._session.agent.learn, *args,
@@ -111,6 +114,8 @@ class VoiceSaving:
                 verdict = personal.refusal()
             elif templated.written:
                 return RecordedOutcome(Outcome.TEMPLATE)
+            elif templated.refused:
+                return self._report.refused(templated.error)
             else:
                 verdict = templated.objection  # slow_write: the shape was not confirmed written
         return self._report.kept(verdict)

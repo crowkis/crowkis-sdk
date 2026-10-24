@@ -12,6 +12,7 @@ from ..understanding.chat_details import _masked
 from ..understanding.turn_frame import TurnFrame
 from .answered import ChatAnswered
 from .chat_answer import ChatAnswer
+from .chat_report import ChatReport
 from .checked import Checked
 from .outcome import Outcome
 from .routes import SHARED
@@ -39,11 +40,13 @@ class ChatSaving:
     """check(): the agent's reply is noted in the chat's state (names masked unless the question was
     shared); only the model's answer to a shared question may be saved, and only past the save rules.
     write(): ``agent.learn()``, waited for no longer than twice the latency budget (``BoundedWriter``,
-    as voice; waited for without a budget), then the question it was saved for is kept."""
+    as voice; waited for without a budget; a failed write is ``report``'s refusal), then the question
+    it was saved for is kept."""
 
     def __init__(self, session: ChatSessionSaves, *, save_rules: RuleChain, writer: BoundedWriter,
-                 question_records: QuestionRecords) -> None:
+                 question_records: QuestionRecords, report: ChatReport) -> None:
         self._session = session
+        self._report = report
         self._save_rules = save_rules
         self._writer = writer
         self._question_records = question_records
@@ -63,6 +66,8 @@ class ChatSaving:
         verdict, answer = answered.result.verdict, answered.answer
         written = self._writer.write_within(self._session.agent.learn, verdict.key, answer, ttl=verdict.ttl,
                                             segment=verdict.segment, budget_ms=self._session.latency_budget_ms)
+        if written.refused:
+            return self._report.refused(written.error)
         if not written.written:
             return str(written.objection.outcome)
         self._session.counts[SAVED_COUNT] += 1

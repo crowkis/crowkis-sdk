@@ -96,6 +96,16 @@ class ChatMergedSaveTests(unittest.TestCase):
         self.assertEqual(session.record_answer(result, "Refunds take five days."), "saved")
         self.assertEqual([answer for _, answer in agent.saved], ["Refunds take five days."])
 
+    def test_a_refused_write_is_an_outcome_not_an_error(self):
+        # v4 P5.5: the write's error boundary is the writer's; with and without a latency budget.
+        for budget in (None, 50):
+            agent = Agent()
+            agent.learn = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("tenant limit"))
+            session = CallSession(agent, Scripted(), latency_budget_ms=budget)
+            result = session.handle("what is your refund policy")
+            self.assertEqual(session.record_answer(result, "Refunds take five days."), "refused:write_failed")
+            self.assertEqual(session.counts["save_refused"], 1)
+
 
 class ExportTests(unittest.TestCase):
     def test_the_users_identifiers_are_never_exported(self):

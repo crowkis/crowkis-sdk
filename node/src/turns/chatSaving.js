@@ -15,12 +15,14 @@ const NOT_SHARED = new Verdict("NotShared", "not a shared question the model ans
  * check(): the agent's reply is noted in the chat's state (names masked unless the question was
  * shared); only the model's answer to a shared question may be saved, and only past the save rules.
  * write(): agent.learn(), waited for no longer than twice the latency budget (BoundedWriter, as voice;
- * waited for without a budget), then the question it was saved for is kept. `session` is read live
+ * waited for without a budget; a failed write is `report`'s refusal), then the question it was saved
+ * for is kept. `session` is read live
  * (state, counts, agent, instructions, latencyBudgetMs, promptKey()).
  */
 class ChatSaving {
-  constructor(session, { saveRules, writer, questionRecords }) {
+  constructor(session, { saveRules, writer, questionRecords, report }) {
     this._session = session;
+    this._report = report;
     this._saveRules = saveRules;
     this._writer = writer;
     this._questionRecords = questionRecords;
@@ -43,6 +45,7 @@ class ChatSaving {
       ttl: verdict.ttl ?? undefined, ...(verdict.segment ? { segment: verdict.segment } : {}),
     });
     const written = await this._writer.writeWithin(learn, this._session.latencyBudgetMs);
+    if (written.refused) return this._report.refused(written.error);
     if (!written.written) return written.objection.outcome;
     this._session.counts[SAVED_COUNT] += 1;
     this._questionRecords.keep(verdict.key, answer, verdict.ttl ?? null);

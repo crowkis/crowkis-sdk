@@ -14,8 +14,8 @@ function isThenable(value) {
  * Template Method: the fixed steps of a turn of any channel. decide(): open (number) the turn,
  * answers before reading, read it, the question check, an early answer, the lookup inside the budget,
  * the hit check, serve or hand to the model. record(): pair the answer with its turn, the save check,
- * the write (the one place a failed write becomes an outcome), then the channel notes what was
- * recorded.
+ * the write (a failed write comes back from the writer's boundary as an outcome), then the channel
+ * notes what was recorded.
  *
  * What differs between channels is injected (see turnSteps.js); the facades pick the parts.
  * `settings` is the call's live settings (agent, serveAbove, latencyBudgetMs). A step that answers
@@ -106,13 +106,7 @@ class TurnCore {
     let objection = checked.objection;
     if (isThenable(objection)) objection = await objection;
     if (objection) return this._report.recorded(answered, this._report.kept(objection));
-    let outcome;
-    try {
-      outcome = await this._saving.write(checked.subject);
-    } catch (error) {
-      outcome = this._report.refused(error);
-    }
-    return this._report.recorded(answered, outcome);
+    return this._report.recorded(answered, await this._saving.write(checked.subject));
   }
 }
 

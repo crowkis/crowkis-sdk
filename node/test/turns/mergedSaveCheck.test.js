@@ -117,6 +117,18 @@ test("chat: a slow server costs the chat one write, not a stall", async (t) => {
   assert.strictEqual(session.stats().slow_writes, 1);
 });
 
+test("chat: a refused write is an outcome, not an error", async () => {
+  // v4 P5.5: the write's error boundary is the writer's; with and without a latency budget.
+  for (const latencyBudgetMs of [null, 50]) {
+    const agent = new ChatAgent();
+    agent.learn = async () => { throw new Error("tenant limit"); };
+    const session = new CallSession(agent, scripted, { latencyBudgetMs });
+    const result = await session.handle("what is your refund policy");
+    assert.strictEqual(await session.recordAnswer(result, "Refunds take five days."), "refused:write_failed");
+    assert.strictEqual(session.counts.save_refused, 1);
+  }
+});
+
 test("chat, must still work: a plain answer is saved", async () => {
   const agent = new ChatAgent();
   const session = new CallSession(agent, scripted);

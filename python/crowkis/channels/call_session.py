@@ -177,6 +177,7 @@ class CallSession:
         self._cache_lookup = CacheLookup(_LOOKUPS, refuse_late_hits=False, deadline_counts=_LOOKUP_DEADLINE_COUNTS,
                                          unavailable_counts=_LOOKUP_UNAVAILABLE_COUNTS)
         self._saving = ChatSaving(self, save_rules=ChatRuleSet.save_chain(), question_records=records,
+                                  report=self._report,
                                   writer=BoundedWriter(_voice._WRITES, lambda: _voice._WRITES_MAX, self._count_write,
                                                        _voice._LOG))
         question_check = ChatQuestionCheck(self, shared_question_rules=ChatRuleSet.shared_question_chain(),

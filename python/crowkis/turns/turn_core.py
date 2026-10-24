@@ -17,8 +17,9 @@ CHEAP_ABOVE = 0.60
 class TurnCore:
     """Template Method: the fixed steps of a turn. decide(): open (number) the turn, answers before
     reading, read it, the question check, an early answer, the lookup inside the budget, the hit check,
-    serve or hand to the model. record(): pair the answer with its turn, the save check, the write (the
-    one place a failed write becomes an outcome), then the channel notes what was recorded.
+    serve or hand to the model. record(): pair the answer with its turn, the save check, the write
+    (a failed write comes back from the writer's boundary as an outcome), then the channel notes what
+    was recorded.
 
     What differs between channels is injected (see ``turn_steps``); the facades pick the parts.
     ``settings`` is the call's live settings (agent, serve_above, latency_budget_ms)."""
@@ -81,7 +82,4 @@ class TurnCore:
         checked = self._saving.check(paired.subject)
         if checked.objection is not None:
             return self._report.kept(checked.objection)
-        try:
-            return self._saving.write(checked.subject)
-        except Exception as error:  # noqa: BLE001 - a refused write must not end a call
-            return self._report.refused(error)
+        return self._saving.write(checked.subject)

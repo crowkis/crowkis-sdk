@@ -39,12 +39,19 @@ class BoundedWriter:
     def write_within(self, store: Callable[..., Any], *args: Any, budget_ms: Optional[float],
                      **kwargs: Any) -> WriteResult:
         """``write`` waited for no longer than twice the turn's latency budget; without a budget
-        (None) the store is waited for, as it always was. Voice and chat both write this way."""
-        if budget_ms is None:
-            store(*args, **kwargs)
-            return WRITTEN
-        return WriteResult(self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND,
-                                      **kwargs))
+        (None) the store is waited for, as it always was. Voice and chat both write this way.
+
+        The write's one error boundary: a store that fails before the deadline (a security pipeline
+        refusal, a tenant limit, the cache down) is a ``refused`` result, never an error that ends
+        the call; the channel reports it."""
+        try:
+            if budget_ms is None:
+                store(*args, **kwargs)
+                return WRITTEN
+            return WriteResult(self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND,
+                                          **kwargs))
+        except Exception as error:  # noqa: BLE001 - a refused write must not end a call
+            return WriteResult(error=error)
 
     def write(self, store: Callable[..., Any], *args: Any, deadline_s: float, **kwargs: Any) -> Optional[Verdict]:
         """None when the write is done; otherwise the BoundedWrite verdict (not written, or not

@@ -12,7 +12,10 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P4 pluggable understanding | 1-2 windows | done (2026-10-23) | `dba85e0`, `241e1ab`, `df50e41`, `4b7c60e`, `821c0f2`, `94f249b`, `d6b2d3d`, `255ff9b`, `b907566`, `dd1f5f5`, `2caeaf7`, `b293b55`, `af4375f`, `91ab247`, `0f5aae3` | ~2 h 15 min |
 | P5 v4 behaviour (opt-in) | 2 windows | done (2026-10-24); 38 Chat golden changes for the owner's review (`v4-notes/p5-golden-changes.md`) | `d295214` ... `45c1fa1`, fixes `8f273c9`, `10ba7e6`, `23ef007`, `9351e52`, `0d2ae7f` | ~5 h |
 | P5.6 remove the old paths (owner, 2026-10-23; before P5.5 since 2026-10-24) | about 1 window | done (2026-10-24): facades in `channels/`, the ten old modules and nine old Node files gone, public stable names, website copy checked; see the P5.6 section | `ebdf5aa`, `b4e09d1`, `a1cba4b`, notes; crowkis `v4-imports` `0bef059` | ~1 h |
-| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | after P5.6, not approved to start yet. First and required item (owner, 2026-10-24): merge `ChatCore` into `TurnCore` (`CallSession` / `Chat` become facades with `ChatChannel`; Chat's differing steps become rules, profile fields or injected parts); done when `chat_core.py` / `chatCore.js` are gone and golden decisions are identical. Then re-check every file; see plan P5.5 and `v4-notes/review-later.md` | | |
+| P5.5 clean-code pass (owner, 2026-10-22) | 1-2 windows | in progress (approved 2026-10-24). First and required item (owner, 2026-10-24): merge `ChatCore` into `TurnCore` (`CallSession` / `Chat` become facades with `ChatChannel`; Chat's differing steps become rules, profile fields or injected parts); done when `chat_core.py` / `chatCore.js` are gone and golden decisions are identical. Then re-check every file; see plan P5.5 and `v4-notes/review-later.md` | | |
+| P5.7 transport and client split (owner, 2026-10-24; decision V1 closed: split in this refactor) | | after P5.5, needs the owner's go-ahead: `client.py` / `node/index.js` split into `transport/`; `_config`, gRPC, `agent`, `openai_wrapper` (Node: `langchain.js`, `memory.js`) out of the root; every public name kept; the same design gate as P5.5 | | |
+| P5.7b whole-SDK structure check (owner, 2026-10-24) | | after P5.7, needs the go-ahead: every file in both languages against `CLAUDE.md` section 4 "Splitting"; measures across the SDK (files per typical change, cross-folder imports, forward-only classes, largest files and functions); fixes, golden identical | | |
+| P5.8 developer docs (owner, 2026-10-24) | | after P5.7b, needs the go-ahead: the codebase guide for v4, a README per package folder, a generated API reference (pdoc / TypeDoc), diagrams by script, a code tour, decision records, a newcomer check | | |
 
 ## P0 (done)
 
@@ -77,8 +80,17 @@ After P5.5: stop and report.
    error boundaries, `Verdict` one job, no `Any`, no private cross-package imports, one stemmer, P4 rough edges),
    measures after, the design review.
 
-**Stopped 2026-10-24 at 78% of the 5-hour limit before the Node port** (the Python merge cost ~20 points; the port
-could pass 95%). Clean: committed, suites green, golden unchanged. Timer to the reset (23:40 UTC), then continue.
+Stopped 2026-10-24 at 78% of the 5-hour limit before the Node port; resumed after the reset (the timer's wake-up did
+not restart the work; the orchestrating session did).
+
+**New owner rules (2026-10-24, `CLAUDE.md` section 4 "Splitting", commit `39d8ad8`), so the order is now:**
+1. Re-check the Python merge against "Splitting": merge each voice / chat pair in `turns/` that differs only by a
+   setting (the setting goes in the channel profile), collapse forward-only classes and methods, and move
+   `VoiceSession.decide()`'s own logic (turn numbering, the sharing offer, `_model_messages`) into the core's steps
+   so the facade only calls the core. One rule per file stays.
+2. Port the settled design to Node once.
+3. The inventory, the remaining clean-ups, the measures after (files per typical change must not grow; forward-only
+   classes near zero), the design review (it checks the "Splitting" rules too), the final checks.
 
 ## P5.6 done (2026-10-24; owner exception to the change wall: 0.5.2 unpublished, old paths removed outright)
 

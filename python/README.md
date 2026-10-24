@@ -404,6 +404,44 @@ class Assistant(CrowkisVoice, Agent):
   and sample rate come from the session's TTS.
 - If you override `llm_node` / `tts_node` yourself, call `super()` to keep Crowkis in the path.
 
+### Bolna
+
+Register Crowkis once when your Bolna app starts, then name it in the agent:
+
+```python
+from crowkis.integrations.bolna import register_crowkis   # pip install crowkis bolna
+
+register_crowkis()    # adds the LLM provider "crowkis", in front of Bolna's "openai"
+```
+
+```json
+"llm_config": {"provider": "crowkis", "model": "gpt-4o-mini"}
+```
+
+Bolna 0.10 pins packages that need Python 3.10 to 3.12.
+
+- A question the cache can answer is streamed to Bolna's speech side without the LLM.
+  Otherwise Bolna's own LLM answers, reading your system prompt and only the caller's
+  question (the whole call for a personal turn), and the answer is cached when it is safe
+  to share.
+- `register_crowkis(name="crowkis-azure", base="azure")` puts Crowkis in front of another
+  Bolna LLM provider. `session_options={...}` takes `async_voice_session()`'s options;
+  `session_factory=` makes each call's session yourself (not both).
+- Add `synthesizer="elevenlabs"` (any Bolna synthesizer key) to cache voice clips as well:
+  a cached answer plays its stored clip instead of calling the TTS. Clips are kept for raw
+  mu-law and PCM output only, per voice and format, and a reply cut off by a barge-in keeps none.
+- Never cached: a turn with anything personal in it, and every turn after the caller told
+  the call something about themselves; tool calls and their follow-ups; speculative (eager)
+  turns; keypad and language-switch turns; silence nudges; JSON requests; graph,
+  knowledge-base and multi-agent tasks; an answer that repeats a caller detail from your
+  system prompt.
+- An answer is saved only once Bolna has written it to its history in full, so a reply a
+  barge-in trimmed or dropped is never saved. It is saved when the next turn starts, or when
+  the call ends.
+- Each call gets its own session, so no caller's details are shared. A Crowkis failure never
+  breaks a call: Bolna's LLM answers instead. `llm.failures` (a `Counter`, also on the
+  synthesizer) counts each failed step by name.
+
 ### Calling your model yourself
 
 `answer()` calls your model for you. When you need to call it yourself (to stream it to your

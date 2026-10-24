@@ -9,15 +9,18 @@ const { CacheLookup } = require("../runtime/cacheLookup.js");
 const { TurnPairing } = require("../runtime/turnPairing.js");
 const { TurnDecision } = require("../turns/decision.js");
 const { TurnCore } = require("../turns/turnCore.js");
-const { SessionHost } = require("../turns/sessionHost.js");
+const { VoiceAnswered } = require("../turns/answered.js");
+const { VoicePairing } = require("../turns/voicePairing.js");
+const { VoiceReader } = require("../turns/voiceReader.js");
+const { VoiceReport } = require("../turns/voiceReport.js");
+const { VoiceSaving } = require("../turns/voiceSaving.js");
 const { Stats } = require("../runtime/stats.js");
-const { LATE, within } = require("../runtime/deadline.js");
+const { RewriteCheck } = require("../understanding/rewriteCheck.js");
 const { NoRewrite } = require("../understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("../understanding/budgetedUnderstanding.js");
 const { Channel, VOICE } = require("../turns/channel.js");
 const { KnowledgeSegment } = require("../keys/knowledgeSegment.js");
 const { CallReadings } = require("../understanding/callReadings.js");
-const { QuestionRecords } = require("../runtime/questionRecords.js");
 const { WordRuleClassifier } = require("../understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
@@ -323,9 +326,6 @@ function setWritesMax(max) {
   return () => { WRITES_MAX = old; };
 }
 
-// How many follow-ups back a turn may lean on before it is treated as unresolvable.
-const CHAIN_LIMIT = 6;
-
 // How many already-checked caller turns a session remembers for _heard() (past it, a turn is checked again).
 const HEARD_MAX = 2048;
 // What _recordModelTurn did with an answer; the two that put it in the shared cache.
@@ -365,7 +365,7 @@ class VoiceResponse {
   // The caller talked over this turn, a newer turn was decided, or the app recorded the
   // turn itself: speak no more of this answer.
   _stopped() {
-    return this.decision._recorded || this._session._movedOn(this.decision);
+    return this.decision._recorded || this._session._pairing.movedOn(this.decision.turn);
   }
 
   async *_run() {
@@ -524,8 +524,6 @@ class VoiceSession {
     this.unspeakable = 0;
     this.emptyAnswers = 0;
     this.audioUnavailable = 0;
-    // The question the latest stored answer was stored under.
-    this._lastStored = null;
     this._fillers = new Map();
     // Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
     this._pairing = new TurnPairing();
@@ -549,22 +547,42 @@ class VoiceSession {
     }
     // Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
     this._callReadings = new CallReadings({ remembersTold: Boolean(classifier) });
-    this._call = new SessionCall(this);
+    this._call = new SessionCall(this, { callReadings: this._callReadings, track: trackRecord });
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),
       (message) => console.warn(message));
     // Lookups run inside the budget the call has when it looks up.
     this._cacheLookup = new CacheLookup();
     // The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
-    this._core = new TurnCore(new SessionHost(this), {
-      rules: this._rules, call: this._call, pairing: this._pairing, cacheLookup: this._cacheLookup,
-      classifier: this._classifier, rewriter: this._rewriter, callReadings: this._callReadings,
-      stats: this._stats,
-    });
+    this._core = this._buildCore(this._rules);
     // Caller turns _heard() has already checked (history is re-read every turn).
     this._heardTexts = new Set();
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
+  }
+
+  /**
+   * The one TurnCore with a voice call's parts (this session is their composition root): `rules` are
+   * the question, hit and save checks. The session is the core's live settings.
+   */
+  _buildCore(rules) {
+    const report = new VoiceReport(this, this._stats, {
+      voiced: (answer, options) => this._voiced(answer, options), pairing: this._pairing, call: this._call,
+      callReadings: this._callReadings,
+    });
+    this._report = report;
+    const reader = new VoiceReader({
+      classifier: this._classifier, rewriter: this._rewriter, rewriteCheck: new RewriteCheck(),
+      callReadings: this._callReadings, call: this._call, segment: this._segment,
+    });
+    this._saving = new VoiceSaving(this, {
+      rules, call: this._call, callReadings: this._callReadings, report, writer: this._writer, stats: this._stats,
+      segment: this._segment,
+    });
+    return new TurnCore(this, {
+      pairing: new VoicePairing(this._pairing, this), answers: report, reader, questionCheck: rules,
+      cacheLookup: this._cacheLookup, hitCheck: rules, report, saving: this._saving,
+    });
   }
 
   setValues(values = {}) {
@@ -589,52 +607,9 @@ class VoiceSession {
     }
   }
 
-  async decide(callerSaid) {
-    const turn = this._pairing.begin();
-    const decision = await this._decide(callerSaid);
-    decision.turn = turn;
-    decision._session = new WeakRef(this);
-    if (decision.needsModel) {
-      decision._said = callerSaid;
-      [decision.messages, decision.cacheable] = this._modelMessages(callerSaid);
-    }
-    this._pairing.offer(turn, decision.cacheable);
-    return decision;
-  }
-
-  // What the model should read to answer this turn, and whether that answer may
-  // be cached. A shared answer is only safe when the model saw nothing but the
-  // cache key: the question, and for a follow-up the questions it leans on.
-  // Personal turns, and follow-ups to one, get the whole call and are never shared.
-  _modelMessages(callerSaid) {
-    const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-    if (
-      this._tainted || text.split(/\s+/).filter(Boolean).length < this.minWords ||
-      this._callReadings.isPersonal(text) || lookupOnly(text) ||
-      this._afterUrgent(text) || unfinished(text)
-    ) {
-      return [null, false];
-    }
-    if (!this._callReadings.isContextDependent(text)) {
-      // "Twelve years old.": a turn that neither asks nor requests anything is an
-      // answer about the caller, never stored on its own.
-      if (!asks(text)) return [null, false];
-      return [[{ role: "user", content: callerSaid }], true];
-    }
-    const chain = this._chain();
-    if (chain === null || this._callReadings.chainIsPrivate(chain, this.minWords)) return [null, false];
-    return [[...chain, callerSaid].map((turn) => ({ role: "user", content: turn })), true];
-  }
-
-  /**
-   * Whether the server judges what it caches, asked inside this call's budget:
-   * a slow answer is a no for this turn, and is there for the next.
-   */
-  async _engineVouches() {
-    const asked = this.agent.decides();
-    if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) return asked;
-    const answer = await within(this.latencyBudgetMs, asked);
-    return answer === LATE ? false : answer;
+  /** What this session decided for the caller's turn (a TurnDecision): the one TurnCore decides. */
+  decide(callerSaid) {
+    return this._core.decide(callerSaid);
   }
 
   cancel() {
@@ -743,17 +718,6 @@ class VoiceSession {
     return new VoiceResponse(this, decision, callerSaid, llm, system, keep);
   }
 
-  // Which agent's system prompts this call's is compared with.
-  _agentKey() {
-    const agent = this.agent || {};
-    return [agent.tenant || (agent.client && agent.client.tenant) || null, agent.agentId || null];
-  }
-
-  // The caller talked over this turn, or a newer turn has been decided.
-  _movedOn(decision) {
-    return this._pairing.movedOn(decision.turn);
-  }
-
   // A streamed turn the caller talked over: report it, store and keep nothing. Not an
   // empty answer, so an app never retries over the caller's new words.
   _interrupted(decision, spoken) {
@@ -780,51 +744,6 @@ class VoiceSession {
     if (this._pairing.dropShareable()) this.notShareable += 1;
   }
 
-  // Note, in the background, that `answer` was saved for `question`. A failure only means a
-  // later hit can't be checked, which is how it was before.
-  // Note, in the background, that `answer` was saved for `question` (QuestionRecords).
-  _keepQuestion(question, answer) {
-    new QuestionRecords(this.agent, { track: trackRecord }).keep(question, answer, this.ttl);
-  }
-
-  // Whether every question this answer was saved for asks about something else, read within what the
-  // lookup left of the budget. Unknown means no: as before.
-  async _answersAnotherQuestion(asked, answer, spentMs = 0) {
-    const budgeted = this.latencyBudgetMs !== undefined && this.latencyBudgetMs !== null;
-    return new QuestionRecords(this.agent, { track: trackRecord })
-      .answersAnotherQuestion(asked, answer, budgeted ? this.latencyBudgetMs - spentMs : null);
-  }
-
-  // agent.learn(), waited for no longer than twice the latency budget: a slow server never
-  // stalls the turn after a miss. A write still running then finishes in the background
-  // (an error it ends with is counted). An error within the budget is thrown, as before.
-  // Without a budget it is waited for, as it always was. False when the turn stopped waiting.
-  //
-  // Resolves to null when the write is done; otherwise to the "slow_write" outcome to
-  // report (still running, or not written at all because too many writes wait).
-  async _learn(...args) {
-    if (this._segment) {
-      const [key, answer, options = {}] = args;
-      args = [key, answer, { segment: this._segment, ...options }];
-    }
-    if (this.latencyBudgetMs === undefined || this.latencyBudgetMs === null) {
-      await this.agent.learn(...args);
-      return null;
-    }
-    // One more await than before the writer moved out (its own async step); nothing runs between.
-    const verdict = await this._writer.write(() => this.agent.learn(...args), 2 * this.latencyBudgetMs);
-    return verdict ? { outcome: verdict.outcome, why: verdict.reason, rule: verdict.rule } : null;
-  }
-
-  // The ID-like values this caller said earlier in the call: its earlier turns in the
-  // transcript and the turns the session only heard (private turns, loaded history).
-  // Called once the turn being recorded is in the transcript, so that turn is left out:
-  // it passed the personal rules, so its numbers are not private. As in Python.
-  _saidIdentifiers() {
-    const said = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content).slice(0, -1);
-    return identifiers([...said, ...[...this._heardTexts].sort()]);
-  }
-
   // A caller turn this session never decided (a private turn, history the app gave the
   // model): one that tells the call something a later answer may depend on keeps the
   // rest of the call off the shared cache, as decide() does for its own turns.
@@ -833,10 +752,6 @@ class VoiceSession {
     if (this._tainted || !text || this._heardTexts.has(text)) return;
     if (this._heardTexts.size < HEARD_MAX) this._heardTexts.add(text);
     if (setsContext(text)) this._tainted = true;
-  }
-
-  _decide(callerSaid) {
-    return this._core.decide(callerSaid);
   }
 
   // Record the model's answer to the turn decide() last handled, and cache it if
@@ -854,14 +769,12 @@ class VoiceSession {
   // waiting for the write: not confirmed) or "interrupted" (talked over, or the caller
   // moved on before it was complete).
   async _recordModelTurn(callerSaid, modelSaid, { turn, private: keep = false } = {}) {
-    return (await this._record(callerSaid, modelSaid, { turn, private: keep })).outcome;
+    return (await this._core.record(new VoiceAnswered(callerSaid, modelSaid, turn, keep, null))).outcome;
   }
 
   // The same, with why an answer was not stored, in words, and the rule that decided it.
-  async _record(callerSaid, modelSaid, options = {}) {
-    const recorded = await this._core.record(callerSaid, modelSaid, options);
-    if (recorded.rule) this._stats.countRule(recorded.rule);
-    return recorded;
+  _record(callerSaid, modelSaid, { turn, private: keep = false, instructions = null } = {}) {
+    return this._core.record(new VoiceAnswered(callerSaid, modelSaid, turn, keep, instructions));
   }
 
   injections() {
@@ -939,68 +852,6 @@ class VoiceSession {
     };
   }
 
-  _hasValues() {
-    return Object.keys(this.values).length > 0;
-  }
-
-  // The earlier caller turns a follow-up leans on, oldest first: back to the
-  // latest one that stands on its own. null when there is no such turn.
-  _chain() {
-    const chain = [];
-    for (let index = this.transcript.length - 1; index >= 0; index -= 1) {
-      const turn = this.transcript[index];
-      if (turn.role !== "user") continue;
-      chain.unshift(turn.content);
-      if (!isContextDependent(typeof turn.content === "string" ? turn.content.trim() : "")) return chain;
-      if (chain.length >= CHAIN_LIMIT) return null;
-    }
-    return null;
-  }
-
-  // A short turn after a private emergency or medical turn ("is he going to be
-  // okay?", "how do i make her vomit?"): about that turn, so answered with the call.
-  _afterUrgent(text) {
-    if (wordsOf(text).length > FOLLOW_UP_WORDS) return false;
-    const earlier = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content || "");
-    for (const said of earlier.slice(-CHAIN_LIMIT).reverse()) {
-      const words = wordsOf(said);
-      if ((words.some((w) => URGENT.has(w)) || urgent(words)) && isPersonal(said)) return true;
-      if (words.length > FOLLOW_UP_WORDS) return false;
-    }
-    return false;
-  }
-
-  _contextKey(callerSaid, text) {
-    if (!this._callReadings.isContextDependent(text)) return callerSaid;
-    const chain = this._chain();
-    if (chain === null) return null;
-    return [...chain, callerSaid].join(" || ");
-  }
-
-  // Store a personal answer as a shape. False when it cannot be made generic, or when
-  // this session does not share templates.
-  async _learnPersonal(keyed, modelSaid) {
-    if (!this.shareTemplates) {
-      this.uncacheablePersonal += 1;
-      return false;
-    }
-    const shaped = abstract(modelSaid, this.values);
-    // The model read the whole call: what is left outside the slots must say nothing
-    // of this caller that was not declared (a name, an address, a number, a matter).
-    const outside = shaped.replace(SLOT, " ");
-    const words = wordsOf(outside);
-    const earlier = this.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content || "");
-    const undeclared =
-      words.some((w) => hasDigit(w) || AMOUNT_WORDS.has(w) || MATTERS.has(w)) ||
-      readsOutDigits(outside, words) || EMAIL.test(outside) || identifies(outside, words) ||
-      carriesCallContext(outside, keyed, earlier);
-    if (this._hasValues() && slotNames(shaped).length && !leaks(shaped, this.values) && !undeclared) {
-      return (await this._learn(keyed, shaped, { ttl: this.ttl, template: true })) || true;
-    }
-    this.uncacheablePersonal += 1;
-    return false;
-  }
-
   // The audio for an answer this turn speaks, or null. Never rejects: when the audio
   // step fails (the cache, or the app's own synthesiser) the turn keeps its text and the
   // app's TTS speaks it. It used to reject the whole turn, losing the cached answer.
@@ -1067,11 +918,11 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
       // identified this caller is kept out here, and the engine reads the rest
       // before anyone is served them.
       const text = typeof callerSaid === "string" ? callerSaid.trim() : "";
-      const keyed = session._contextKey(callerSaid, text) || callerSaid;
+      const keyed = session._call.contextKey(callerSaid, text) || callerSaid;
       session._tainted = session._tainted || setsContext(text);
       session._pairing.offer(
         session._pairing.turn,
-        session._modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier),
+        session._report.modelMessages(callerSaid)[1] && !carriesCallContext(agentSaid, keyed, earlier),
       );
       await session._recordModelTurn(callerSaid, agentSaid);
       earlier.push(callerSaid);
@@ -1082,7 +933,7 @@ async function warmFromCalls(agent, calls, { wait = 30 } = {}) {
     totals.failedWrites += session.learnErrors;
     // Let the engine catch up before the next call: it judges a bounded
     // number of answers at a time and refuses what does not fit.
-    stalls = (await judgedInTime(agent, session._lastStored, wait * 1000)) ? 0 : stalls + 1;
+    stalls = (await judgedInTime(agent, session._saving.lastStored, wait * 1000)) ? 0 : stalls + 1;
     if (stalls >= 3) {
       totals.stalled = true;
       break;

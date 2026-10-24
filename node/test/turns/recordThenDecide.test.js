@@ -48,8 +48,8 @@ test("an empty answer is not keyed: the key is worked out only for an answer", a
   const session = new VoiceSession(new Agent("caller", { client: new MissingStore() }), { voice: "v" });
   const decision = await session.decide("what are your opening hours on weekdays");
   let keyed = 0;
-  const contextKey = session._contextKey.bind(session);
-  session._contextKey = (...args) => {
+  const contextKey = session._call.contextKey.bind(session._call);
+  session._call.contextKey = (...args) => {
     keyed += 1;
     return contextKey(...args);
   };

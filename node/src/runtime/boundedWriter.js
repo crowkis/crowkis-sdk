@@ -7,6 +7,8 @@ const SLOW_WRITE = "slow_write";
 const NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server";
 const NOT_CONFIRMED_REASON =
   "not confirmed: the server took longer than the latency budget, so the write finishes in the background";
+// A turn waits for its answer's write at most this many latency budgets.
+const BUDGETS_PER_WRITE = 2;
 
 /**
  * A cache write a live turn waits for no longer than its deadline: a slow server never stalls the
@@ -21,6 +23,19 @@ class BoundedWriter {
     this._maxPending = maxPending;
     this._count = count;
     this._warn = warn;
+  }
+
+  /**
+   * write() waited for no longer than twice the turn's latency budget; without a budget (null or
+   * undefined) the store is waited for, as it always was. Voice and chat both write this way.
+   */
+  async writeWithin(store, budgetMs) {
+    if (budgetMs === null || budgetMs === undefined) {
+      await store();
+      return null;
+    }
+    // Awaited here, so the write takes one step, as it did when each session waited for it itself.
+    return await this.write(store, BUDGETS_PER_WRITE * budgetMs);
   }
 
   /**

@@ -7,8 +7,7 @@ const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
-const { SessionHost } = require("../../src/turns/sessionHost.js");
-const { TurnCore } = require("../../src/turns/turnCore.js");
+const { VoiceAnswered } = require("../../src/turns/answered.js");
 
 class Store {
   constructor() {
@@ -41,11 +40,7 @@ class Store {
 const sessionOn = (store) => new VoiceSession(new Agent("caller", { client: store }), { voice: "v" });
 
 function coreWithout(session, names) {
-  return new TurnCore(new SessionHost(session), {
-    rules: RuleSet.voice().without(names), call: session._call, pairing: session._pairing,
-    cacheLookup: session._cacheLookup, classifier: session._classifier, rewriter: session._rewriter,
-    callReadings: session._callReadings, stats: session._stats,
-  });
+  return session._buildCore(RuleSet.voice().without(names));
 }
 
 test("the rules it is given decide the turn", async () => {
@@ -59,7 +54,7 @@ test("record pairs the answer with its turn", async () => {
   const session = sessionOn(store);
   const core = coreWithout(session, []);
   session._pairing.offer(session._pairing.begin(), true);
-  const recorded = await core.record("what is your refund policy", "Refunds take five days.");
+  const recorded = await core.record(new VoiceAnswered("what is your refund policy", "Refunds take five days.", undefined, false, null));
   assert.strictEqual(recorded.outcome, "saved");
   assert.deepStrictEqual(store.writes, [["what is your refund policy", "Refunds take five days.", false]]);
 });

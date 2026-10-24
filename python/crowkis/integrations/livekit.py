@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover
     _RUNNING_PLACEHOLDER_KEY = "__lk_running_placeholder__"
 
 from ..voice import VoiceSession
-from ..voice_async import AsyncVoiceSession, async_voice_session
+from ..voice_async import AsyncVoiceSession, _on_server_pool, async_voice_session
 from ..voice_turns import AudioClips
 
 # A replayed clip is sent in frames of this length.
@@ -259,8 +259,8 @@ class CrowkisVoice:
             if (turn is not None and answer and turn.question == question and not turn.tool_recorded
                     and await _will_be_spoken(handle)):
                 turn.tool_recorded = True  # a tool used in several steps is recorded once
-                await asyncio.to_thread(core._record_model_turn, question, answer, turn=turn.decision.turn,
-                                        private=True, **extra)
+                await _on_server_pool(core._record_model_turn, question, answer, turn=turn.decision.turn,
+                                      private=True, **extra)
             return
 
         if question is None or not question.strip() or after:
@@ -284,7 +284,7 @@ class CrowkisVoice:
                 yield chunk
             answer = "".join(parts).strip()
             if answer and await _will_be_spoken(handle):
-                await asyncio.to_thread(core.record_private_turn, question, answer)
+                await _on_server_pool(core.record_private_turn, question, answer)
             return
 
         decision = await session.decide(question)
@@ -328,10 +328,10 @@ class CrowkisVoice:
             return
         slot[0] = answer
         decision._recorded, decision._said = True, None
-        outcome = await asyncio.to_thread(core._record_model_turn, question, answer, turn=decision.turn, **extra)
+        outcome = await _on_server_pool(core._record_model_turn, question, answer, turn=decision.turn, **extra)
         decision.stored = outcome in ("saved", "template")
         decision.text = answer
-        await clips.settle(answer, await asyncio.to_thread(_clip_allowed, core, outcome))
+        await clips.settle(answer, await _on_server_pool(_clip_allowed, core, outcome))
 
     async def tts_node(self, text: AsyncIterable[str], model_settings: Any):  # type: ignore[override]
         handle = _speech()

@@ -10,7 +10,7 @@ from typing import Any, AsyncIterator, Callable, Iterator, List, Optional, Seque
 from bolna.llms.types import LatencyData, LLMStreamChunk
 
 from ...voice import TurnDecision
-from ...voice_async import AsyncVoiceSession
+from ...voice_async import AsyncVoiceSession, _on_server_pool
 from ...voice_turns import _earlier_callers, _field, _instructions
 from .synthesizer import AUDIO_CONCERN, CallLinks
 from .turn_filter import GenerateCall, TurnFilter
@@ -272,7 +272,7 @@ class CrowkisLLM:
         """Whether the server's decision engine holds a new answer until it vouches for it: its
         audio is then made when the answer is first served, never before."""
         agent = self._session.agent
-        return await asyncio.to_thread(lambda: agent.decides() and agent._holds)
+        return await _on_server_pool(lambda: agent.decides() and agent._holds)
 
     def _history(self) -> Optional[list]:
         """Bolna's committed history; None when there is no task manager to ask."""

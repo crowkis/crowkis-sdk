@@ -58,7 +58,6 @@ keep the event loop free.
 
 from __future__ import annotations
 
-import asyncio
 import collections
 import time
 from typing import Any, Awaitable, Callable, Optional
@@ -88,6 +87,7 @@ except ImportError:  # pragma: no cover - a Pipecat without nested pipelines
 from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
 from ..client import CrowkisError  # noqa: F401  (kept importable from here)
 from ..voice import VoiceSession, _words  # noqa: F401  (_words kept importable from here)
+from ..voice_async import _on_server_pool
 from ..voice_turns import (  # noqa: F401  (the shared layer; names kept importable from here)
     _HUNG_AFTER,
     _MAX_TOOLS,
@@ -277,7 +277,7 @@ class CrowkisGate(FrameProcessor):
         for said in _earlier_callers(messages):
             # History the app gave the model: what the caller told the call there counts too.
             self._session._heard(said)
-        decision = await asyncio.to_thread(self._session.decide, self.question)
+        decision = await _on_server_pool(self._session.decide, self.question)
         gate_ms = (time.perf_counter() - started) * 1000
         # A served answer filled with this caller's values never uses the shared audio cache.
         shared_audio = decision.audio_shareable

@@ -28,7 +28,6 @@ Pipecat processors keep their attributes), and work as plain objects too.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 import collections
@@ -37,6 +36,7 @@ from typing import Any, Awaitable, Callable, Optional
 from .agent import _store_later, _tts_key
 from .client import CrowkisError
 from .voice import _words
+from .voice_async import _on_server_pool
 
 # Same tool name and key rule as Agent.speak(): a clip is shared with speak() when it
 # names the same format (audio_format="pcm16-<rate>").
@@ -156,7 +156,7 @@ class AudioClips:
         agent = self._session.agent
         if self._uses_audio_cache(text):
             try:
-                clip = await asyncio.to_thread(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
+                clip = await _on_server_pool(agent._client.caudioget, text, *self._labels(), tenant=agent.tenant)
             except CrowkisError as err:
                 use, _ = agent._audio_cache_failed(err)
                 if use:
@@ -168,7 +168,7 @@ class AudioClips:
                 agent._audio_v2 = True
                 return clip or None
         try:
-            raw = await asyncio.to_thread(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
+            raw = await _on_server_pool(agent._client.ctoolget, TTS_TOOL, self._key(text), tenant=agent.tenant)
         except Exception as err:  # noqa: BLE001 — a failed read is a miss, never the end of the turn
             agent._audio_cache_error("read", err)
             return None
@@ -473,12 +473,12 @@ class AnswerPairing:
         # (a test double, a subclass) keeps working.
         extra = {"instructions": instructions} if instructions else {}
         if turn is None and kind == "caller":
-            saved = await asyncio.to_thread(self._session._record_model_turn, question, answer, **extra)
+            saved = await _on_server_pool(self._session._record_model_turn, question, answer, **extra)
         else:
-            saved = await asyncio.to_thread(
+            saved = await _on_server_pool(
                 self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool", **extra
             )
-        await self._audio.settle(answer, await asyncio.to_thread(self._clip_allowed, saved))
+        await self._audio.settle(answer, await _on_server_pool(self._clip_allowed, saved))
         stored = saved in ("saved", "template")
         await self._report_answer({
             "question": question, "answer": answer, "messages": messages, "saved": saved,

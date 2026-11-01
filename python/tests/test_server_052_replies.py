@@ -144,8 +144,8 @@ class NotStoredTests(unittest.TestCase):
 
     def test_cset_does_not_raise_and_warns_once_per_reason(self):
         with self.assertLogs("crowkis", "WARNING") as logs:
-            self.assertIsNone(self.client.cset("what is my email?", "it is ana@example.com"))
-            self.assertIsNone(self.client.cset("what is my email?", "it is ana@example.com"))
+            self.assertIs(self.client.cset("what is my email?", "it is ana@example.com"), False)
+            self.assertIs(self.client.cset("what is my email?", "it is ana@example.com"), False)
         said = [m for m in _warnings(logs) if "not stored" in m]
         self.assertEqual(len(said), 1, said)
         self.assertIn("personal details", said[0])

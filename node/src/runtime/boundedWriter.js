@@ -6,6 +6,8 @@ const { COUNTER } = require("./stats.js");
 const { WRITTEN, WriteResult } = require("./writeResult.js");
 
 const BOUNDED_WRITE = "BoundedWrite";
+const NOT_STORED = "NotStored";
+const NOT_STORED_REASON = "not stored: the server accepted the answer and kept nothing (NOTSTORED)";
 const NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server";
 const NOT_CONFIRMED_REASON =
   "not confirmed: the server took longer than the latency budget, so the write finishes in the background";
@@ -39,7 +41,7 @@ class BoundedWriter {
   async writeWithin(store, budgetMs) {
     try {
       if (budgetMs === null || budgetMs === undefined) {
-        await store();
+        if ((await store()) === false) return new WriteResult(new Verdict(NOT_STORED, NOT_STORED_REASON, [], OUTCOME.NOT_SAVED));
         return WRITTEN;
       }
       // Awaited here, so the write takes one step, as it did when each session waited for it itself.
@@ -59,6 +61,7 @@ class BoundedWriter {
       this._warn("crowkis voice: too many writes waiting on a slow server; this answer is not written");
       return new Verdict(BOUNDED_WRITE, NOT_WRITTEN_REASON, [], OUTCOME.SLOW_WRITE);
     }
+    let kept = true;
     let late = false; // set by the timer itself, so an error at any later moment is counted here
     const write = Promise.resolve().then(store);
     const tracked = write
@@ -75,11 +78,11 @@ class BoundedWriter {
         resolve(false);
       }, deadlineMs);
       write.then(
-        () => { clearTimeout(timer); resolve(true); },
+        (value) => { clearTimeout(timer); kept = value !== false; resolve(true); },
         (error) => { clearTimeout(timer); if (!late) reject(error); }
       );
     });
-    if (finished) return null;
+    if (finished) return kept ? null : new Verdict(NOT_STORED, NOT_STORED_REASON, [], OUTCOME.NOT_SAVED);
     this._count(COUNTER.SLOW_WRITES);
     return new Verdict(BOUNDED_WRITE, NOT_CONFIRMED_REASON, [], OUTCOME.SLOW_WRITE);
   }

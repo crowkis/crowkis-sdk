@@ -150,7 +150,7 @@ export class CrowkisClient {
   get(key: string | Buffer | Uint8Array): Promise<Buffer | null>;
   set(key: string | Buffer | Uint8Array, value: string | Buffer | Uint8Array, options?: { ttl?: number }): Promise<void>;
   /** A `NOTSTORED <reason>` reply does not reject: it emits a `CrowkisWarning` once per reason. */
-  cset(query: string | Buffer | Uint8Array, response: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<void>;
+  cset(query: string | Buffer | Uint8Array, response: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<boolean>;
   cget(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<Buffer | null>;
   cgetHit(query: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<CacheHit | null>;
   cimgget(image: string | Buffer | Uint8Array, options?: CacheGetOptions): Promise<Buffer | null>;
@@ -194,7 +194,7 @@ export class CrowkisClient {
   /** The cached answer for a prompt worded any way, or null. */
   lookup(prompt: string, options?: CacheGetOptions): Promise<CacheHit | null>;
   /** Cache an answer for a prompt (`ttl` in seconds). */
-  store(prompt: string, answer: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<void>;
+  store(prompt: string, answer: string | Buffer | Uint8Array, options?: CacheSetOptions): Promise<boolean>;
   /** The cached answer, else `compute(prompt)` (any model), cached and returned. */
   ask(
     prompt: string,

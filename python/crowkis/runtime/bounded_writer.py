@@ -13,9 +13,11 @@ from .write_workers import WriteWorkers
 from .stats import Counter
 
 BOUNDED_WRITE = "BoundedWrite"
+NOT_STORED = "NotStored"
 NOT_WRITTEN_REASON = "not written: too many writes are waiting on a slow server"
 NOT_CONFIRMED_REASON = ("not confirmed: the server took longer than the latency budget, so the write finishes "
                         "in the background")
+NOT_STORED_REASON = "not stored: the server accepted the answer and kept nothing (NOTSTORED)"
 # A turn waits for its answer's write at most this many latency budgets.
 BUDGETS_PER_WRITE = 2
 MS_PER_SECOND = 1000
@@ -46,7 +48,8 @@ class BoundedWriter:
         the call; the channel reports it."""
         try:
             if budget_ms is None:
-                store(*args, **kwargs)
+                if store(*args, **kwargs) is False:
+                    return WriteResult(Verdict(NOT_STORED, NOT_STORED_REASON, (), Outcome.NOT_SAVED))
                 return WRITTEN
             return WriteResult(self.write(store, *args, deadline_s=BUDGETS_PER_WRITE * budget_ms / MS_PER_SECOND,
                                           **kwargs))
@@ -67,7 +70,8 @@ class BoundedWriter:
             return Verdict(BOUNDED_WRITE, NOT_WRITTEN_REASON, (), Outcome.SLOW_WRITE)
         self._workers.hand_over(future)
         try:
-            future.result(timeout=deadline_s)
+            if future.result(timeout=deadline_s) is False:
+                return Verdict(NOT_STORED, NOT_STORED_REASON, (), Outcome.NOT_SAVED)
         except concurrent.futures.TimeoutError:
             self._count(Counter.SLOW_WRITES)
             future.add_done_callback(self._late)

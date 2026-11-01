@@ -579,18 +579,19 @@ class CrowkisClient:
         except Exception:
             pass
 
-    def _note_not_stored(self, reply: Any) -> None:
-        """CSET may answer `NOTSTORED <reason>`: accepted, deliberately not kept.
+    def _note_not_stored(self, reply: Any) -> bool:
+        """CSET may answer `NOTSTORED <reason>`: accepted, deliberately not kept (False).
         Said once per reason, not raised."""
         if not (isinstance(reply, str) and reply.startswith("NOTSTORED")):
-            return
+            return True
         reason = reply[len("NOTSTORED") :].strip() or "no reason given"
         if reason in self._not_stored_said:
-            return
+            return False
         # ponytail: reasons are the server's fixed texts; the cap only bounds a misbehaving one.
         if len(self._not_stored_said) < NOT_STORED_REASONS_KEPT:
             self._not_stored_said.add(reason)
         _LOG.warning("crowkis answer not stored: %s", reason)
+        return False
 
     def _backoff(self, attempt: int) -> float:
         delay = self.backoff_base * (2 ** attempt)
@@ -689,7 +690,8 @@ class CrowkisClient:
         image: Optional[BytesLike] = None,
         template: bool = False,
         segment: Optional[str] = None,
-    ) -> None:
+    ) -> bool:
+        """Stores one answer. False when the server accepted it but kept nothing (`NOTSTORED`)."""
         args: List[BytesLike] = ["CSET", query, response]
         # ttl=0 sends no EX, so the server's default lifetime applies; it refuses EX 0.
         if ttl:
@@ -707,7 +709,7 @@ class CrowkisClient:
             args += ["TEMPLATE"]
         if segment:
             args += ["SEGMENT", segment]
-        self._note_not_stored(self.execute(*args))
+        return self._note_not_stored(self.execute(*args))
 
     def cget(
         self,
@@ -1919,7 +1921,7 @@ class AsyncCrowkisClient(CrowkisClient):
             return value.get("response")
         return value if isinstance(value, bytes) else None
 
-    async def cset_async(self, query: BytesLike, response: BytesLike, **kwargs: Any) -> None:
+    async def cset_async(self, query: BytesLike, response: BytesLike, **kwargs: Any) -> bool:
         args: List[BytesLike] = ["CSET", query, response]
         if kwargs.get("ttl"):
             args += ["EX", str(kwargs["ttl"])]
@@ -1937,7 +1939,7 @@ class AsyncCrowkisClient(CrowkisClient):
             args += ["IMAGE", image_payload]
         if kwargs.get("segment"):
             args += ["SEGMENT", kwargs["segment"]]
-        self._note_not_stored(await self.execute_async(*args))
+        return self._note_not_stored(await self.execute_async(*args))
 
     async def get_or_compute_async(
         self,

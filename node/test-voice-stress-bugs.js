@@ -20,6 +20,7 @@ class Store {
     this.reads = [];
     this.writes = [];
     this.refuse = refuse;
+    this.notStored = false; // the server answers NOTSTORED: accepted, kept nothing
   }
 
   async cgetHit(query, options = {}) {
@@ -37,6 +38,7 @@ class Store {
     if (this.refuse) throw this.refuse;
     this.writes.push([query, response, Boolean(options.template)]);
     (options.template ? this.templates : this.shared).set(query, response);
+    return !this.notStored;
   }
 
   async ctoolget() {
@@ -460,4 +462,16 @@ test("MT1: a pronoun or the <role> with only the question's own frame before it 
     "What does it cost to send a parcel?",
     "What days is the clinic open?",
   ]) assert.strictEqual(_isContextDependent(text), false, text);
+});
+
+test("MT2: an answer the server accepted but did not keep is not reported as saved", async () => {
+  for (const options of [{}, { latencyBudgetMs: 250 }]) {
+    const lost = new Store();
+    lost.notStored = true;
+    const decision = await sessionOn(lost, options).answer("What are your opening hours?", () => ANSWER);
+    assert.strictEqual(decision.stored, false, JSON.stringify(options));
+    assert.match(decision.notStored, /NOTSTORED/);
+    const kept = await sessionOn(new Store(), options).answer("What are your opening hours?", () => ANSWER);
+    assert.strictEqual(kept.stored, true, JSON.stringify(options));
+  }
 });

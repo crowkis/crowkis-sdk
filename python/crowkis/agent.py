@@ -421,9 +421,9 @@ class Agent:
         ttl: Optional[int] = None,
         template: bool = False,
         segment: Optional[str] = None,
-    ) -> None:
+    ) -> bool:
         extra = {"segment": segment} if segment else {}
-        self._client.cset(
+        return self._client.cset(
             query, answer, ttl=ttl, tenant=self.tenant, template=template, **extra
         )
 

@@ -31,6 +31,7 @@ class Store:
         self.reads = []
         self.writes = []
         self.refuse = refuse
+        self.not_stored = False  # the server answers NOTSTORED: accepted, kept nothing
 
     def cget_hit(self, query, **kwargs):
         self.reads.append(query)
@@ -47,6 +48,7 @@ class Store:
             raise self.refuse
         self.writes.append((query, response, template))
         (self.templates if template else self.shared)[query] = response
+        return not self.not_stored
 
     def ctoolget(self, tool, args_str, *, tenant=None):
         return None
@@ -618,6 +620,24 @@ class FollowUpPronounTests(unittest.TestCase):
             "What days is the clinic open?",
         ]:
             self.assertFalse(_is_context_dependent(text), text)
+
+
+class NotStoredTests(unittest.TestCase):
+    """MT2: an answer the server accepted but did not keep is not reported as saved."""
+
+    def test_mt2_notstored_is_not_saved_with_and_without_a_budget(self):
+        for options in ({}, {"latency_budget_ms": 250}):
+            store = Store()
+            store.not_stored = True
+            session = session_on(store, **options)
+            decision = session.answer("What are your opening hours?", lambda messages: ANSWER)
+            self.assertFalse(decision.stored, options)
+            self.assertIn("NOTSTORED", decision.not_stored, options)
+
+    def test_mt2_a_kept_answer_is_still_saved(self):
+        for options in ({}, {"latency_budget_ms": 250}):
+            decision = session_on(Store(), **options).answer("What are your opening hours?", lambda messages: ANSWER)
+            self.assertTrue(decision.stored, options)
 
 
 if __name__ == "__main__":

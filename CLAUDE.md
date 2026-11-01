@@ -62,8 +62,11 @@ caller's private details private, not when it is elegant.
   commits, what is next) and ends. No long-running sessions.
 - **Models:** Opus plans and reviews; Sonnet (normal) writes logic; Sonnet (low) does mechanical
   work (merges of moved code, imports, fixtures, test runs).
-- **Usage:** check before each step; stop at a committed, green point before 50% of the weekly
-  limit (or the owner's current line) and record where it stopped.
+- **Usage limits (owner, hard lines):** the 5-hour limit never goes above **95%**, and the weekly
+  limit never above **50%**. Check usage (`mcp__ccd_session_mgmt__get_usage`) before each step; if
+  the next step could cross either line, stop at a committed, green point and record where it
+  stopped in `v4-notes/progress.md`. For the 5-hour line, wait for its reset (a background timer,
+  no polling) and continue; for the weekly line, stop and leave it to the owner.
 - **Order of work** (`../sdk-docs/v4-refactor-plan.md`): F1 bring in `feat/voice-adapters`, F2 one
   call state and one key builder, F3 SDK bug fixes, F4 stress-run proof, F5 merge into
   `crowkis-sdk`. Polishing phases come after, only if the owner asks.

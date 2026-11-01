@@ -140,6 +140,41 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(len(llm.asked[0]), 4, "the model read the whole context")
         self.assertEqual((store.writes, store.tool_writes), ([], []))
 
+    def test_t23_a_later_system_message_reaches_the_model_and_its_answer_stays_private(self):
+        # A retrieval processor adds its chunks as a system message after the conversation began:
+        # the model reads the whole context, and an answer grounded in them is never shared.
+        store = SceneStore()
+        llm = FakeLLM()
+        rag = {"role": "system", "content": "Retrieved: the clinic opens at 9."}
+        history = [{"role": "system", "content": "You are Acme's assistant."},
+                   {"role": "user", "content": "Hi, I have a question."}, {"role": "assistant", "content": "Sure."},
+                   rag, {"role": "user", "content": "What time does it open?"}]
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(FakeTTS())]),
+             LLMContextFrame(context=LLMContext(messages=history)))
+        self.assertEqual(llm.asked, [history], "the model read the retrieved chunks")
+        self.assertEqual(store.writes, [], "the grounded answer is not shared")
+
+    def test_t23_a_hit_is_still_served_with_retrieved_chunks_in_the_context(self):
+        store = SceneStore({"What time does it open?": "At nine."})
+        llm = FakeLLM()
+        history = [{"role": "system", "content": "You are Acme's assistant."},
+                   {"role": "system", "content": "Retrieved: the clinic opens at 9."},
+                   {"role": "user", "content": "What time does it open?"}]
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(FakeTTS())]),
+             LLMContextFrame(context=LLMContext(messages=history)))
+        self.assertEqual(llm.asked, [])
+
+    def test_t23_two_leading_system_messages_are_instructions_not_retrieved_context(self):
+        store = SceneStore()
+        llm = FakeLLM()
+        history = [{"role": "system", "content": "You are Acme's assistant."},
+                   {"role": "developer", "content": "Be brief."},
+                   {"role": "user", "content": "What time does it open?"}]
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(FakeTTS())]),
+             LLMContextFrame(context=LLMContext(messages=history)))
+        self.assertEqual(llm.asked, [history])
+        self.assertEqual(store.writes, [["What time does it open?", ANSWER, False]], "saved as before")
+
     def test_plain_history_keeps_the_shared_cache(self):
         store = SceneStore({"What should I pack?": "Light clothes."})
         llm = FakeLLM()

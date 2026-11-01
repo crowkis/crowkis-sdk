@@ -97,6 +97,8 @@ from .voice_turns import (  # noqa: F401  (the shared layer; names kept importab
     AnswerPairing,
     AudioClips,
     _earlier_callers,
+    _extra_context,
+    _leading_instructions,
     _field,
     _last_user,
     _remember,
@@ -163,17 +165,6 @@ def _runs_llm(result: Frame) -> bool:
     if run_llm is None:
         run_llm = getattr(result, "run_llm", None)
     return run_llm is not False
-
-
-def _leading_instructions(messages: list) -> list:
-    """The system / developer messages before the conversation starts: the app's own
-    instructions to the model."""
-    leading = []
-    for message in messages:
-        if _field(message, "role") not in ("system", "developer"):
-            break
-        leading.append(message)
-    return leading
 
 
 def _model_context(original: Any, messages: list, chosen: list) -> Any:
@@ -282,7 +273,7 @@ class CrowkisGate(FrameProcessor):
         # A served answer filled with this caller's values never uses the shared audio cache.
         shared_audio = decision.audio_shareable
         audio = None if decision.needs_model or not shared_audio else await self._audio.get(decision.text)
-        if decision.needs_model and decision.messages is not None:
+        if decision.needs_model and decision.messages is not None and not _extra_context(messages):
             # The full call stays in the Pipecat context; the model just doesn't read it. It
             # does read the app's own instructions (the system messages before the call)
             # and keeps its tools: these used to be dropped on every model turn. An answer

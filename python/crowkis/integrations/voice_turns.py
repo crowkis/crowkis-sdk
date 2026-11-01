@@ -92,6 +92,25 @@ def _tool_context(messages: list) -> bool:
     )
 
 
+def _leading_instructions(messages: list) -> list:
+    """The system / developer messages before the conversation starts: the app's own
+    instructions to the model."""
+    leading = []
+    for message in messages:
+        if _field(message, "role") not in ("system", "developer"):
+            break
+        leading.append(message)
+    return leading
+
+
+def _extra_context(messages: list) -> bool:
+    """Whether a system / developer message (retrieved chunks, CRM data) comes after the app's
+    instructions and before the caller's last message: the model needs the whole context for
+    it, so the answer is this call's only."""
+    return any(_field(m, "role") in ("system", "developer")
+               for m in messages[len(_leading_instructions(messages)):-1])
+
+
 def _instructions(messages: list) -> str:
     """The system / developer messages in what the model read, as one text."""
     parts = []
@@ -472,11 +491,12 @@ class AnswerPairing:
         # Passed only when there are some, so a session written for the earlier signature
         # (a test double, a subclass) keeps working.
         extra = {"instructions": instructions} if instructions else {}
-        if turn is None and kind == "caller":
+        private = kind == "tool" or _extra_context(messages)
+        if turn is None and kind == "caller" and not private:
             saved = await _on_server_pool(self._session._record_model_turn, question, answer, **extra)
         else:
             saved = await _on_server_pool(
-                self._session._record_model_turn, question, answer, turn=turn, private=kind == "tool", **extra
+                self._session._record_model_turn, question, answer, turn=turn, private=private, **extra
             )
         await self._audio.settle(answer, await _on_server_pool(self._clip_allowed, saved))
         stored = saved in ("saved", "template")

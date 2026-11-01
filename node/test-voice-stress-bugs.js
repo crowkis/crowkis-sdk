@@ -475,3 +475,16 @@ test("MT2: an answer the server accepted but did not keep is not reported as sav
     assert.strictEqual(kept.stored, true, JSON.stringify(options));
   }
 });
+
+test("MT4: fallback non-answers and ask-backs are spoken, never saved", async () => {
+  for (const text of [
+    "I'm sorry, but I don't have that information. I can arrange for someone from the clinic to call you back.",
+    "I need to know which doctor you are referring to. Please let me know the doctor's name.",
+  ]) {
+    const { store } = await call(["Which doctor handles orthopaedics?"], { reply: text });
+    assert.deepStrictEqual(store.writes, [], text);
+  }
+  const real = "Dr Rao handles orthopaedics, Monday to Friday. I need nothing else from you.";
+  const { store } = await call(["Which doctor handles orthopaedics?"], { reply: real });
+  assert.strictEqual(store.writes.length, 1);
+});

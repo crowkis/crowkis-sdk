@@ -68,7 +68,7 @@ const NON_ANSWER_PHRASES = [
   "i can't help", "i cannot help", "i can't answer", "i cannot answer", "i'm unable to help",
   "i am unable to help", "i'm unable to answer", "i am unable to answer", "i'm unable to assist",
   "i am unable to assist", "i'm unable to find", "i am unable to find", "i don't have access", "i do not have access", "i don't have information",
-  "i do not have information", "need more information", "need more details",
+  "i do not have information", "i don't have that information", "i do not have that information", "i don't have the information", "i do not have the information", "i don't have any information", "i do not have any information", "i need to know", "please let me know", "need more information", "need more details",
   "i need more information", "i need more details", "i'm not able to help", "i am not able to help",
   "i'm not able to answer", "i am not able to answer", "i'm not able to access", "i am not able to access",
   "i'm afraid i don't", "i'm afraid i can't", "i'm afraid i do not", "i'm afraid i cannot",

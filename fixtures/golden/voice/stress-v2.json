@@ -1322,7 +1322,7 @@
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 8,
-    "uncacheable_personal": 5,
+    "uncacheable_personal": 4,
     "unspeakable_answers": 0
    },
    "turns": [
@@ -1568,7 +1568,7 @@
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 9,
-    "uncacheable_personal": 2,
+    "uncacheable_personal": 1,
     "unspeakable_answers": 0
    },
    "turns": [
@@ -7192,7 +7192,7 @@
     "served_from_cache": 1,
     "slow_writes": 0,
     "turns": 3,
-    "uncacheable_personal": 1,
+    "uncacheable_personal": 0,
     "unspeakable_answers": 0
    },
    "turns": [

@@ -640,6 +640,31 @@ class NotStoredTests(unittest.TestCase):
             self.assertTrue(decision.stored, options)
 
 
+class NonAnswerFallbackTests(unittest.TestCase):
+    """MT4: fallback non-answers and ask-backs are spoken, never saved."""
+
+    CASES = [
+        "I'm sorry, but I don't have that information. I can arrange for someone from the clinic to call you back.",
+        "I need to know which doctor you are referring to. Please let me know the doctor's name.",
+    ]
+
+    def test_mt4_they_are_not_saved(self):
+        from crowkis.understanding.word_rules import _is_non_answer
+
+        for text in self.CASES:
+            self.assertTrue(_is_non_answer(text), text)
+            store, _, decisions, _ = call("Which doctor handles orthopaedics?", reply=text)
+            self.assertEqual(store.writes, [], text)
+
+    def test_mt4_a_real_answer_is_still_saved(self):
+        from crowkis.understanding.word_rules import _is_non_answer
+
+        text = "Dr Rao handles orthopaedics, Monday to Friday. I need nothing else from you."
+        self.assertFalse(_is_non_answer(text))
+        store, _, _, _ = call("Which doctor handles orthopaedics?", reply=text)
+        self.assertEqual(len(store.writes), 1)
+
+
 if __name__ == "__main__":
     logging.basicConfig()
     unittest.main()

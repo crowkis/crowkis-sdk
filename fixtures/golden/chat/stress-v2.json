@@ -3006,8 +3006,8 @@
     "lookup_errors": 0,
     "lookup_timeouts": 0,
     "personal": 4,
-    "save_refused": 0,
-    "saved": 5,
+    "save_refused": 1,
+    "saved": 4,
     "shared": 5,
     "sharing_off": 0,
     "task": 0,
@@ -3109,7 +3109,7 @@
     {
      "key": "Do you have any sales this week?",
      "needs_model": true,
-     "outcome": "saved",
+     "outcome": "refused:non_answer",
      "reason": "cache miss",
      "route": "shared",
      "say": "Do you have any sales this week?",
@@ -8135,12 +8135,6 @@
     "kb=1;lang=und;channel=chat",
     "Is shipping free on all orders?",
     "Shipping is free on orders over $75; for orders below that a flat shipping fee applies.",
-    false
-   ],
-   [
-    "kb=1;lang=und;channel=chat",
-    "Do you have any sales this week?",
-    "I’m sorry, but I don’t have that information.",
     false
    ],
    [

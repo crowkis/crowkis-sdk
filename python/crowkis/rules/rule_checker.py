@@ -20,11 +20,10 @@ Rules
 
 from __future__ import annotations
 
-import re
-import zlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from ..keys import key, key_attributes, segment, told
 from ..state.call_state import CallState
 from ..understanding.turn_frame import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
 
@@ -114,12 +113,12 @@ class RuleChecker:
             return Verdict(False, AGENT, reasons)
 
         question = frame.question
-        attrs = self._key_attributes(frame, state, question)
+        attrs = key_attributes(frame, state, question)
         # A language the caller asked for wins over the language this turn happens to be in.
         language = state.language or frame.language
         return Verdict(True, SHARED, [], question, attrs, self.build_key(question, attrs),
                        self.ttl.get(frame.question_type, self.ttl["other"]),
-                       self.build_segment(attrs, language, told=self._tailoring(frame, state, question)))
+                       self.build_segment(attrs, language, told=told(frame, state, question)))
 
     @staticmethod
     def _route_for(frame: TurnFrame) -> str:
@@ -129,48 +128,12 @@ class RuleChecker:
             return TOOLS
         return AGENT
 
-    @staticmethod
-    def _tailoring(frame: TurnFrame, state: CallState, question: str) -> Optional[str]:
-        """What the question carries from what the caller told (their facts, the details of
-        this turn): a short hash of those words, or None for a question anyone could ask.
-        Two callers with a peanut allergy share answers; peanut and shellfish never do."""
-        told = list(state.stated) + [f.split(":", 1)[-1] for f in state.facts if f.split(":", 1)[0] in _TOLD_TYPES]
-        # In the question itself only a condition tailors it ("for someone with a peanut allergy");
-        # a place, time or amount there is part of what anyone could ask.
-        told += [e.text for e in frame.entities if e.type == "condition" and not e.identifying]
-        told_stems = {_stem(w) for text in told for w in _toks(text) if w not in _FUNCTION}
-        carried = sorted({_stem(w) for w in _toks(question) if w not in _FUNCTION} & told_stems)
-        return format(zlib.crc32(" ".join(carried).encode()), "08x") if carried else None
-
     # --- the key ----------------------------------------------------------------------
-
-    @staticmethod
-    def _key_attributes(frame: TurnFrame, state: CallState, question: str) -> Dict[str, str]:
-        attrs: Dict[str, str] = {}
-        for name in ("segment", "region"):
-            attr = frame.attributes.get(name)
-            if attr is not None and attr.changes_answer:
-                attrs[name] = attr.normalised
-        # Location rule: a question about a named local place, or a search, always carries the
-        # call's location, because many places share a name and results differ by city.
-        if frame.question_type in ("place_fact", "search") and "region" not in attrs:
-            region = frame.attributes.get("region") or state.attributes.get("region")
-            if region is not None:
-                attrs["region"] = region.normalised
-        # What the question already says keeps it apart by itself ("the capital of France" is
-        # not "the capital of Spain"); in the segment too it would only split equal questions.
-        qwords = set(_toks(question))
-        for name, value in list(attrs.items()):
-            # The place itself, all of it, word for word: "goa" of "goa, india"; "new york" is not "new".
-            words = [w for w in _toks(value.split(",")[0]) if w not in _FUNCTION]
-            if words and all(w in qwords for w in words):
-                del attrs[name]
-        return attrs
 
     def build_key(self, question: str, attrs: Dict[str, str]) -> str:
         """The question alone: it is what is embedded and matched, so nothing else may be in
         its text. Version, language, place and tier go in the segment (``build_segment``)."""
-        return " ".join(question.split())
+        return key(question)
 
     def build_segment(self, attrs: Dict[str, str], language: Optional[str], *, told: Optional[str] = None) -> str:
         """``kb=<version>;lang=<language>;region=...;segment=...;channel=<channel>[;told=1]``:
@@ -179,14 +142,12 @@ class RuleChecker:
         facts the user told (an allergy, an age): "Is pad thai safe for someone with a peanut
         allergy?" is answered "avoid it", which is wrong for someone who asked only "is pad thai
         safe?", and a near match would serve it. Tailored answers only meet the same facts."""
-        parts = [f"kb={self.knowledge_version}", f"lang={language or 'und'}"]
-        parts += [f"{k}={attrs[k]}" for k in sorted(attrs)]
-        parts.append(f"channel={self.channel}")
+        fields = [("kb", self.knowledge_version), ("lang", language or "und")]
+        fields += [(k, attrs[k]) for k in sorted(attrs)]
+        fields.append(("channel", self.channel))
         if told:
-            parts.append(f"told={told}")
-        # A value can never add or change a field.
-        parts = [p.split("=", 1)[0] + "=" + re.sub(r"[;=]", "_", p.split("=", 1)[1]) for p in parts]
-        return ";".join(" ".join(p.split()) for p in parts)
+            fields.append(("told", told))
+        return segment(fields)
 
 
 __all__ = ["RuleChecker", "Verdict", "DEFAULT_TTL", "URGENT", "TASK", "SHARED", "PERSONAL", "TOOLS", "AGENT"]

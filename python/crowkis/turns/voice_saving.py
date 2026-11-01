@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
 from ..runtime.bounded_writer import BoundedWriter
 from ..runtime.write_result import WriteResult
 from ..runtime.stats import Counter, Stats
-from ..understanding.call_readings import CallReadings
+from ..state.call_state import CallState
 from ..understanding.word_rules import (
     _AMOUNT_WORDS,
     _EMAIL,
@@ -54,12 +54,12 @@ class VoiceSaving:
     the latest shared answer was stored under."""
 
     def __init__(self, session: VoiceSessionSaves, *, rules: "RuleSet", call: SessionCall,
-                 call_readings: CallReadings, report: VoiceReport, writer: BoundedWriter, stats: Stats,
+                 state: CallState, report: VoiceReport, writer: BoundedWriter, stats: Stats,
                  segment: Optional[str]) -> None:
         self._session = session
         self._rules = rules
         self._call = call
-        self._call_readings = call_readings
+        self._state = state
         self._report = report
         self._writer = writer
         self._stats = stats
@@ -73,7 +73,7 @@ class VoiceSaving:
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return Checked(answer, verdict)
-        answer = answer.keyed(self._call_readings.rewritten(answer.text)
+        answer = answer.keyed(self._state.rewritten_for(answer.text)
                               or self._call.context_key(answered.said, answer.text))
         self._session.transcript.append({"role": "user", "content": answered.said})
         self._session.transcript.append({"role": "assistant", "content": answered.model_said})

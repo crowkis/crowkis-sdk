@@ -11,9 +11,12 @@ from __future__ import annotations
 import hashlib
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
+from ..understanding.chat_details import _private_words
+from ..understanding.slots import Reading
 from ..understanding.turn_frame import Attribute, TurnFrame
+from ..understanding.word_rules import _is_context_dependent, _is_personal, _private_chain, _sets_context
 
 TASKS = ("none", "searching", "booking", "ordering", "account_action")
 IDENTITIES = ("anonymous", "identified", "verified")
@@ -21,6 +24,8 @@ MAX_FACTS = 10
 MAX_MENTIONS = 10
 MAX_STATED = 10
 MAX_PRIVATE_WORDS = 64
+# A voice call keeps a few more told turns and facts than a chat thread.
+MAX_VOICE_TOLD = 12
 # Every kept text (a fact, the last reply, the open question) is cut to this, so a thread's
 # memory stays a few KB whatever a user sends or a store hands back.
 MAX_TEXT = 1000
@@ -71,6 +76,19 @@ class CallState:
     # repeating one is refused (ChatCallerIdentifier). Kept in memory only and never exported: a short ID's
     # hash is easy to reverse.
     identifiers: List[str] = field(default_factory=list)
+    # A voice call's memory, in memory only and never in to_dict (a chat export stays as it was).
+    # Set once the caller tells the call something a later answer may depend on.
+    tainted: bool = False
+    # Caller turns a voice session has already checked without deciding them.
+    heard: Set[str] = field(default_factory=set, repr=False)
+    # Turns read as personal or as follow-ups, and each turn's rewrite (by the stripped words read).
+    read_personal: Set[str] = field(default_factory=set, repr=False)
+    read_follow_up: Set[str] = field(default_factory=set, repr=False)
+    rewritten: Dict[str, str] = field(default_factory=dict, repr=False)
+    # Raw lower-case words that may identify a voice caller in turns kept private (chat hashes them).
+    private_raw: Set[str] = field(default_factory=set, repr=False)
+    # Only a voice session with an understander collects stated turns, facts and private words.
+    remembers_told: bool = False
 
     # --- the agent's side -------------------------------------------------------------
 
@@ -180,6 +198,52 @@ class CallState:
             if digest and digest not in self.details:
                 self.details.append(digest)
         self.details = self.details[-MAX_PRIVATE_WORDS:]
+
+    # --- how a voice turn was read ------------------------------------------------------
+
+    def note_reading(self, text: str, reading: Reading, rewritten: Optional[str]) -> None:
+        """Remember a turn's reading and rewrite, so record() and follow-ups read it as decide() did.
+        A reading can only make a turn more private than the word rules, never less."""
+        text = text.strip()
+        if reading.is_personal:
+            self.read_personal.add(text)
+        if self.remembers_told:
+            frame = getattr(reading, "frame", None)
+            if self.is_personal(text):
+                self.private_raw.update(_private_words(text, frame))
+            if _sets_context(text):
+                self.stated = (self.stated + [text])[-MAX_VOICE_TOLD:]
+            if frame is not None:
+                for entity in frame.memorable:
+                    fact = f"{entity.type}: {entity.text}"
+                    self.facts = ([f for f in self.facts if f != fact] + [fact])[-MAX_VOICE_TOLD:]
+        if reading.is_context_dependent:
+            self.read_follow_up.add(text)
+        if rewritten is None:
+            self.rewritten.pop(text, None)
+        else:
+            self.rewritten[text] = rewritten
+
+    def mark_private(self, text: str) -> None:
+        """Read this turn as personal from now on (a rule kept it private)."""
+        self.read_personal.add((text or "").strip())
+        if self.remembers_told:
+            self.private_raw.update(_private_words(text or ""))
+
+    def is_personal(self, text: str) -> bool:
+        text = (text or "").strip()
+        return text in self.read_personal or _is_personal(text)
+
+    def is_context_dependent(self, text: str) -> bool:
+        text = (text or "").strip()
+        return text in self.read_follow_up or _is_context_dependent(text)
+
+    def chain_is_private(self, chain: List[str], min_words: int) -> bool:
+        return _private_chain(chain, min_words) or any(self.is_personal(turn) for turn in chain)
+
+    def rewritten_for(self, text: str) -> Optional[str]:
+        """The stand-alone question this turn was looked up with, or None when it was not rewritten."""
+        return self.rewritten.get((text or "").strip())
 
     # --- saved with the chat thread ----------------------------------------------------
 

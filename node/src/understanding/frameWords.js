@@ -69,8 +69,13 @@ const DAYS = "monday tuesday wednesday thursday friday saturday sunday".split(" 
 const CALENDAR = new Set([..."january february march april may june july august september october november december".split(" "),
   ...DAYS, ...DAYS.map((d) => d + "s")]);
 
+// Facts that tailor an answer to the caller: what they have. What the user told (a place, a time, a
+// number) is in `stated`, from fixed code; a place or time in an earlier shared question is only its topic.
+const TOLD_TYPES = new Set(["condition"]);
+
 module.exports = {
   COMMON_ACRONYMS,
+  TOLD_TYPES,
   CALENDAR,
   DAYS,
   FUNCTION,

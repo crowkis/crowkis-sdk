@@ -5,6 +5,7 @@ import unittest
 from crowkis import VoiceSession
 from crowkis.agent import Agent
 from crowkis.keys import KnowledgeSegment
+from crowkis.rules.rule_checker import RuleChecker
 from crowkis.turns.channel import REALTIME, VOICE
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
@@ -70,6 +71,25 @@ class KnowledgeSegmentTests(unittest.TestCase):
     def test_the_segment_names_the_channel_and_cannot_be_broken(self):
         self.assertEqual(KnowledgeSegment("2", REALTIME).segment, "kb=2;channel=realtime")
         self.assertEqual(KnowledgeSegment("v1;x=y", VOICE).segment, "kb=v1_x_y;channel=voice")
+
+
+class VoiceAndChatShareOneKeyBuilderTests(unittest.TestCase):
+    """Full segments differ by lang= and told= (voice has neither); kb= and channel= and the key do not."""
+
+    QUESTION = "what are your opening hours on sunday"
+
+    def test_the_same_question_gets_the_same_key_and_segment_fields(self):
+        session = session_on(SegmentedStore(), classifier=WordRuleClassifier())
+        chat = RuleChecker(channel="voice")
+        self.assertEqual(session._call.context_key(self.QUESTION, self.QUESTION), chat.build_key(self.QUESTION, {}))
+        chat_fields = [f for f in chat.build_segment({}, "en").split(";") if not f.startswith("lang=")]
+        self.assertEqual(session._segment.split(";"), chat_fields)
+
+    def test_must_still_work_voice_with_stated_facts_does_not_share(self):
+        session = session_on(SegmentedStore(), classifier=WordRuleClassifier())
+        self.assertIsNotNone(session.decide(self.QUESTION).messages)
+        session.decide("i am allergic to peanuts")
+        self.assertIsNone(session.decide(self.QUESTION).messages)
 
 
 if __name__ == "__main__":

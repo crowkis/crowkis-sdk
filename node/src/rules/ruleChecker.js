@@ -10,36 +10,15 @@
 //   V4 owned record / own purchase     V9 a step of a task in progress goes to the agent
 //   V5 identifying details in the key  V10 a follow-up whose key still says "it"/"that" and names nothing
 
-// CRC-32 (the zlib polynomial), the same hash as Python's zlib.crc32, so both SDKs key a
-// tailored answer the same way. Written out because zlib.crc32 needs Node 20.15 or 22.2.
-const CRC32_POLYNOMIAL = 0xedb88320;
-const CRC32_TABLE = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let bit = 0; bit < 8; bit++) c = c & 1 ? CRC32_POLYNOMIAL ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("../understanding/turnFrame.js");
-
-// Facts that tailor an answer to the caller: what they have, how old, where and when.
-// Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from fixed
-// code; a place or time in an earlier shared question is only its topic ("France").
-const TOLD_TYPES = new Set(["condition"]);
 
 const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/routes.js");
 const { ChatRuleSet } = require("./chatRuleSet.js");
+const { key, keyAttributes, segment, told } = require("../keys/knowledgeSegment.js");
 const { ChatTurn } = require("../turns/chatTurn.js");
 const {
   FUNCTION,
   NUMWORDS,
-  toks,
-  stem,
   QUESTION_WORDS,
   REFERRING,
   CONTRACTION,
@@ -86,12 +65,12 @@ class RuleChecker {
     if (reasons.length) return new Verdict(false, AGENT, reasons);
 
     const question = frame.question;
-    const attrs = this._keyAttributes(frame, state, question);
+    const attrs = keyAttributes(frame, state, question);
     const ttl = frame.questionType in this.ttl ? this.ttl[frame.questionType] : this.ttl.other;
     // A language the caller asked for wins over the language this turn happens to be in.
     const language = state.language || frame.language;
     return new Verdict(true, SHARED, [], question, attrs, this.buildKey(question, attrs), ttl,
-      this.buildSegment(attrs, language, { told: RuleChecker._tailoring(frame, state, question) }));
+      this.buildSegment(attrs, language, { told: told(frame, state, question) }));
   }
 
   static _routeFor(frame) {
@@ -100,45 +79,14 @@ class RuleChecker {
     return AGENT;
   }
 
-  // What the question carries from what the caller told (their facts, the details of this turn):
-  // a short hash of those words, or null for a question anyone could ask. Two callers with a
-  // peanut allergy share answers; peanut and shellfish never do.
+  // Kept for test-chat-node18.js, which calls it; the logic lives in keys/knowledgeSegment.js.
   static _tailoring(frame, state, question) {
-    const told = [...state.stated,
-      ...state.facts.filter((f) => TOLD_TYPES.has(f.split(":")[0])).map((f) => f.split(":").slice(1).join(":")),
-      // In the question itself only a condition tailors it ("for someone with a peanut allergy"); a
-      // place, time or amount there is part of what anyone could ask.
-      ...frame.entities.filter((e) => e.type === "condition" && !e.identifying).map((e) => e.text)];
-    const toldStems = new Set(told.flatMap((t) => toks(t)).filter((w) => !FUNCTION.has(w)).map(stem));
-    const carried = [...new Set(toks(question).filter((w) => !FUNCTION.has(w)).map(stem))].filter((w) => toldStems.has(w)).sort();
-    return carried.length ? crc32(Buffer.from(carried.join(" "))).toString(16).padStart(8, "0") : null;
-  }
-
-  _keyAttributes(frame, state, question) {
-    const attrs = {};
-    for (const name of ["segment", "region"]) {
-      const attr = frame.attributes[name];
-      if (attr && attr.changesAnswer) attrs[name] = attr.normalised;
-    }
-    // Location rule: a question about a named local place, or a search, carries the call's location.
-    if ((frame.questionType === "place_fact" || frame.questionType === "search") && !attrs.region) {
-      const region = frame.attributes.region || state.attributes.region;
-      if (region) attrs.region = region.normalised;
-    }
-    // What the question already says keeps it apart by itself ("the capital of France" is not "the
-    // capital of Spain"); in the segment too it would only split equal questions.
-    const qwords = new Set(toks(question));
-    for (const [name, value] of Object.entries(attrs)) {
-      // The place itself, all of it, word for word: "goa" of "goa, india"; "new york" is not "new".
-      const words = toks(value.split(",")[0]).filter((w) => !FUNCTION.has(w));
-      if (words.length && words.every((w) => qwords.has(w))) delete attrs[name];
-    }
-    return attrs;
+    return told(frame, state, question);
   }
 
   /** The question alone: it is what is embedded and matched, so nothing else may be in its text. */
   buildKey(question, attrs) {
-    return question.split(/\s+/).filter(Boolean).join(" ");
+    return key(question);
   }
 
   // `kb=<version>;lang=<language>;region=...;segment=...;channel=<channel>[;told=<hash>]`. A new
@@ -146,12 +94,10 @@ class RuleChecker {
   // an age): "avoid it" for someone with a peanut allergy is wrong for someone who asked only "is pad
   // thai safe?", and a near match would serve it. Tailored answers only meet the same facts.
   buildSegment(attrs, language, { told = null } = {}) {
-    let parts = [`kb=${this.knowledgeVersion}`, `lang=${language || "und"}`,
-      ...Object.keys(attrs).sort().map((k) => `${k}=${attrs[k]}`), `channel=${this.channel}`];
-    if (told) parts.push(`told=${told}`);
-    // A value can never add or change a field.
-    parts = parts.map((p) => { const at = p.indexOf("="); return p.slice(0, at + 1) + p.slice(at + 1).replace(/[;=]/g, "_"); });
-    return parts.map((p) => p.split(/\s+/).filter(Boolean).join(" ")).join(";");
+    const fields = [["kb", this.knowledgeVersion], ["lang", language || "und"],
+      ...Object.keys(attrs).sort().map((k) => [k, attrs[k]]), ["channel", this.channel]];
+    if (told) fields.push(["told", told]);
+    return segment(fields);
   }
 }
 

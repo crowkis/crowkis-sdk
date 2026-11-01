@@ -1,6 +1,7 @@
 "use strict";
 
 const { LATE, within } = require("../runtime/deadline.js");
+const { followUpKey } = require("../keys/knowledgeSegment.js");
 const { QuestionRecords } = require("../runtime/questionRecords.js");
 const {
   FOLLOW_UP_WORDS, URGENT, identifiers, isContextDependent, isPersonal, urgent, wordsOf,
@@ -14,14 +15,13 @@ const CHAIN_LIMIT = 6;
  * are read live (an app may change them between turns); what the call works out from what it has
  * heard is done here: the earlier turns a follow-up leans on (chain), a turn's cache key, a turn
  * after an urgent one, the IDs the caller said before, whose system prompts it is compared with, and
- * whether the server vouches for what it caches (asked inside the budget). `callReadings` remembers
- * how each turn was read; `track` is told of each question record still being written. The one
+ * whether the server vouches for what it caches (asked inside the budget). The session's `state`
+ * remembers how each turn was read; `track` is told of each question record still being written. The one
  * change a rule makes is markTainted().
  */
 class SessionCall {
-  constructor(session, { callReadings, track }) {
+  constructor(session, { track }) {
     this._session = session;
-    this._callReadings = callReadings;
     this._track = track;
   }
 
@@ -30,7 +30,7 @@ class SessionCall {
   }
 
   get tainted() {
-    return this._session._tainted;
+    return this._session.state.tainted;
   }
 
   get values() {
@@ -58,31 +58,31 @@ class SessionCall {
   }
 
   isPersonal(text) {
-    return this._callReadings.isPersonal(text);
+    return this._session.state.isPersonal(text);
   }
 
   isContextDependent(text) {
-    return this._callReadings.isContextDependent(text);
+    return this._session.state.isContextDependent(text);
   }
 
   stated() {
-    return this._callReadings.stated;
+    return [...this._session.state.stated];
   }
 
   facts() {
-    return this._callReadings.facts;
+    return [...this._session.state.facts];
   }
 
   markPrivate(text) {
-    this._callReadings.markPrivate(text);
+    this._session.state.markPrivate(text);
   }
 
   privateWords() {
-    return this._callReadings.privateWords();
+    return new Set(this._session.state.privateRaw);
   }
 
   markTainted() {
-    this._session._tainted = true;
+    this._session.state.tainted = true;
   }
 
   /**
@@ -131,10 +131,9 @@ class SessionCall {
 
   /** The cache key of a turn: its words, or its chain for a follow-up; null without one. */
   contextKey(said, text) {
-    if (!this._callReadings.isContextDependent(text)) return said;
+    if (!this._session.state.isContextDependent(text)) return followUpKey(said);
     const chain = this.chain();
-    if (chain === null) return null;
-    return [...chain, said].join(" || ");
+    return chain === null ? null : followUpKey(said, chain);
   }
 
   /**
@@ -155,7 +154,7 @@ class SessionCall {
    */
   saidIdentifiers() {
     const said = this._session.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content).slice(0, -1);
-    return identifiers([...said, ...[...this._session._heardTexts].sort()]);
+    return identifiers([...said, ...[...this._session.state.heard].sort()]);
   }
 
   /** Which agent's system prompts this call's is compared with. */

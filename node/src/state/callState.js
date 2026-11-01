@@ -6,6 +6,8 @@
 
 const crypto = require("node:crypto");
 const { Attribute } = require("../understanding/turnFrame.js");
+const { privateWords } = require("../understanding/chatDetails.js");
+const { isContextDependent, isPersonal, privateChain, setsContext } = require("../understanding/wordRules/index.js");
 
 const TASKS = ["none", "searching", "booking", "ordering", "account_action"];
 const IDENTITIES = ["anonymous", "identified", "verified"];
@@ -13,6 +15,8 @@ const MAX_FACTS = 10;
 const MAX_MENTIONS = 10;
 const MAX_STATED = 10;
 const MAX_PRIVATE_WORDS = 64;
+// A voice call keeps a few more told turns and facts than a chat thread.
+const MAX_VOICE_TOLD = 12;
 // Every kept text (a fact, the last reply, the open question) is cut to this, so a thread's memory
 // stays a few KB whatever a user sends or a store hands back.
 const MAX_TEXT = 1000;
@@ -60,6 +64,19 @@ class CallState {
     // "december", "3"): a shared question must carry every one, or it stays private.
     this.details = [...(init.details || [])];
     this.identifiers = [...(init.identifiers || [])];
+    // A voice call's memory, in memory only and never in toDict (a chat export stays as it was).
+    // Set once the caller tells the call something a later answer may depend on.
+    this.tainted = false;
+    // Caller turns a voice session has already checked without deciding them.
+    this.heard = new Set();
+    // Turns read as personal or as follow-ups, and each turn's rewrite (by the trimmed words read).
+    this.readPersonal = new Set();
+    this.readFollowUp = new Set();
+    this.rewritten = new Map();
+    // Raw lower-case words that may identify a voice caller in turns kept private (chat hashes them).
+    this.privateRaw = new Set();
+    // Only a voice session with an understander collects stated turns, facts and private words.
+    this.remembersTold = Boolean(init.remembersTold);
   }
 
   /** Record what the agent said, the things it named or offered, and the task it runs (set by the app). */
@@ -168,6 +185,51 @@ class CallState {
 
   saidIdentifier(value) {
     return this.identifiers.includes(wordDigest(value));
+  }
+
+  // --- how a voice turn was read ---------------------------------------------------------
+
+  /** Remember a turn's reading and rewrite, so record() and follow-ups read it as decide() did. A reading can only make a turn more private than the word rules, never less. */
+  noteReading(text, reading, rewritten) {
+    const trimmed = text.trim();
+    if (reading.isPersonal) this.readPersonal.add(trimmed);
+    if (reading.isContextDependent) this.readFollowUp.add(trimmed);
+    if (rewritten === null || rewritten === undefined) this.rewritten.delete(trimmed);
+    else this.rewritten.set(trimmed, rewritten);
+    if (!this.remembersTold) return;
+    const frame = reading.frame || null;
+    if (this.isPersonal(trimmed)) for (const w of privateWords(trimmed, frame)) this.privateRaw.add(w);
+    if (setsContext(trimmed)) this.stated = [...this.stated, trimmed].slice(-MAX_VOICE_TOLD);
+    for (const entity of frame ? frame.memorable : []) {
+      const fact = `${entity.type}: ${entity.text}`;
+      this.facts = [...this.facts.filter((f) => f !== fact), fact].slice(-MAX_VOICE_TOLD);
+    }
+  }
+
+  /** Read this turn as personal from now on (a rule kept it private). */
+  markPrivate(text) {
+    this.readPersonal.add(typeof text === "string" ? text.trim() : "");
+    if (this.remembersTold) for (const w of privateWords(typeof text === "string" ? text : "")) this.privateRaw.add(w);
+  }
+
+  isPersonal(text) {
+    const trimmed = typeof text === "string" ? text.trim() : "";
+    return this.readPersonal.has(trimmed) || isPersonal(trimmed);
+  }
+
+  isContextDependent(text) {
+    const trimmed = typeof text === "string" ? text.trim() : "";
+    return this.readFollowUp.has(trimmed) || isContextDependent(trimmed);
+  }
+
+  chainIsPrivate(chain, minWords) {
+    return privateChain(chain, minWords) || chain.some((turn) => this.isPersonal(turn));
+  }
+
+  /** The stand-alone question this turn was looked up with, or null when it was not rewritten. */
+  rewrittenFor(text) {
+    const trimmed = typeof text === "string" ? text.trim() : "";
+    return this.rewritten.has(trimmed) ? this.rewritten.get(trimmed) : null;
   }
 
   /** Everything, for the app's own store: a stateless chat server restores it per request. */

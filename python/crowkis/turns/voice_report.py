@@ -18,7 +18,7 @@ from .voice_call import VoiceCall
 from .voice_turn import VoiceTurn
 
 if TYPE_CHECKING:
-    from ..understanding.call_readings import CallReadings
+    from ..state.call_state import CallState
 
 _LOG = logging.getLogger("crowkis")
 SERVED_REASON = "confident cache hit"
@@ -43,7 +43,7 @@ class VoiceReport:
     call's ``pairing`` for that turn."""
 
     def __init__(self, session: VoiceSessionTranscript, stats: Stats, *, voiced: Callable[..., Optional[bytes]],
-                 pairing: TurnPairing, call: VoiceCall, call_readings: "CallReadings") -> None:
+                 pairing: TurnPairing, call: VoiceCall, state: "CallState") -> None:
         self._session = session
         # A weak reference, so a kept decision never keeps a call alive.
         self._owner = weakref.ref(session)
@@ -51,7 +51,7 @@ class VoiceReport:
         self._voiced = voiced
         self._pairing = pairing
         self._call = call
-        self._call_readings = call_readings
+        self._state = state
 
     def before_reading(self, said: str, turn: int) -> None:
         """Voice reads every turn first (its fillers are checked once the turn is read)."""
@@ -119,19 +119,19 @@ class VoiceReport:
         call = self._call
         text = (said or "").strip()
         if (
-            call.tainted or len(text.split()) < call.min_words or self._call_readings.is_personal(text)
+            call.tainted or len(text.split()) < call.min_words or self._state.is_personal(text)
             or _lookup_only(text)
             or call.after_urgent(text) or _unfinished(text)
         ):
             return None, False
-        if not self._call_readings.is_context_dependent(text):
+        if not self._state.is_context_dependent(text):
             # "Twelve years old.": a turn that neither asks nor requests anything is an
             # answer about the caller, never stored on its own.
             if not _asks(text):
                 return None, False
             return [{"role": "user", "content": said}], True
         chain = call.chain()
-        if chain is None or self._call_readings.chain_is_private(chain, call.min_words):
+        if chain is None or self._state.chain_is_private(chain, call.min_words):
             return None, False
         return [{"role": "user", "content": turn} for turn in chain + [said]], True
 

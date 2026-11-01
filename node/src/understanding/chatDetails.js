@@ -6,7 +6,6 @@
 const { wordsOf, properNouns, tellsAboutCaller, instructs } = require("./wordRules/index.js");
 const { NOT_GENERAL_TYPES } = require("./turnFrame.js");
 const { FUNCTION, CALENDAR } = require("./frameWords.js");
-const { wordDigest } = require("../state/callState.js");
 
 // Phrases a name follows ("my name is sarah", "call me raj", "this is priya"). "I'm" is not one
 // here: "I'm allergic" is a fact, not a name, and the shared question may carry it.

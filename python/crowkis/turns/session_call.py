@@ -5,6 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
+from ..keys import follow_up_key
 from ..runtime.question_records import QuestionRecords
 from ..understanding.word_rules import (
     _FOLLOW_UP_WORDS,
@@ -19,7 +20,6 @@ from .channel import Channel
 
 if TYPE_CHECKING:
     from ..channels.voice_session import VoiceSession
-    from ..understanding.call_readings import CallReadings
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
 CHAIN_LIMIT = 6
@@ -31,13 +31,12 @@ class SessionCall:
     live (an app may change them between turns); what the call works out from what it has heard is
     done here: the earlier turns a follow-up leans on (``chain``), a turn's cache key, a turn after an
     urgent one, the IDs the caller said before, whose system prompts it is compared with, and whether
-    the server vouches for what it caches (asked inside the budget). ``call_readings`` remembers how
+    the server vouches for what it caches (asked inside the budget). The session's ``state`` remembers how
     each turn was read; ``read_pool`` and ``submit_write`` run the question records' reads and writes."""
 
-    def __init__(self, session: "VoiceSession", *, call_readings: "CallReadings", read_pool: concurrent.futures.Executor,
+    def __init__(self, session: "VoiceSession", *, read_pool: concurrent.futures.Executor,
                  submit_write: Callable[..., Any]) -> None:
         self._session = session
-        self._call_readings = call_readings
         self._read_pool = read_pool
         self._submit_write = submit_write
 
@@ -47,7 +46,7 @@ class SessionCall:
 
     @property
     def tainted(self) -> bool:
-        return self._session._tainted
+        return self._session.state.tainted
 
     @property
     def values(self) -> Dict[str, str]:
@@ -70,25 +69,25 @@ class SessionCall:
         return self._session.commitments
 
     def is_personal(self, text: str) -> bool:
-        return self._call_readings.is_personal(text)
+        return self._session.state.is_personal(text)
 
     def is_context_dependent(self, text: str) -> bool:
-        return self._call_readings.is_context_dependent(text)
+        return self._session.state.is_context_dependent(text)
 
     def stated(self) -> Sequence[str]:
-        return self._call_readings.stated
+        return tuple(self._session.state.stated)
 
     def facts(self) -> Sequence[str]:
-        return self._call_readings.facts
+        return tuple(self._session.state.facts)
 
     def mark_private(self, text: str) -> None:
-        self._call_readings.mark_private(text)
+        self._session.state.mark_private(text)
 
     def private_words(self) -> Set[str]:
-        return self._call_readings.private_words()
+        return set(self._session.state.private_raw)
 
     def mark_tainted(self) -> None:
-        self._session._tainted = True
+        self._session.state.tainted = True
 
     def engine_vouches(self) -> bool:
         """Whether the server judges what it caches, asked inside this call's budget: a slow answer
@@ -131,12 +130,10 @@ class SessionCall:
 
     def context_key(self, said: str, text: str) -> Optional[str]:
         """The cache key of a turn: its words, or its chain for a follow-up; None without one."""
-        if not self._call_readings.is_context_dependent(text):
-            return said
+        if not self._session.state.is_context_dependent(text):
+            return follow_up_key(said)
         chain = self.chain()
-        if chain is None:
-            return None
-        return " || ".join(chain + [said])
+        return None if chain is None else follow_up_key(said, chain)
 
     def answers_another_question(self, asked: str, answer: str, spent_ms: float = 0.0) -> bool:
         """Whether every question this answer was saved for asks about something else, read within
@@ -151,7 +148,7 @@ class SessionCall:
         the turn being recorded is in the transcript, so that turn is left out: it passed the
         personal rules, so its numbers are not private."""
         said = [turn["content"] for turn in self._session.transcript if turn["role"] == "user"][:-1]
-        return _identifiers(said + sorted(self._session._heard_texts))
+        return _identifiers(said + sorted(self._session.state.heard))
 
     def agent_key(self) -> Tuple:
         """Which agent's system prompts this call's is compared with."""

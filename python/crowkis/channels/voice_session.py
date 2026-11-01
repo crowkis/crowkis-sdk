@@ -30,7 +30,7 @@ from ..understanding.no_rewrite import NoRewrite
 from ..turns.channel import VOICE, Channel
 from ..keys import KnowledgeSegment
 from ..understanding.budgeted_understanding import BudgetedUnderstanding
-from ..understanding.call_readings import CallReadings
+from ..state.call_state import CallState
 from ..understanding.text_only_classifier import TextOnlyClassifier
 from ..runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
 from ..understanding.slots import Classifier, Rewriter
@@ -575,11 +575,10 @@ class VoiceSession:
         self._fillers: Dict[str, str] = {}
         # Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
         self._pairing = TurnPairing()
-        # Set once the caller tells the call something a later answer may depend on;
-        # from then on nothing in this call is looked up or shared.
-        self._tainted = False
-        # Caller turns _heard() has already checked (history is re-read every turn).
-        self._heard_texts: set = set()
+        # What this call has heard and how each turn was read; tainted: once the caller tells the call
+        # something a later answer may depend on, nothing in it is looked up or shared. Only a session
+        # with an understander collects stated turns, facts and private words.
+        self.state = CallState(remembers_told=classifier is not None)
         # Turn number and flag change together: two decide() calls never share a turn.
         self._turn_lock = self._pairing.lock
         # The checks of the three SDK stages, read through this call's view of the session.
@@ -594,10 +593,7 @@ class VoiceSession:
             understanding = BudgetedUnderstanding(self._classifier, self._rewriter, budget_ms=understand_budget_ms,
                                                   pool=_UNDERSTANDING, count=self._stats.add)
             self._classifier = self._rewriter = understanding
-        # Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
-        self._call_readings = CallReadings(remembers_told=classifier is not None)
-        self._call = SessionCall(self, call_readings=self._call_readings, read_pool=_LOOKUPS,
-                                 submit_write=_submit_write)
+        self._call = SessionCall(self, read_pool=_LOOKUPS, submit_write=_submit_write)
         # Writes wait at most twice the budget; the cap is read when a write starts.
         self._writer = BoundedWriter(_WRITES, lambda: _WRITES_MAX, self._stats.add, _LOG)
         # Lookups run on the shared pool, inside the budget the call has when it looks up.
@@ -609,14 +605,26 @@ class VoiceSession:
         if fillers:
             self.register_fillers(fillers)
 
+    @property
+    def _tainted(self) -> bool:
+        return self.state.tainted
+
+    @_tainted.setter
+    def _tainted(self, value: bool) -> None:
+        self.state.tainted = value
+
+    @property
+    def _heard_texts(self) -> set:
+        return self.state.heard
+
     def _build_core(self, rules: RuleSet) -> TurnCore:
         """The one TurnCore with a voice call's parts (this session is their composition root):
         ``rules`` are the question, hit and save checks. The session is the core's live settings."""
         self._report = report = VoiceReport(self, self._stats, voiced=self._voiced, pairing=self._pairing,
-                                            call=self._call, call_readings=self._call_readings)
+                                            call=self._call, state=self.state)
         reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter, rewrite_check=RewriteCheck(),
-                             call_readings=self._call_readings, call=self._call, segment=self._segment)
-        self._saving = VoiceSaving(self, rules=rules, call=self._call, call_readings=self._call_readings,
+                             state=self.state, call=self._call, segment=self._segment)
+        self._saving = VoiceSaving(self, rules=rules, call=self._call, state=self.state,
                                    report=report, writer=self._writer, stats=self._stats, segment=self._segment)
         return TurnCore(self, pairing=VoicePairing(self._pairing, self), answers=report, reader=reader,
                         question_check=rules, cache_lookup=self._cache_lookup, hit_check=rules, report=report,

@@ -23,7 +23,7 @@ class VoiceReport {
    * @param {{ transcript: object[] }} session read live
    * @param {import("../runtime/stats.js").Stats} stats
    */
-  constructor(session, stats, { voiced, pairing, call, callReadings }) {
+  constructor(session, stats, { voiced, pairing, call, state }) {
     this._session = session;
     // A WeakRef, so a kept decision never keeps a call alive.
     this._owner = new WeakRef(session);
@@ -31,7 +31,7 @@ class VoiceReport {
     this._voiced = voiced;
     this._pairing = pairing;
     this._call = call;
-    this._callReadings = callReadings;
+    this._state = state;
   }
 
   /** Voice reads every turn first (its fillers are checked once the turn is read). */
@@ -98,19 +98,19 @@ class VoiceReport {
     const text = typeof said === "string" ? said.trim() : "";
     if (
       call.tainted || text.split(/\s+/).filter(Boolean).length < call.minWords ||
-      this._callReadings.isPersonal(text) || lookupOnly(text) ||
+      this._state.isPersonal(text) || lookupOnly(text) ||
       call.afterUrgent(text) || unfinished(text)
     ) {
       return [null, false];
     }
-    if (!this._callReadings.isContextDependent(text)) {
+    if (!this._state.isContextDependent(text)) {
       // "Twelve years old.": a turn that neither asks nor requests anything is an
       // answer about the caller, never stored on its own.
       if (!asks(text)) return [null, false];
       return [[{ role: "user", content: said }], true];
     }
     const chain = call.chain();
-    if (chain === null || this._callReadings.chainIsPrivate(chain, call.minWords)) return [null, false];
+    if (chain === null || this._state.chainIsPrivate(chain, call.minWords)) return [null, false];
     return [[...chain, said].map((turn) => ({ role: "user", content: turn })), true];
   }
 

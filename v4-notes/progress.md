@@ -18,6 +18,28 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P5.7b whole-SDK structure check (owner, 2026-10-24) | | after P5.7, needs the go-ahead: every file in both languages against `CLAUDE.md` section 4 "Splitting"; measures across the SDK (files per typical change, cross-folder imports, forward-only classes, largest files and functions); fixes, golden identical | | |
 | P5.8 developer docs (owner, 2026-10-24) | | after P5.7b, needs the go-ahead: the codebase guide for v4, a README per package folder, a generated API reference (pdoc / TypeDoc), diagrams by script, a code tour, decision records, a newcomer check | | |
 
+## F2 done (2026-11-01): one call state, one key builder
+
+- `CallState` (`state/call_state.py`, `src/state/callState.js`) now also holds voice's memory: `tainted`, `heard`,
+  per-turn readings (`read_personal`, `read_follow_up`, `rewritten`), `private_raw` (raw words, uncapped),
+  `remembers_told`; the old `CallReadings` methods moved onto it (`note_reading`, `mark_private`, `is_personal`,
+  `is_context_dependent`, `chain_is_private`, `rewritten_for`). None of the new fields is in `to_dict`, so chat's
+  export is unchanged; they are `repr=False` in Python (raw caller words). `VoiceSession.state` is the session's
+  `CallState`; `_tainted` / `_heard_texts` are properties over it. `understanding/call_readings.py` / `callReadings.js` deleted.
+- `keys/knowledge_segment.py` / `knowledgeSegment.js` hold the one key builder: `key`, `follow_up_key`, `segment`,
+  `key_attributes`, `told`. `KnowledgeSegment`, `RuleChecker.build_key` / `build_segment`, `SessionCall.context_key` delegate.
+- Kept on purpose (identical behaviour): voice's raw `stated` / facts appends (cap 12, no dedup) and raw private
+  words, chat's hashed versions (cap 10 / 64); voice sends `said` unnormalised, chat collapses whitespace; voice has no
+  `lang=` / `told=`. `turns/voice_call.py` (`VoiceCall`) stays: still the type `model_answer`, `voice_turn` and others
+  name, and `FakeCall` follows it. Node keeps a one-line `RuleChecker._tailoring` only because `test-chat-node18.js` calls it.
+- New test per language: voice and chat build the same key and `kb=` / `channel=` fields (plus voice with a stated fact does not share).
+- Results (uncommitted-tree runs, twice each): Python 806 passed / 104 skipped, Node 62/62, golden unchanged;
+  Pipecat 26, LiveKit py 23, LiveKit JS 49/49, Bolna 124. Opus review: no behaviour change, no leak, parity ok.
+  Review nits: `KnowledgeSegment.segment` now cleans a custom channel's `;` / `=` (built-in channels identical).
+- Venvs rebuilt again in this session's scratchpad (`pc`, `lk`, `bo`, `lkjs`; Python suites with `PYTHONPATH=.`). Real server not run.
+- For F3: voice/chat state and keys are one place now; a new channel only needs a profile. Still separate: voice's
+  raw words vs chat's hashes (a possible later unification) and the `VoiceCall` interface.
+
 ## F1 done (2026-11-01): `origin/feat/voice-adapters` (`e596e5a`) merged into `feat/v4`
 
 - Order now: F1 merge (done), F2 one call state and one key builder, F3 SDK bug fixes, F4 stress-run proof, F5 merge into `crowkis-sdk`.

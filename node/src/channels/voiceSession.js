@@ -21,7 +21,7 @@ const { NoRewrite } = require("../understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("../understanding/budgetedUnderstanding.js");
 const { Channel, VOICE } = require("../turns/channel.js");
 const { KnowledgeSegment } = require("../keys/knowledgeSegment.js");
-const { CallReadings } = require("../understanding/callReadings.js");
+const { CallState } = require("../state/callState.js");
 const { WordRuleClassifier } = require("../understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
@@ -528,9 +528,10 @@ class VoiceSession {
     this._fillers = new Map();
     // Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
     this._pairing = new TurnPairing();
-    // Set once the caller tells the call something a later answer may depend on;
-    // from then on nothing in this call is looked up or shared.
-    this._tainted = false;
+    // What this call has heard and how each turn was read; tainted: once the caller tells the call
+    // something a later answer may depend on, nothing in it is looked up or shared. Only a session
+    // with an understander collects stated turns, facts and private words.
+    this.state = new CallState({ remembersTold: Boolean(classifier) });
     // The checks of the three SDK stages, read through this call's view of the session.
     this._rules = classifier ? RuleSet.understood(this._fillers) : RuleSet.voice(this._fillers);
     // How a turn is understood: the word rules, and no rewrite, unless the app plugs in its own.
@@ -546,9 +547,7 @@ class VoiceSession {
       this._classifier = understanding;
       this._rewriter = understanding;
     }
-    // Which turns the classifier read as personal: what decide() read, record() and follow-ups check.
-    this._callReadings = new CallReadings({ remembersTold: Boolean(classifier) });
-    this._call = new SessionCall(this, { callReadings: this._callReadings, track: trackRecord });
+    this._call = new SessionCall(this, { track: trackRecord });
     // Writes wait at most twice the budget; the cap is read when a write starts.
     this._writer = new BoundedWriter(pendingWrites, () => WRITES_MAX, (counter) => this._stats.add(counter),
       (message) => console.warn(message));
@@ -556,10 +555,20 @@ class VoiceSession {
     this._cacheLookup = new CacheLookup();
     // The turn's fixed steps; this session keeps the call's transcript, fillers, audio and counters.
     this._core = this._buildCore(this._rules);
-    // Caller turns _heard() has already checked (history is re-read every turn).
-    this._heardTexts = new Set();
     if (values) this.setValues(values);
     if (fillers) this.registerFillers(fillers);
+  }
+
+  get _tainted() {
+    return this.state.tainted;
+  }
+
+  set _tainted(value) {
+    this.state.tainted = value;
+  }
+
+  get _heardTexts() {
+    return this.state.heard;
   }
 
   /**
@@ -569,15 +578,15 @@ class VoiceSession {
   _buildCore(rules) {
     const report = new VoiceReport(this, this._stats, {
       voiced: (answer, options) => this._voiced(answer, options), pairing: this._pairing, call: this._call,
-      callReadings: this._callReadings,
+      state: this.state,
     });
     this._report = report;
     const reader = new VoiceReader({
       classifier: this._classifier, rewriter: this._rewriter, rewriteCheck: new RewriteCheck(),
-      callReadings: this._callReadings, call: this._call, segment: this._segment,
+      state: this.state, call: this._call, segment: this._segment,
     });
     this._saving = new VoiceSaving(this, {
-      rules, call: this._call, callReadings: this._callReadings, report, writer: this._writer, stats: this._stats,
+      rules, call: this._call, state: this.state, report, writer: this._writer, stats: this._stats,
       segment: this._segment,
     });
     return new TurnCore(this, {

@@ -213,10 +213,18 @@ class AudioClips {
 
   // Words the run in progress spoke, where the TTS reports them.
   ttsText(text) {
-    if (this._run !== null) this._spoken.push(text || "");
+    if (this._inRun()) this._spoken.push(text || "");
+  }
+
+  // Whether a run is in progress. A TTS that sends its started frame once per call (Sarvam) starts
+  // every later answer with its text or audio instead: that takes the next slot.
+  _inRun() {
+    if (this._run === null && this._runs.length) this._run = this._runs.shift();
+    return this._run !== null;
   }
 
   ttsAudio(pcm) {
+    this._inRun();
     this._pcm.push(Buffer.from(pcm));
   }
 

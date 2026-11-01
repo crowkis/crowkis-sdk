@@ -960,6 +960,108 @@
   }
  },
  {
+  "name": "a TTS that starts once per call keeps the clip of every served answer",
+  "seed": {
+   "what is your refund policy": "Refunds take five business days.",
+   "what are your opening hours": "We open at nine."
+  },
+  "events": [
+   {
+    "ev": "caller",
+    "said": "what is your refund policy"
+   },
+   {
+    "ev": "tts_start"
+   },
+   {
+    "ev": "tts_text",
+    "t": "Refunds take five business days."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   },
+   {
+    "ev": "bot_stopped"
+   },
+   {
+    "ev": "caller",
+    "said": "what are your opening hours"
+   },
+   {
+    "ev": "tts_text",
+    "t": "We open at nine."
+   },
+   {
+    "ev": "tts_audio",
+    "b64": "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+   },
+   {
+    "ev": "tts_stop"
+   }
+  ],
+  "expected": {
+   "turns": [
+    [
+     "serve",
+     "Refunds take five business days.",
+     false
+    ],
+    [
+     "serve",
+     "We open at nine.",
+     false
+    ]
+   ],
+   "writes": [],
+   "clips": [
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "Refunds take five business days.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ],
+    [
+     {
+      "format": "pcm16-16000",
+      "language": "und",
+      "speed": "1",
+      "text": "We open at nine.",
+      "voice": "v"
+     },
+     "AQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQIBAgECAQI="
+    ]
+   ],
+   "audio_clips": [],
+   "reports": [],
+   "transcript": [
+    {
+     "role": "user",
+     "content": "what is your refund policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Refunds take five business days."
+    },
+    {
+     "role": "user",
+     "content": "what are your opening hours"
+    },
+    {
+     "role": "assistant",
+     "content": "We open at nine."
+    }
+   ]
+  }
+ },
+ {
   "name": "a clip whose run said something else is never kept",
   "seed": {
    "what is your refund policy": "Refunds take five business days."

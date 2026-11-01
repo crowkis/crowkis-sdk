@@ -175,6 +175,39 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(llm.asked, [history])
         self.assertEqual(store.writes, [["What time does it open?", ANSWER, False]], "saved as before")
 
+    def test_vd10_every_hit_of_a_call_keeps_its_clip_not_only_the_first(self):
+        answers = {"What is your refund policy?": "Refunds take five business days.",
+                   "What are your opening hours?": "We open at nine.",
+                   "Do you deliver on Sundays?": "Yes, we deliver on Sundays."}
+        store = SceneStore(dict(answers))
+        llm, tts = FakeLLM(), FakeTTS()
+        _run(Pipeline([CrowkisLLM(llm, session=_session(store)), CrowkisTTS(tts)]),
+             *[f for q in answers for f in (_context(q), SleepFrame(0.2))])
+        self.assertEqual(llm.asked, [])
+        self.assertEqual(sorted(tts.spoke), sorted(answers.values()))
+        self.assertEqual(len(store.tool_writes), 3, "each answer's clip is kept")
+
+    def test_vd10_a_tts_that_starts_once_per_call_still_keeps_every_clip(self):
+        class StartsOnce(FakeTTS):  # Sarvam: one TTSStartedFrame for the call, a stop per answer
+            started = False
+
+            async def _speak(self, text):
+                self.spoke.append(text)
+                if not self.started:
+                    self.started = True
+                    await self.push_frame(TTSStartedFrame())
+                await self.push_frame(TTSTextFrame(text, aggregated_by="sentence"))
+                await self.push_frame(TTSAudioRawFrame(PCM, self.sample_rate, 1))
+                await self.push_frame(TTSStoppedFrame())
+
+        answers = {"What is your refund policy?": "Refunds take five business days.",
+                   "What are your opening hours?": "We open at nine.",
+                   "Do you deliver on Sundays?": "Yes, we deliver on Sundays."}
+        store = SceneStore(dict(answers))
+        _run(Pipeline([CrowkisLLM(FakeLLM(), session=_session(store)), CrowkisTTS(StartsOnce())]),
+             *[f for q in answers for f in (_context(q), SleepFrame(0.2))])
+        self.assertEqual(len(store.tool_writes), 3, "each answer's clip is kept")
+
     def test_plain_history_keeps_the_shared_cache(self):
         store = SceneStore({"What should I pack?": "Light clothes."})
         llm = FakeLLM()

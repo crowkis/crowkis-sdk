@@ -254,12 +254,20 @@ class AudioClips:
         self._pcm, self._spoken = bytearray(), []
         self._run = self._runs.popleft() if self._runs else None
 
+    def _in_run(self) -> bool:
+        """Whether a run is in progress. A TTS that sends its started frame once per call (Sarvam)
+        starts every later answer with its text or audio instead: that takes the next slot."""
+        if self._run is None and self._runs:
+            self._run = self._runs.popleft()
+        return self._run is not None
+
     def tts_text(self, text: Optional[str]) -> None:
         """Words the run in progress spoke, where the TTS reports them."""
-        if self._run is not None:
+        if self._in_run():
             self._spoken.append(text or "")
 
     def tts_audio(self, pcm: bytes) -> None:
+        self._in_run()
         self._pcm += pcm
 
     async def tts_stopped(self) -> None:

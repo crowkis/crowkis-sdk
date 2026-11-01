@@ -7,6 +7,7 @@ import time
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from ..turns.verdict import Verdict
+from .deadline import within
 from .stats import Counter
 
 MS_PER_SECOND = 1000.0
@@ -38,7 +39,7 @@ class CacheLookup:
             if budget_ms is None:
                 hit = ask()
             else:
-                hit = self._pool.submit(ask).result(timeout=budget_ms / MS_PER_SECOND)
+                hit = within(self._pool, budget_ms, ask)
         except concurrent.futures.TimeoutError:
             return None, Verdict("LookupDeadline", f"lookup passed the {budget_ms}ms voice budget; "
                                                    "a late hit is worse than a fast miss", self._deadline_counts)

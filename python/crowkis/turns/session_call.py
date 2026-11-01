@@ -6,6 +6,7 @@ import concurrent.futures
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from ..keys import follow_up_key
+from ..runtime.deadline import within
 from ..runtime.question_records import QuestionRecords
 from ..understanding.word_rules import (
     _FOLLOW_UP_WORDS,
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
 
 # How many follow-ups back a turn may lean on before it is treated as unresolvable.
 CHAIN_LIMIT = 6
-MS_PER_SECOND = 1000.0
 
 
 class SessionCall:
@@ -96,7 +96,7 @@ class SessionCall:
         if budget_ms is None:
             return agent.decides()
         try:
-            return self._read_pool.submit(agent.decides).result(timeout=budget_ms / MS_PER_SECOND)
+            return within(self._read_pool, budget_ms, agent.decides)
         except concurrent.futures.TimeoutError:
             return False
 

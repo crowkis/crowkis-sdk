@@ -9,8 +9,8 @@ import logging
 from typing import Any, Callable, Optional
 
 from ..understanding.word_rules import _QUESTION_KEY, _different_specifics
+from .deadline import within
 
-MS_PER_SECOND = 1000.0
 # The newest questions kept per answer.
 QUESTIONS_KEPT = 8
 # How long a question record lives when the answer has no TTL of its own.
@@ -72,7 +72,7 @@ class QuestionRecords:
             else:
                 if wait_ms <= 0:
                     return False
-                raw = self._read_pool.submit(read).result(timeout=wait_ms / MS_PER_SECOND)
+                raw = within(self._read_pool, wait_ms, read)
             questions = json.loads(raw) if raw else []
         except Exception:  # noqa: BLE001 — see the class docstring
             return False

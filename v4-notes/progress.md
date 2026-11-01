@@ -491,3 +491,18 @@ Steps (each its own commit, both languages):
 - `npm run typecheck` needs `npm install` in `node/` (not run yet); `test-packaging.js` passes.
 - `fixtures/voice-rule-phrases.json` (existing, not from v4) has the phrase "My email is rahul@gmail.com.";
   an `@example.com` address would be cleaner. Not changed here.
+
+## F3 done (2026-11-01): SDK bug fixes on v4
+
+Commits (each with a failing-first test; Python and Node unless noted; none pushed): MT1 `706bce8`, MT2 `acbd1f1`,
+V4-4 `ac36b33` (Python only), V4-3 `560be49` (Python only: Node has no lookup pool), T23 `3d0229f` (Python, Pipecat),
+MT4 `d7952b7`, VD3 `8f77728`, VD10 `a5a199e`, VD2 (SDK side) `95c5d19`, T21 `0b3ab75`, review fixes `eb57b48`.
+Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the others change no decision).
+- Results (run twice): Python 820 passed; Node 62/62 files; Pipecat 1.13 (all tests, in a fresh py3.14 venv) 856 passed;
+  LiveKit Python 1.8.8 23 passed; LiveKit JS 1.9.3 49 passed; Bolna 121 passed. Real server not run.
+- Opus review: no blockers; fixed slot theft by stray TTS audio, RAG placed after the question, `store()` return,
+  `last_stored` on NOTSTORED. Left (not fixed): VD3 with `share_templates=True` may save a values-removed template of a
+  recap; Pipecat counts every leading system message as instructions (LiveKit only the first); VD2 reads `agent._decides`,
+  so the first lookup of a fresh Agent is not held (it never asks the server); `chain()` ignores `read_follow_up`
+  (the porting turn can root a later chain); MT4 / VD3 phrases cost some hits ("please let me know 24h ahead...", "so far").
+- Framework venvs for this work: `pc`, `lk`, `bo`, `lkjs` in session `696e76ce-...` scratchpad.

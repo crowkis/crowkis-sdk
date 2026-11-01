@@ -597,6 +597,29 @@ class PipecatStressBugTests(unittest.TestCase):
         self.assertIn(reason, self.answers[-1]["not_stored"])
 
 
+class FollowUpPronounTests(unittest.TestCase):
+    """MT1: a pronoun or "the <role>" whose only company is the question's own frame is a follow-up."""
+
+    def test_mt1_pronoun_and_role_follow_ups(self):
+        for text in [
+            "What days does the doctor come?",
+            "What days does he come?",
+            "What days does she see patients?",
+            "How long do I have to fast for it?",
+        ]:
+            self.assertTrue(_is_context_dependent(text), text)
+
+    def test_mt1_stand_alone_questions_still_stand_alone(self):
+        for text in [
+            "Can I return the shirt if it does not fit?",
+            "Does the hotel allow pets and is it near the beach?",
+            "Which doctor handles orthopaedics and what days does the doctor come?",
+            "What does it cost to send a parcel?",
+            "What days is the clinic open?",
+        ]:
+            self.assertFalse(_is_context_dependent(text), text)
+
+
 if __name__ == "__main__":
     logging.basicConfig()
     unittest.main()

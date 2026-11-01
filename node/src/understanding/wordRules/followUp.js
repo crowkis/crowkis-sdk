@@ -8,6 +8,7 @@ const {
   FUNCTION_WORDS,
   NON_REFERENTS,
   PRONOUN_FOLLOWERS,
+  ROLES,
   firstWords,
   hasPhrase,
   splitPlain,
@@ -49,6 +50,27 @@ function hasAntecedent(before) {
   return before.some((word) => !FUNCTION_WORDS.has(word) && !NON_REFERENTS.has(word));
 }
 
+// "the doctor" after nothing is someone from an earlier turn, like "he".
+const THE_ROLES = new Set(["doctor", "nurse", "dentist", "surgeon", "specialist", "teacher", "professor", "lawyer", "therapist", ...ROLES]);
+
+// A word that opens a new clause: only what came before it can be a pronoun's antecedent.
+const CLAUSE_JOINERS = new Set([
+  "and", "but", "so", "or", "then", "because", "if", "when", "while", "since", "unless", "whether",
+  "that", "after", "before", "once", "although",
+]);
+
+const PERSON_PRONOUNS = new Set(["he", "she", "him", "her", "his", "hers"]);
+
+// "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
+const PREPOSITIONS = new Set(["for", "about", "on", "with", "of", "from", "to"]);
+
+// Words in the question's own frame ("what days does ...") are not what a pronoun points at.
+function hasClauseAntecedent(before) {
+  let last = -1;
+  before.forEach((word, i) => { if (CLAUSE_JOINERS.has(word)) last = i; });
+  return last >= 0 && hasAntecedent(before.slice(0, last));
+}
+
 // An "it" whose subject comes after it: "what does it cost to send a parcel",
 // "is it true that ...". "Is it refundable to the card" still points back.
 function pointsForward(words, index) {
@@ -83,6 +105,10 @@ function hasBareAnaphor(words) {
     }
     if (word === "it" && pointsForward(words, index)) continue;
     if (!hasAntecedent(words.slice(0, index))) return true;
+    if ((PERSON_PRONOUNS.has(word) || (word === "it" && index && PREPOSITIONS.has(words[index - 1]))) && !hasClauseAntecedent(words.slice(0, index))) return true;
+  }
+  for (let index = 1; index < words.length; index += 1) {
+    if (THE_ROLES.has(words[index]) && words[index - 1] === "the" && !hasClauseAntecedent(words.slice(0, index - 1))) return true;
   }
   return false;
 }

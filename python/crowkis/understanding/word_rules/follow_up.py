@@ -10,6 +10,7 @@ from .text import (  # noqa: F401
     _FUNCTION_WORDS,
     _NON_REFERENTS,
     _PRONOUN_FOLLOWERS,
+    _ROLES,
     _first_words,
     _has_phrase,
     _words,
@@ -61,6 +62,29 @@ def _has_antecedent(before: List[str]) -> bool:
     return any(word not in _FUNCTION_WORDS and word not in _NON_REFERENTS for word in before)
 
 
+# "the doctor" after nothing is someone from an earlier turn, like "he".
+_THE_ROLES = frozenset(
+    {"doctor", "nurse", "dentist", "surgeon", "specialist", "teacher", "professor", "lawyer", "therapist"}
+) | _ROLES
+
+# A word that opens a new clause: only what came before it can be a pronoun's antecedent.
+_CLAUSE_JOINERS = frozenset(
+    {"and", "but", "so", "or", "then", "because", "if", "when", "while", "since", "unless", "whether",
+     "that", "after", "before", "once", "although"}
+)
+
+_PERSON_PRONOUNS = frozenset({"he", "she", "him", "her", "his", "hers"})
+
+# "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
+_PREPOSITIONS = frozenset({"for", "about", "on", "with", "of", "from", "to"})
+
+
+def _has_clause_antecedent(before: List[str]) -> bool:
+    """Words in the question's own frame ("what days does ...") are not what a pronoun points at."""
+    joiners = [i for i, word in enumerate(before) if word in _CLAUSE_JOINERS]
+    return bool(joiners) and _has_antecedent(before[:joiners[-1]])
+
+
 def _points_forward(words: List[str], index: int) -> bool:
     """An "it" whose subject comes after it: "what does it cost to send a parcel",
     "is it true that ...". "Is it refundable to the card" still points back."""
@@ -93,6 +117,11 @@ def _has_bare_anaphor(words: List[str]) -> bool:
         if word == "it" and _points_forward(words, index):
             continue
         if not _has_antecedent(words[:index]):
+            return True
+        if (word in _PERSON_PRONOUNS or (word == "it" and index and words[index - 1] in _PREPOSITIONS)) and not _has_clause_antecedent(words[:index]):
+            return True
+    for index, word in enumerate(words[1:], 1):
+        if word in _THE_ROLES and words[index - 1] == "the" and not _has_clause_antecedent(words[:index - 1]):
             return True
     return False
 

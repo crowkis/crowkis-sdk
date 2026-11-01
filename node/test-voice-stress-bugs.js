@@ -445,3 +445,19 @@ test("bugs 27 to 32: answers to private turns are never stored", async () => {
     assert.ok(store.writes.every(([query]) => !query.includes(said)), said);
   }
 });
+
+test("MT1: a pronoun or the <role> with only the question's own frame before it is a follow-up", () => {
+  for (const text of [
+    "What days does the doctor come?",
+    "What days does he come?",
+    "What days does she see patients?",
+    "How long do I have to fast for it?",
+  ]) assert.strictEqual(_isContextDependent(text), true, text);
+  for (const text of [
+    "Can I return the shirt if it does not fit?",
+    "Does the hotel allow pets and is it near the beach?",
+    "Which doctor handles orthopaedics and what days does the doctor come?",
+    "What does it cost to send a parcel?",
+    "What days is the clinic open?",
+  ]) assert.strictEqual(_isContextDependent(text), false, text);
+});

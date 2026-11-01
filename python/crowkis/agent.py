@@ -254,6 +254,7 @@ class Agent:
         else:
             route = "expensive"
         self.route_counts[route] += 1
+        exact = hit.hit_type.endswith("exact")
         return {
             "route": route,
             "answer": hit.response.decode("utf8", "replace") if route == "cache" else None,
@@ -262,11 +263,15 @@ class Agent:
             "similarity": float(hit.similarity),
             # The same question, not a similar one. Two different questions
             # can score a similarity of exactly 1.
-            "exact": hit.hit_type.endswith("exact"),
+            "exact": exact,
             # What the server's decision engine recorded; defaults without one.
             "vouched": hit.vouched,
             "lifetime": hit.lifetime,
             "commitment": hit.commitment,
+            # The engine judges what it stores, after the store: a reworded hit seconds later may have
+            # no verdict yet, so a commitment in it is not known. shortcut: reads what decides() last
+            # learned, never asks the server here; the first lookup of a fresh agent reads as judged.
+            "unjudged": route == "cache" and not exact and not hit.judged and self._decides is True,
         }
 
     def decides(self) -> bool:

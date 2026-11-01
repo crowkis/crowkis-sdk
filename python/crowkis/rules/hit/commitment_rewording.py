@@ -18,8 +18,10 @@ class CommitmentRewording:
 
     def check(self, cached: CachedAnswer) -> Optional[Verdict]:
         commitments = cached.turn.call.commitments
-        if not cached.hit.commitment or COMMITMENT_POLICIES[commitments](cached.hit):
+        hit = cached.hit
+        if not (hit.commitment or hit.unjudged) or COMMITMENT_POLICIES[commitments](hit):
             return None
-        reason = ("the cached answer is a commitment (a price, a refund, a policy) and "
-                  f"commitments={commitments!r} does not allow speaking this match")
+        reason = ("the cached answer is a commitment (a price, a refund, a policy)" if hit.commitment
+                  else "the cached answer has not been judged yet, so it may be a commitment") + (
+                  f" and commitments={commitments!r} does not allow speaking this match")
         return Verdict(self.name, reason, (Counter.HELD_COMMITMENTS, Counter.INFERRED))

@@ -20,13 +20,14 @@ class Hit:
     exact: bool = False
     vouched: bool = False
     commitment: bool = False
+    unjudged: bool = False  # a reworded match the server's engine has not judged yet
 
     @classmethod
     def from_agent(cls, hit: Dict[str, Any]) -> "Hit":
         """Built once from Agent.ask's result."""
         return cls(route=hit["route"], answer=hit.get("answer"), confidence=hit.get("confidence", 0.0),
                    exact=bool(hit.get("exact")), vouched=bool(hit.get("vouched")),
-                   commitment=bool(hit.get("commitment")))
+                   commitment=bool(hit.get("commitment")), unjudged=bool(hit.get("unjudged")))
 
     @property
     def is_confident(self) -> bool:

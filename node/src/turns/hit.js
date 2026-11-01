@@ -8,8 +8,8 @@ const CACHE_ROUTE = "cache";
  * exact match, vouched for, a commitment such as a price or a policy). Immutable.
  */
 class Hit {
-  constructor({ route, answer = null, confidence = 0, exact = false, vouched = false, commitment = false }) {
-    Object.assign(this, { route, answer, confidence, exact, vouched, commitment });
+  constructor({ route, answer = null, confidence = 0, exact = false, vouched = false, commitment = false, unjudged = false }) {
+    Object.assign(this, { route, answer, confidence, exact, vouched, commitment, unjudged });
     Object.freeze(this);
   }
 
@@ -17,7 +17,7 @@ class Hit {
   static fromAgent(hit) {
     return new Hit({
       route: hit.route, answer: hit.answer ?? null, confidence: hit.confidence ?? 0, exact: Boolean(hit.exact),
-      vouched: Boolean(hit.vouched), commitment: Boolean(hit.commitment),
+      vouched: Boolean(hit.vouched), commitment: Boolean(hit.commitment), unjudged: Boolean(hit.unjudged),
     });
   }
 

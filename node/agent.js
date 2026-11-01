@@ -239,6 +239,7 @@ class Agent {
     const route =
       confidence >= serveAbove ? "cache" : confidence >= cheapAbove ? "cheap" : "expensive";
     this.routeCounts[route] += 1;
+    const exact = String(hit.hitType || "").endsWith("exact");
     const text = Buffer.isBuffer(hit.response)
       ? hit.response.toString("utf8")
       : hit.response;
@@ -250,11 +251,15 @@ class Agent {
       similarity: Number(hit.similarity),
       // The same question, not a similar one. Two different questions can
       // score a similarity of exactly 1.
-      exact: String(hit.hitType || "").endsWith("exact"),
+      exact,
       // What the server's decision engine recorded; defaults without one.
       vouched: Boolean(hit.vouched),
       lifetime: hit.lifetime || null,
       commitment: Boolean(hit.commitment),
+      // The engine judges what it stores, after the store: a reworded hit seconds later may have no
+      // verdict yet, so a commitment in it is not known. shortcut: reads what decides() last learned,
+      // never asks the server here; the first lookup of a fresh agent reads as judged.
+      unjudged: route === "cache" && !exact && !hit.judged && this._decides === true,
     };
   }
 

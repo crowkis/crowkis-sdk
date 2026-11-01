@@ -21,10 +21,13 @@ class CommitmentRewording {
 
   check(cached) {
     const commitments = cached.turn.call.commitments;
-    if (!cached.hit.commitment || COMMITMENT_POLICIES[commitments](cached.hit)) return null;
+    const { hit } = cached;
+    if (!(hit.commitment || hit.unjudged) || COMMITMENT_POLICIES[commitments](hit)) return null;
     const reason =
-      "the cached answer is a commitment (a price, a refund, a policy) and " +
-      `commitments="${commitments}" does not allow speaking this match`;
+      (hit.commitment
+        ? "the cached answer is a commitment (a price, a refund, a policy)"
+        : "the cached answer has not been judged yet, so it may be a commitment") +
+      ` and commitments="${commitments}" does not allow speaking this match`;
     return new Verdict(this.name, reason, [COUNTER.HELD_COMMITMENTS, COUNTER.INFERRED]);
   }
 }

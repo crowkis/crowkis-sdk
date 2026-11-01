@@ -1218,6 +1218,26 @@ class CommitmentTests(unittest.TestCase):
         self.assertEqual(session.stats()["commitments_sent_to_model"], 1)
         self.assertEqual(self._decide(exact)[1].action, "serve")
 
+    def test_vd2_a_reworded_hit_the_engine_has_not_judged_is_held_like_a_commitment(self):
+        unjudged = CacheHit(response=b"Refunds take five days.", similarity=0.97, ttl_remaining=600,
+                            matched_key=b"k", confidence=0.99, hit_type="semantic")
+        exact = CacheHit(response=b"Refunds take five days.", similarity=1.0, ttl_remaining=600,
+                         matched_key=b"k", confidence=0.99, hit_type="exact")
+
+        def decide(hit, engine=True, **kwargs):
+            client = EngineClient(hit=hit, engine=engine)
+            agent = Agent("caller", client=client)
+            agent.decides()  # what a write or a short turn has already asked
+            return VoiceSession(agent, voice="alloy", **kwargs).decide(self.QUESTION)
+
+        held = decide(unjudged)
+        self.assertEqual(held.action, "infer")
+        self.assertIn("not been judged", held.reason)
+        self.assertEqual(decide(exact).action, "serve", "the same question is still served")
+        self.assertEqual(decide(unjudged, commitments="serve").action, "serve")
+        self.assertEqual(decide(unjudged, engine=False).action, "serve", "no engine: nothing is judged, as before")
+        self.assertEqual(decide(_judged(similarity=0.97, lifetime="slow")).action, "serve")
+
     def test_an_ordinary_answer_is_unaffected(self):
         ordinary = _judged(similarity=0.97, lifetime="slow")
         for mode in ("serve", "exact", "never"):

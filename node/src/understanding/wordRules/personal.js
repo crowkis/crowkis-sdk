@@ -208,6 +208,9 @@ const NEVER_PHRASES = [
   ["we", "discussed"], ["we", "talked"], ["this", "call"], ["did", "you"], ["did", "we"],
   ["repeat", "the"], ["repeat", "what"], ["repeat", "your"], ["last", "answer"], ["last", "question"],
   ["first", "question"], ["say", "it", "again"],
+  // a recap of what the caller told this call
+  ["so", "far"], ["know", "about", "me"], ["have", "on", "me"], ["have", "about", "me"],
+  ["on", "file", "for", "me"], ["recap"],
   // agreeing to what the agent offered
   ["sounds", "good"], ["sounds", "great"], ["sounds", "fine"], ["let", "s", "do"], ["let", "s", "go"],
   ["lock", "it"], ["go", "ahead"], ["works", "for"],

@@ -665,6 +665,25 @@ class NonAnswerFallbackTests(unittest.TestCase):
         self.assertEqual(len(store.writes), 1)
 
 
+class RecapTests(unittest.TestCase):
+    """VD3: a recap of the caller's own call is read with the whole call and never saved."""
+
+    RECAPS = ["So what details do you have so far?", "What do you know about me?", "Can you recap that for me?"]
+
+    def test_vd3_a_recap_is_private(self):
+        for said in self.RECAPS:
+            store, _, decisions, seen = call("What are your opening hours?", said, reply="You told me nothing yet.")
+            self.assertFalse(decisions[-1].cacheable, said)
+            self.assertIsNone(decisions[-1].messages, said)
+            self.assertTrue(all(said not in query for query, _, _ in store.writes), said)
+
+    def test_vd3_questions_about_the_business_stay_shared(self):
+        for said in ["What details do you have about the premium plan?", "What details do you need to book?"]:
+            store, _, decisions, _ = call("What are your opening hours?", said)
+            self.assertTrue(decisions[-1].cacheable, said)
+
+
+
 if __name__ == "__main__":
     logging.basicConfig()
     unittest.main()

@@ -7413,14 +7413,14 @@
     "failed_writes": 0,
     "missed_latency_budget": 0,
     "model_calls": 27,
-    "not_shareable": 15,
+    "not_shareable": 14,
     "refused_to_share_a_private_answer": 27,
     "refused_too_short": 1,
     "rules": {
      "CallContextTaint": 27,
      "NotShareable": 1,
-     "PersonalTemplate": 13,
-     "TaintedCall": 14,
+     "PersonalTemplate": 14,
+     "TaintedCall": 13,
      "TooShort": 1
     },
     "served_from_cache": 0,
@@ -7664,10 +7664,10 @@
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "kept to this call: the caller told it something the answer may depend on",
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
      "reason": "the caller has told this call something a later answer may depend on (a condition, an age, a plan, an instruction, a step in their own task); a shared answer to the bare question could be wrong for them",
      "rule": "CallContextTaint",
-     "save_rule": "TaintedCall",
+     "save_rule": "PersonalTemplate",
      "say": "So what details do you have so far?",
      "sees": null,
      "stored": false

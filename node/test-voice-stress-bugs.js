@@ -488,3 +488,16 @@ test("MT4: fallback non-answers and ask-backs are spoken, never saved", async ()
   const { store } = await call(["Which doctor handles orthopaedics?"], { reply: real });
   assert.strictEqual(store.writes.length, 1);
 });
+
+test("VD3: a recap of the caller's own call is read with the whole call and never saved", async () => {
+  for (const said of ["So what details do you have so far?", "What do you know about me?", "Can you recap that for me?"]) {
+    const { store, decisions } = await call(["What are your opening hours?", said], { reply: "You told me nothing yet." });
+    assert.strictEqual(last(decisions).cacheable, false, said);
+    assert.strictEqual(last(decisions).messages, null, said);
+    assert.ok(store.writes.every(([query]) => !query.includes(said)), said);
+  }
+  for (const said of ["What details do you have about the premium plan?", "What details do you need to book?"]) {
+    const { decisions } = await call(["What are your opening hours?", said]);
+    assert.strictEqual(last(decisions).cacheable, true, said);
+  }
+});

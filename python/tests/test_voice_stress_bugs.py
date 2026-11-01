@@ -684,6 +684,36 @@ class RecapTests(unittest.TestCase):
 
 
 
+class TopicDependentTests(unittest.TestCase):
+    """T21: a short question whose only topic is an -ing form of the previous turn's word leans on it."""
+
+    PORT = "What is the process to port my number to another network?"
+
+    def test_t21_the_porting_question_is_keyed_with_the_turn_it_leans_on(self):
+        from crowkis.understanding.word_rules import _leans_on
+
+        self.assertTrue(_leans_on("How long does porting take?", self.PORT))
+        _, _, decisions, seen = call(self.PORT, "How long does porting take?")
+        self.assertEqual([m["content"] for m in seen[-1] if m["role"] == "user"],
+                         [self.PORT, "How long does porting take?"])
+
+    def test_t21_ordinary_consecutive_questions_stay_stand_alone(self):
+        from crowkis.understanding.word_rules import _leans_on
+
+        for text, before in [
+            ("How long does a refund take?", "What is your refund policy?"),
+            ("How long do refunds take?", "What is your refund policy?"),
+            ("How long does shipping take?", "What are your shipping options?"),
+            ("How long does porting take?", ""),
+            ("How long does number porting to Jio take for a prepaid connection?", self.PORT),
+            ("refund kitne din mein milta hai", self.PORT),
+            ("", self.PORT),
+        ]:
+            self.assertFalse(_leans_on(text, before), (text, before))
+        _, _, decisions, seen = call("What is your refund policy?", "How long does a refund take?")
+        self.assertEqual([m["content"] for m in seen[-1] if m["role"] == "user"], ["How long does a refund take?"])
+
+
 if __name__ == "__main__":
     logging.basicConfig()
     unittest.main()

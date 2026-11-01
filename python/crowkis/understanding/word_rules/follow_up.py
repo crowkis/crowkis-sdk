@@ -7,16 +7,19 @@ from typing import List
 from .text import (  # noqa: F401
     _BARE,
     _CLAUSE_MARKERS,
+    _FRAMING_WORDS,
     _FUNCTION_WORDS,
     _NON_REFERENTS,
     _PRONOUN_FOLLOWERS,
     _ROLES,
     _first_words,
     _has_phrase,
+    _stem,
     _words,
 )
 from .phrases import (  # noqa: F401
     _CONNECTIVES,
+    _FOLLOW_UP_WORDS,
     _MAX_TURN_CHARS,
 )
 from .personal import (  # noqa: F401
@@ -143,6 +146,26 @@ def _is_context_dependent(text: str) -> bool:
     if all(w in _FUNCTION_WORDS or w in _NON_REFERENTS or w in _BARE for w in words):
         return True
     return _has_bare_anaphor(words)
+
+
+def _root(word: str) -> str:
+    root = _stem(word)
+    return root[:-1] if len(root) > 3 and root[-1] == root[-2] else root  # "cancelling" -> "cancel"
+
+
+def _leans_on(text: str, previous: str) -> bool:
+    """A short question whose only topic is an "-ing" form of what the previous caller turn said
+    ("How long does porting take?" after "...to port my number...") names no topic of its own: on a
+    telecom call it means number porting, alone it means software. Same-form repeats ("refund" then
+    "a refund") and longer questions stand alone. shortcut: -ing forms only, one earlier turn;
+    upgrade with the pluggable understander."""
+    words, before = _words(text), _words(previous)
+    if not before or len(words) > _FOLLOW_UP_WORDS:
+        return False
+    roots = {_root(w) for w in before}
+    shared = {_root(w) for w in words if w not in _FUNCTION_WORDS and w not in _FRAMING_WORDS
+              and w not in _NON_REFERENTS and _root(w) in roots}
+    return len(shared) == 1 and any(w.endswith("ing") and _root(w) in shared and w not in before for w in words)
 
 
 # Words a finished question rarely ends on: "do you deliver on" was cut off before its day.

@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...turns.chat_turn import ChatTurn
 from ...turns.verdict import Verdict
+from ...understanding.word_rules import _leans_on
 from ...understanding.frame_words import _CONTRACTION, _FUNCTION, _QUESTION_WORDS, _REFERRING, _toks
 
 
@@ -22,6 +23,8 @@ class UnresolvedReference:
     def check(self, turn: ChatTurn) -> Optional[Verdict]:
         qwords, said = set(_toks(turn.question)), set(_toks(turn.text))
         named = {w for w in qwords - said if w not in _FUNCTION and w not in _QUESTION_WORDS and w not in _CONTRACTION}
-        if not (turn.frame.uses_state and (qwords | said) & _REFERRING and not named):
+        # shortcut: Chat checks only the last shared question; after a personal turn this misses (as before).
+        leans = _leans_on(turn.question, turn.state.active_question or "")
+        if not (leans or turn.frame.uses_state and (qwords | said) & _REFERRING and not named):
             return None
         return Verdict(self.name, "V10_unresolved")

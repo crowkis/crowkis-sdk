@@ -501,3 +501,22 @@ test("VD3: a recap of the caller's own call is read with the whole call and neve
     assert.strictEqual(last(decisions).cacheable, true, said);
   }
 });
+
+test("T21: a short question whose only topic is an -ing form of the previous turn's word leans on it", async () => {
+  const { leansOn } = require("./src/understanding/wordRules/index.js");
+  const PORT = "What is the process to port my number to another network?";
+  assert.strictEqual(leansOn("How long does porting take?", PORT), true);
+  const { seen } = await call([PORT, "How long does porting take?"]);
+  assert.deepStrictEqual(last(seen).filter((m) => m.role === "user").map((m) => m.content), [PORT, "How long does porting take?"]);
+  for (const [text, before] of [
+    ["How long does a refund take?", "What is your refund policy?"],
+    ["How long do refunds take?", "What is your refund policy?"],
+    ["How long does shipping take?", "What are your shipping options?"],
+    ["How long does porting take?", ""],
+    ["How long does number porting to Jio take for a prepaid connection?", PORT],
+    ["refund kitne din mein milta hai", PORT],
+    ["", PORT],
+  ]) assert.strictEqual(leansOn(text, before), false, text);
+  const plain = await call(["What is your refund policy?", "How long does a refund take?"]);
+  assert.deepStrictEqual(last(plain.seen).filter((m) => m.role === "user").map((m) => m.content), ["How long does a refund take?"]);
+});

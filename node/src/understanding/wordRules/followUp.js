@@ -5,17 +5,20 @@
 const {
   BARE,
   CLAUSE_MARKERS,
+  FRAMING_WORDS,
   FUNCTION_WORDS,
   NON_REFERENTS,
   PRONOUN_FOLLOWERS,
   ROLES,
   firstWords,
   hasPhrase,
+  stem,
   splitPlain,
   wordsOf,
 } = require("./text.js");
 const {
   CONNECTIVES,
+  FOLLOW_UP_WORDS,
 } = require("./phrases.js");
 const {
   asks,
@@ -129,6 +132,24 @@ function isContextDependent(text) {
   return hasBareAnaphor(words);
 }
 
+function root(word) {
+  const r = stem(word);
+  return r.length > 3 && r[r.length - 1] === r[r.length - 2] ? r.slice(0, -1) : r; // "cancelling" -> "cancel"
+}
+
+// A short question whose only topic is an "-ing" form of what the previous caller turn said ("How
+// long does porting take?" after "...to port my number..."): on a telecom call it means number
+// porting, alone it means software. Same-form repeats and longer questions stand alone.
+// shortcut: -ing forms only, one earlier turn; upgrade with the pluggable understander.
+function leansOn(text, previous) {
+  const words = wordsOf(text);
+  const before = wordsOf(previous);
+  if (!before.length || words.length > FOLLOW_UP_WORDS) return false;
+  const roots = new Set(before.map(root));
+  const shared = new Set(words.filter((w) => !FUNCTION_WORDS.has(w) && !FRAMING_WORDS.has(w) && !NON_REFERENTS.has(w) && roots.has(root(w))).map(root));
+  return shared.size === 1 && words.some((w) => w.endsWith("ing") && shared.has(root(w)) && !before.includes(w));
+}
+
 // A chain is private when any turn of it is, or when its root ("Priya Sharma.",
 // "Bipolar.") is too short to stand alone or neither asks nor requests anything.
 function privateChain(chain, minWords = 0) {
@@ -163,6 +184,7 @@ module.exports = {
   ANAPHORS,
   DEMONSTRATIVES,
   hasAntecedent,
+  leansOn,
   pointsForward,
   hasBareAnaphor,
   isContextDependent,

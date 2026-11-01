@@ -3,6 +3,7 @@
 // The UnresolvedReference rule (stage 1, question; Chat, V10).
 
 const { Verdict } = require("../../turns/verdict.js");
+const { leansOn } = require("../../understanding/wordRules/index.js");
 const { CONTRACTION, FUNCTION, QUESTION_WORDS, REFERRING, toks } = require("../../understanding/frameWords.js");
 
 /**
@@ -26,7 +27,9 @@ class UnresolvedReference {
     const said = new Set(saidList);
     const qwords = toks(turn.question);
     const named = qwords.some((w) => !said.has(w) && !FUNCTION.has(w) && !QUESTION_WORDS.has(w) && !CONTRACTION.has(w));
-    if (!(turn.frame.usesState && [...qwords, ...saidList].some((w) => REFERRING.has(w)) && !named)) return null;
+    // shortcut: Chat checks only the last shared question; after a personal turn this misses (as before).
+    const leans = leansOn(turn.question, turn.state.activeQuestion || "");
+    if (!(leans || (turn.frame.usesState && [...qwords, ...saidList].some((w) => REFERRING.has(w)) && !named))) return null;
     return new Verdict(this.name, "V10_unresolved");
   }
 }

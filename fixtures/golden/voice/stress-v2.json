@@ -1762,6 +1762,7 @@
      "save_rule": null,
      "say": "How long does porting take?",
      "sees": [
+      "user: What is the process to port my number to another network?",
       "user: How long does porting take?"
      ],
      "stored": true
@@ -9123,7 +9124,7 @@
    ],
    [
     "",
-    "How long does porting take?",
+    "What is the process to port my number to another network? || How long does porting take?",
     "The amount of time porting takes depends on the complexity of the project, the platform being moved to, and the resources available. Typically, a small, straightforward codebase may be ported in a few weeks, while larger, more complex systems can take several months.",
     false
    ],

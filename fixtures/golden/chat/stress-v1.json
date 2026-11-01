@@ -1472,7 +1472,7 @@
   },
   "B05": {
    "stats": {
-    "agent": 0,
+    "agent": 1,
     "cancelled": 0,
     "fallback_used": 0,
     "filler": 0,
@@ -1481,8 +1481,8 @@
     "lookup_timeouts": 0,
     "personal": 7,
     "save_refused": 0,
-    "saved": 2,
-    "shared": 2,
+    "saved": 1,
+    "shared": 1,
     "sharing_off": 0,
     "task": 0,
     "tools": 0,
@@ -1535,16 +1535,14 @@
      "segment": "kb=1;lang=und;channel=chat"
     },
     {
-     "key": "How long does porting take?",
+     "key": null,
      "needs_model": true,
-     "outcome": "saved",
-     "reason": "cache miss",
-     "route": "shared",
+     "outcome": "not_shared",
+     "reason": "V10_unresolved",
+     "route": "agent",
      "say": "How long does porting take?",
-     "sees": [
-      "user: How long does porting take?"
-     ],
-     "segment": "kb=1;lang=und;channel=chat"
+     "sees": null,
+     "segment": null
     },
     {
      "key": null,
@@ -7733,12 +7731,6 @@
     "kb=1;lang=und;channel=chat",
     "What is the process to port my number to another network?",
     "To port your number, you'll typically need to request a Porting Authorization Code from your current provider and provide it to your new network during the setup process.",
-    false
-   ],
-   [
-    "kb=1;lang=und;channel=chat",
-    "How long does porting take?",
-    "Porting a phone number typically takes anywhere from a few days to a couple of weeks, though the timeframe can vary depending on the providers and the specific situation.",
     false
    ],
    [

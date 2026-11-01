@@ -1762,6 +1762,7 @@
      "save_rule": null,
      "say": "How long does porting take?",
      "sees": [
+      "user: What is the process to port my number to another network?",
       "user: How long does porting take?"
      ],
      "stored": true
@@ -8860,7 +8861,7 @@
    ],
    [
     "",
-    "How long does porting take?",
+    "What is the process to port my number to another network? || How long does porting take?",
     "Porting a phone number typically takes anywhere from a few days to a couple of weeks, though the timeframe can vary depending on the providers and the specific situation.",
     false
    ],

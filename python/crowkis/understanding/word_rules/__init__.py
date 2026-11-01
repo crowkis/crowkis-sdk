@@ -208,6 +208,7 @@ from .follow_up import (  # noqa: F401 - re-exported
     _has_antecedent,
     _has_bare_anaphor,
     _is_context_dependent,
+    _leans_on,
     _points_forward,
     _private_chain,
     _unfinished,

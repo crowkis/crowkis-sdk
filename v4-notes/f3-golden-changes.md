@@ -21,3 +21,14 @@ Rule `OwnRecords` (question stage, via `_never_share`): phrases "so far", "know 
   changes accordingly, `stored` stays false. The turn is now read as personal (whole call, never shared) instead of
   only being kept out by the call's taint, so it also holds in a call that told nothing. Counters follow
   (`not_shareable` 15 -> 14, `TaintedCall` 14 -> 13, `PersonalTemplate` 13 -> 14).
+
+## T21: "How long does porting take?" after "...port my number..." leans on the previous turn
+
+Rules: voice reads it as a follow-up (`VoiceReader`, `_leans_on`: a short turn whose only topic is an "-ing" form of
+a word the previous caller turn said); Chat's `UnresolvedReference` (`V10_unresolved`).
+Only this turn changes (checked by scanning every consecutive turn pair in `fixtures/golden/inputs.json`).
+
+- `voice/stress-v1.json`, `voice/stress-v2.json`, the telecom call: `sees` gains the "port my number" turn
+  (the question is keyed with it). `cacheable`, `stored` and the rules are unchanged (the earlier turn is general).
+- `chat/stress-v1.json`, `chat/stress-v2.json`: outcome `saved` -> `not_shared`, reason `V10_unresolved`, route
+  `shared` -> `agent`, key and sees null; one shared write less, `agent` count 0 -> 1.

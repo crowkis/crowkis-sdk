@@ -301,11 +301,13 @@ test("review 10: a story with a personal detail never leaves the sdk", async () 
 
 test("review 11: a very long turn is private and classified in bounded time", async () => {
   const longTurn = "what are your opening hours on a normal weekday ".repeat(2500); // 22,500 words
-  const started = performance.now();
+  // CPU time, not wall time: another busy process on the machine must not fail it.
+  const started = process.cpuUsage();
   assert.strictEqual(_isPersonal(longTurn), true);
   const store = new Store();
   const decision = await sessionOn(store).decide(longTurn);
-  assert.ok(performance.now() - started < 500);
+  const used = process.cpuUsage(started);
+  assert.ok((used.user + used.system) / 1000 < 500);
   assert.strictEqual(decision.action, "infer");
   assert.strictEqual(decision.cacheable, false);
   assert.deepStrictEqual(store.reads, []);

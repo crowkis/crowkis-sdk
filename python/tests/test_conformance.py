@@ -42,7 +42,7 @@ class ConformanceTests(unittest.TestCase):
 
         with driver.active():
             results = asyncio.run(run())
-        check(self, scenario, store, results)
+        check(self, scenario, store, results, driver)
         self.assertEqual(stray_threads(threads), [], "threads left running")
 
 

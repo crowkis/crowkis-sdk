@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextvars
+import functools
 import inspect
 import threading
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
@@ -50,6 +52,14 @@ async def _off_loop(executor, fn: Callable, *args: Any, **kwargs: Any) -> Any:
     if kwargs:
         return await loop.run_in_executor(executor, lambda: fn(*args, **kwargs))
     return await loop.run_in_executor(executor, fn, *args)
+
+
+async def _on_server_pool(fn: Callable, *args: Any, **kwargs: Any) -> Any:
+    """A blocking server call from a framework adapter, on the SDK's server pool. Not
+    asyncio.to_thread: the default pool has only CPUs + 4 threads, so on a small machine
+    with many calls and a slow server the calls queue and a turn passes its budget. Like
+    asyncio.to_thread, the call sees the caller's contextvars (tracing spans, log context)."""
+    return await _off_loop(_default_pool(), contextvars.copy_context().run, functools.partial(fn, *args, **kwargs))
 
 
 def _is_async_callable(fn: Callable) -> bool:

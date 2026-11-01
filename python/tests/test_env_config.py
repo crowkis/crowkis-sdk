@@ -177,7 +177,7 @@ class BadValueTests(unittest.TestCase):
             self.assertIn("CROWKIS_URL", str(err))
             self.assertIsNone(err.__cause__)
             self.assertIsNone(err.__context__)
-            self.assertNotIn(SECRET, "".join(traceback.format_exception(err)))
+            self.assertNotIn(SECRET, "".join(traceback.format_exception(type(err), err, err.__traceback__)))
             frame = err.__traceback__.tb_next  # skip this test's own frame
             self.assertIsNotNone(frame)
             while frame is not None:

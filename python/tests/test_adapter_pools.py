@@ -2,7 +2,7 @@
 
 That pool has min(32, CPUs + 4) threads, so on a small machine with many calls and a slow
 server the adapters' blocking calls queued behind each other and a call took seconds, not
-the latency budget. The SDK's own pools (voice_async) are sized for live calls. Here the
+the latency budget. The SDK's own pools (channels/async_voice_session) are sized for live calls. Here the
 loop's default pool records where each job came from: none may come from the SDK's code.
 Pipecat, LiveKit and Bolna run when installed; the custom loops are the controls.
 """

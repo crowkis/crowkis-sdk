@@ -24,6 +24,7 @@ function crc32(bytes) {
   for (const byte of bytes) crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
+
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("../understanding/turnFrame.js");
 
 // Facts that tailor an answer to the caller: what they have, how old, where and when.

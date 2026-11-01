@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..understanding.turn_frame import TurnFrame
 from .routes import SHARED
@@ -19,7 +19,7 @@ class TurnResult:
     needs_model: bool = True
     messages: Optional[List[Message]] = None  # what the model reads; None = the whole call
     frame: Optional[TurnFrame] = None
-    verdict: Optional[Verdict] = None
+    verdict: Optional[Any] = None  # a Verdict; the real class would make an import cycle
     reason: str = ""
 
     @property

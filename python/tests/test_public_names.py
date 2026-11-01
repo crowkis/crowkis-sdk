@@ -24,3 +24,19 @@ class PublicNameTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypeHintTests(unittest.TestCase):
+    """V4-4: an app that builds a typed model from a public class (FastAPI, pydantic) must not hit a NameError."""
+
+    def test_every_public_class_resolves_its_type_hints(self):
+        import inspect
+        import typing
+
+        import crowkis
+
+        for name in crowkis.__all__:
+            thing = getattr(crowkis, name)
+            if inspect.isclass(thing):
+                with self.subTest(name=name):
+                    typing.get_type_hints(thing)

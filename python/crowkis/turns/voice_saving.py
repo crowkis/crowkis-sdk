@@ -88,7 +88,8 @@ class VoiceSaving:
         written = self._learn(answer.key, answer.answer, ttl=self._session.ttl)
         if written.refused:
             return self._report.refused(written.error)
-        self.last_stored = answer.key
+        if not (written.objection and written.objection.rule == "NotStored"):
+            self.last_stored = answer.key  # a key the server kept nothing under is not waited for
         if not written.written:  # a slow server gets no extra write
             return self._report.kept(written.objection)
         self._call.question_records().keep(answer.key, answer.answer, self._session.ttl)

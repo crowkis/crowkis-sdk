@@ -105,6 +105,7 @@ class AudioClips {
     // One slot per TTS run still to come, in the order the runs will happen: [text, trusted].
     this._runs = [];
     this._run = null; // the slot of the TTS run in progress
+    this._claimed = false; // the run in progress took its slot before its started frame
     this._unsynced = false;
     this._spoken = []; // what that run said, where the TTS reports it
   }
@@ -199,6 +200,7 @@ class AudioClips {
   interrupted() {
     this._pcm = [];
     this._run = null;
+    this._claimed = false;
     this._spoken = [];
     this._unsynced = false;
     this._runs = [];
@@ -208,7 +210,8 @@ class AudioClips {
   ttsStarted() {
     this._pcm = [];
     this._spoken = [];
-    this._run = this._runs.length ? this._runs.shift() : null;
+    if (this._claimed) this._claimed = false; // text or audio already took this run's slot
+    else this._run = this._runs.length ? this._runs.shift() : null;
   }
 
   // Words the run in progress spoke, where the TTS reports them.
@@ -219,7 +222,10 @@ class AudioClips {
   // Whether a run is in progress. A TTS that sends its started frame once per call (Sarvam) starts
   // every later answer with its text or audio instead: that takes the next slot.
   _inRun() {
-    if (this._run === null && this._runs.length) this._run = this._runs.shift();
+    if (this._run === null && this._runs.length) {
+      this._run = this._runs.shift();
+      this._claimed = true;
+    }
     return this._run !== null;
   }
 
@@ -231,6 +237,7 @@ class AudioClips {
   async ttsStopped() {
     const run = this._run;
     this._run = null;
+    this._claimed = false;
     const text = run ? run[0] : null;
     const clip = Buffer.concat(this._pcm);
     const spoken = wordsOf(this._spoken.join(" "));

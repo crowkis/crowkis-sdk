@@ -51,7 +51,7 @@ class VoiceSaving {
     if (verdict) return this._report.kept(verdict);
     const written = await this._learn(answer.key, answer.answer, { ttl: this._session.ttl });
     if (written.refused) return this._report.refused(written.error);
-    this.lastStored = answer.key;
+    if (!(written.objection && written.objection.rule === "NotStored")) this.lastStored = answer.key; // a key the server kept nothing under is not waited for
     if (!written.written) return this._report.kept(written.objection); // a slow server gets no extra write
     this._call.questionRecords().keep(answer.key, answer.answer, this._session.ttl);
     return { outcome: OUTCOME.SAVED, why: "", rule: null };

@@ -164,6 +164,15 @@ class WrapperTests(unittest.TestCase):
              LLMContextFrame(context=LLMContext(messages=history)))
         self.assertEqual(llm.asked, [])
 
+    def test_t23_a_system_message_after_the_question_is_extra_context_too(self):
+        from crowkis.integrations.voice_turns import _extra_context
+
+        base = [{"role": "system", "content": "You are Acme's assistant."}, {"role": "user", "content": "Hi?"}]
+        rag = {"role": "system", "content": "Retrieved: the clinic opens at 9."}
+        self.assertTrue(_extra_context(base + [rag]))
+        self.assertTrue(_extra_context(base + [{"role": "assistant", "content": "Sure."}, rag, base[1]]))
+        self.assertFalse(_extra_context(base))
+
     def test_t23_two_leading_system_messages_are_instructions_not_retrieved_context(self):
         store = SceneStore()
         llm = FakeLLM()

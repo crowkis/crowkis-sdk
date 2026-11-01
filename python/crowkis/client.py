@@ -1663,8 +1663,8 @@ class CrowkisClient:
     def lookup(self, prompt: BytesLike, **kwargs: Any) -> Optional[CacheHit]:
         return self.cget_hit(prompt, **kwargs)
 
-    def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> None:
-        self.cset(prompt, answer, **kwargs)
+    def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> bool:
+        return self.cset(prompt, answer, **kwargs)
 
     def ask(
         self,
@@ -2020,8 +2020,8 @@ class AsyncCrowkisClient(CrowkisClient):
     ) -> AsyncIterator[Union[str, bytes]]:
         return self.stream_get_or_compute(prompt, compute, **kwargs)
 
-    async def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> None:
-        await self.cset_async(prompt, answer, **kwargs)
+    async def store(self, prompt: BytesLike, answer: BytesLike, **kwargs: Any) -> bool:
+        return await self.cset_async(prompt, answer, **kwargs)
 
 
 AsyncCrowkis = AsyncCrowkisClient

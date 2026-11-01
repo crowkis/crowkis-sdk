@@ -107,8 +107,10 @@ def _extra_context(messages: list) -> bool:
     """Whether a system / developer message (retrieved chunks, CRM data) comes after the app's
     instructions and before the caller's last message: the model needs the whole context for
     it, so the answer is this call's only."""
+    users = [i for i, m in enumerate(messages) if _field(m, "role") == "user"]
+    end = users[-1] if users else len(messages)
     return any(_field(m, "role") in ("system", "developer")
-               for m in messages[len(_leading_instructions(messages)):-1])
+               for m in messages[len(_leading_instructions(messages)):end] + messages[end + 1:])
 
 
 def _instructions(messages: list) -> str:
@@ -148,6 +150,7 @@ class AudioClips:
         self._runs: collections.deque = collections.deque()
         self._run: Optional[list] = None  # the slot of the TTS run in progress
         self._unsynced = False
+        self._claimed = False  # the run in progress took its slot before its started frame
         self._spoken: list = []  # what that run said, where the TTS reports it
 
     def _key(self, text: str) -> str:
@@ -246,19 +249,23 @@ class AudioClips:
     def interrupted(self) -> None:
         """A barge-in: the run in progress and every reserved run are gone."""
         self._pcm, self._run, self._spoken, self._unsynced = bytearray(), None, [], False
+        self._claimed = False
         self._runs.clear()
 
     def tts_started(self) -> None:
         """A TTS run starts (one per answer, not per sentence): a new clip, for the next slot.
         A clip replayed from the cache has no run around it, so it never starts one."""
         self._pcm, self._spoken = bytearray(), []
-        self._run = self._runs.popleft() if self._runs else None
+        if self._claimed:
+            self._claimed = False  # text or audio already took this run's slot
+        else:
+            self._run = self._runs.popleft() if self._runs else None
 
     def _in_run(self) -> bool:
         """Whether a run is in progress. A TTS that sends its started frame once per call (Sarvam)
         starts every later answer with its text or audio instead: that takes the next slot."""
         if self._run is None and self._runs:
-            self._run = self._runs.popleft()
+            self._run, self._claimed = self._runs.popleft(), True
         return self._run is not None
 
     def tts_text(self, text: Optional[str]) -> None:
@@ -275,7 +282,7 @@ class AudioClips:
 
     async def _finish_clip(self) -> None:
         """The audio of a TTS run is complete: it belongs to the slot the run started with."""
-        run, self._run = self._run, None
+        run, self._run, self._claimed = self._run, None, False
         text, clip, spoken = (run[0] if run else None), bytes(self._pcm), _words(" ".join(self._spoken))
         self._pcm, self._spoken = bytearray(), []
         if not (text and clip) or self._unsynced:

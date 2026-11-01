@@ -304,7 +304,7 @@ class CrowkisGate(FrameProcessor):
         elif audio:
             # A Pipecat without TTSTextFrame: the answer goes into the context directly.
             frame.context.add_message({"role": "assistant", "content": decision.text})
-            await self.push_frame(TTSAudioRawFrame(audio, self._audio.sample_rate, 1))
+            await self.push_frame(_mark_replay(TTSAudioRawFrame(audio, self._audio.sample_rate, 1)))
         else:
             # Served from the cache, so already shared (and vouched for, on a server
             # that holds answers): its clip may be kept. Its run is reserved in stream

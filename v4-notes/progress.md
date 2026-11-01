@@ -506,3 +506,5 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
   so the first lookup of a fresh Agent is not held (it never asks the server); `chain()` ignores `read_follow_up`
   (the porting turn can root a later chain); MT4 / VD3 phrases cost some hits ("please let me know 24h ahead...", "so far").
 - Framework venvs for this work: `pc`, `lk`, `bo`, `lkjs` in session `696e76ce-...` scratchpad.
+
+- **Later (owner, 2026-11-02):** the merges in `v4-notes/merge-check.md` (steps 1-7: the facade re-export blocks, one-implementation interfaces, `turns/` value types and helpers, `understanding/` slot files, small `rules/` / `runtime/` merges, `VoicePairing` into `TurnPairing`). Not before F4/F5.

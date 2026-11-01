@@ -523,12 +523,12 @@ class BolnaDriver:
             bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.clear()
             bolna_providers.SUPPORTED_SYNTHESIZER_MODELS.update(synths_before)
 
-    async def call(self, store, turns, agent_id) -> List[Heard]:
+    async def call(self, store, turns, agent_id, options) -> List[Heard]:
         counts = Counts()
         script = _BolnaScript(counts)
         provider = register_crowkis(name=BOLNA_NAME, base=BOLNA_BASE, synthesizer=BOLNA_SYNTH,
                                     session_factory=lambda: crowkis.async_voice_session(
-                                        client=store, agent_id=agent_id, voice="v"))
+                                        client=store, agent_id=agent_id, voice="v", **options))
         task_manager = _BolnaTaskManager()
         llm = provider(language="en", model="fake", provider=BOLNA_NAME, conformance_script=script,
                        task_manager_instance=task_manager)

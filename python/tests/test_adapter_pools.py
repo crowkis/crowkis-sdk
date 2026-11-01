@@ -18,7 +18,7 @@ import crowkis
 
 from conformance import ConformanceStore, agent_id
 from conformance_drivers import DRIVERS
-from crowkis.voice_async import _on_server_pool
+from crowkis.channels.async_voice_session import _on_server_pool
 
 TURNS = [
     {"say": "what are your opening hours", "reply": ["We are open nine to five."], "expect": {"llm": True}},
@@ -65,7 +65,7 @@ class AdapterPoolTests(unittest.TestCase):
 
                 async def run():
                     asyncio.get_running_loop().set_default_executor(pool)
-                    return await driver.call(ConformanceStore(), TURNS, agent_id())
+                    return await driver.call(ConformanceStore(), TURNS, agent_id(), {})
 
                 try:
                     with driver.active():

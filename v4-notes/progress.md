@@ -514,3 +514,20 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 - Framework venvs for this work: `pc`, `lk`, `bo`, `lkjs` in session `696e76ce-...` scratchpad.
 
 - **Later (owner, 2026-11-02):** the merges in `v4-notes/merge-check.md` (steps 1-7: the facade re-export blocks, one-implementation interfaces, `turns/` value types and helpers, `understanding/` slot files, small `rules/` / `runtime/` merges, `VoicePairing` into `TurnPairing`). Not before F4/F5.
+
+## F4b done (2026-11-02): fixes for F4's two causes, re-run on a Bedrock answerer
+
+- Fixes `38dc733` (Python and Node, failing-first tests, Opus review with no blockers; the review's medium point is fixed):
+  - VD5: the voice classifier is sent the stated turns, masked. A turn whose masking hid a word or a number still counts.
+  - Two prompt lines: products and topics are never `identifying`; naming a call topic is not `uses_state`.
+- Suites run twice: Python 827, Node 62/62. Frameworks: Pipecat 32, LiveKit Py 23, LiveKit JS 49, Bolna 121. Golden files unchanged.
+- Re-run (`v4-notes/f4b-results.md`): answerer Bedrock gpt-oss-20b everywhere, fresh flush per run, results judged.
+  - v4 inline: saved 43, 4 hits.
+  - v4 with the 250 ms budget: saved 55, decide p95 349 ms (word rules plus a 250 ms wait).
+  - voice: saved 54, 5 hits.
+  - 0 cross-caller leaks in every run. Judge mean 4.40 / 4.43 against voice 4.49.
+  - **Gates still fail.** The open items are VD12 (`PrivateChain`: owner decision) and VD13 (budget design).
+- Bedrock spend is $0.96 of $2.00 (the figure was reconstructed after a spend-file race in run 2; the race is fixed in the script).
+- Script changes (`v4-notes/stress/voice_stress_test.py`): `BEDROCK_ANSWER`, `answer_call`, the Pipecat answerer swapped in-process,
+  `--understand-budget-ms`, and the spend file written under a lock with an atomic replace.
+- `crowkis-demo` stopped. Nothing pushed. **Next:** the owner's call on VD12 and VD13. F5 waits.

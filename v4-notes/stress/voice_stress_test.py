@@ -31,6 +31,7 @@ import os
 import re
 import statistics
 import sys
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -166,13 +167,15 @@ class RateLimited(Exception):
 # Understanding (chat, v4) and the judge run on AWS Bedrock, under a hard spending cap (owner: 2 USD).
 BEDROCK_UNDERSTAND = "qwen.qwen3-32b"
 BEDROCK_JUDGE = "openai.gpt-oss-120b"
+BEDROCK_ANSWER = "openai.gpt-oss-20b"  # F4b: the answerer for every pipeline (was Groq gpt-oss-20b)
 # USD per 1M tokens (input, output). Rounded up from Bedrock on-demand list prices (about 0.15 / 0.60
 # for both models); no Mumbai price list was available offline, so this errs high to keep the cap safe.
-BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.25, 1.00), BEDROCK_JUDGE: (0.25, 1.00)}
+BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.25, 1.00), BEDROCK_JUDGE: (0.25, 1.00), BEDROCK_ANSWER: (0.25, 1.00)}
 BEDROCK_STOP_USD = 1.90  # stop before a call that could pass this; the hard cap is 2.00
 BEDROCK_URL = "https://bedrock-mantle.ap-south-1.api.aws/v1"  # Bedrock's OpenAI-compatible endpoint (Converse is refused)
 SPEND_FILE = os.path.join(RESULTS_DIR, "bedrock_spend.json")  # kept across --resume and --judge-only
 _bedrock = {}
+_spend_lock = threading.Lock()
 
 
 class BudgetReached(RateLimited):
@@ -205,12 +208,30 @@ def bedrock_call(model: str, messages: list, max_tokens: int = 1500, **extra) ->
         _bedrock["client"] = OpenAI(api_key=os.environ["AWS_BEARER_TOKEN_BEDROCK"], base_url=BEDROCK_URL, timeout=120)
     reply = _bedrock["client"].chat.completions.create(model=model, messages=messages, temperature=0,
                                                        max_tokens=max_tokens, **extra)
-    usage = reply.usage
-    spent += (usage.prompt_tokens * price_in + usage.completion_tokens * price_out) / 1e6
-    with open(SPEND_FILE, "w") as fh:
-        json.dump({"usd": spent}, fh)
+    add_spend(model, reply.usage.prompt_tokens, reply.usage.completion_tokens)
     out = reply.choices[0].message.content or ""
     return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
+
+
+def add_spend(model: str, prompt_tokens: int, completion_tokens: int) -> None:
+    price_in, price_out = BEDROCK_PRICE[model]
+    # Budgeted understanding runs in a pool thread beside the answer call: one writer at a time, and an
+    # atomic replace so a reader never meets an empty file (F4b lost two resets' worth this way).
+    with _spend_lock:
+        spent = bedrock_spent() + (prompt_tokens * price_in + completion_tokens * price_out) / 1e6
+        with open(SPEND_FILE + ".tmp", "w") as fh:
+            json.dump({"usd": spent}, fh)
+        os.replace(SPEND_FILE + ".tmp", SPEND_FILE)
+
+
+def answer_call(messages: list) -> str:
+    return bedrock_call(BEDROCK_ANSWER, messages, reasoning_effort="low")
+
+
+def check_budget() -> None:
+    """Before a voice-pipeline turn, whose answer streams through Pipecat (costed afterwards)."""
+    if bedrock_spent() + 0.01 > BEDROCK_STOP_USD:
+        raise BudgetReached(f"budget reached: spent {bedrock_spent():.3f} USD")
 
 
 def understand_call(messages: list) -> str:
@@ -261,6 +282,25 @@ def install_runtime(tenant: str):
             await self.push_frame(frame, direction)
 
     speech.SarvamTTSService = SilentTTS
+
+    import pipelines.cascaded as cascaded
+    from dotenv import load_dotenv
+
+    load_dotenv(AGENT + "/.env")
+
+    class BedrockAnswerer(cascaded.GroqLLMService):
+        """Stands where Groq stands: the same OpenAI-compatible service on Bedrock gpt-oss-20b (F4b), each
+        answer's tokens added to the spend file."""
+
+        def __init__(self, *, api_key, settings=None, **kwargs):
+            settings.model = BEDROCK_ANSWER
+            super().__init__(api_key=os.environ["AWS_BEARER_TOKEN_BEDROCK"], base_url=BEDROCK_URL, settings=settings, **kwargs)
+
+        async def start_llm_usage_metrics(self, tokens):
+            add_spend(BEDROCK_ANSWER, tokens.prompt_tokens, tokens.completion_tokens)
+            return await super().start_llm_usage_metrics(tokens)
+
+    cascaded.GroqLLMService = BedrockAnswerer
     settings.TENANT = tenant
 
     log_lines: list = []
@@ -314,6 +354,7 @@ async def play(conv: dict, pipeline: str, crowkis, rt, opts) -> dict:
     turns = []
     try:
         for n, turn in enumerate(conv["turns"], 1):
+            check_budget()
             context.add_message({"role": "user", "content": turn["say"]})
             for attempt in (1, 2):
                 got = await play_turn(worker, context, box, probe, turn, pipeline, silent, log_lines,
@@ -383,7 +424,6 @@ async def play_chat(conv: dict, crowkis, opts) -> dict:
 
     import settings
 
-    client = OpenAI(api_key=os.environ["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
     # CallSession treats any understanding error as "uncertain" and keeps the turn private, as it
     # should in production; here a rate limit must stop the run instead of skewing it.
     limited: list = []
@@ -426,8 +466,7 @@ async def play_chat(conv: dict, crowkis, opts) -> dict:
             else:
                 got["sees"] = "whole call"
                 messages = [system] + transcript + [{"role": "user", "content": say}]
-            reply = await asyncio.to_thread(_groq_call, client, settings.LLM_MODEL, messages,
-                                            reasoning_effort="low")
+            reply = await asyncio.to_thread(answer_call, messages)
             if turn.get("interrupt_after_s"):
                 session.cancel()  # the caller talks over the answer
                 got["interrupted"] = True
@@ -459,7 +498,6 @@ async def play_v4(conv: dict, crowkis, opts) -> dict:
 
     import settings
 
-    client = OpenAI(api_key=os.environ["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
     limited: list = []
     spent = [0.0]  # seconds inside the understanding model, this turn
 
@@ -476,7 +514,7 @@ async def play_v4(conv: dict, crowkis, opts) -> dict:
     understander = LLMUnderstander(complete)
     session = voice_session(client=crowkis, voice=None, ttl=settings.CACHE_TTL_S,
                             fillers=settings.FILLERS, classifier=LLMClassifier(understander),
-                            rewriter=LLMRewriter(understander), understand_budget_ms=None)
+                            rewriter=LLMRewriter(understander), understand_budget_ms=opts.understand_budget_ms)
     outcomes: list = []
     record_model_turn = session._record_model_turn
 
@@ -510,7 +548,7 @@ async def play_v4(conv: dict, crowkis, opts) -> dict:
             got["asked"] = decision.messages[-1]["content"] if decision.cacheable else None  # what the model answered, and the cache key (V4-2)
             messages = [system] + (decision.messages if decision.messages is not None
                                    else session.transcript + [{"role": "user", "content": say}])
-            reply = await asyncio.to_thread(_groq_call, client, settings.LLM_MODEL, messages, reasoning_effort="low")
+            reply = await asyncio.to_thread(answer_call, messages)
             if turn.get("interrupt_after_s"):
                 session.cancel()  # the caller talks over the answer
                 got["interrupted"] = True
@@ -1045,7 +1083,8 @@ def env_info(args, judge_model) -> dict:
         sdk = version("crowkis")
     except Exception:  # noqa: BLE001
         sdk = "?"
-    return {"crowkis_sdk": sdk, "groq_model": settings.LLM_MODEL, "gemini_model": settings.GEMINI_MODEL,
+    return {"crowkis_sdk": sdk, "answer_model": BEDROCK_ANSWER + " (Bedrock)",
+            "understand_budget_ms": args.understand_budget_ms, "gemini_model": settings.GEMINI_MODEL,
             "gemini_voice": settings.GEMINI_VOICE, "judge_model": judge_model if not args.no_judge else "off",
             "tenant": args.tenant, "crowkis": f"{settings.CROWKIS_HOST}:{settings.CROWKIS_PORT}", "cache_ttl_s": settings.CACHE_TTL_S,
             **({"chat_understand_model": CHAT_UNDERSTAND_MODEL} if args.pipeline in ("chat", "v4", "all") else {})}
@@ -1257,6 +1296,8 @@ def main():
     parser.add_argument("--rejudge", action="store_true", help="with --judge-only: judge every call again")
     parser.add_argument("--report-only", metavar="RUN_DIR", help="rebuild report.md from a saved run")
     parser.add_argument("--compare", metavar="RUN_DIR", help="compare with this run instead of LATEST")
+    parser.add_argument("--understand-budget-ms", type=float, default=None,
+                        help="v4: the understanding budget (None: off, the model inline; 250: voice_session's)")
     parser.add_argument("--groq-gap", type=float, default=2.0, help="seconds between Groq model turns")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()

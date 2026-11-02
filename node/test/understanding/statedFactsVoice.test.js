@@ -102,12 +102,70 @@ test("an allergy always counts", async () => {
   assert.strictEqual((await session.decide("which desserts do you have today")).cacheable, false);
 });
 
-test("the model reads the call's facts, never its turns", async () => {
+test("the model reads the turns the caller stated", async () => {
+  // VD5 (F4b): the model was sent only its own remembered entities, never the stated turn, so it
+  // could not say whether "with the kids" changes an answer; every later turn stayed private.
   const { model, session } = callWith({ [TRIP_TURN]: TRIP_FRAME });
   await session.record(await session.decide(TRIP_TURN), "Goa is lovely in December.");
   await session.decide("what is a deductible in insurance");
-  assert.deepStrictEqual(model.states[model.states.length - 1].facts, ["place: trip to goa"]);
-  assert.strictEqual(JSON.stringify(model.states[model.states.length - 1]).includes("kids"), false);
+  assert.deepStrictEqual(model.states[model.states.length - 1].facts, ["place: trip to goa", TRIP_TURN]);
+});
+
+test("a stated turn reaches the model without its numbers and email", async () => {
+  const { model, session } = callWith({});
+  await session.record(await session.decide("i am travelling with my son, he is 4 and his email is aarav@mail.com"), "Noted.");
+  await session.decide("what is a deductible in insurance");
+  assert.deepStrictEqual(model.states[model.states.length - 1].facts,
+    ["i am travelling with my son, he is _ and his email is _"]);
+});
+
+// A model that tags every fact it is sent, as the prompt asks, with changes_answer = changes.
+function judgedCall(changes) {
+  const store = new Store();
+  const complete = async (messages) => {
+    const payload = JSON.parse(messages[messages.length - 1].content);
+    if (payload.turn === TRIP_TURN) return JSON.stringify(TRIP_FRAME);
+    return JSON.stringify({ ...DEDUCTIBLE, fact_relevance: payload.call_state.facts.map(
+      (fact) => ({ fact, type: "other", changes_answer: changes })) });
+  };
+  const session = new VoiceSession(new Agent("caller", { client: store }), {
+    voice: "v", classifier: new LLMClassifier(new LLMUnderstander(complete)),
+  });
+  return { store, session };
+}
+
+test("a model that judges what it is sent shares an unrelated question", async () => {
+  const { store, session } = judgedCall(false);
+  await session.record(await session.decide(TRIP_TURN), "Goa is lovely in December.");
+  const later = await session.decide("what is a deductible in insurance");
+  assert.strictEqual(later.cacheable, true);
+  await session.record(later, "A deductible is what you pay before insurance pays.");
+  assert.deepStrictEqual([...store.shared.keys()], ["what is a deductible in insurance"]);
+});
+
+test("must still be private when the model says a stated turn changes the answer", async () => {
+  const { store, session } = judgedCall(true);
+  await session.record(await session.decide(TRIP_TURN), "Goa is lovely in December.");
+  const later = await session.decide("what is a deductible in insurance");
+  assert.strictEqual(later.rule, "VoiceStatedFacts");
+  await session.record(later, "A deductible is what you pay before insurance pays.");
+  assert.strictEqual(store.shared.size, 0);
+});
+
+test("must still be private when the model never saw the stated place or number", async () => {
+  // Opus review (F4b): the model was sent "we are flying to _ with _ bags" and could call it irrelevant.
+  const { store, session } = judgedCall(false);
+  await session.record(await session.decide("we are flying to Dubai with 3 bags"), "Noted.");
+  const later = await session.decide("what is a deductible in insurance");
+  assert.strictEqual(later.rule, "VoiceStatedFacts");
+  await session.record(later, "A deductible is what you pay before insurance pays.");
+  assert.strictEqual(store.shared.size, 0);
+});
+
+test("must still be private after an allergy the model calls irrelevant", async () => {
+  const { session } = judgedCall(false);
+  await session.record(await session.decide("I am allergic to peanuts"), "Noted.");
+  assert.strictEqual((await session.decide("which desserts do you have today")).cacheable, false);
 });
 
 test("must still work: without an understander the call is tainted", async () => {

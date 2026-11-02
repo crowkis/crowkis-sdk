@@ -26,7 +26,7 @@ class Reading(Protocol):
 
 class Classifier(Protocol):
     """Reads a turn (WordRuleClassifier today; an LLM or ONNX model later). ``facts`` are the
-    call's de-identified stated facts ("condition: car hit"), never its earlier turns."""
+    call's remembered facts ("condition: car hit") and the turns in which the caller told it something."""
 
     def classify(self, text: str, facts: Sequence[str] = ()) -> Reading:
         """What this turn is."""

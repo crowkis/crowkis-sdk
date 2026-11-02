@@ -33,6 +33,18 @@ def call_with(frames):
     return model, store, session_on(store, classifier=LLMClassifier(LLMUnderstander(model)))
 
 
+def judged_call(changes):
+    """A model that tags every fact it is sent, as the prompt asks, with ``changes_answer=changes``."""
+    def complete(messages):
+        payload = json.loads(messages[-1]["content"])
+        if payload["turn"] == TRIP_TURN:
+            return json.dumps(TRIP_FRAME)
+        return json.dumps(dict(DEDUCTIBLE, fact_relevance=[
+            {"fact": fact, "type": "other", "changes_answer": changes} for fact in payload["call_state"]["facts"]]))
+    store = Store()
+    return complete, store, session_on(store, classifier=LLMClassifier(LLMUnderstander(complete)))
+
+
 class VoiceStatedFactsTests(unittest.TestCase):
     def test_an_unrelated_stated_fact_no_longer_keeps_the_call_private(self):
         # Each fact of the stated turn (the trip, the kids) needs its own "does not change" (P5 re-check).
@@ -67,12 +79,50 @@ class VoiceStatedFactsTests(unittest.TestCase):
         session.record(session.decide("I am allergic to peanuts"), "Noted.")
         self.assertFalse(session.decide("which desserts do you have today").cacheable)
 
-    def test_the_model_reads_the_calls_facts_never_its_turns(self):
+    def test_the_model_reads_the_turns_the_caller_stated(self):
+        # VD5 (F4b): the model was sent only its own remembered entities, never the stated turn, so it
+        # could not say whether "with the kids" changes an answer; every later turn stayed private.
         model, _, session = call_with({TRIP_TURN: TRIP_FRAME})
         session.record(session.decide(TRIP_TURN), "Goa is lovely in December.")
         session.decide("what is a deductible in insurance")
-        self.assertEqual(model.states[-1]["facts"], ["place: trip to goa"])
-        self.assertNotIn("kids", json.dumps(model.states[-1]))
+        self.assertEqual(model.states[-1]["facts"], ["place: trip to goa", TRIP_TURN])
+
+    def test_a_stated_turn_reaches_the_model_without_its_numbers_and_email(self):
+        model, _, session = call_with({})
+        session.record(session.decide("i am travelling with my son, he is 4 and his email is aarav@mail.com"), "Noted.")
+        session.decide("what is a deductible in insurance")
+        self.assertEqual(model.states[-1]["facts"], ["i am travelling with my son, he is _ and his email is _"])
+
+    def test_a_model_that_judges_what_it_is_sent_shares_an_unrelated_question(self):
+        # The model tags every fact it was sent; before VD5's fix "with the kids" was never sent, so never tagged.
+        _, store, session = judged_call(changes=False)
+        session.record(session.decide(TRIP_TURN), "Goa is lovely in December.")
+        later = session.decide("what is a deductible in insurance")
+        self.assertTrue(later.cacheable)
+        session.record(later, "A deductible is what you pay before insurance pays.")
+        self.assertEqual(list(store.shared), ["what is a deductible in insurance"])
+
+    def test_must_still_be_private_when_the_model_says_a_stated_turn_changes_the_answer(self):
+        _, store, session = judged_call(changes=True)
+        session.record(session.decide(TRIP_TURN), "Goa is lovely in December.")
+        later = session.decide("what is a deductible in insurance")
+        self.assertEqual(later.rule, "VoiceStatedFacts")
+        session.record(later, "A deductible is what you pay before insurance pays.")
+        self.assertEqual(store.shared, {})
+
+    def test_must_still_be_private_when_the_model_never_saw_the_stated_place_or_number(self):
+        # Opus review (F4b): the model was sent "we are flying to _ with _ bags" and could call it irrelevant.
+        _, store, session = judged_call(changes=False)
+        session.record(session.decide("we are flying to Dubai with 3 bags"), "Noted.")
+        later = session.decide("what is a deductible in insurance")
+        self.assertEqual(later.rule, "VoiceStatedFacts")
+        session.record(later, "A deductible is what you pay before insurance pays.")
+        self.assertEqual(store.shared, {})
+
+    def test_must_still_be_private_after_an_allergy_the_model_calls_irrelevant(self):
+        _, _, session = judged_call(changes=False)
+        session.record(session.decide("I am allergic to peanuts"), "Noted.")
+        self.assertFalse(session.decide("which desserts do you have today").cacheable)
 
     def test_must_still_work_without_an_understander_the_call_is_tainted(self):
         store = Store()

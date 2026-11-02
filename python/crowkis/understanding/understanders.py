@@ -133,11 +133,15 @@ person_name; CSV or SSO is topic; PayPal or MacBook is product).
 A person's name is person_name however it is written (all capitals or lowercase); a word that acts like a
 person ("Can McKenzie return items?") or that something is for ("returns for PRIYA") is a person, never a
 product or place.
+identifying: true only for what points to one person (a name, an ID, a contact, an address, a payment detail, a
+birth date, an order or account number; where the caller lives is an address); a product, a topic, a place the
+question is about, a plan or a condition is never identifying.
 attributes: tier and location from the turn or the call state; changes_answer only if it changes the answer.
 A location is where the user is (their city or country), never a place the question is about.
 A segment is the customer's tier or plan (e.g. premium), never the topic of the question.
 uses_state / abstain: resolve "it", "that", "the other place", ellipsis from the call state, the agent's mentions
 and last reply. If the referent is not there, abstain = true and kind = dialogue. Never guess.
+uses_state is false for a stand-alone question that only names a topic also in the call state.
 question: only for general. Standalone and de-identified, built only from words in the turn, the agent's last reply
 and the call state. Keep every product, place, condition, quantity, time and negation; drop names, IDs, contacts.
 One sentence ending in "?", at most 25 words, generic voice ("How do I reset a password?").

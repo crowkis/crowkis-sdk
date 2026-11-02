@@ -108,6 +108,12 @@ def _masked(reply: Any) -> str:
         unicodedata.category(c) in _MASKED for c in m.group()) else m.group(), str(reply or ""))
 
 
+def _unnamed(text: str, private: Set[str]) -> str:
+    """A stated turn as the voice classifier is sent it: masked as a reply is, and any word a private
+    turn of the call held ("sharma") masked too."""
+    return re.sub(r"\w+", lambda m: "_" if m.group().lower() in private else m.group(), _masked(text))
+
+
 def _norm(text: str) -> str:
     """A filler trigger or a turn, normalised for matching: lower case, no edge punctuation, single spaces."""
     return " ".join((text or "").lower().strip(_TRIM).split())

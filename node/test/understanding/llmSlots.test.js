@@ -153,3 +153,15 @@ test("ReplayRewriter: it remembers a verified question", () => {
   const words = new WordRuleClassifier().classify("Refunds?");
   assert.strictEqual(rewriter.rewrite("Refunds?", words), "What is the refund policy?");
 });
+
+// F4b: the model marked a product or a topic as identifying ("UPI", "iPhone 16") and set uses_state
+// when a stand-alone question only named a topic of the call, so general questions stayed private.
+test("the prompt says a product or topic is never identifying", () => {
+  const { INSTRUCTIONS } = require("../../src/understanding/understanders.js");
+  assert.ok(INSTRUCTIONS.includes("a plan or a condition is never identifying"));
+});
+
+test("the prompt says naming a topic of the call is not using its state", () => {
+  const { INSTRUCTIONS } = require("../../src/understanding/understanders.js");
+  assert.ok(INSTRUCTIONS.includes("uses_state is false for a stand-alone question that only names a topic"));
+});

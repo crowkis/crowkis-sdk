@@ -87,6 +87,11 @@ function privateWords(t, frame = null) {
 const REPLY_WORD = /\S+@\S+|[\p{L}\p{N}_]+/gu;
 const MASKED = /[\p{Lu}\p{Lt}\p{Lo}\p{N}]/u;
 const masked = (reply) => String(reply ?? "").replace(REPLY_WORD, (w) => (w.includes("@") || MASKED.test(w) ? "_" : w));
+
+// A stated turn as the voice classifier is sent it: masked as a reply is, and any word a private turn
+// of the call held ("sharma") masked too.
+const unnamed = (text, privateWords) =>
+  masked(text).replace(/[\p{L}\p{N}_]+/gu, (w) => (privateWords.has(w.toLowerCase()) ? "_" : w));
 // A first-person claim that something was done: a cached answer must never claim an action.
 
 function norm(t) {
@@ -105,5 +110,6 @@ module.exports = {
   REPLY_WORD,
   MASKED,
   masked,
+  unnamed,
   norm,
 };

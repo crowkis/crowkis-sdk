@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...runtime.stats import Counter
 from ...turns import Verdict, VoiceTurn
+from ...understanding.chat_details import _unnamed
 from ...understanding.fact_relevance import FactRelevanceCheck
 from ...understanding.word_rules import _sets_context
 
@@ -14,6 +15,13 @@ DEPENDS_REASON = (
     "the caller told this call something that may change this answer (or the model could not say it does "
     "not); a shared answer to the bare question could be wrong for them"
 )
+
+
+def _hidden(stated: str, private) -> bool:
+    """The model was sent this stated turn with a number or a content word masked ("flying to _ with _
+    bags"), so it judged the turn without it: the turn counts."""
+    stems = FactRelevanceCheck._content_stems
+    return any(c.isdecimal() for c in stated) or bool(stems(stated) - stems(_unnamed(stated, private)))
 
 
 class VoiceStatedFacts:
@@ -34,7 +42,9 @@ class VoiceStatedFacts:
             return self._private(turn, TELLS_REASON)
         if turn.call.tainted:  # the call heard something its model never read (loaded history, a private turn)
             return self._private(turn, DEPENDS_REASON)
-        if any(not self._relevance.irrelevant(stated, turn.frame) for stated in turn.call.stated()):
+        private = turn.call.private_words()
+        if any(_hidden(stated, private) or not self._relevance.irrelevant(stated, turn.frame)
+               for stated in turn.call.stated()):
             return self._private(turn, DEPENDS_REASON)
         return None
 

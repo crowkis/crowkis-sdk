@@ -3,6 +3,7 @@
 const { isThenable } = require("./turnCore.js");
 const { leansOn } = require("../understanding/wordRules/index.js");
 const { VoiceTurn } = require("./voiceTurn.js");
+const { unnamed } = require("../understanding/chatDetails.js");
 
 /**
  * Reads a caller's turn with the classifier and the rewriter (the word rules and no rewrite unless an
@@ -23,7 +24,8 @@ class VoiceReader {
 
   read(said, turn) {
     const text = typeof said === "string" ? said.trim() : "";
-    const reading = this._classifier.classify(text, [...this._state.facts]);
+    // The stated turns too, so the model can tag each as changing this answer or not (VD5).
+    const reading = this._classifier.classify(text, [...this._state.facts, ...this._state.stated.map((t) => unnamed(t, this._state.privateRaw))]);
     if (isThenable(reading)) return this._readLater(said, turn, text, reading);
     const rewritten = this._rewriter.rewrite(text, reading);
     if (isThenable(rewritten)) return this._readLater(said, turn, text, reading, rewritten);

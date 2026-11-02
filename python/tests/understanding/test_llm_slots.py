@@ -115,5 +115,18 @@ class ReplayRewriterTests(unittest.TestCase):
         self.assertEqual(rewriter.rewrite("Refunds?", words), "What is the refund policy?")
 
 
+class PromptTests(unittest.TestCase):
+    """F4b: the model marked a product or a topic as identifying ("UPI", "iPhone 16") and set uses_state
+    when a stand-alone question only named a topic of the call, so general questions stayed private."""
+
+    def test_the_prompt_says_a_product_or_topic_is_never_identifying(self):
+        from crowkis.understanding.understanders import INSTRUCTIONS
+        self.assertIn("a plan or a condition is never identifying", INSTRUCTIONS)
+
+    def test_the_prompt_says_naming_a_topic_of_the_call_is_not_using_its_state(self):
+        from crowkis.understanding.understanders import INSTRUCTIONS
+        self.assertIn("uses_state is false for a stand-alone question that only names a topic", INSTRUCTIONS)
+
+
 if __name__ == "__main__":
     unittest.main()

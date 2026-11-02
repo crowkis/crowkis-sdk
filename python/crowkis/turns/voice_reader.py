@@ -6,6 +6,7 @@ from typing import Optional
 
 from ..state.call_state import CallState
 from ..understanding.rewrite_check import RewriteCheck
+from ..understanding.chat_details import _unnamed
 from ..understanding.word_rules import _leans_on
 from ..understanding.slots import Classifier, Rewriter
 from .voice_call import VoiceCall
@@ -29,7 +30,9 @@ class VoiceReader:
 
     def read(self, said: str, turn: int) -> VoiceTurn:
         text = (said or "").strip()
-        reading = self._classifier.classify(text, tuple(self._state.facts))
+        # The stated turns too, so the model can tag each as changing this answer or not (VD5).
+        stated = tuple(_unnamed(told, self._state.private_raw) for told in self._state.stated)
+        reading = self._classifier.classify(text, tuple(self._state.facts) + stated)
         rewritten = self._rewrite_check.accept(text, reading, self._rewriter.rewrite(text, reading), self._call)
         self._state.note_reading(text, reading, rewritten)
         if _leans_on(text, (self._call.chain() or [""])[-1]):

@@ -164,13 +164,13 @@ class RateLimited(Exception):
 
 # ------------------------------------------------------------------------------ Bedrock (F4 only)
 # Understanding (chat, v4) and the judge run on AWS Bedrock, under a hard spending cap (owner: 2 USD).
-BEDROCK_UNDERSTAND = "qwen.qwen3-32b-v1:0"
-BEDROCK_JUDGE = "openai.gpt-oss-120b-1:0"
+BEDROCK_UNDERSTAND = "qwen.qwen3-32b"
+BEDROCK_JUDGE = "openai.gpt-oss-120b"
 # USD per 1M tokens (input, output). Rounded up from Bedrock on-demand list prices (about 0.15 / 0.60
-# for both models in us-east-1 and us-west-2) so the cap errs on the safe side.
-BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.20, 0.80), BEDROCK_JUDGE: (0.20, 0.80)}
+# for both models); no Mumbai price list was available offline, so this errs high to keep the cap safe.
+BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.25, 1.00), BEDROCK_JUDGE: (0.25, 1.00)}
 BEDROCK_STOP_USD = 1.90  # stop before a call that could pass this; the hard cap is 2.00
-BEDROCK_REGIONS = ("us-west-2", "us-east-1", "ap-south-1")
+BEDROCK_URL = "https://bedrock-mantle.ap-south-1.api.aws/v1"  # Bedrock's OpenAI-compatible endpoint (Converse is refused)
 SPEND_FILE = os.path.join(RESULTS_DIR, "bedrock_spend.json")  # kept across --resume and --judge-only
 _bedrock = {}
 
@@ -188,46 +188,28 @@ def bedrock_spent() -> float:
         return 0.0
 
 
-def _bedrock_client():
-    if "client" not in _bedrock:
-        import boto3
-
-        regions = [os.environ[v] for v in ("AWS_REGION", "AWS_DEFAULT_REGION") if os.getenv(v)] or BEDROCK_REGIONS
-        for region in regions:
-            client = boto3.client("bedrock-runtime", region_name=region)
-            try:
-                client.converse(modelId=BEDROCK_UNDERSTAND, messages=[{"role": "user", "content": [{"text": "hi"}]}],
-                                inferenceConfig={"maxTokens": 5})
-            except Exception as exc:  # noqa: BLE001 - try the next region; only the type is printed
-                print(f"         bedrock {region}: {type(exc).__name__}")
-                continue
-            _bedrock["client"], _bedrock["region"] = client, region
-            print(f"         bedrock region {region}")
-            break
-        else:
-            sys.exit("No Bedrock region answered; set AWS_REGION in voice-agent/.env")
-    return _bedrock["client"]
-
-
-def bedrock_call(model: str, messages: list, max_tokens: int = 1500) -> str:
+def bedrock_call(model: str, messages: list, max_tokens: int = 1500, **extra) -> str:
     """One Bedrock completion, costed from the response's token usage. Refuses a call that could pass
     the cap (worst case: a prompt of len/3 tokens plus max_tokens of output)."""
+    from openai import OpenAI
+
     price_in, price_out = BEDROCK_PRICE[model]
-    text_in = sum(len(m["content"]) for m in messages)
-    worst = (text_in / 3 * price_in + max_tokens * price_out) / 1e6
+    worst = (sum(len(m["content"]) for m in messages) / 3 * price_in + max_tokens * price_out) / 1e6
     spent = bedrock_spent()
     if spent + worst > BEDROCK_STOP_USD:
         raise BudgetReached(f"budget reached: spent {spent:.3f} USD, next call could cost {worst:.4f}")
-    system = [{"text": m["content"]} for m in messages if m["role"] == "system"]
-    turns = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages if m["role"] != "system"]
-    client = _bedrock_client()
-    reply = client.converse(modelId=model, messages=turns, **({"system": system} if system else {}),
-                            inferenceConfig={"maxTokens": max_tokens, "temperature": 0})
-    usage = reply["usage"]
-    spent += (usage["inputTokens"] * price_in + usage["outputTokens"] * price_out) / 1e6
+    if "client" not in _bedrock:
+        from dotenv import load_dotenv
+
+        load_dotenv(AGENT + "/.env")  # --judge-only never imports settings
+        _bedrock["client"] = OpenAI(api_key=os.environ["AWS_BEARER_TOKEN_BEDROCK"], base_url=BEDROCK_URL, timeout=120)
+    reply = _bedrock["client"].chat.completions.create(model=model, messages=messages, temperature=0,
+                                                       max_tokens=max_tokens, **extra)
+    usage = reply.usage
+    spent += (usage.prompt_tokens * price_in + usage.completion_tokens * price_out) / 1e6
     with open(SPEND_FILE, "w") as fh:
         json.dump({"usd": spent}, fh)
-    out = "".join(b.get("text", "") for b in reply["output"]["message"]["content"])
+    out = reply.choices[0].message.content or ""
     return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
 
 
@@ -525,6 +507,7 @@ async def play_v4(conv: dict, crowkis, opts) -> dict:
             got["route"] = "model"
             got["sees"] = ("whole call" if not decision.cacheable
                            else "question" if len(decision.messages) == 1 else "question + previous")
+            got["asked"] = decision.messages[-1]["content"] if decision.cacheable else None  # what the model answered, and the cache key (V4-2)
             messages = [system] + (decision.messages if decision.messages is not None
                                    else session.transcript + [{"role": "user", "content": say}])
             reply = await asyncio.to_thread(_groq_call, client, settings.LLM_MODEL, messages, reasoning_effort="low")

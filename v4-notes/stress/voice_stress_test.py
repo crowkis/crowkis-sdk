@@ -162,6 +162,94 @@ class RateLimited(Exception):
         self.detail = detail
 
 
+# ------------------------------------------------------------------------------ Bedrock (F4 only)
+# Understanding (chat, v4) and the judge run on AWS Bedrock, under a hard spending cap (owner: 2 USD).
+BEDROCK_UNDERSTAND = "qwen.qwen3-32b-v1:0"
+BEDROCK_JUDGE = "openai.gpt-oss-120b-1:0"
+# USD per 1M tokens (input, output). Rounded up from Bedrock on-demand list prices (about 0.15 / 0.60
+# for both models in us-east-1 and us-west-2) so the cap errs on the safe side.
+BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.20, 0.80), BEDROCK_JUDGE: (0.20, 0.80)}
+BEDROCK_STOP_USD = 1.90  # stop before a call that could pass this; the hard cap is 2.00
+BEDROCK_REGIONS = ("us-west-2", "us-east-1", "ap-south-1")
+SPEND_FILE = os.path.join(RESULTS_DIR, "bedrock_spend.json")  # kept across --resume and --judge-only
+_bedrock = {}
+
+
+class BudgetReached(RateLimited):
+    def __init__(self, detail: str):
+        super().__init__(False, detail)
+
+
+def bedrock_spent() -> float:
+    try:
+        with open(SPEND_FILE) as fh:
+            return json.load(fh)["usd"]
+    except (OSError, KeyError, ValueError):
+        return 0.0
+
+
+def _bedrock_client():
+    if "client" not in _bedrock:
+        import boto3
+
+        regions = [os.environ[v] for v in ("AWS_REGION", "AWS_DEFAULT_REGION") if os.getenv(v)] or BEDROCK_REGIONS
+        for region in regions:
+            client = boto3.client("bedrock-runtime", region_name=region)
+            try:
+                client.converse(modelId=BEDROCK_UNDERSTAND, messages=[{"role": "user", "content": [{"text": "hi"}]}],
+                                inferenceConfig={"maxTokens": 5})
+            except Exception as exc:  # noqa: BLE001 - try the next region; only the type is printed
+                print(f"         bedrock {region}: {type(exc).__name__}")
+                continue
+            _bedrock["client"], _bedrock["region"] = client, region
+            print(f"         bedrock region {region}")
+            break
+        else:
+            sys.exit("No Bedrock region answered; set AWS_REGION in voice-agent/.env")
+    return _bedrock["client"]
+
+
+def bedrock_call(model: str, messages: list, max_tokens: int = 1500) -> str:
+    """One Bedrock completion, costed from the response's token usage. Refuses a call that could pass
+    the cap (worst case: a prompt of len/3 tokens plus max_tokens of output)."""
+    price_in, price_out = BEDROCK_PRICE[model]
+    text_in = sum(len(m["content"]) for m in messages)
+    worst = (text_in / 3 * price_in + max_tokens * price_out) / 1e6
+    spent = bedrock_spent()
+    if spent + worst > BEDROCK_STOP_USD:
+        raise BudgetReached(f"budget reached: spent {spent:.3f} USD, next call could cost {worst:.4f}")
+    system = [{"text": m["content"]} for m in messages if m["role"] == "system"]
+    turns = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages if m["role"] != "system"]
+    client = _bedrock_client()
+    reply = client.converse(modelId=model, messages=turns, **({"system": system} if system else {}),
+                            inferenceConfig={"maxTokens": max_tokens, "temperature": 0})
+    usage = reply["usage"]
+    spent += (usage["inputTokens"] * price_in + usage["outputTokens"] * price_out) / 1e6
+    with open(SPEND_FILE, "w") as fh:
+        json.dump({"usd": spent}, fh)
+    out = "".join(b.get("text", "") for b in reply["output"]["message"]["content"])
+    return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
+
+
+def understand_call(messages: list) -> str:
+    return bedrock_call(BEDROCK_UNDERSTAND, messages)
+
+
+async def judge_bedrock(prompt: str, model: str) -> dict:
+    last = None
+    for attempt in range(2):
+        try:
+            text = await asyncio.to_thread(bedrock_call, model, [{"role": "user", "content": prompt}], 6000)
+            data = json.loads(text[text.index("{"):text.rindex("}") + 1])
+            data["model"] = model
+            return data
+        except BudgetReached:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a failed judge must not fail the run
+            last = f"{type(exc).__name__}: {str(exc)[:300]}"
+    return {"error": last, "model": model}
+
+
 def install_runtime(tenant: str):
     """Import the agent with Sarvam TTS replaced by a silent stand-in, in this process only."""
     from loguru import logger
@@ -281,7 +369,7 @@ async def play(conv: dict, pipeline: str, crowkis, rt, opts) -> dict:
 # understanding model rewrites each turn into a stand-alone question, V1-V10 decide what is
 # shared, and gpt-oss-20b answers as on the groq pipeline. No understanding budget: this
 # measures the rules, not the latency of the extra model call.
-CHAT_UNDERSTAND_MODEL = os.getenv("STRESS_CHAT_UNDERSTAND_MODEL", "qwen/qwen3.8-27b")
+CHAT_UNDERSTAND_MODEL = BEDROCK_UNDERSTAND  # F4: was qwen/qwen3.8-27b on Groq (daily token limit)
 CHAT_SAVED = {"saved": "saved", "cancelled": "interrupted", "stale": "interrupted",
               "refused:non_answer": "non_answer", "refused:empty": "non_answer",
               "refused:write_failed": "refused"}
@@ -320,7 +408,7 @@ async def play_chat(conv: dict, crowkis, opts) -> dict:
 
     def complete(messages):
         try:
-            return _groq_call(client, CHAT_UNDERSTAND_MODEL, messages, reasoning_effort="none", max_tokens=1500)
+            return understand_call(messages)
         except RateLimited as exc:
             limited.append(exc)
             raise
@@ -396,7 +484,7 @@ async def play_v4(conv: dict, crowkis, opts) -> dict:
     def complete(messages):
         started = time.perf_counter()
         try:
-            return _groq_call(client, CHAT_UNDERSTAND_MODEL, messages, reasoning_effort="none", max_tokens=1500)
+            return understand_call(messages)
         except RateLimited as exc:
             limited.append(exc)
             raise
@@ -565,6 +653,8 @@ def judge_transcript(conv: dict, result: dict) -> str:
 async def judge(conv: dict, result: dict, model_box: list) -> dict:
     prompt = JUDGE_PROMPT.format(domain=conv["domain"], about=conv["about"], persona=conv["persona"] or "-",
                                  transcript=judge_transcript(conv, result))
+    if model_box[0].startswith("openai."):
+        return await judge_bedrock(prompt, model_box[0])
     if not model_box[0].startswith("gemini"):
         return await judge_groq(prompt, model_box[0])
 
@@ -1064,7 +1154,7 @@ async def run(args):
             for c in todo:
                 if c["id"] in done:
                     continue
-                print(f"\n== {pipeline} · {c['id']} · {c['domain']} · {c['code']} ==")
+                print(f"\n== {pipeline} · {c['id']} · {c['domain']} · {c['code']} · bedrock {bedrock_spent():.3f} USD ==")
                 try:
                     done[c["id"]] = await (play_chat(c, crowkis, args) if pipeline == "chat"
                                            else play_v4(c, crowkis, args) if pipeline == "v4"
@@ -1089,11 +1179,17 @@ async def run(args):
                "Rate limited twice in a row: wait a few minutes, then run again with --resume."))
         print(f"Progress kept in {path}")
         write_report(cases, results, run_dir, previous_dir)
-        return 2
+        return 0 if isinstance(exc, BudgetReached) else 2
 
     if not args.no_judge:
         print(f"\n### Judging calls ({args.judge_model})")
-        await judge_run(cases, results, args.judge_model, path)
+        try:
+            await judge_run(cases, results, args.judge_model, path)
+        except BudgetReached as exc:
+            results["status"] = "paused"
+            save(path, results)
+            print(f"\n{exc}")
+            return 0
     results["status"] = "complete"
     results["finished"] = datetime.datetime.now().isoformat(timespec="seconds")
     report = write_report(cases, results, run_dir, previous_dir)
@@ -1172,7 +1268,7 @@ def main():
     parser.add_argument("--keep", action="store_true", help="do not empty the tenant first")
     parser.add_argument("--tenant", default="voice")
     parser.add_argument("--no-judge", action="store_true")
-    parser.add_argument("--judge-model", default=GROQ_JUDGE,
+    parser.add_argument("--judge-model", default=BEDROCK_JUDGE,
                         help=f"a Groq model, or a gemini-* model (default {GROQ_JUDGE})")
     parser.add_argument("--judge-only", metavar="RUN_DIR", help="judge (missing or failed) calls of a saved run")
     parser.add_argument("--rejudge", action="store_true", help="with --judge-only: judge every call again")

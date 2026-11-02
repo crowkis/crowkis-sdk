@@ -1,0 +1,3 @@
+# Run output: large and per machine. Keep the folder, not the runs.
+*
+!.gitignore

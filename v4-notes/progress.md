@@ -18,6 +18,12 @@ from `feat/env-config` at `835c533`. Nothing is pushed; pushes from this clone a
 | P5.7b whole-SDK structure check (owner, 2026-10-24) | | after P5.7, needs the go-ahead: every file in both languages against `CLAUDE.md` section 4 "Splitting"; measures across the SDK (files per typical change, cross-folder imports, forward-only classes, largest files and functions); fixes, golden identical | | |
 | P5.8 developer docs (owner, 2026-10-24) | | after P5.7b, needs the go-ahead: the codebase guide for v4, a README per package folder, a generated API reference (pdoc / TypeDoc), diagrams by script, a code tour, decision records, a newcomer check | | |
 
+## F4 done (2026-11-02): stress-run proof, v4 does NOT pass
+
+- Results and gates: `f4-results.md` (script `stress/voice_stress_test.py`, run dir git-ignored). 0 real cross-caller leaks and judge correctness not lower (PASS); saved answers 41 vs voice 53 / chat 39 (FAIL); decide p95 834 ms with the model inline, 27 ms without (FAIL as run).
+- Next fix candidates (not done): `OwnRecords` reading general questions as personal, `PrivateChain`, VD5 facts never reach the classifier; then re-run. V4-2 not fully checked (the re-run recording the rewritten question stopped at 6 calls: Groq answerer daily limit; resume with `--pipeline v4 --resume`).
+- Bedrock spend 0.41 USD of 2.00 (OpenAI-compatible endpoint, Mumbai). `crowkis-demo` stopped. Nothing pushed.
+
 ## F2 done (2026-11-01): one call state, one key builder
 
 - `CallState` (`state/call_state.py`, `src/state/callState.js`) now also holds voice's memory: `tainted`, `heard`,

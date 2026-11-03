@@ -260,6 +260,38 @@ class NonAnswerTests(unittest.TestCase):
             with self.subTest(reply=reply):
                 self.assertFalse(_is_non_answer(reply))
 
+    def test_s9_a_non_answer_with_a_follow_up_offer_is_still_a_non_answer(self):
+        for reply in ("I don't have that information, but someone can call you back.",
+                      "I don't have that information.",
+                      "I do not have the details for that, but a colleague will get back to you.",
+                      "Sorry, I don't have any information on that right now.",
+                      "I'm afraid we don't have that information yet, but our team can email you.",
+                      "We don't have those details at the moment. Someone will call you back today.",
+                      "I don't currently have access to that, but I'll have someone reach out.",
+                      "I can't confirm that over the phone, but you can visit the office.",
+                      "I'm not able to check that right now, but a representative can call you back.",
+                      "Unfortunately I can't look that up, but we can send it to you by email.",
+                      "I couldn't find that, but somebody from the front desk will follow up.",
+                      "Thanks for calling. I don't have that data, but let me connect you to the office.",
+                      "We do not have any records of that, but feel free to contact the admissions office.",
+                      "I don’t have that information, but someone can call you back."):
+            with self.subTest(reply=reply):
+                self.assertTrue(_is_non_answer(reply))
+        for reply in ("You don't need an appointment, just walk in between 9 and 5.",
+                      "You can't pay in cash, but cards and UPI are accepted.",
+                      "We don't charge a fee for the first visit.",
+                      "We don't have parking on site, but there is a public lot next door.",
+                      "Don't worry, the fee is refunded within 7 days.",
+                      "The clinic doesn't open on Sundays.",
+                      "I don't have the exact figure, but it is around 50,000 rupees per year.",
+                      "I can't confirm the exact day, but results usually come out in June.",
+                      "Unfortunately I'm unable to issue refunds after 30 days.",
+                      "Students can't change their course after the first month.",
+                      "If you can't attend, you can reschedule online for free.",
+                      "No, you don't have to bring the original documents, copies are fine."):
+            with self.subTest(reply=reply):
+                self.assertFalse(_is_non_answer(reply))
+
     def test_a_non_answer_is_never_saved_as_a_template(self):
         client = ScopedFakeClient()
         session = _session(client, values={"name": "Sarah"}, share_templates=True)

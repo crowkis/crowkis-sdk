@@ -1639,7 +1639,17 @@ const NON_ANSWER_PHRASES = [
 ];
 // What follows "..., but" when a reply only points elsewhere: "but you can check a map".
 const REDIRECTS = ["you ", "you'll", "you'd", "a quick search", "a search", "an online search", "i recommend", "i suggest", "i'd ", "i would ", "i can ", "please", "try", "check",
-  "consider", "if you", "it's best", "it is best", "it would be best"];
+  "consider", "if you", "it's best", "it is best", "it would be best",
+  "someone", "somebody", "a colleague", "a representative", "a member", "an agent", "our team",
+  "the team", "our staff", "we can", "we'll", "we will", "i'll", "i will", "let me", "feel free",
+  "contact", "call", "reach", "visit"];
+// "I/we cannot <find or have the information>" in any wording; an offer after it changes nothing.
+const UNABLE = new RegExp(
+  "^(?:i'm afraid |i am afraid )?(?:i|we)(?: do not| don't| cannot| can't| could not| couldn't" +
+  "|(?:'m| am|'re| are) (?:unable|not able) to| (?:won't|will not) be able to)(?: currently| really| actually)?" +
+  " (?:have(?: any| the| that| this| those| such| enough| more| specific| exact| current| up-to-date| real-time)*" +
+  " (?:information|info|details|data|records?|access|answer)\\b" +
+  "|(?:confirm|check|look|find|see|access|verify|locate|pull up)\\b)");
 // Openers that soften a non-answer without changing it: "Unfortunately I do not know".
 const SOFTENERS = ["unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but "];
 const SENTENCE = /[^.!?]+[.!?]*/g;
@@ -1679,7 +1689,8 @@ function isNonAnswer(answer) {
     .map((lead) => { const w = SOFTENERS.find((x) => lead.startsWith(x)); return w ? lead.slice(w.length) : lead; })
     // "I can't determine the exact date, but historians place it around 1200 BC." answers;
     // "I cannot determine your location, but you can check a map." does not.
-    .some((lead) => NON_ANSWER_PHRASES.some((phrase) => lead.startsWith(phrase) && !(phrase.includes("determine") && answersAfterBut(lead))));
+    .some((lead) => NON_ANSWER_PHRASES.some((phrase) => lead.startsWith(phrase) && !(phrase.includes("determine") && answersAfterBut(lead))) ||
+      (UNABLE.test(lead) && !answersAfterBut(lead)));
 }
 
 function answersAfterBut(lead) {

@@ -200,6 +200,35 @@ test("the non-answer check reads how the answer opens", () => {
     "Unfortunately I'm unable to issue refunds after 30 days."]) assert.strictEqual(_isNonAnswer(reply), false, reply);
 });
 
+test("S9: a non-answer with a follow-up offer is still a non-answer", () => {
+  for (const reply of ["I don't have that information, but someone can call you back.",
+    "I don't have that information.",
+    "I do not have the details for that, but a colleague will get back to you.",
+    "Sorry, I don't have any information on that right now.",
+    "I'm afraid we don't have that information yet, but our team can email you.",
+    "We don't have those details at the moment. Someone will call you back today.",
+    "I don't currently have access to that, but I'll have someone reach out.",
+    "I can't confirm that over the phone, but you can visit the office.",
+    "I'm not able to check that right now, but a representative can call you back.",
+    "Unfortunately I can't look that up, but we can send it to you by email.",
+    "I couldn't find that, but somebody from the front desk will follow up.",
+    "Thanks for calling. I don't have that data, but let me connect you to the office.",
+    "We do not have any records of that, but feel free to contact the admissions office.",
+    "I don\u2019t have that information, but someone can call you back."]) assert.strictEqual(_isNonAnswer(reply), true, reply);
+  for (const reply of ["You don't need an appointment, just walk in between 9 and 5.",
+    "You can't pay in cash, but cards and UPI are accepted.",
+    "We don't charge a fee for the first visit.",
+    "We don't have parking on site, but there is a public lot next door.",
+    "Don't worry, the fee is refunded within 7 days.",
+    "The clinic doesn't open on Sundays.",
+    "I don't have the exact figure, but it is around 50,000 rupees per year.",
+    "I can't confirm the exact day, but results usually come out in June.",
+    "Unfortunately I'm unable to issue refunds after 30 days.",
+    "Students can't change their course after the first month.",
+    "If you can't attend, you can reschedule online for free.",
+    "No, you don't have to bring the original documents, copies are fine."]) assert.strictEqual(_isNonAnswer(reply), false, reply);
+});
+
 test("a non-answer is never saved as a template", async () => {
   const client = new FakeClient();
   const talk = new VoiceSession(new Agent("caller", { client }), { voice: "alloy", values: { name: "Sarah" }, shareTemplates: true });

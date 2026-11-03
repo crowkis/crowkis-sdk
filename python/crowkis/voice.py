@@ -1659,7 +1659,17 @@ _NON_ANSWER_PHRASES = (
 )
 # What follows "..., but" when a reply only points elsewhere: "but you can check a map".
 _REDIRECTS = ("you ", "you'll", "you'd", "a quick search", "a search", "an online search", "i recommend", "i suggest", "i'd ", "i would ", "i can ", "please", "try", "check",
-              "consider", "if you", "it's best", "it is best", "it would be best")
+              "consider", "if you", "it's best", "it is best", "it would be best",
+              "someone", "somebody", "a colleague", "a representative", "a member", "an agent", "our team",
+              "the team", "our staff", "we can", "we'll", "we will", "i'll", "i will", "let me", "feel free",
+              "contact", "call", "reach", "visit")
+# "I/we cannot <find or have the information>" in any wording; an offer after it changes nothing.
+_UNABLE = re.compile(
+    r"(?:i'm afraid |i am afraid )?(?:i|we)(?: do not| don't| cannot| can't| could not| couldn't"
+    r"|(?:'m| am|'re| are) (?:unable|not able) to| (?:won't|will not) be able to)(?: currently| really| actually)?"
+    r" (?:have(?: any| the| that| this| those| such| enough| more| specific| exact| current| up-to-date| real-time)*"
+    r" (?:information|info|details|data|records?|access|answer)\b"
+    r"|(?:confirm|check|look|find|see|access|verify|locate|pull up)\b)")
 # Openers that soften a non-answer without changing it: "Unfortunately I do not know".
 _SOFTENERS = ("unfortunately ", "sadly ", "sorry ", "hmm ", "well ", "but ")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]*")
@@ -1707,7 +1717,8 @@ def _is_non_answer(answer: str) -> bool:
     # "I can't determine the exact date, but historians place it around 1200 BC." answers;
     # "I cannot determine your location, but you can check a map." does not.
     return any(lead.startswith(phrase) and not ("determine" in phrase and _answers_after_but(lead))
-               for lead in leads for phrase in _NON_ANSWER_PHRASES)
+               for lead in leads for phrase in _NON_ANSWER_PHRASES) or any(
+        _UNABLE.match(lead) and not _answers_after_but(lead) for lead in leads)
 
 
 def _answers_after_but(lead: str) -> bool:

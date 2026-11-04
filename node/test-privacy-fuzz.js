@@ -16,6 +16,8 @@ const { ConformanceStore } = require("./test/conformance.js");
 
 const SEED = 20261104;
 const MIN_CONTROL_SAVES = 20; // of QUESTIONS.length general questions
+const MIN_CONTROL_FRACTION = 0.4; // of the calls of a "stated earlier" category that must save once the detail is out of the answer
+const NOTHING = "nothing"; // a category whose calls never save anything, by design
 
 const FIRST = ["Rahul", "Priyanka", "Anjali", "Vikram", "Sunita", "Harpreet", "Deepak", "Meenakshi", "Tarun", "Kavitha"];
 const LAST = ["Verma", "Sharma", "Deshpande", "Kulkarni", "Bhattacharya", "Iyer", "Chauhan", "Mehra"];
@@ -257,20 +259,34 @@ const asChat = (build) => (rng, d) => build(rng, d).map(([text, answer]) => {
 });
 
 // Runs every case; fails with one line per leak (seed, case index, the detail, what was written).
-async function check(category, perKind, build, play, blobsOf, { kinds = ALL_KINDS, make } = {}) {
+// `saves` is for a "stated earlier" category, so it cannot go vacuous: the same calls with the detail left out of
+// the model's answer (the control) must save in at least MIN_CONTROL_FRACTION of the cases, or, with NOTHING, must
+// save nothing at all (and so must the call itself).
+async function check(category, perKind, build, play, blobsOf, { kinds = ALL_KINDS, make, saves } = {}) {
   const rng = makeRng(category);
   const failures = [];
   let total = 0;
+  let saved = 0;
   for (const kind of kinds) {
     for (let i = 0; i < perKind; i += 1) {
       const d = make ? make(rng, kind) : MAKERS[kind](rng);
-      const blobs = blobsOf(await play(build(rng, d)));
+      const turns = build(rng, d);
+      const blobs = blobsOf(await play(turns));
       failures.push(...leaked(d, blobs).map(([n, b]) =>
         `seed=${SEED}:${category} case=${total} kind=${kind} detail=${JSON.stringify(n)} written=${JSON.stringify(b.slice(0, 120))}`));
+      if (saves !== undefined) {
+        const control = turns.map((t) => [...t.slice(0, -1), t[t.length - 1].split(`, ${d.shown}`).join("")]);
+        const controlBlobs = blobsOf(await play(control));
+        if (controlBlobs.length) saved += 1;
+        if (saves === NOTHING) failures.push(...[...blobs, ...controlBlobs].map((b) => `seed=${SEED}:${category} case=${total} wrote ${JSON.stringify(b.slice(0, 80))}`));
+      }
       total += 1;
     }
   }
   assert.deepStrictEqual(failures, [], `${failures.length} leaks in ${total} cases:\n${failures.slice(0, 10).join("\n")}`);
+  if (saves !== undefined && saves !== NOTHING) {
+    assert.ok(saved >= saves * total, `${category}: only ${saved} of ${total} control calls saved anything, so the leak search may be vacuous`);
+  }
   return total;
 }
 const NO_NAME = ["phone", "email", "id", "address", "dob"];
@@ -282,14 +298,14 @@ test("voice: detail in the question", async () => {
   assert.strictEqual(await check("v-in", 12, inQuestion, playVoice, storeBlobs), 72);
 });
 test("voice: detail stated earlier, then a general question", async () => {
-  assert.strictEqual(await check("v-earlier", 12, statedEarlier, playVoice, storeBlobs, { kinds: NO_NAME, make: digitsPhone }), 60);
+  assert.strictEqual(await check("v-earlier", 12, statedEarlier, playVoice, storeBlobs, { kinds: NO_NAME, make: digitsPhone, saves: MIN_CONTROL_FRACTION }), 60);
 });
 test("voice: name stated earlier, then repeated by the model", async () => {
-  assert.strictEqual(await check("v-name", 30, statedEarlier, playVoice, storeBlobs, { kinds: ["name"] }), 30);
+  assert.strictEqual(await check("v-name", 30, statedEarlier, playVoice, storeBlobs, { kinds: ["name"], saves: MIN_CONTROL_FRACTION }), 30);
 });
 test("voice: phone in words stated earlier, then repeated by the model", async () => {
   const words = (rng) => MAKERS.phone(rng, "words");
-  assert.strictEqual(await check("v-words", 12, statedEarlier, playVoice, storeBlobs, { kinds: ["phone"], make: words }), 12);
+  assert.strictEqual(await check("v-words", 12, statedEarlier, playVoice, storeBlobs, { kinds: ["phone"], make: words, saves: MIN_CONTROL_FRACTION }), 12);
 });
 test("voice: Hinglish", async () => {
   const build = (rng, d) => {
@@ -304,7 +320,7 @@ test("voice: Hinglish name stated earlier", async () => {
     const [question, answer] = rng.pick(HI_QUESTIONS);
     return [[fill(HINGLISH.name, d.shown), "Theek hai."], [question, addressing(answer, d)]];
   };
-  await check("v-hi-name", 10, build, playVoice, storeBlobs, { kinds: ["name"] });
+  await check("v-hi-name", 10, build, playVoice, storeBlobs, { kinds: ["name"], saves: MIN_CONTROL_FRACTION });
 });
 test("voice: Devanagari", async () => {
   const build = (rng, d) => {
@@ -314,11 +330,13 @@ test("voice: Devanagari", async () => {
   assert.strictEqual(await check("v-dev", 15, build, playVoice, storeBlobs, { kinds: ["phone", "id"], make: makeDevanagari }), 30);
 });
 test("voice: Devanagari name stated earlier", async () => {
+  // Known limit (open items L3 / VD7): Devanagari text always taints the call, so nothing is saved at all, whatever
+  // the model says. That is the guarantee: the call, and the same call without the name in the answer, write nothing.
   const build = (rng, d) => {
     const [question, answer] = rng.pick(HI_QUESTIONS);
     return [[d.said, "ठीक है।"], [question, addressing(answer, d)]];
   };
-  await check("v-dev-name", 10, build, playVoice, storeBlobs, { kinds: ["name"], make: makeDevanagari });
+  assert.strictEqual(await check("v-dev-name", 10, build, playVoice, storeBlobs, { kinds: ["name"], make: makeDevanagari, saves: NOTHING }), 10);
 });
 test("voice: long text with a buried detail", async () => {
   assert.strictEqual(await check("v-long", 5, longText, playVoice, storeBlobs), 30);
@@ -346,21 +364,21 @@ test("chat: a weak understander, detail stated earlier", async () => {
   // The frame names no entity, so the SDK's own backstops (stated names, spoken numbers, IDs) do the work.
   const noEntities = () => ({ kind: "personal", subject: "self", confidence: 0.9 });
   for (const [label, frameOf] of [["personal", noEntities], ["general", generalFrame]]) {
-    assert.strictEqual(await check(`c-weak-${label}`, 12, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone }), 60);
+    assert.strictEqual(await check(`c-weak-${label}`, 12, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone, saves: MIN_CONTROL_FRACTION }), 60);
     // shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic" must
     // stay a fact), so that frame gets names with a capital; voice reads every casing.
     const make = label === "personal" ? undefined : (rng) => MAKERS.name(rng, true);
-    assert.strictEqual(await check(`c-weak-name-${label}`, 30, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: ["name"], make }), 30);
+    assert.strictEqual(await check(`c-weak-name-${label}`, 30, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: ["name"], make, saves: MIN_CONTROL_FRACTION }), 30);
   }
 });
 test("chat: detail in the question", async () => {
   assert.strictEqual(await check("c-in", 12, asChat(inQuestion), playChat, chatBlobs), 72);
 });
 test("chat: detail stated earlier, then a general question", async () => {
-  assert.strictEqual(await check("c-earlier", 12, asChat(statedEarlier), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone }), 60);
+  assert.strictEqual(await check("c-earlier", 12, asChat(statedEarlier), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone, saves: MIN_CONTROL_FRACTION }), 60);
 });
 test("chat: name stated earlier, then repeated by the model", async () => {
-  assert.strictEqual(await check("c-name", 30, asChat(statedEarlier), playChat, chatBlobs, { kinds: ["name"] }), 30);
+  assert.strictEqual(await check("c-name", 30, asChat(statedEarlier), playChat, chatBlobs, { kinds: ["name"], saves: MIN_CONTROL_FRACTION }), 30);
 });
 test("chat: Hinglish and Devanagari", async () => {
   const build = (rng, d) => {

@@ -19,6 +19,8 @@ from test_chat import GENERAL, Model, Scripted, SegmentedAgent
 
 SEED = 20261104
 MIN_CONTROL_SAVES = 20  # of CONTROLS general questions
+MIN_CONTROL_FRACTION = 0.4  # of the calls of a "stated earlier" category that must save once the detail is out of the answer
+NOTHING = "nothing"  # a category whose calls never save anything, by design
 
 FIRST = ["Rahul", "Priyanka", "Anjali", "Vikram", "Sunita", "Harpreet", "Deepak", "Meenakshi", "Tarun", "Kavitha"]
 LAST = ["Verma", "Sharma", "Deshpande", "Kulkarni", "Bhattacharya", "Iyer", "Chauhan", "Mehra"]
@@ -260,9 +262,12 @@ def digits_phone(rng, kind):
 
 
 class Fuzz(unittest.TestCase):
-    def check(self, category, n_per_kind, build, play, blobs_of, kinds=tuple(MAKERS), make=None):
-        """Run every case; fail with one line per leak (seed, case index, the detail, what was written)."""
-        failures, total = [], 0
+    def check(self, category, n_per_kind, build, play, blobs_of, kinds=tuple(MAKERS), make=None, saves=None):
+        """Run every case; fail with one line per leak (seed, case index, the detail, what was written).
+        ``saves`` is for a "stated earlier" category, so it cannot go vacuous: the same calls with the
+        detail left out of the model's answer (the control) must save in at least MIN_CONTROL_FRACTION
+        of the cases, or, with NOTHING, must save nothing at all (and so must the call itself)."""
+        failures, total, saved = [], 0, 0
         rng = random.Random(f"{SEED}:{category}")
         for index, (kind, i) in enumerate((k, i) for k in kinds for i in range(n_per_kind)):
             detail = make(rng, kind) if make else MAKERS[kind](rng)
@@ -271,8 +276,16 @@ class Fuzz(unittest.TestCase):
             total += 1
             failures += [f"seed={SEED}:{category} case={index} kind={kind} detail={n!r} written={b[:120]!r}"
                          for n, b in leaked(detail, blobs)]
+            if saves is not None:
+                control = [(*t[:-1], t[-1].replace(f", {detail.shown}", "")) for t in turns]
+                control_blobs = blobs_of(play(control, detail))
+                saved += bool(control_blobs)
+                if saves == NOTHING:
+                    failures += [f"seed={SEED}:{category} case={index} wrote {b[:80]!r}" for b in blobs + control_blobs]
         self.assertGreaterEqual(total, 1)
         self.assertEqual(failures, [], f"{len(failures)} leaks in {total} cases:\n" + "\n".join(failures[:10]))
+        if saves not in (None, NOTHING):
+            self.assertGreaterEqual(saved, saves * total, f"{category}: only {saved} of {total} control calls saved anything, so the leak search may be vacuous")
         return total
 
     # voice
@@ -285,14 +298,14 @@ class Fuzz(unittest.TestCase):
 
     def test_voice_detail_stated_earlier(self):
         self.assertEqual(self.check("v-earlier", 12, stated_earlier, self.voice, store_blobs,
-                                    kinds=("phone", "email", "id", "address", "dob"), make=digits_phone), 60)
+                                    kinds=("phone", "email", "id", "address", "dob"), make=digits_phone, saves=MIN_CONTROL_FRACTION), 60)
 
     def test_voice_phone_in_words_stated_earlier(self):
         words = lambda rng, kind: make_phone(rng, "words")
-        self.assertEqual(self.check("v-words", 12, stated_earlier, self.voice, store_blobs, kinds=("phone",), make=words), 12)
+        self.assertEqual(self.check("v-words", 12, stated_earlier, self.voice, store_blobs, kinds=("phone",), make=words, saves=MIN_CONTROL_FRACTION), 12)
 
     def test_voice_name_stated_earlier_then_repeated_by_the_model(self):
-        self.assertEqual(self.check("v-name", 30, stated_earlier, self.voice, store_blobs, kinds=("name",)), 30)
+        self.assertEqual(self.check("v-name", 30, stated_earlier, self.voice, store_blobs, kinds=("name",), saves=MIN_CONTROL_FRACTION), 30)
 
     def test_voice_hinglish(self):
         def build(rng, detail):
@@ -308,7 +321,7 @@ class Fuzz(unittest.TestCase):
         def build(rng, detail):
             question, answer = rng.choice(HI_QUESTIONS)
             return [(HINGLISH["name"].format(detail.shown), "Theek hai."), (question, answer[:-1] + f", {detail.shown}.")], None
-        self.check("v-hi-name", 10, build, self.voice, store_blobs, kinds=("name",))
+        self.check("v-hi-name", 10, build, self.voice, store_blobs, kinds=("name",), saves=MIN_CONTROL_FRACTION)
 
     def test_voice_devanagari(self):
         def build(rng, detail):
@@ -320,10 +333,13 @@ class Fuzz(unittest.TestCase):
                                     make=make_devanagari), 30)
 
     def test_voice_devanagari_name(self):
+        # Known limit (open items L3 / VD7): Devanagari text always taints the call, so nothing is saved at all,
+        # whatever the model says. That is the guarantee: the call, and the same call without the name in the
+        # answer, write nothing, so no name can reach a shared entry.
         def build(rng, detail):
             question, answer = rng.choice(HI_QUESTIONS)
             return [(detail.said, "ठीक है।"), (question, answer[:-1] + f", {detail.shown}.")], None
-        self.check("v-dev-name", 10, build, self.voice, store_blobs, kinds=("name",), make=make_devanagari)
+        self.assertEqual(self.check("v-dev-name", 10, build, self.voice, store_blobs, kinds=("name",), make=make_devanagari, saves=NOTHING), 10)
 
     def test_voice_long_text_with_a_buried_detail(self):
         self.assertEqual(self.check("v-long", 5, long_text, self.voice, store_blobs), 30)
@@ -373,22 +389,22 @@ class Fuzz(unittest.TestCase):
         for label, frame_of in (("personal", no_entities), ("general", general_frame)):
             with self.subTest(frame=label):
                 self.assertEqual(self.check(f"c-weak-{label}", 12, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
-                                            kinds=("phone", "email", "id", "address", "dob")), 60)
+                                            kinds=("phone", "email", "id", "address", "dob"), saves=MIN_CONTROL_FRACTION), 60)
                 # shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic"
                 # must stay a fact), so that frame gets names with a capital; voice reads every casing.
                 make = None if label == "personal" else lambda rng, kind: make_name(rng, cased=True)
                 self.assertEqual(self.check(f"c-weak-name-{label}", 30, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
-                                            kinds=("name",), make=make), 30)
+                                            kinds=("name",), make=make, saves=MIN_CONTROL_FRACTION), 30)
 
     def test_chat_detail_in_the_question(self):
         self.assertEqual(self.check("c-in", 12, self.as_chat(in_question), self.chat, chat_blobs), 72)
 
     def test_chat_detail_stated_earlier(self):
         self.assertEqual(self.check("c-earlier", 12, self.as_chat(stated_earlier), self.chat, chat_blobs,
-                                    kinds=("phone", "email", "id", "address", "dob")), 60)
+                                    kinds=("phone", "email", "id", "address", "dob"), saves=MIN_CONTROL_FRACTION), 60)
 
     def test_chat_name_stated_earlier_then_repeated_by_the_model(self):
-        self.assertEqual(self.check("c-name", 30, self.as_chat(stated_earlier), self.chat, chat_blobs, kinds=("name",)), 30)
+        self.assertEqual(self.check("c-name", 30, self.as_chat(stated_earlier), self.chat, chat_blobs, kinds=("name",), saves=MIN_CONTROL_FRACTION), 30)
 
     def test_chat_hinglish_and_devanagari(self):
         def build(rng, detail):

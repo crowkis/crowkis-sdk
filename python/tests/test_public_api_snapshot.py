@@ -27,7 +27,9 @@ def _describe(name, thing, out):
     if inspect.isclass(thing):
         out.append(name + _params(thing))
         for member, value in inspect.getmembers(thing):
-            if member.startswith("_"):
+            owner = next((k for k in thing.__mro__ if member in vars(k)), None)
+            # members inherited from builtins (Exception.add_note, ...) vary with the Python version
+            if member.startswith("_") or owner is None or owner.__module__ == "builtins":
                 continue
             if isinstance(inspect.getattr_static(thing, member), property):
                 out.append(f"{name}.{member}")

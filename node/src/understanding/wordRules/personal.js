@@ -726,6 +726,7 @@ function repeatsIdentifier(answer, ids) {
   const spoken = spokenNumbers(answer || "");
   const flat = flatten(answer) + spoken.join("|"); // digits said as words
   const tokens = new Set([...(String(answer || "").match(ID_TOKEN) || []).map(flatten), ...wordsOf(answer), ...spoken]);
+  for (const token of [...tokens]) tokens.add(bare(token)); // "Rahulji" says Rahul
   return [...ids].some((value) => (value.length >= 6 ? flat.includes(value) : tokens.has(value)));
 }
 
@@ -749,43 +750,76 @@ function carriesCallContext(answer, question, earlier) {
 
 // How the caller gives a name. Case does not matter (speech-to-text often lower-cases names): over-capturing
 // only keeps answers that say the captured word private. Not a name: an article or other function word,
-// a word ending in -ing, or one of these common words after "I am" / "this is". As in Python.
-const NAME_LEADS = [["my", "name", "is"], ["my", "name", "s"], ["name", "s"], ["call", "me"], ["mera", "naam"], ["naam"]];
-const NAME_LEADS_WEAK = [["i", "m"], ["i", "am"], ["this", "is"]];
-const NAME_PARTS = 2;
+// a word ending in -ing, or one of these common words after a lead. As in Python.
+// Phrases after which the caller gives a name: "my name is sarah", "mera naam hai raj", "this is raj".
+const NAMING = [["name", "is"], ["name", "s"], ["call", "me"], ["naam", "hai"], ["naam"], ["this", "is"], ["i", "m"], ["i", "am"],
+  ["myself"], ["speaking", "with"]];
+// Leads that need a capital in Chat (voice takes lower case too), as a plain word can follow them ("I'm diabetic").
+const NAMING_WEAK = [["this", "is"], ["i", "m"], ["i", "am"], ["myself"], ["speaking", "with"], ["it", "s"], ["it", "is"], ["its"]].map((l) => l.join(" "));
+// Leads only at the start of the turn (after a greeting): "it's Rahul", but not "I think it is open".
+const NAMING_AT_START = [["it", "s"], ["it", "is"], ["its"]];
+// A name said first: "Rahul here", "Rahul this side", "Rahul speaking", at the start of the turn only.
+const NAME_TRAILERS = [["here"], ["this", "side"], ["speaking"]];
+const NAME_PARTS = 3;
+const NAME_MIN_LENGTH = 2;
 const NOT_NAMES = new Set([
   "not", "here", "new", "interested", "from", "about", "urgent", "regarding", "sorry", "sure", "fine", "good",
   "ok", "okay", "ready", "back", "also", "just", "still", "very", "so", "too", "available", "unable", "unsure",
   "happy", "glad", "wondering", "afraid", "writing", "important", "serious", "emergency", "wrong", "right",
   "hai", "hain", "hoon", "hu", // Hinglish "mera naam Rahul hai"
+  "tomorrow", "today", "tonight", "later", "soon", "now", "again", "open", "free", "closed", "possible", // "call me tomorrow", "it's free"
+  "correct", "true", "late", "early", "easy", "cheap", "time",
 ]);
+const HONORIFIC = /(?:ji|jee)$/;
+
+// A name without the Hindi honorific glued on ("rahulji" -> "rahul").
+function bare(word) {
+  const stripped = word.replace(HONORIFIC, "");
+  return stripped.length >= NAME_MIN_LENGTH ? stripped : word;
+}
+
+// The leading words of `tokens` that read as a name; `strict` wants a capital first letter.
+function nameWords(tokens, strict) {
+  const out = [];
+  for (const token of tokens.slice(0, NAME_PARTS)) {
+    const word = token.toLowerCase();
+    if ((strict && token[0] === token[0].toLowerCase()) || FUNCTION_WORDS.has(word) || GREETINGS.has(word) || NOT_NAMES.has(word) || word.endsWith("ing")) break;
+    out.push(word);
+  }
+  return out;
+}
 
 // The names callers gave in `texts` ("my name is Rahul Verma", "this is harpreet iyer calling", "mera naam
-// Rahul hai"): each word of the name, lower-cased and flattened as leaks compares.
-// After "I'm" / "I am" / "this is" a lower-case word is a name only with `lowercase` (voice); Chat reads names
+// Rahul hai", "Rahul here"): each word of the name, lower-cased and flattened as leaks compares.
+// After a weak lead ("I'm", "this is") a lower-case word is a name only with `lowercase` (voice); Chat reads names
 // into its question rules too, so there "I'm diabetic" must not make "diabetic" a name.
 function statedNames(texts, lowercase = true) {
   const found = new Set();
   for (const text of texts) {
     const tokens = String(text || "").match(/[\p{L}\p{M}\p{N}]+/gu) || [];
     const words = tokens.map((t) => t.toLowerCase());
+    let start = 0;
+    while (start < words.length && GREETINGS.has(words[start])) start += 1;
     for (let at = 0; at < words.length; at++) {
-      for (const [lead, weak] of [...NAME_LEADS.map((l) => [l, false]), ...NAME_LEADS_WEAK.map((l) => [l, !lowercase])]) {
+      for (const lead of [...NAMING, ...NAMING_AT_START]) {
         if (!lead.every((w, i) => words[at + i] === w)) continue;
-        for (const token of tokens.slice(at + lead.length, at + lead.length + NAME_PARTS)) {
-          const word = token.toLowerCase();
-          if ((weak && token[0] === token[0].toLowerCase()) || FUNCTION_WORDS.has(word) || GREETINGS.has(word) || NOT_NAMES.has(word) || word.endsWith("ing")) break;
-          found.add(word);
+        if (NAMING_AT_START.includes(lead) && at !== start) continue;
+        for (const w of nameWords(tokens.slice(at + lead.length), !lowercase && NAMING_WEAK.includes(lead.join(" ")))) found.add(w);
+      }
+    }
+    for (const trailer of NAME_TRAILERS) {
+      for (let size = 1; size <= NAME_PARTS; size++) {
+        const end = start + size;
+        if (trailer.every((w, i) => words[end + i] === w) && nameWords(tokens.slice(start, end), !lowercase).length === size) {
+          for (const w of words.slice(start, end)) found.add(w);
         }
       }
     }
   }
-  return new Set([...found].filter((value) => value.length >= 2));
+  return new Set([...found].filter((value) => value.length >= NAME_MIN_LENGTH));
 }
 
 const STEERING_BY_FIRST = firstWords(STEERING);
-// Phrases after which the caller gives a name: "my name is sarah", "this is raj".
-const NAMING = [["name", "is"], ["call", "me"], ["this", "is"], ["i", "m"], ["i", "am"]];
 
 // A system prompt can carry one caller's details ("The caller is Asha Rao, account
 // 99812"). An answer that repeats them must never be shared. Same rules as Python
@@ -896,6 +930,7 @@ module.exports = {
   leaks,
   ID_TOKEN,
   statedNames,
+  bare,
   YEAR,
   identifiers,
   repeatsIdentifier,

@@ -92,6 +92,40 @@ class StatedNameTests(unittest.TestCase):
         self.assertEqual(_stated_names(["mera naam Rahul hai"]), {"rahul"})
 
 
+MORE_INTROS = ["Rahul here", "rahul here", "hello, Rahul this side", "Rahul speaking", "myself Rahul", "myself rahul verma",
+               "it's Rahul", "its rahul", "it is Rahul", "you're speaking with Rahul", "mera naam hai Rahul",
+               "my good name is Rahul", "the name is Rahul", "my first name is Rahul"]
+CHAT_INTROS = [i for i in MORE_INTROS if i != "myself rahul verma"]  # lower-case "myself X" is a weak lead in Chat
+
+
+class MoreNamePhrasingTests(unittest.TestCase):
+    def test_voice_every_phrasing_keeps_the_name_out_of_shared_answers(self):
+        for intro in MORE_INTROS:
+            with self.subTest(intro=intro):
+                self.assertEqual(_voice([(intro, INTRO_ANSWER), ("what is the refund policy", "Refunds in 7 days, Rahul.")]), [])
+
+    def test_chat_every_phrasing_keeps_the_name_out_of_shared_answers(self):
+        for intro in CHAT_INTROS:
+            with self.subTest(intro=intro):
+                self.assertEqual(_chat(intro, "what is the refund policy", "Refunds in 7 days, Rahul."), [])
+
+    def test_three_name_words_and_glued_honorific(self):
+        self.assertEqual(_stated_names(["my name is Priya Iyer Sharma"]), {"priya", "iyer", "sharma"})
+        self.assertEqual(_voice([("my name is Priya Iyer Sharma", INTRO_ANSWER), ("what is the refund policy", "Refunds in 7 days, Ms Sharma.")]), [])
+        for leak in ("Refunds in 7 days, Rahulji.", "Refunds in 7 days, Rahul-ji.", "Refunds in 7 days, Rahul jee."):
+            with self.subTest(leak=leak):
+                self.assertEqual(_voice([("my name is Rahul Verma", INTRO_ANSWER), ("what is the refund policy", leak)]), [])
+                self.assertEqual(_chat("my name is Rahul Verma", "what is the refund policy", leak), [])
+
+    def test_controls_not_names(self):
+        for text in ("the menu here", "who is speaking", "what is the menu here", "call me tomorrow", "call me back",
+                     "it is open on sundays", "it's free", "speaking of refunds"):
+            with self.subTest(text=text):
+                self.assertEqual(_stated_names([text]), set())
+        self.assertEqual(_voice([("what is the menu here", "Hi"), ("what is the refund policy", "Refunds take 7 days.")]),
+                         ["what is the refund policy"])  # "here" makes the first a private question: nothing was taken as a name
+
+
 class SpokenAndLowercaseTests(unittest.TestCase):
     def test_lowercase_and_trailing_words(self):
         for intro in ("this is harpreet iyer calling", "I am harpreet iyer", "this is Harpreet Iyer calling"):

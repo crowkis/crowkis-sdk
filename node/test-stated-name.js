@@ -117,3 +117,36 @@ test("chat: question rules still read only capitalised names", () => {
   assert.deepStrictEqual([...statedNames(["I'm diabetic"], false)], []);
   assert.deepStrictEqual([...statedNames(["I'm Priya"], false)], ["priya"]);
 });
+
+const MORE_INTROS = ["Rahul here", "rahul here", "hello, Rahul this side", "Rahul speaking", "myself Rahul", "myself rahul verma",
+  "it's Rahul", "its rahul", "it is Rahul", "you're speaking with Rahul", "mera naam hai Rahul",
+  "my good name is Rahul", "the name is Rahul", "my first name is Rahul"];
+const CHAT_INTROS = MORE_INTROS.filter((i) => i !== "myself rahul verma"); // lower-case "myself X" is a weak lead in Chat
+
+test("voice: every name phrasing keeps the name out of shared answers", async () => {
+  for (const intro of MORE_INTROS) {
+    assert.deepStrictEqual(await voice([[intro, INTRO_ANSWER], ["what is the refund policy", "Refunds in 7 days, Rahul."]]), [], intro);
+  }
+});
+
+test("chat: every name phrasing keeps the name out of shared answers", async () => {
+  for (const intro of CHAT_INTROS) {
+    assert.deepStrictEqual(await chat(intro, "what is the refund policy", "Refunds in 7 days, Rahul."), [], intro);
+  }
+});
+
+test("three name words and a glued honorific", async () => {
+  assert.deepStrictEqual([...statedNames(["my name is Priya Iyer Sharma"])].sort(), ["iyer", "priya", "sharma"]);
+  assert.deepStrictEqual(await voice([["my name is Priya Iyer Sharma", INTRO_ANSWER], ["what is the refund policy", "Refunds in 7 days, Ms Sharma."]]), []);
+  for (const leak of ["Refunds in 7 days, Rahulji.", "Refunds in 7 days, Rahul-ji.", "Refunds in 7 days, Rahul jee."]) {
+    assert.deepStrictEqual(await voice([["my name is Rahul Verma", INTRO_ANSWER], ["what is the refund policy", leak]]), [], leak);
+    assert.deepStrictEqual(await chat("my name is Rahul Verma", "what is the refund policy", leak), [], leak);
+  }
+});
+
+test("control: these are not names", async () => {
+  for (const text of ["the menu here", "who is speaking", "what is the menu here", "call me tomorrow", "call me back",
+    "it is open on sundays", "it's free", "speaking of refunds"]) assert.deepStrictEqual([...statedNames([text])], [], text);
+  assert.deepStrictEqual(await voice([["what is the menu here", "Hi"], ["what is the refund policy", "Refunds take 7 days."]]),
+    ["what is the refund policy"]); // "here" makes the first a private question: nothing was taken as a name
+});

@@ -11,7 +11,7 @@ from ...turns.values import Outcome, Verdict
 from ...turns.chat.turn import ChatAnswer
 from ...understanding.word_rules.chat import _ACTION_CLAIM, _ANSWER_EMAIL, _ANSWER_LONG_DIGITS
 from ...understanding.word_rules.follow_up import _unfinished
-from ...understanding.word_rules.personal import _identifiers, _leaks, _repeats_identifier
+from ...understanding.word_rules.personal import _bare, _identifiers, _leaks, _repeats_identifier
 from ...understanding.word_rules.answers import _repeats_prompt_details
 from ...understanding.word_rules.text import _words
 
@@ -102,7 +102,7 @@ class PrivateWord:
 
     def check(self, answer: ChatAnswer) -> Optional[Verdict]:
         asked = set(_words(answer.verdict.question or ""))
-        if not any(w not in asked and answer.state.is_private(w) for w in _words(answer.text)):
+        if not any(w not in asked and (answer.state.is_private(w) or answer.state.is_private(_bare(w))) for w in _words(answer.text)):
             return None
         return Verdict(self.name, "private_word")
 
@@ -118,7 +118,7 @@ class VoicePrivateWord:
     def check(self, answer: ModelAnswer) -> Optional[Verdict]:
         asked = set(_words(answer.key or ""))
         private = answer.call.private_words()
-        if not any(w not in asked and w in private for w in _words(answer.answer)):
+        if not any(w not in asked and (w in private or _bare(w) in private) for w in _words(answer.answer)):
             return None
         return Verdict(self.name, "kept to this call: the answer holds a word that identified this caller",
                        (Counter.NOT_SHAREABLE,), Outcome.PRIVATE)

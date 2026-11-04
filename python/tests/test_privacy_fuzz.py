@@ -129,7 +129,8 @@ def make_dob(rng):
 
 MAKERS = {"name": make_name, "phone": make_phone, "email": make_email, "id": make_id,
           "address": make_address, "dob": make_dob}
-SAY = {"name": ["my name is {}", "this is {} calling", "I am {}"],
+SAY = {"name": ["my name is {}", "this is {} calling", "I am {}", "{} here", "{} this side", "{} speaking", "myself {}", "it's {}",
+                "you're speaking with {}", "mera naam hai {}", "my first name is {}", "the name is {}", "hello, {} this side"],
        "phone": ["my phone number is {}", "call me back on {}", "you can reach me at {}"],
        "email": ["my email is {}", "send the invoice to {}", "{} is my email"],
        "id": ["where is my order {}", "my account number is {}", "check booking {} for me"],

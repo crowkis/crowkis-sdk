@@ -827,50 +827,79 @@ def _repeats_identifier(answer: str, identifiers: set) -> bool:
     spoken = _spoken_numbers(answer or "")
     flat = _flatten(answer) + "|".join(spoken)  # digits said as words
     tokens = {_flatten(token) for token in _ID_TOKEN.findall(answer or "")} | set(_words(answer)) | set(spoken)
+    tokens |= {_bare(token) for token in tokens}  # "Rahulji" says Rahul
     return any(value in flat if len(value) >= 6 else value in tokens for value in identifiers)
 
 
 # How the caller gives a name. Case does not matter (speech-to-text often lower-cases names): over-capturing
 # only keeps answers that say the captured word private. Not a name: an article or other function word,
-# a word ending in -ing, or one of these common words after "I am" / "this is".
-_NAME_LEADS = (("my", "name", "is"), ("my", "name", "s"), ("name", "s"), ("call", "me"), ("mera", "naam"), ("naam",))
-_NAME_LEADS_WEAK = (("i", "m"), ("i", "am"), ("this", "is"))
-_NAME_PARTS = 2
+# a word ending in -ing, or one of these common words after a lead.
+# Phrases after which the caller gives a name: "my name is sarah", "mera naam hai raj", "this is raj".
+_NAMING = (("name", "is"), ("name", "s"), ("call", "me"), ("naam", "hai"), ("naam",), ("this", "is"), ("i", "m"), ("i", "am"),
+           ("myself",), ("speaking", "with"))
+# Leads that need a capital in Chat (voice takes lower case too), as a plain word can follow them ("I'm diabetic").
+_NAMING_WEAK = frozenset({("this", "is"), ("i", "m"), ("i", "am"), ("myself",), ("speaking", "with"), ("it", "s"), ("it", "is"), ("its",)})
+# Leads only at the start of the turn (after a greeting): "it's Rahul", but not "I think it is open".
+_NAMING_AT_START = (("it", "s"), ("it", "is"), ("its",))
+# A name said first: "Rahul here", "Rahul this side", "Rahul speaking", at the start of the turn only.
+_NAME_TRAILERS = (("here",), ("this", "side"), ("speaking",))
+_NAME_PARTS = 3
+_NAME_MIN_LENGTH = 2
 _NOT_NAMES = frozenset({
     "not", "here", "new", "interested", "from", "about", "urgent", "regarding", "sorry", "sure", "fine", "good",
     "ok", "okay", "ready", "back", "also", "just", "still", "very", "so", "too", "available", "unable", "unsure",
     "happy", "glad", "wondering", "afraid", "writing", "important", "serious", "emergency", "wrong", "right",
     "hai", "hain", "hoon", "hu",  # Hinglish "mera naam Rahul hai"
+    "tomorrow", "today", "tonight", "later", "soon", "now", "again", "open", "free", "closed", "possible",  # "call me tomorrow", "it's free"
+    "correct", "true", "late", "early", "easy", "cheap", "time",
 })
+_HONORIFIC = re.compile(r"(?:ji|jee)$")
+
+
+def _bare(word: str) -> str:
+    """A name without the Hindi honorific glued on ("rahulji" -> "rahul")."""
+    stripped = _HONORIFIC.sub("", word)
+    return stripped if len(stripped) >= _NAME_MIN_LENGTH else word
+
+
+def _name_words(tokens: List[str], strict: bool) -> List[str]:
+    """The leading words of ``tokens`` that read as a name; ``strict`` wants a capital first letter."""
+    out = []
+    for token in tokens[:_NAME_PARTS]:
+        word = token.lower()
+        if (strict and not token[0].isupper()) or word in _FUNCTION_WORDS or word in _GREETINGS or word in _NOT_NAMES or word.endswith("ing"):
+            break
+        out.append(word)
+    return out
 
 
 def _stated_names(texts: Iterable[str], lowercase: bool = True) -> set:
     """The names callers gave in ``texts`` ("my name is Rahul Verma", "this is harpreet iyer calling",
-    "mera naam Rahul hai"): each word of the name, lower-cased and flattened as _leaks compares.
-    After "I'm" / "I am" / "this is" a lower-case word is a name only with ``lowercase`` (voice, where
-    it only keeps answers private); Chat reads names into its question rules too, so there "I'm
-    diabetic" must not make "diabetic" a name."""
+    "mera naam Rahul hai", "Rahul here"): each word of the name, lower-cased and flattened as _leaks
+    compares. After a weak lead ("I'm", "this is") a lower-case word is a name only with ``lowercase``
+    (voice, where it only keeps answers private); Chat reads names into its question rules too, so
+    there "I'm diabetic" must not make "diabetic" a name."""
     found: set = set()
     for text in texts:
         tokens = [m.group() for m in _TOKEN.finditer(text or "")]
         words = [t.lower() for t in tokens]
+        start = 0
+        while start < len(words) and words[start] in _GREETINGS:
+            start += 1
         for at in range(len(words)):
-            for lead, weak in [(l, False) for l in _NAME_LEADS] + [(l, not lowercase) for l in _NAME_LEADS_WEAK]:
-                if tuple(words[at:at + len(lead)]) != lead:
+            for lead in _NAMING + _NAMING_AT_START:
+                if tuple(words[at:at + len(lead)]) != lead or (lead in _NAMING_AT_START and at != start):
                     continue
-                for token in tokens[at + len(lead):at + len(lead) + _NAME_PARTS]:
-                    word = token.lower()
-                    if (weak and not token[0].isupper()) or word in _FUNCTION_WORDS or word in _GREETINGS or word in _NOT_NAMES or word.endswith("ing"):
-                        break
-                    found.add(word)
-    return {value for value in found if len(value) >= 2}
+                found.update(_name_words(tokens[at + len(lead):], not lowercase and lead in _NAMING_WEAK))
+        for trailer in _NAME_TRAILERS:
+            for size in range(1, _NAME_PARTS + 1):
+                end = start + size
+                if tuple(words[end:end + len(trailer)]) == trailer and len(_name_words(tokens[start:end], not lowercase)) == size:
+                    found.update(words[start:end])
+    return {value for value in found if len(value) >= _NAME_MIN_LENGTH}
 
 
 _STEERING_BY_FIRST = _first_words(_STEERING)
-
-
-# Phrases after which the caller gives a name: "my name is sarah", "this is raj".
-_NAMING = (("name", "is"), ("call", "me"), ("this", "is"), ("i", "m"), ("i", "am"))
 
 
 def _identifying(turn: str) -> set:

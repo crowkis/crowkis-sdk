@@ -5,7 +5,7 @@
 const { OUTCOME } = require("../../turns/values.js");
 const { Verdict } = require("../../turns/values.js");
 const { unfinished } = require("../../understanding/wordRules/followUp.js");
-const { identifiers, leaks, repeatsIdentifier } = require("../../understanding/wordRules/personal.js");
+const { bare, identifiers, leaks, repeatsIdentifier } = require("../../understanding/wordRules/personal.js");
 const { repeatsPromptDetails } = require("../../understanding/wordRules/answers.js");
 const { escapeRegExp, wordsOf } = require("../../understanding/wordRules/text.js");
 const { COUNTER } = require("../../runtime/stats.js");
@@ -129,7 +129,7 @@ class PrivateWord {
 
   check(answer) {
     const asked = new Set(wordsOf(answer.verdict.question || ""));
-    if (!wordsOf(answer.text).some((w) => !asked.has(w) && answer.state.isPrivate(w))) return null;
+    if (!wordsOf(answer.text).some((w) => !asked.has(w) && (answer.state.isPrivate(w) || answer.state.isPrivate(bare(w))))) return null;
     return new Verdict(this.name, "private_word");
   }
 }
@@ -151,7 +151,7 @@ class VoicePrivateWord {
   check(answer) {
     const asked = new Set(wordsOf(answer.key || ""));
     const privateWords = answer.call.privateWords();
-    if (!wordsOf(answer.answer).some((w) => !asked.has(w) && privateWords.has(w))) return null;
+    if (!wordsOf(answer.answer).some((w) => !asked.has(w) && (privateWords.has(w) || privateWords.has(bare(w))))) return null;
     return new Verdict(this.name, "kept to this call: the answer holds a word that identified this caller",
       [COUNTER.NOT_SHAREABLE], OUTCOME.PRIVATE);
   }

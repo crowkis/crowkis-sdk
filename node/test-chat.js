@@ -183,6 +183,29 @@ test("a word from a private turn is never in a shared answer", async () => {
   assert.strictEqual(replies[1].outcome, "refused:private_word");
 });
 
+test("S10: a course or product the model tagged is not private", async () => {
+  const offer = "Which courses do you offer?";
+  const meera = { text: "Meera", type: "person_name" };
+  const outcome = async (said, entities, reply) => {
+    const frames = { [said]: { kind: "personal", subject: "self", confidence: 0.9, entities }, [offer]: { ...GENERAL, question: offer } };
+    const { replies } = await run(frames, Object.keys(frames), { m: model(reply) });
+    return replies[replies.length - 1].outcome;
+  };
+  const said = "Hi, I'm Meera and my son wants to join B.Tech or the MBA.";
+  const tagged = [meera, { text: "B.Tech", type: "topic" }, { text: "MBA", type: "topic" }];
+  assert.strictEqual(await outcome(said, tagged, "We offer B.Tech, MBA and BCA."), "saved");
+  // Must still work: the name stays private, and so does anything the model did not tag.
+  assert.strictEqual(await outcome(said, tagged, "Meera, we offer B.Tech, MBA and BCA."), "refused:private_word");
+  assert.strictEqual(await outcome(said, [], "We offer B.Tech, MBA and BCA."), "refused:private_word");
+  for (const [s, entities, reply] of [
+    ["Please call Rahul Verma about my admission.", [{ text: "Rahul Verma", type: "person_name" }], "Rahul Verma can tell you; we offer B.Tech."],
+    ["Please call Rahul Verma about my admission.", [], "Rahul Verma can tell you; we offer B.Tech."],
+    ["Is the MBA open for PRIYA?", [{ text: "MBA", type: "topic" }, { text: "PRIYA", type: "person_name" }], "Priya can join the MBA."],
+    ["Can my friend Arjun join the Arjun Scholars MBA?", [{ text: "Arjun Scholars", type: "product" }], "Arjun can apply to any course."],
+    ["Is the MBA open for PRIYA?", [{ text: "PRIYA", type: "other_person" }], "Priya can join."],
+  ]) assert.strictEqual(await outcome(s, entities, reply), "refused:private_word", s);
+});
+
 test("an emergency gets the business script and nothing is kept", async () => {
   const frames = { "My child swallowed bleach, what do I do?": { ...GENERAL, question: "What to do if a child swallows bleach?" } };
   const { agent, m, replies } = await run(frames, Object.keys(frames), { urgentReply: "Call 112 now. Poison helpline: 1800-116-117." });

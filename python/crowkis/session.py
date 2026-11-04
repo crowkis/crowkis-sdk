@@ -102,8 +102,11 @@ def _told(text: str, frame: TurnFrame) -> Tuple[Set[str], List[str]]:
 
 def _private_words(text: str, frame: Optional[TurnFrame] = None) -> List[str]:
     """Everything in a turn that may identify the caller: its names, any number, any capitalised
-    word. Broad on purpose; it only ever refuses a shared answer, so a wrong guess costs a hit."""
-    found = {w for w in _words(text) if any(c.isdecimal() for c in w)} | _proper_nouns(text)
+    word the understanding model did not tag as a place, thing or topic ("B.Tech", "MBA"). Broad
+    on purpose; it only ever refuses a shared answer, so a wrong guess costs a hit."""
+    tagged = {w for e in frame.entities if not e.identifying and e.type not in NOT_GENERAL_TYPES
+              for w in _words(e.text)} if frame else set()
+    found = {w for w in _words(text) if any(c.isdecimal() for c in w)} | (_proper_nouns(text) - tagged)
     return sorted(found | set(_names(text, frame)))
 MODES = ("full", "replay_only", "off")
 Message = Dict[str, str]

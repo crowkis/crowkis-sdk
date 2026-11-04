@@ -213,6 +213,33 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(agent.saved, [])
         self.assertEqual(replies[-1].outcome, "refused:private_word")
 
+    def test_s10_a_course_or_product_the_model_tagged_is_not_private(self):
+        offer = "Which courses do you offer?"
+        meera = {"text": "Meera", "type": "person_name"}
+
+        def outcome(said, entities, reply):
+            frames = {said: {"kind": "personal", "subject": "self", "confidence": 0.9, "entities": entities},
+                      offer: dict(GENERAL, question=offer)}
+            return run(frames, list(frames), model=Model(reply))[2][-1].outcome
+
+        said = "Hi, I'm Meera and my son wants to join B.Tech or the MBA."
+        tagged = [meera, {"text": "B.Tech", "type": "topic"}, {"text": "MBA", "type": "topic"}]
+        self.assertEqual(outcome(said, tagged, "We offer B.Tech, MBA and BCA."), "saved")
+        # Must still work: the name stays private, and so does anything the model did not tag.
+        self.assertEqual(outcome(said, tagged, "Meera, we offer B.Tech, MBA and BCA."), "refused:private_word")
+        self.assertEqual(outcome(said, [], "We offer B.Tech, MBA and BCA."), "refused:private_word")
+        for said, entities, reply in (
+                ("Please call Rahul Verma about my admission.", [{"text": "Rahul Verma", "type": "person_name"}],
+                 "Rahul Verma can tell you; we offer B.Tech."),
+                ("Please call Rahul Verma about my admission.", [], "Rahul Verma can tell you; we offer B.Tech."),
+                ("Is the MBA open for PRIYA?", [{"text": "MBA", "type": "topic"}, {"text": "PRIYA", "type": "person_name"}],
+                 "Priya can join the MBA."),
+                ("Can my friend Arjun join the Arjun Scholars MBA?", [{"text": "Arjun Scholars", "type": "product"}],
+                 "Arjun can apply to any course."),
+                ("Is the MBA open for PRIYA?", [{"text": "PRIYA", "type": "other_person"}], "Priya can join.")):
+            with self.subTest(said=said, entities=entities):
+                self.assertEqual(outcome(said, entities, reply), "refused:private_word")
+
     def test_an_emergency_gets_the_business_script_and_nothing_is_kept(self):
         frames = {"My child swallowed bleach, what do I do?": dict(GENERAL, question="What to do if a child swallows bleach?")}
         agent, model, replies = run(frames, list(frames), urgent_reply="Call 112 now. Poison helpline: 1800-116-117.")

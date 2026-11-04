@@ -88,10 +88,12 @@ function told(t, frame) {
   return [named, [...details].sort()];
 }
 
-// Everything in a turn that may identify the caller: its names, any number, any capitalised word.
-// Broad on purpose; it only ever refuses a shared answer, so a wrong guess costs a hit.
+// Everything in a turn that may identify the caller: its names, any number, any capitalised word
+// the understanding model did not tag as a place, thing or topic ("B.Tech", "MBA"). Broad on
+// purpose; it only ever refuses a shared answer, so a wrong guess costs a hit.
 function privateWords(t, frame = null) {
-  const found = new Set([...wordsOf(t).filter((w) => /\p{Nd}/u.test(w)), ...properNouns(t), ...names(t, frame)]);
+  const tagged = new Set(frame ? frame.entities.filter((e) => !e.identifying && !NOT_GENERAL_TYPES.has(e.type)).flatMap((e) => wordsOf(e.text)) : []);
+  const found = new Set([...wordsOf(t).filter((w) => /\p{Nd}/u.test(w)), ...[...properNouns(t)].filter((w) => !tagged.has(w)), ...names(t, frame)]);
   return [...found].sort();
 }
 const MODES = ["full", "replay_only", "off"];

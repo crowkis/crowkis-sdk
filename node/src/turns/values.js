@@ -2,7 +2,7 @@
 
 // The turn core's value objects: a turn's verdicts, what the cache and the model said to it, a hit, the channel.
 
-const { fill } = require("../understanding/wordRules/index.js");
+const { fill } = require("../understanding/wordRules/answers.js");
 
 /**
  * What happened to a model's answer: the words callers see in `decision.notStored`, a voice record's

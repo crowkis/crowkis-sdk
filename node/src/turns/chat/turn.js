@@ -5,7 +5,9 @@
 const { LATE, within } = require("../../runtime/deadline.js");
 const { names, told } = require("../../understanding/chatDetails.js");
 const { TurnFrame } = require("../../understanding/turnFrame.js");
-const { identifiers, instructs, tellsAboutCaller, wordsOf } = require("../../understanding/wordRules/index.js");
+const { instructs, tellsAboutCaller } = require("../../understanding/wordRules/callContext.js");
+const { identifiers } = require("../../understanding/wordRules/identifiers.js");
+const { wordsOf } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 
 /**

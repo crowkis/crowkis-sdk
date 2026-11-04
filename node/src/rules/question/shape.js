@@ -4,7 +4,8 @@
 
 const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
-const { normalise, unfinished } = require("../../understanding/wordRules/index.js");
+const { unfinished } = require("../../understanding/wordRules/followUp.js");
+const { normalise } = require("../../understanding/wordRules/text.js");
 const { TASK } = require("../../turns/results.js");
 const { FUNCTION, QUESTION_WORDS, stem, toks } = require("../../understanding/frameWords.js");
 

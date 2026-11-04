@@ -128,7 +128,6 @@
     "src/understanding/wordRules/followUp.js",
     "src/understanding/wordRules/highRisk.js",
     "src/understanding/wordRules/identifiers.js",
-    "src/understanding/wordRules/index.js",
     "src/understanding/wordRules/personal.js",
     "src/understanding/wordRules/phrases.js",
     "src/understanding/wordRules/promptDetails.js",

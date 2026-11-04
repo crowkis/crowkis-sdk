@@ -7,7 +7,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Dict, Optional, TYPE_CHECKING, Tuple, Union
 
-from ..understanding.word_rules import _fill
+from ..understanding.word_rules.answers import _fill
 
 if TYPE_CHECKING:
     from ..runtime.stats import Counter

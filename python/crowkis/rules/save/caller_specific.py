@@ -10,14 +10,10 @@ from ...turns.voice.turn import ModelAnswer
 from ...turns.values import Outcome, Verdict
 from ...turns.chat.turn import ChatAnswer
 from ...understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS
-from ...understanding.word_rules import (
-    _identifiers,
-    _leaks,
-    _repeats_identifier,
-    _repeats_prompt_details,
-    _unfinished,
-    _words,
-)
+from ...understanding.word_rules.follow_up import _unfinished
+from ...understanding.word_rules.identifiers import _identifiers, _leaks, _repeats_identifier
+from ...understanding.word_rules.prompt_details import _repeats_prompt_details
+from ...understanding.word_rules.text import _words
 
 
 class CallerIdentifier:

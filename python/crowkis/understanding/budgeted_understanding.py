@@ -47,14 +47,13 @@ class BudgetedUnderstanding:
     logged without its words."""
 
     def __init__(self, classifier: Classifier, rewriter: Rewriter, *, budget_ms: Optional[float],
-                 pool: concurrent.futures.Executor, count: Callable[[Counter], None],
-                 fallback: Optional[Classifier] = None) -> None:
+                 pool: concurrent.futures.Executor, count: Callable[[Counter], None]) -> None:
         self._classifier = classifier
         self._rewriter = rewriter
         self._budget_ms = budget_ms
         self._pool = pool
         self._count = count
-        self._fallback = fallback if fallback is not None else WordRuleClassifier()
+        self._fallback = WordRuleClassifier()
         self._in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 
     def classify(self, text: str, facts: Sequence[str] = ()) -> BudgetedReading:

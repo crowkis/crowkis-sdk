@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 from ..keys import key, key_attributes, segment, told
 from ..state.call_state import CallState
-from ..understanding.turn_frame import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
+from ..understanding.turn_frame import TurnFrame
 
 from .chat_rule_set import ChatRuleSet
 from ..turns.chat.turn import ChatTurn
@@ -40,25 +40,6 @@ DEFAULT_TTL: Dict[str, Optional[int]] = {
     "search": 3600,
     "other": 3600,
 }
-
-from ..understanding.frame_words import (  # noqa: F401 - re-exported
-    _FUNCTION,
-    _WORD,
-    _TOLD_TYPES,
-    _NUMWORDS,
-    _UNITS,
-    _EMAIL,
-    _PHONE,
-    _LONG_DIGITS,
-    _toks,
-    _stem,
-    _QUESTION_WORDS,
-    _REFERRING,
-    _CONTRACTION,
-    _CLAUSE_START,
-    _GENERIC_FACT,
-    _looks_identifying,
-)
 
 
 @dataclass

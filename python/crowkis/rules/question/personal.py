@@ -13,7 +13,7 @@ from ...turns.voice.turn import VoiceTurn
 from ...turns.chat.turn import ChatTurn
 from ...understanding.frame_words import _CALENDAR, _COMMON_ACRONYMS, _FUNCTION, _looks_identifying
 from ...understanding.turn_frame import NOT_GENERAL_TYPES
-from ...understanding.word_rules import _words
+from ...understanding.word_rules.text import _words
 
 
 OWN_RECORDS_REASON = (

@@ -35,7 +35,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from ..agent import _store_later, _tts_key
 from ..client import CrowkisError
-from ..channels.voice_session import _words
+from ..understanding.word_rules.text import _words
 from ..channels.async_voice_session import _on_server_pool
 
 # Same tool name and key rule as Agent.speak(): a clip is shared with speak() when it

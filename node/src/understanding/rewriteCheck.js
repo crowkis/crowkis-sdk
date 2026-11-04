@@ -1,6 +1,8 @@
 "use strict";
 
-const { isPersonal, leaks, numbersOf, properNouns, wordsOf } = require("./wordRules/index.js");
+const { leaks } = require("./wordRules/identifiers.js");
+const { isPersonal } = require("./wordRules/personal.js");
+const { numbersOf, properNouns, wordsOf } = require("./wordRules/text.js");
 
 /**
  * Specification: a rewrite keys a turn only when that cannot make the call less private. The turn

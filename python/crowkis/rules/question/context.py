@@ -23,7 +23,9 @@ from ...understanding.frame_words import (
     _toks,
 )
 from ...understanding.turn_frame import DETAIL_TYPES
-from ...understanding.word_rules import _leans_on, _private_chain, _sets_context, _words
+from ...understanding.word_rules.call_context import _sets_context
+from ...understanding.word_rules.follow_up import _leans_on, _private_chain
+from ...understanding.word_rules.text import _words
 
 
 PRIVATE_CHAIN_REASON = (

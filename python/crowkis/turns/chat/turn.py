@@ -11,7 +11,9 @@ from ...runtime.deadline import within
 from ...state.call_state import CallState
 from ...understanding.chat_details import _names, _told
 from ...understanding.turn_frame import TurnFrame
-from ...understanding.word_rules import _identifiers, _instructs, _tells_about_caller, _words
+from ...understanding.word_rules.call_context import _instructs, _tells_about_caller
+from ...understanding.word_rules.identifiers import _identifiers
+from ...understanding.word_rules.text import _words
 
 if TYPE_CHECKING:
     from ...channels.call_session import CallSession

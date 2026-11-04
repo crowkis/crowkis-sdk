@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Set
 
 from .slots import Reading
-from .word_rules import _is_personal, _leaks, _numbers, _proper_nouns, _words
+from .word_rules.identifiers import _leaks
+from .word_rules.personal import _is_personal
+from .word_rules.text import _numbers, _proper_nouns, _words
 
 if TYPE_CHECKING:
     from ..turns.voice.call import SessionCall

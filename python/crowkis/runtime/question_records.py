@@ -8,7 +8,8 @@ import json
 import logging
 from typing import Any, Callable, Optional
 
-from ..understanding.word_rules import _QUESTION_KEY, _different_specifics
+from ..understanding.word_rules.answers import _different_specifics
+from ..understanding.word_rules.phrases import _QUESTION_KEY
 from .deadline import within
 
 # The newest questions kept per answer.

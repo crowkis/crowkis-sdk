@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
 from crowkis.turns.values import VOICE, Channel
-from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
+from crowkis.understanding.word_rules.follow_up import _is_context_dependent
+from crowkis.understanding.word_rules.personal import _is_personal
 
 
 @dataclass

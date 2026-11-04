@@ -3,10 +3,11 @@
 // Voice's report and saving steps for TurnCore.
 
 const { COUNTER } = require("../../runtime/stats.js");
-const {
-  AMOUNT_WORDS, EMAIL, MATTERS, SLOT, abstract, asks, carriesCallContext, hasDigit, identifies, leaks, lookupOnly,
-  readsOutDigits, slotNames, unfinished, wordsOf,
-} = require("../../understanding/wordRules/index.js");
+const { SLOT, abstract, slotNames } = require("../../understanding/wordRules/answers.js");
+const { unfinished } = require("../../understanding/wordRules/followUp.js");
+const { carriesCallContext, leaks } = require("../../understanding/wordRules/identifiers.js");
+const { EMAIL, asks, identifies, lookupOnly, readsOutDigits } = require("../../understanding/wordRules/personal.js");
+const { AMOUNT_WORDS, MATTERS, hasDigit, wordsOf } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 const { TurnDecision } = require("../results.js");
 const { Checked, OUTCOME } = require("../values.js");

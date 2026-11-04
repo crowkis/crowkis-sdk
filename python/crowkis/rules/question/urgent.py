@@ -7,7 +7,9 @@ from typing import Optional
 from ...turns.chat.turn import ChatTurn
 from ...turns.results import URGENT
 from ...turns.values import Verdict
-from ...understanding.word_rules import _tells_about_caller, _urgent, _words
+from ...understanding.word_rules.call_context import _tells_about_caller
+from ...understanding.word_rules.text import _words
+from ...understanding.word_rules.urgent import _urgent
 
 
 # The UrgentTurn rule (stage 1, question; Chat, V1).

@@ -4,7 +4,9 @@
 
 const { unnamed } = require("../../understanding/chatDetails.js");
 const { RewriteCheck } = require("../../understanding/rewriteCheck.js");
-const { CONTEXT_BOUND_THRESHOLD, isNonAnswer, leansOn } = require("../../understanding/wordRules/index.js");
+const { isNonAnswer } = require("../../understanding/wordRules/answers.js");
+const { leansOn } = require("../../understanding/wordRules/followUp.js");
+const { CONTEXT_BOUND_THRESHOLD } = require("../../understanding/wordRules/phrases.js");
 const { isThenable } = require("../core.js");
 
 /**

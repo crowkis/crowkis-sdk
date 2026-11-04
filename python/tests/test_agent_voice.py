@@ -12,7 +12,8 @@ import unittest
 from crowkis.agent import Agent
 from crowkis.client import CacheHit
 from crowkis.channels.voice_session import VoiceSession
-from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
+from crowkis.understanding.word_rules.follow_up import _is_context_dependent
+from crowkis.understanding.word_rules.personal import _is_personal
 
 
 def _hit(confidence, response=b"cached answer", similarity=0.99):
@@ -888,15 +889,15 @@ if __name__ == "__main__":
 
 class SlotSafetyTests(unittest.TestCase):
     def test_a_short_value_never_splits_a_number(self):
-        from crowkis.understanding.word_rules import _abstract
+        from crowkis.understanding.word_rules.answers import _abstract
         self.assertEqual(_abstract("within 24 hours", {"count": "2"}), "within 24 hours")
 
     def test_a_value_is_replaced_only_as_a_whole_word(self):
-        from crowkis.understanding.word_rules import _abstract
+        from crowkis.understanding.word_rules.answers import _abstract
         self.assertEqual(_abstract("order 555 and 5551", {"order": "555"}), "order {order} and 5551")
 
     def test_filling_is_one_pass(self):
-        from crowkis.understanding.word_rules import _fill
+        from crowkis.understanding.word_rules.answers import _fill
         self.assertEqual(_fill("{a} and {b}", {"a": "{b}", "b": "x"}), "{b} and x")
 
 
@@ -1273,7 +1274,7 @@ class CommitmentTests(unittest.TestCase):
 
 class SpeakableTests(unittest.TestCase):
     def test_text_written_for_a_screen_is_not_spoken(self):
-        from crowkis.understanding.word_rules import _speakable
+        from crowkis.understanding.word_rules.answers import _speakable
 
         for text in (
             "See https://example.com/refunds for details.",
@@ -1429,7 +1430,7 @@ class EngineCheckTests(unittest.TestCase):
         self.assertEqual(session.decide("thank you").action, "serve", "the late answer is there for the next turn")
 
     def test_a_link_in_capitals_is_still_a_link(self):
-        from crowkis.understanding.word_rules import _speakable
+        from crowkis.understanding.word_rules.answers import _speakable
 
         self.assertFalse(_speakable("See HTTPS://EXAMPLE.COM/refunds"))
         self.assertFalse(_speakable("Visit WWW.EXAMPLE.COM"))

@@ -5,7 +5,7 @@
 const { OUTCOME } = require("../../turns/values.js");
 const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
-const { isNonAnswer } = require("../../understanding/wordRules/index.js");
+const { isNonAnswer } = require("../../understanding/wordRules/answers.js");
 
 /** A model that said nothing has nothing to save. */
 class EmptyAnswer {

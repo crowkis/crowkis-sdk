@@ -49,27 +49,13 @@ from ..turns.chat.steps import ChatTurns
 from ..turns.core import TurnCore
 from ..turns.results import FILLER  # noqa: F401 - re-exported
 from ..turns.results import TurnResult  # noqa: F401 - re-exported
-from ..understanding.chat_details import (  # noqa: F401 - re-exported
-    _MASKED,
-    _NAME_LEADS,
-    _POSSESSIVE,
-    _RELATIONS,
-    _REPLY_WORD,
-    _SELF_INTRO,
-    _TITLES,
-    _TRIM,
-    _masked,
-    _names,
-    _norm,
-    _private_words,
-    _told,
-)
-from ..understanding.frame_words import _CALENDAR, _DAYS  # noqa: F401
-from ..understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS  # noqa: F401
-from .voice_session import _PII_PLACEHOLDER, _instructs, _proper_nouns, _tells_about_caller, _words
+from ..understanding.chat_details import _norm
+from ..understanding.word_rules.call_context import _instructs, _tells_about_caller
+from ..understanding.word_rules.phrases import _PII_PLACEHOLDER
+from ..understanding.word_rules.text import _proper_nouns, _words
 from ..understanding.turn_frame import TurnFrame
 from ..understanding.understanders import ReplayUnderstander, Understander
-from ..rules.rule_checker import _FUNCTION, AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
+from ..rules.rule_checker import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
 
 
 

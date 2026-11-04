@@ -17,7 +17,8 @@ from unittest import mock
 from crowkis.agent import Agent
 from crowkis.client import CacheHit, CrowkisError
 from crowkis.channels.voice_session import VoiceSession
-from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
+from crowkis.understanding.word_rules.follow_up import _is_context_dependent
+from crowkis.understanding.word_rules.personal import _is_personal
 
 ANSWER = "Here is the answer."
 
@@ -649,7 +650,7 @@ class NonAnswerFallbackTests(unittest.TestCase):
     ]
 
     def test_mt4_they_are_not_saved(self):
-        from crowkis.understanding.word_rules import _is_non_answer
+        from crowkis.understanding.word_rules.answers import _is_non_answer
 
         for text in self.CASES:
             self.assertTrue(_is_non_answer(text), text)
@@ -657,7 +658,7 @@ class NonAnswerFallbackTests(unittest.TestCase):
             self.assertEqual(store.writes, [], text)
 
     def test_mt4_a_real_answer_is_still_saved(self):
-        from crowkis.understanding.word_rules import _is_non_answer
+        from crowkis.understanding.word_rules.answers import _is_non_answer
 
         text = "Dr Rao handles orthopaedics, Monday to Friday. I need nothing else from you."
         self.assertFalse(_is_non_answer(text))
@@ -690,7 +691,7 @@ class TopicDependentTests(unittest.TestCase):
     PORT = "What is the process to port my number to another network?"
 
     def test_t21_the_porting_question_is_keyed_with_the_turn_it_leans_on(self):
-        from crowkis.understanding.word_rules import _leans_on
+        from crowkis.understanding.word_rules.follow_up import _leans_on
 
         self.assertTrue(_leans_on("How long does porting take?", self.PORT))
         _, _, decisions, seen = call(self.PORT, "How long does porting take?")
@@ -698,7 +699,7 @@ class TopicDependentTests(unittest.TestCase):
                          [self.PORT, "How long does porting take?"])
 
     def test_t21_ordinary_consecutive_questions_stay_stand_alone(self):
-        from crowkis.understanding.word_rules import _leans_on
+        from crowkis.understanding.word_rules.follow_up import _leans_on
 
         for text, before in [
             ("How long does a refund take?", "What is your refund policy?"),

@@ -11,7 +11,8 @@ from ...turns.voice.turn import VoiceTurn
 from ...turns.chat.turn import ChatTurn
 from ...turns.results import TASK
 from ...understanding.frame_words import _FUNCTION, _QUESTION_WORDS, _stem, _toks
-from ...understanding.word_rules import _normalise, _unfinished
+from ...understanding.word_rules.follow_up import _unfinished
+from ...understanding.word_rules.text import _normalise
 
 
 class EmptyTurn:

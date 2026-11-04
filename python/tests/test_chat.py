@@ -663,7 +663,7 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(replies[-1].route, "shared")
 
     def test_a_reply_that_cannot_determine_is_a_non_answer(self):
-        from crowkis.understanding.word_rules import _is_non_answer
+        from crowkis.understanding.word_rules.answers import _is_non_answer
         # A hedged real answer is an answer.
         self.assertFalse(_is_non_answer("I can't determine the exact date, but historians place it around 1200 BC."))
         for text in ("I cannot determine your location, but you can check Google Maps.",

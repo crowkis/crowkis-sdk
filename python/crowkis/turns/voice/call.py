@@ -8,15 +8,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, TYPE_CHEC
 from ...keys import follow_up_key
 from ...runtime.deadline import within
 from ...runtime.question_records import QuestionRecords
-from ...understanding.word_rules import (
-    _FOLLOW_UP_WORDS,
-    _URGENT,
-    _identifiers,
-    _is_context_dependent,
-    _is_personal,
-    _urgent,
-    _words,
-)
+from ...understanding.word_rules.follow_up import _is_context_dependent
+from ...understanding.word_rules.identifiers import _identifiers
+from ...understanding.word_rules.personal import _is_personal
+from ...understanding.word_rules.phrases import _FOLLOW_UP_WORDS, _URGENT
+from ...understanding.word_rules.text import _words
+from ...understanding.word_rules.urgent import _urgent
 from ..values import Channel
 
 if TYPE_CHECKING:

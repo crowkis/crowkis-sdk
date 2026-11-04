@@ -4,7 +4,9 @@
 
 const { Verdict } = require("../../turns/values.js");
 const { URGENT } = require("../../turns/results.js");
-const { tellsAboutCaller, urgent, wordsOf } = require("../../understanding/wordRules/index.js");
+const { tellsAboutCaller } = require("../../understanding/wordRules/callContext.js");
+const { wordsOf } = require("../../understanding/wordRules/text.js");
+const { urgent } = require("../../understanding/wordRules/urgent.js");
 
 // The UrgentTurn rule (stage 1, question; Chat, V1).
 /** An urgent turn (an emergency, a crisis) takes the urgent route and is never shared. */

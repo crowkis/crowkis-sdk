@@ -4,15 +4,10 @@
 
 const { OUTCOME } = require("../../turns/values.js");
 const { Verdict } = require("../../turns/values.js");
-const {
-  escapeRegExp,
-  identifiers,
-  leaks,
-  repeatsIdentifier,
-  repeatsPromptDetails,
-  unfinished,
-  wordsOf,
-} = require("../../understanding/wordRules/index.js");
+const { unfinished } = require("../../understanding/wordRules/followUp.js");
+const { identifiers, leaks, repeatsIdentifier } = require("../../understanding/wordRules/identifiers.js");
+const { repeatsPromptDetails } = require("../../understanding/wordRules/promptDetails.js");
+const { escapeRegExp, wordsOf } = require("../../understanding/wordRules/text.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../../understanding/answerPatterns.js");
 

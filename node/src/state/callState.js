@@ -7,7 +7,9 @@
 const crypto = require("node:crypto");
 const { Attribute } = require("../understanding/turnFrame.js");
 const { privateWords } = require("../understanding/chatDetails.js");
-const { isContextDependent, isPersonal, privateChain, setsContext } = require("../understanding/wordRules/index.js");
+const { setsContext } = require("../understanding/wordRules/callContext.js");
+const { isContextDependent, privateChain } = require("../understanding/wordRules/followUp.js");
+const { isPersonal } = require("../understanding/wordRules/personal.js");
 
 const TASKS = ["none", "searching", "booking", "ordering", "account_action"];
 const IDENTITIES = ["anonymous", "identified", "verified"];

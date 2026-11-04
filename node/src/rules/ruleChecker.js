@@ -10,22 +10,11 @@
 //   V4 owned record / own purchase     V9 a step of a task in progress goes to the agent
 //   V5 identifying details in the key  V10 a follow-up whose key still says "it"/"that" and names nothing
 
-const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("../understanding/turnFrame.js");
-
 const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/results.js");
 const { ChatRuleSet } = require("./chatRuleSet.js");
 const { key, keyAttributes, segment, told } = require("../keys/knowledgeSegment.js");
 const { ChatTurn } = require("../turns/chat/turn.js");
-const {
-  FUNCTION,
-  NUMWORDS,
-  QUESTION_WORDS,
-  REFERRING,
-  CONTRACTION,
-  CLAUSE_START,
-  GENERIC_FACT,
-  looksIdentifying,
-} = require("../understanding/frameWords.js");
+const { FUNCTION, NUMWORDS } = require("../understanding/frameWords.js");
 
 // Expiry per question type, in seconds. null = until the knowledge version changes.
 const DEFAULT_TTL = { policy: null, how_to: null, product_fact: 24 * 3600, place_fact: 6 * 3600, search: 3600, other: 3600 };

@@ -11,22 +11,11 @@ from ...runtime.stats import Counter, Stats
 from ...runtime.turn_pairing import TurnPairing
 from ...runtime.write_result import WriteResult
 from ...state.call_state import CallState
-from ...understanding.word_rules import (
-    _AMOUNT_WORDS,
-    _EMAIL,
-    _MATTERS,
-    _SLOT,
-    _abstract,
-    _asks,
-    _carries_call_context,
-    _has_digit,
-    _identifies,
-    _leaks,
-    _lookup_only,
-    _reads_out_digits,
-    _unfinished,
-    _words,
-)
+from ...understanding.word_rules.answers import _SLOT, _abstract
+from ...understanding.word_rules.follow_up import _unfinished
+from ...understanding.word_rules.identifiers import _carries_call_context, _leaks
+from ...understanding.word_rules.personal import _EMAIL, _asks, _identifies, _lookup_only, _reads_out_digits
+from ...understanding.word_rules.text import _AMOUNT_WORDS, _MATTERS, _has_digit, _words
 from ..results import TurnDecision, VoiceAnswered
 from ..values import Checked, LookedUp, Outcome, RecordedOutcome, Verdict
 from .call import SessionCall

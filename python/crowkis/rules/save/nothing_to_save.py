@@ -8,7 +8,7 @@ from ...runtime.stats import Counter
 from ...turns.voice.turn import ModelAnswer
 from ...turns.values import Outcome, Verdict
 from ...turns.chat.turn import ChatAnswer
-from ...understanding.word_rules import _is_non_answer
+from ...understanding.word_rules.answers import _is_non_answer
 
 
 class EmptyAnswer:

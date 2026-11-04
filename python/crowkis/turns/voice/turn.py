@@ -9,7 +9,9 @@ from ...state.call_state import CallState
 from ...understanding.chat_details import _unnamed
 from ...understanding.rewrite_check import RewriteCheck
 from ...understanding.slots import Classifier, Rewriter
-from ...understanding.word_rules import _CONTEXT_BOUND_THRESHOLD, _is_non_answer, _leans_on
+from ...understanding.word_rules.answers import _is_non_answer
+from ...understanding.word_rules.follow_up import _leans_on
+from ...understanding.word_rules.phrases import _CONTEXT_BOUND_THRESHOLD
 from .call import SessionCall
 
 class VoiceTurn:

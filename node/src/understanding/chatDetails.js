@@ -3,7 +3,8 @@
 // What a chat turn tells and gives away: the names in it, the details the user told, its private
 // words, and a reply masked before it is kept. Moved unchanged from session.js in v4 P3.
 
-const { wordsOf, properNouns, tellsAboutCaller, instructs } = require("./wordRules/index.js");
+const { tellsAboutCaller, instructs } = require("./wordRules/callContext.js");
+const { wordsOf, properNouns } = require("./wordRules/text.js");
 const { NOT_GENERAL_TYPES } = require("./turnFrame.js");
 const { FUNCTION, CALENDAR } = require("./frameWords.js");
 

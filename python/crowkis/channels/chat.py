@@ -19,7 +19,8 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .call_session import CallSession, _masked
+from .call_session import CallSession
+from ..understanding.chat_details import _masked
 from ..understanding.understanders import Understander
 from ..rules.rule_checker import RuleChecker
 

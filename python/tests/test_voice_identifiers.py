@@ -10,7 +10,7 @@ import unittest
 
 import crowkis
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.understanding.word_rules import _is_personal
+from crowkis.understanding.word_rules.personal import _is_personal
 from crowkis.channels.voice_session import _wait_for_writes
 
 from conformance import ConformanceStore
@@ -54,7 +54,7 @@ class IPv4Tests(unittest.TestCase):
 
     def test_must_still_work_not_an_address(self):
         # Five parts, or a part over 255: not an IPv4 address (other rules may still apply).
-        from crowkis.understanding.word_rules import _IPV4
+        from crowkis.understanding.word_rules.personal import _IPV4
         for text in ("1.2.3.4.5", "256.1.1.1", "v1.2.3", "3.14", "203x0x113x42"):
             with self.subTest(text=text):
                 self.assertIsNone(_IPV4.search(text))

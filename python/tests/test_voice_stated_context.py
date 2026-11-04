@@ -4,7 +4,8 @@ answered from, or written to, the shared cache after that turn."""
 import unittest
 
 from crowkis import Agent, VoiceSession
-from crowkis.understanding.word_rules import _is_non_answer, _sets_context
+from crowkis.understanding.word_rules.answers import _is_non_answer
+from crowkis.understanding.word_rules.call_context import _sets_context
 
 from test_agent_voice import ScopedFakeClient
 

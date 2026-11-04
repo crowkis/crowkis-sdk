@@ -503,7 +503,7 @@ test("VD3: a recap of the caller's own call is read with the whole call and neve
 });
 
 test("T21: a short question whose only topic is an -ing form of the previous turn's word leans on it", async () => {
-  const { leansOn } = require("./src/understanding/wordRules/index.js");
+  const { leansOn } = require("./src/understanding/wordRules/followUp.js");
   const PORT = "What is the process to port my number to another network?";
   assert.strictEqual(leansOn("How long does porting take?", PORT), true);
   const { seen } = await call([PORT, "How long does porting take?"]);

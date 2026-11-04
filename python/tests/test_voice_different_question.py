@@ -11,7 +11,7 @@ import unittest
 
 import crowkis
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.understanding.word_rules import _different_specifics
+from crowkis.understanding.word_rules.answers import _different_specifics
 from crowkis.channels.voice_session import _wait_for_writes
 
 from conformance import ConformanceStore

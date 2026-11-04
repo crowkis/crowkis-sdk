@@ -7,7 +7,8 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { NoRewrite } = require("../../src/understanding/noRewrite.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
-const { isContextDependent, isPersonal } = require("../../src/understanding/wordRules/index.js");
+const { isContextDependent } = require("../../src/understanding/wordRules/followUp.js");
+const { isPersonal } = require("../../src/understanding/wordRules/personal.js");
 
 test("the reading is the word rules", () => {
   for (const text of ["my order 48213 has not arrived where is it", "and how long will that take",

@@ -3,7 +3,9 @@
 // Stage 1 rules (question): what the call said before (a private chain, a follow-up, a reference, stated facts).
 
 const { Verdict } = require("../../turns/values.js");
-const { leansOn, privateChain, setsContext, wordsOf } = require("../../understanding/wordRules/index.js");
+const { setsContext } = require("../../understanding/wordRules/callContext.js");
+const { leansOn, privateChain } = require("../../understanding/wordRules/followUp.js");
+const { wordsOf } = require("../../understanding/wordRules/text.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const {
   CLAUSE_START,

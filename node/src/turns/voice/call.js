@@ -5,9 +5,12 @@
 const { followUpKey } = require("../../keys/knowledgeSegment.js");
 const { LATE, within } = require("../../runtime/deadline.js");
 const { QuestionRecords } = require("../../runtime/questionRecords.js");
-const {
-  FOLLOW_UP_WORDS, URGENT, identifiers, isContextDependent, isPersonal, urgent, wordsOf,
-} = require("../../understanding/wordRules/index.js");
+const { isContextDependent } = require("../../understanding/wordRules/followUp.js");
+const { identifiers } = require("../../understanding/wordRules/identifiers.js");
+const { isPersonal } = require("../../understanding/wordRules/personal.js");
+const { FOLLOW_UP_WORDS, URGENT } = require("../../understanding/wordRules/phrases.js");
+const { wordsOf } = require("../../understanding/wordRules/text.js");
+const { urgent } = require("../../understanding/wordRules/urgent.js");
 
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.
 const CHAIN_LIMIT = 6;

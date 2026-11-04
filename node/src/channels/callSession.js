@@ -9,7 +9,6 @@
 // except shared. Sits next to VoiceSession; existing users are unaffected.
 
 const { CallState, IDENTITIES } = require("../state/callState.js");
-const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../understanding/answerPatterns.js");
 const { ChatRuleSet } = require("../rules/chatRuleSet.js");
 const { TurnCore } = require("../turns/core.js");
 const { ChatAnswered } = require("../turns/results.js");
@@ -23,20 +22,7 @@ const { ChatSaving } = require("../turns/chat/steps.js");
 const { ChatTurns } = require("../turns/chat/steps.js");
 const { TurnResult } = require("../turns/results.js");
 const { FILLER } = require("../turns/results.js");
-const {
-  NAME_LEADS,
-  SELF_INTRO,
-  RELATIONS,
-  POSSESSIVE,
-  TITLES,
-  names,
-  told,
-  privateWords,
-  REPLY_WORD,
-  MASKED,
-  masked,
-  norm,
-} = require("../understanding/chatDetails.js");
+const { names, masked, norm } = require("../understanding/chatDetails.js");
 const { CacheLookup } = require("../runtime/cacheLookup.js");
 const { QuestionRecords } = require("../runtime/questionRecords.js");
 const { BoundedWriter } = require("../runtime/boundedWriter.js");
@@ -49,7 +35,6 @@ const LOOKUP_UNAVAILABLE_COUNTS = ["lookup_errors"];
 const { ChatAnswer } = require("../turns/chat/turn.js");
 const { ChatTurn } = require("../turns/chat/turn.js");
 const { UrgentWords } = require("../rules/question/index.js");
-const { CALENDAR } = require("../understanding/frameWords.js");
 const {
   _tellsAboutCaller: tellsAboutCaller, _instructs: instructs,
   _wordsOf: wordsOf, _properNouns: properNouns,

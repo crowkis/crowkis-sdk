@@ -5,7 +5,8 @@ from __future__ import annotations
 from functools import cached_property
 from typing import Sequence
 
-from .word_rules import _is_context_dependent, _is_personal
+from .word_rules.follow_up import _is_context_dependent
+from .word_rules.personal import _is_personal
 
 
 class WordReading:

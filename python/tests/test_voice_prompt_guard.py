@@ -14,7 +14,11 @@ import json
 import unittest
 from pathlib import Path
 
-from crowkis.understanding.word_rules import _prompt_details, _repeats_prompt_details, _reset_prompt_baselines
+from crowkis.understanding.word_rules.prompt_details import (
+    _prompt_details,
+    _repeats_prompt_details,
+    _reset_prompt_baselines,
+)
 
 from test_voice_stress_bugs import ANSWER, Store, _pipecat, session_on
 

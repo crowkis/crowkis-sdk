@@ -80,13 +80,13 @@ class BudgetedReading {
  * words. A late call holds no thread in Node, so unlike Python it needs no in-flight bound.
  */
 class BudgetedUnderstanding {
-  constructor(classifier, rewriter, { budgetMs, count, warn = (message) => console.warn(message), fallback = null }) {
+  constructor(classifier, rewriter, { budgetMs, count, warn = (message) => console.warn(message) }) {
     this._classifier = classifier;
     this._rewriter = rewriter;
     this._budgetMs = budgetMs;
     this._count = count;
     this._warn = warn;
-    this._fallback = fallback || new WordRuleClassifier();
+    this._fallback = new WordRuleClassifier();
   }
 
   /** The model's reading and rewrite, or the word rules' reading when the model is late or fails. */

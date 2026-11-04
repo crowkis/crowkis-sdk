@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from ..state.call_state import CallState
 from ..understanding.chat_details import _masked, _norm
 from ..understanding.turn_frame import TurnFrame
-from .app_hooks import AppHooks
 from .chat_turns import ChatTurns
 from .checked import Checked
 from .routes import AGENT, FILLER, PERSONAL, TOOLS, URGENT
@@ -21,16 +20,23 @@ URGENT_SCRIPT_REASON = "urgent script"
 TOOLS_REASON = "answered by the business's tools"
 
 
+def call_hook(hook: Callable[..., Any], *args: Any) -> Any:
+    """Run an app hook; its result, or None when it fails."""
+    try:
+        return hook(*args)
+    except Exception:  # noqa: BLE001 - an app hook must never end the chat
+        return None
+
+
 class ChatAnswers:
     """Before a turn is read: an empty turn goes to the agent, a registered filler answers it, and
     with sharing off the agent answers everything. After the check: the app's ``on_urgent`` hook
     runs on an urgent turn and its ``urgent_reply`` answers it; ``on_tools`` may answer a personal
-    or live turn. None of these is ever cached; a hook that fails never ends the chat (``hooks``)."""
+    or live turn. None of these is ever cached; a hook that fails never ends the chat (``call_hook``)."""
 
-    def __init__(self, session: CallSession, turns: ChatTurns, hooks: AppHooks) -> None:
+    def __init__(self, session: CallSession, turns: ChatTurns) -> None:
         self._session = session
         self._turns = turns
-        self._hooks = hooks
 
     def before_reading(self, said: str, turn_id: int) -> Optional[TurnResult]:
         session = self._session
@@ -62,7 +68,7 @@ class ChatAnswers:
     def _urgent(self, reading: Any) -> Optional[TurnResult]:
         session = self._session
         if session.on_urgent is not None:
-            self._hooks.urgent(reading.text, reading.frame)
+            call_hook(session.on_urgent, reading.text, reading.frame)
         if not session.urgent_reply:
             return None
         session.state.note_agent_reply(session.urgent_reply)
@@ -73,7 +79,7 @@ class ChatAnswers:
         session = self._session
         if session.on_tools is None:
             return None
-        answered = self._hooks.tools(reading.text, reading.frame)
+        answered = call_hook(session.on_tools, reading.text, reading.frame)
         if not answered:
             return None
         session.counts["tools_answered"] += 1

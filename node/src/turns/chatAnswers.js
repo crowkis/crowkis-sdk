@@ -8,19 +8,35 @@ const SHARING_OFF = "off";
 const URGENT_SCRIPT_REASON = "urgent script";
 const TOOLS_REASON = "answered by the business's tools";
 
+// The app's hooks, each inside its one error boundary: a failing urgent or monitoring hook changes nothing and a
+// failing tool means the model answers. urgent and tools await the hook and hand the result on in the same step.
+async function urgentHook(session, text, frame, then) {
+  try { await session.onUrgent(text, frame); } catch { /* the hook must not take the call down */ }
+  return then();
+}
+
+async function toolsHook(session, text, frame, then) {
+  let answered = null;
+  try { answered = await session.onTools(text, frame); } catch { answered = null; /* a failing tool means the model answers */ }
+  return then(answered);
+}
+
+function eventHook(session, event) {
+  try { session.onEvent(event); } catch { /* monitoring must never affect the call */ }
+}
+
 /**
  * What a chat answers without the cache or the model, as TurnCore's EarlyAnswers. Before a turn is
  * read: an empty turn goes to the agent, a registered filler answers it, and with sharing off the
  * agent answers everything. After the check: the app's `onUrgent` hook runs on an urgent turn and its
  * `urgentReply` answers it; `onTools` may answer a personal or live turn. None of these is ever
- * cached; a hook that fails never ends the chat (`hooks`). `session` is read live (state, counts, mode, fillers,
+ * cached; a hook that fails never ends the chat (`urgentHook`, `toolsHook`, `eventHook`). `session` is read live (state, counts, mode, fillers,
  * the hooks, emit).
  */
 class ChatAnswers {
-  constructor(session, turns, hooks) {
+  constructor(session, turns) {
     this._session = session;
     this._turns = turns;
-    this._hooks = hooks;
   }
 
   beforeReading(said, turnId) {
@@ -53,7 +69,7 @@ class ChatAnswers {
   // The app's hook is awaited only when there is one; the reply follows it.
   _urgent(reading) {
     return this._session.onUrgent
-      ? this._hooks.urgent(reading.text, reading.frame, () => this._urgentReply(reading))
+      ? urgentHook(this._session, reading.text, reading.frame, () => this._urgentReply(reading))
       : this._urgentReply(reading);
   }
 
@@ -69,7 +85,7 @@ class ChatAnswers {
   // Without the app's tools the model answers at once.
   _tools(reading) {
     return this._session.onTools
-      ? this._hooks.tools(reading.text, reading.frame, (answered) => this._toolsAnswer(reading, answered))
+      ? toolsHook(this._session, reading.text, reading.frame, (answered) => this._toolsAnswer(reading, answered))
       : null;
   }
 
@@ -84,4 +100,4 @@ class ChatAnswers {
   }
 }
 
-module.exports = { ChatAnswers };
+module.exports = { ChatAnswers, eventHook };

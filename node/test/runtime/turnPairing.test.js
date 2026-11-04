@@ -11,8 +11,8 @@ test("an answer to the latest turn carries what decide offered", () => {
   const turn = pairing.begin();
   pairing.start(0);
   pairing.offer(turn, true);
-  assert.deepStrictEqual(pairing.settle(turn), [turn, true]);
-  assert.strictEqual(pairing.open, false);
+  assert.deepStrictEqual(pairing.settleTurn(turn), [turn, true]);
+  assert.strictEqual(pairing.isOpen, false);
 });
 
 test("an answer to an older turn is dropped", () => {
@@ -20,7 +20,7 @@ test("an answer to an older turn is dropped", () => {
   const old = pairing.begin();
   pairing.offer(old, true);
   pairing.begin();
-  assert.strictEqual(pairing.settle(old), null);
+  assert.strictEqual(pairing.settleTurn(old), null);
 });
 
 test("a newer turn's offer is never overwritten by an older one", () => {
@@ -29,7 +29,7 @@ test("a newer turn's offer is never overwritten by an older one", () => {
   const fresh = pairing.begin();
   pairing.offer(fresh, false);
   pairing.offer(old, true);
-  assert.deepStrictEqual(pairing.settle(fresh), [fresh, false]);
+  assert.deepStrictEqual(pairing.settleTurn(fresh), [fresh, false]);
 });
 
 test("a barge-in trims the open turn and drops its answer", () => {
@@ -41,5 +41,5 @@ test("a barge-in trims the open turn and drops its answer", () => {
   assert.deepStrictEqual(trimmed, [3]);
   assert.strictEqual(pairing.cancel((mark) => trimmed.push(mark)), false);
   assert.strictEqual(pairing.movedOn(turn), true);
-  assert.strictEqual(pairing.settle(turn), null);
+  assert.strictEqual(pairing.settleTurn(turn), null);
 });

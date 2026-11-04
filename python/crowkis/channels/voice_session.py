@@ -21,7 +21,6 @@ from ..turns.outcome import Outcome
 from ..turns.outcome import RecordedOutcome as _Outcome  # noqa: F401 - re-exported (old name)
 from ..turns.answered import VoiceAnswered
 from ..turns.turn_core import TurnCore
-from ..turns.voice_pairing import VoicePairing
 from ..turns.voice_reader import VoiceReader
 from ..turns.voice_report import VoiceReport
 from ..turns.voice_saving import VoiceSaving
@@ -573,7 +572,7 @@ class VoiceSession:
         self.audio_unavailable = 0
         self._fillers: Dict[str, str] = {}
         # Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
-        self._pairing = TurnPairing()
+        self._pairing = TurnPairing(session=self)
         # What this call has heard and how each turn was read; tainted: once the caller tells the call
         # something a later answer may depend on, nothing in it is looked up or shared. Only a session
         # with an understander collects stated turns, facts and private words.
@@ -625,7 +624,7 @@ class VoiceSession:
                              state=self.state, call=self._call, segment=self._segment)
         self._saving = VoiceSaving(self, rules=rules, call=self._call, state=self.state,
                                    report=report, writer=self._writer, stats=self._stats, segment=self._segment)
-        return TurnCore(self, pairing=VoicePairing(self._pairing, self), answers=report, reader=reader,
+        return TurnCore(self, pairing=self._pairing, answers=report, reader=reader,
                         question_check=rules, cache_lookup=self._cache_lookup, hit_check=rules, report=report,
                         saving=self._saving)
 
@@ -802,7 +801,7 @@ class VoiceSession:
         self._heard(caller_said)
         if self._pairing.cancelled:
             return
-        self._pairing.open = False
+        self._pairing.is_open = False
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": model_said})
         with self._turn_lock:

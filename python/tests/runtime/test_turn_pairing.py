@@ -10,15 +10,15 @@ class TurnPairingTests(unittest.TestCase):
         turn = pairing.begin()
         pairing.start(0)
         pairing.offer(turn, True)
-        self.assertEqual(pairing.settle(turn), (turn, True))
-        self.assertFalse(pairing.open)
+        self.assertEqual(pairing.settle_turn(turn), (turn, True))
+        self.assertFalse(pairing.is_open)
 
     def test_an_answer_to_an_older_turn_is_dropped(self):
         pairing = TurnPairing()
         old = pairing.begin()
         pairing.offer(old, True)
         pairing.begin()
-        self.assertIsNone(pairing.settle(old))
+        self.assertIsNone(pairing.settle_turn(old))
 
     def test_a_newer_turns_offer_is_never_overwritten_by_an_older_one(self):
         pairing = TurnPairing()
@@ -26,7 +26,7 @@ class TurnPairingTests(unittest.TestCase):
         new = pairing.begin()
         pairing.offer(new, False)
         pairing.offer(old, True)
-        self.assertEqual(pairing.settle(new), (new, False))
+        self.assertEqual(pairing.settle_turn(new), (new, False))
 
     def test_a_barge_in_trims_the_open_turn_and_drops_its_answer(self):
         pairing = TurnPairing()
@@ -37,7 +37,7 @@ class TurnPairingTests(unittest.TestCase):
         self.assertEqual(trimmed, [3])
         self.assertFalse(pairing.cancel(trimmed.append))
         self.assertTrue(pairing.moved_on(turn))
-        self.assertIsNone(pairing.settle(turn))
+        self.assertIsNone(pairing.settle_turn(turn))
 
 
 if __name__ == "__main__":

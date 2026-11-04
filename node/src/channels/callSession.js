@@ -13,14 +13,12 @@ const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../understanding/answerPat
 const { ChatRuleSet } = require("../rules/chatRuleSet.js");
 const { TurnCore } = require("../turns/turnCore.js");
 const { ChatAnswered } = require("../turns/answered.js");
-const { ChatAnswers } = require("../turns/chatAnswers.js");
+const { ChatAnswers, eventHook } = require("../turns/chatAnswers.js");
 const { ChatHitCheck } = require("../turns/chatHitCheck.js");
 const { ChatQuestionCheck } = require("../turns/chatQuestionCheck.js");
 const { ChatReader } = require("../turns/chatReader.js");
-const { ChatUnderstanding } = require("../turns/chatUnderstanding.js");
 const { ChatReading } = require("../turns/chatReading.js");
 const { ChatReport } = require("../turns/chatReport.js");
-const { AppHooks } = require("../turns/appHooks.js");
 const { ChatSaving } = require("../turns/chatSaving.js");
 const { ChatTurns } = require("../turns/chatTurns.js");
 const { TurnResult } = require("../turns/turnResult.js");
@@ -114,7 +112,6 @@ class CallSession {
    */
   _buildCore() {
     this._turns = new ChatTurns();
-    this._hooks = new AppHooks(this);
     this._report = new ChatReport(this, this._turns);
     const records = new QuestionRecords(this.agent, { track: trackRecord });
     this._cacheLookup = new CacheLookup({
@@ -129,8 +126,8 @@ class CallSession {
     });
     const hitCheck = new ChatHitCheck(this, { hitRules: ChatRuleSet.hitChain(), questionRecords: records });
     return new TurnCore(this, {
-      pairing: this._turns, answers: new ChatAnswers(this, this._turns, this._hooks),
-      reader: new ChatReader(this, new ChatUnderstanding(this)), questionCheck,
+      pairing: this._turns, answers: new ChatAnswers(this, this._turns),
+      reader: new ChatReader(this), questionCheck,
       cacheLookup: this._cacheLookup, hitCheck, report: this._report, saving: this._saving,
     });
   }
@@ -180,7 +177,7 @@ class CallSession {
 
   /** Send a monitoring event (never throws). */
   emit(event) {
-    if (this.onEvent) this._hooks.event(event);
+    if (this.onEvent) eventHook(this, event);
   }
 
   /**

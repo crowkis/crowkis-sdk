@@ -14,7 +14,7 @@
  */
 
 /**
- * Which turn an answer belongs to (VoicePairing, ChatTurns).
+ * Which turn an answer belongs to (TurnPairing, ChatTurns).
  * @typedef {object} Pairing
  * @property {() => number} open a turn is being decided: its number
  * @property {(answered: object) => import("./checked.js").Checked} settle the answer paired with its

@@ -11,7 +11,6 @@ const { TurnDecision } = require("../turns/decision.js");
 const { OUTCOME } = require("../turns/outcome.js");
 const { TurnCore } = require("../turns/turnCore.js");
 const { VoiceAnswered } = require("../turns/answered.js");
-const { VoicePairing } = require("../turns/voicePairing.js");
 const { VoiceReader } = require("../turns/voiceReader.js");
 const { VoiceReport } = require("../turns/voiceReport.js");
 const { VoiceSaving } = require("../turns/voiceSaving.js");
@@ -526,7 +525,7 @@ class VoiceSession {
     this.audioUnavailable = 0;
     this._fillers = new Map();
     // Which turn an answer belongs to: numbering, barge-in and whether its answer may be shared.
-    this._pairing = new TurnPairing();
+    this._pairing = new TurnPairing({ session: this });
     // What this call has heard and how each turn was read; tainted: once the caller tells the call
     // something a later answer may depend on, nothing in it is looked up or shared. Only a session
     // with an understander collects stated turns, facts and private words.
@@ -589,7 +588,7 @@ class VoiceSession {
       segment: this._segment,
     });
     return new TurnCore(this, {
-      pairing: new VoicePairing(this._pairing, this), answers: report, reader, questionCheck: rules,
+      pairing: this._pairing, answers: report, reader, questionCheck: rules,
       cacheLookup: this._cacheLookup, hitCheck: rules, report, saving: this._saving,
     });
   }
@@ -747,7 +746,7 @@ class VoiceSession {
   recordPrivateTurn(callerSaid, modelSaid) {
     this._heard(callerSaid);
     if (this._pairing.cancelled) return;
-    this._pairing.open = false;
+    this._pairing.isOpen = false;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: modelSaid });
     if (this._pairing.dropShareable()) this.notShareable += 1;

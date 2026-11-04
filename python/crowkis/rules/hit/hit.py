@@ -6,8 +6,8 @@ import time
 from typing import Callable, Dict, Optional
 
 from ...runtime.stats import Counter
-from ...turns import CachedAnswer, Verdict
-from ...turns.hit import Hit
+from ...turns.values import CachedAnswer, Verdict
+from ...turns.values import Hit
 from ...understanding.word_rules import _PII_PLACEHOLDER, _speakable
 
 

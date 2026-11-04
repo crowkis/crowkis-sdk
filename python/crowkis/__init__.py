@@ -29,9 +29,9 @@ from .understanding.understanders import LLMUnderstander, ReplayUnderstander, Wi
 from .understanding.llm_classifier import LLMClassifier
 from .understanding.llm_rewriter import LLMRewriter
 from .understanding.replay_rewriter import ReplayRewriter
-from .turns.channel import CHAT, REALTIME, VOICE, Channel
+from .turns.values import CHAT, REALTIME, VOICE, Channel
 # Where a turn goes: public, stable names (crowkis.privacy has the privacy word rules).
-from .turns.routes import AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT
+from .turns.results import AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT
 from .channels.call_session import CallSession, TurnResult
 from .channels.chat import Chat, ChatConflict, ChatReply, MemoryStore
 

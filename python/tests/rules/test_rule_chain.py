@@ -3,7 +3,7 @@ import unittest
 
 from crowkis import CrowkisError
 from crowkis.rules import FloorRuleLocked, RuleChain, RuleSet, UnknownRule
-from crowkis.turns import Verdict
+from crowkis.turns.values import Verdict
 
 
 class Objects:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
-from crowkis.turns.channel import VOICE, Channel
+from crowkis.turns.values import VOICE, Channel
 from crowkis.understanding.word_rules import _is_context_dependent, _is_personal
 
 

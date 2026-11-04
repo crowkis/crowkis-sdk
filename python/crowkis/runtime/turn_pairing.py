@@ -5,12 +5,12 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
-from ..turns.checked import Checked
-from ..turns.outcome import Outcome
-from ..turns.verdict import Verdict
+from ..turns.values import Checked
+from ..turns.values import Outcome
+from ..turns.values import Verdict
 
 if TYPE_CHECKING:
-    from ..turns.answered import VoiceAnswered
+    from ..turns.results import VoiceAnswered
 
 INTERRUPTED = Verdict("Interrupted", "the caller moved on before this answer was complete", outcome=Outcome.INTERRUPTED)
 

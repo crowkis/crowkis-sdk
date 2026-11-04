@@ -2,7 +2,7 @@
 import unittest
 
 from crowkis.rules import RuleSet
-from crowkis.turns.answered import VoiceAnswered
+from crowkis.turns.results import VoiceAnswered
 
 from test_voice_stress_bugs import Store, session_on
 

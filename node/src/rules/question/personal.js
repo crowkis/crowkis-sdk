@@ -2,7 +2,7 @@
 
 // Stage 1 rules (question): about this caller (own records, identifying details, someone else, a name).
 
-const { Verdict } = require("../../turns/verdict.js");
+const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const { CALENDAR, COMMON_ACRONYMS, FUNCTION, looksIdentifying } = require("../../understanding/frameWords.js");
 const { NOT_GENERAL_TYPES } = require("../../understanding/turnFrame.js");

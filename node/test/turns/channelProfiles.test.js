@@ -6,7 +6,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CrowkisClient } = require("../../index.js");
-const { Channel, REALTIME, VOICE } = require("../../src/turns/channel.js");
+const { Channel, REALTIME, VOICE } = require("../../src/turns/values.js");
 const { voiceSession } = require("../../src/channels/voiceSession.js");
 
 function factory(options = {}) {

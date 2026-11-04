@@ -1,7 +1,7 @@
 "use strict";
 
-const { OUTCOME } = require("../turns/outcome.js");
-const { Verdict } = require("../turns/verdict.js");
+const { OUTCOME } = require("../turns/values.js");
+const { Verdict } = require("../turns/values.js");
 const { COUNTER } = require("./stats.js");
 const { WRITTEN, WriteResult } = require("./writeResult.js");
 

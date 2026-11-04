@@ -11,7 +11,7 @@ from ..understanding.frame_words import _FUNCTION, _TOLD_TYPES, _stem, _toks
 from ..understanding.turn_frame import TurnFrame
 
 if TYPE_CHECKING:  # the turns package imports these keys, so a runtime import would be a cycle
-    from ..turns.channel import Channel
+    from ..turns.values import Channel
 
 # A value can never add or change a field of the segment.
 _FIELD_BREAKERS = re.compile(r"[;=\s]+")

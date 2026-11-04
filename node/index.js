@@ -1349,9 +1349,11 @@ class CrowkisAdmin {
   }
 }
 
+const { AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("./src/turns/results.js");
+
 module.exports = {
   // Where a turn goes: public, stable names (@crowkis/client/privacy has the privacy word rules).
-  ...require("./src/turns/routes.js"),
+  AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT,
   Crowkis: CrowkisClient, // idiomatic short name (like `new Redis()`)
   CrowkisClient,
   CrowkisAdmin,
@@ -1416,16 +1418,16 @@ module.exports = {
     return require("./src/understanding/understanders.js").ReplayUnderstander;
   },
   get Channel() {
-    return require("./src/turns/channel.js").Channel;
+    return require("./src/turns/values.js").Channel;
   },
   get VOICE() {
-    return require("./src/turns/channel.js").VOICE;
+    return require("./src/turns/values.js").VOICE;
   },
   get CHAT() {
-    return require("./src/turns/channel.js").CHAT;
+    return require("./src/turns/values.js").CHAT;
   },
   get REALTIME() {
-    return require("./src/turns/channel.js").REALTIME;
+    return require("./src/turns/values.js").REALTIME;
   },
   get WithFallback() {
     return require("./src/understanding/understanders.js").WithFallback;

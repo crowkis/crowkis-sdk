@@ -28,8 +28,8 @@ from ..state.call_state import CallState
 from ..understanding.turn_frame import DETAIL_TYPES, NOT_GENERAL_TYPES, TurnFrame
 
 from .chat_rule_set import ChatRuleSet
-from ..turns.chat_turn import ChatTurn
-from ..turns.routes import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT  # noqa: F401 - re-exported
+from ..turns.chat.turn import ChatTurn
+from ..turns.results import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT  # noqa: F401 - re-exported
 
 # Default expiry per question type, in seconds. None = until the knowledge version changes.
 DEFAULT_TTL: Dict[str, Optional[int]] = {

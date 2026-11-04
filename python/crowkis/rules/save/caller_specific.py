@@ -6,8 +6,9 @@ import re
 from typing import Optional
 
 from ...runtime.stats import Counter
-from ...turns import ModelAnswer, Outcome, Verdict
-from ...turns.chat_answer import ChatAnswer
+from ...turns.voice.turn import ModelAnswer
+from ...turns.values import Outcome, Verdict
+from ...turns.chat.turn import ChatAnswer
 from ...understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS
 from ...understanding.word_rules import (
     _identifiers,

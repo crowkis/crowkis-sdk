@@ -6,8 +6,9 @@ from typing import Iterator, Optional
 
 from ...runtime.stats import Counter
 from ...state.call_state import word_digest
-from ...turns import Verdict, VoiceTurn
-from ...turns.chat_turn import ChatTurn
+from ...turns.values import Verdict
+from ...turns.voice.turn import VoiceTurn
+from ...turns.chat.turn import ChatTurn
 from ...understanding.chat_details import _unnamed
 from ...understanding.fact_relevance import FactRelevanceCheck
 from ...understanding.frame_words import (

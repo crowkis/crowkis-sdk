@@ -8,7 +8,7 @@ from .slots import Reading
 from .word_rules import _is_personal, _leaks, _numbers, _proper_nouns, _words
 
 if TYPE_CHECKING:
-    from ..turns.session_call import SessionCall
+    from ..turns.voice.call import SessionCall
 
 
 class RewriteCheck:

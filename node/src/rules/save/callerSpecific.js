@@ -2,8 +2,8 @@
 
 // Stage 3 rules (save): answers right for this caller only (identifiers, private words, values, claims).
 
-const { OUTCOME } = require("../../turns/outcome.js");
-const { Verdict } = require("../../turns/verdict.js");
+const { OUTCOME } = require("../../turns/values.js");
+const { Verdict } = require("../../turns/values.js");
 const {
   escapeRegExp,
   identifiers,

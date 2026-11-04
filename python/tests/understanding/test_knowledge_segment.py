@@ -6,7 +6,7 @@ from crowkis import VoiceSession
 from crowkis.agent import Agent
 from crowkis.keys import KnowledgeSegment
 from crowkis.rules.rule_checker import RuleChecker
-from crowkis.turns.channel import REALTIME, VOICE
+from crowkis.turns.values import REALTIME, VOICE
 from crowkis.understanding.word_rule_classifier import WordRuleClassifier
 
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...turns.chat_turn import ChatTurn
-from ...turns.routes import URGENT
-from ...turns.verdict import Verdict
+from ...turns.chat.turn import ChatTurn
+from ...turns.results import URGENT
+from ...turns.values import Verdict
 from ...understanding.word_rules import _tells_about_caller, _urgent, _words
 
 

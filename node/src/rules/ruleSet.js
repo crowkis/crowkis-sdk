@@ -13,9 +13,9 @@ const {
   CallerIdentifier, DeclaredValue, EmptyAnswer, NoKey, NonAnswer, NotShareable, PersonalTemplate, PromptCallerDetails,
   TaintedCall, ToolResult, VoiceActionClaim, VoicePrivateWord,
 } = require("./save/index.js");
-const { CachedAnswer } = require("../turns/cachedAnswer.js");
-const { Checked } = require("../turns/checked.js");
-const { Hit } = require("../turns/hit.js");
+const { CachedAnswer } = require("../turns/values.js");
+const { Checked } = require("../turns/values.js");
+const { Hit } = require("../turns/values.js");
 
 const CHAINS = ["beforeFiller", "filler", "question", "hit", "answerGiven", "beforeSharing", "sharing"];
 

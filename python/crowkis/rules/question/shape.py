@@ -6,9 +6,10 @@ import re
 from typing import List, Mapping, Optional
 
 from ...runtime.stats import Counter
-from ...turns import Verdict, VoiceTurn
-from ...turns.chat_turn import ChatTurn
-from ...turns.routes import TASK
+from ...turns.values import Verdict
+from ...turns.voice.turn import VoiceTurn
+from ...turns.chat.turn import ChatTurn
+from ...turns.results import TASK
 from ...understanding.frame_words import _FUNCTION, _QUESTION_WORDS, _stem, _toks
 from ...understanding.word_rules import _normalise, _unfinished
 

@@ -7,7 +7,7 @@ const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
-const { VoiceAnswered } = require("../../src/turns/answered.js");
+const { VoiceAnswered } = require("../../src/turns/results.js");
 
 class Store {
   constructor() {

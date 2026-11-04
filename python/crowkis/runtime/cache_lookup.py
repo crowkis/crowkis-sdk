@@ -6,7 +6,7 @@ import concurrent.futures
 import time
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
-from ..turns.verdict import Verdict
+from ..turns.values import Verdict
 from .deadline import within
 from .stats import Counter
 

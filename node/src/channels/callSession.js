@@ -11,18 +11,18 @@
 const { CallState, IDENTITIES } = require("../state/callState.js");
 const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../understanding/answerPatterns.js");
 const { ChatRuleSet } = require("../rules/chatRuleSet.js");
-const { TurnCore } = require("../turns/turnCore.js");
-const { ChatAnswered } = require("../turns/answered.js");
-const { ChatAnswers, eventHook } = require("../turns/chatAnswers.js");
-const { ChatHitCheck } = require("../turns/chatHitCheck.js");
-const { ChatQuestionCheck } = require("../turns/chatQuestionCheck.js");
-const { ChatReader } = require("../turns/chatReader.js");
-const { ChatReading } = require("../turns/chatReading.js");
-const { ChatReport } = require("../turns/chatReport.js");
-const { ChatSaving } = require("../turns/chatSaving.js");
-const { ChatTurns } = require("../turns/chatTurns.js");
-const { TurnResult } = require("../turns/turnResult.js");
-const { FILLER } = require("../turns/routes.js");
+const { TurnCore } = require("../turns/core.js");
+const { ChatAnswered } = require("../turns/results.js");
+const { ChatAnswers, eventHook } = require("../turns/chat/steps.js");
+const { ChatHitCheck } = require("../turns/chat/checks.js");
+const { ChatQuestionCheck } = require("../turns/chat/checks.js");
+const { ChatReader } = require("../turns/chat/turn.js");
+const { ChatReading } = require("../turns/chat/turn.js");
+const { ChatReport } = require("../turns/chat/steps.js");
+const { ChatSaving } = require("../turns/chat/steps.js");
+const { ChatTurns } = require("../turns/chat/steps.js");
+const { TurnResult } = require("../turns/results.js");
+const { FILLER } = require("../turns/results.js");
 const {
   NAME_LEADS,
   SELF_INTRO,
@@ -42,12 +42,12 @@ const { QuestionRecords } = require("../runtime/questionRecords.js");
 const { BoundedWriter } = require("../runtime/boundedWriter.js");
 // BoundedWriter's counters, under Chat's names.
 const WRITE_COUNTS = { slowWrites: "slow_writes", learnErrors: "learn_errors" };
-const { CHAT } = require("../turns/channel.js");
+const { CHAT } = require("../turns/values.js");
 // A chat's counters for each way a lookup fails open.
 const LOOKUP_DEADLINE_COUNTS = ["lookup_timeouts"];
 const LOOKUP_UNAVAILABLE_COUNTS = ["lookup_errors"];
-const { ChatAnswer } = require("../turns/chatAnswer.js");
-const { ChatTurn } = require("../turns/chatTurn.js");
+const { ChatAnswer } = require("../turns/chat/turn.js");
+const { ChatTurn } = require("../turns/chat/turn.js");
 const { UrgentWords } = require("../rules/question/index.js");
 const { CALENDAR } = require("../understanding/frameWords.js");
 const {

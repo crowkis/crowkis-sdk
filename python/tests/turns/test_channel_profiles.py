@@ -2,7 +2,7 @@
 import unittest
 
 from crowkis import CrowkisClient, voice_session
-from crowkis.turns.channel import REALTIME, VOICE, Channel
+from crowkis.turns.values import REALTIME, VOICE, Channel
 
 
 def factory(**options):

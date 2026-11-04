@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Optional, Protocol
 
-from ..turns import CachedAnswer, ModelAnswer, Verdict, VoiceTurn
+from ..turns.values import CachedAnswer, Verdict
+from ..turns.voice.turn import ModelAnswer, VoiceTurn
 
 
 class Rule(Protocol):

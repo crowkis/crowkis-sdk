@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Callable, Iterator, List, Optional, Seque
 
 from bolna.llms.types import LatencyData, LLMStreamChunk
 
-from ...turns.decision import TurnDecision
+from ...turns.results import TurnDecision
 from ...channels.async_voice_session import AsyncVoiceSession, _on_server_pool
 from ..voice_turns import _earlier_callers, _field, _instructions
 from .synthesizer import AUDIO_CONCERN, CallLinks

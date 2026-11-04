@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Optional
 
 from ...runtime.stats import Counter
-from ...turns import ModelAnswer, Outcome, Verdict
-from ...turns.chat_answer import ChatAnswer
+from ...turns.voice.turn import ModelAnswer
+from ...turns.values import Outcome, Verdict
+from ...turns.chat.turn import ChatAnswer
 from ...understanding.word_rules import _is_non_answer
 
 

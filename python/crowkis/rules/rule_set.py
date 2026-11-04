@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from ..turns.cached_answer import CachedAnswer
-from ..turns.checked import Checked
-from ..turns.hit import Hit
-from ..turns.voice_turn import VoiceTurn
+from ..turns.values import CachedAnswer
+from ..turns.values import Checked
+from ..turns.values import Hit
+from ..turns.voice.turn import VoiceTurn
 from .chain import FloorRuleLocked, RuleChain, UnknownRule, rule_names
 from .hit import (
     CommitmentRewording,

@@ -8,7 +8,7 @@ import unittest
 
 from crowkis.state.call_state import CallState
 from crowkis.understanding.understanders import LLMUnderstander, ReplayUnderstander, WithFallback
-from crowkis.turns.routes import SHARED
+from crowkis.turns.results import SHARED
 from crowkis.rules.rule_checker import RuleChecker
 
 

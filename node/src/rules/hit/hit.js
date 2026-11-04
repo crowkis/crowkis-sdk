@@ -2,7 +2,7 @@
 
 // Stage 2 rules (hit): may a cached answer be spoken for this turn.
 
-const { Verdict } = require("../../turns/verdict.js");
+const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const { PII_PLACEHOLDER, speakable } = require("../../understanding/wordRules/index.js");
 

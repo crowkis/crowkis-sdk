@@ -12,10 +12,10 @@
 
 const { DETAIL_TYPES, NOT_GENERAL_TYPES } = require("../understanding/turnFrame.js");
 
-const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/routes.js");
+const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/results.js");
 const { ChatRuleSet } = require("./chatRuleSet.js");
 const { key, keyAttributes, segment, told } = require("../keys/knowledgeSegment.js");
-const { ChatTurn } = require("../turns/chatTurn.js");
+const { ChatTurn } = require("../turns/chat/turn.js");
 const {
   FUNCTION,
   NUMWORDS,

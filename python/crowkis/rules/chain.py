@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from ..client import CrowkisError
-from ..turns import Verdict
+from ..turns.values import Verdict
 from .rule import Rule
 
 

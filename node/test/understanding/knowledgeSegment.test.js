@@ -9,7 +9,7 @@ const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { KnowledgeSegment } = require("../../src/keys/knowledgeSegment.js");
 const { RuleChecker } = require("../../src/rules/ruleChecker.js");
-const { REALTIME, VOICE } = require("../../src/turns/channel.js");
+const { REALTIME, VOICE } = require("../../src/turns/values.js");
 const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
 

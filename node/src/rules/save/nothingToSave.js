@@ -2,8 +2,8 @@
 
 // Stage 3 rules (save): nothing to share (empty or non-answers, tool results, no key, a tainted call).
 
-const { OUTCOME } = require("../../turns/outcome.js");
-const { Verdict } = require("../../turns/verdict.js");
+const { OUTCOME } = require("../../turns/values.js");
+const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const { isNonAnswer } = require("../../understanding/wordRules/index.js");
 

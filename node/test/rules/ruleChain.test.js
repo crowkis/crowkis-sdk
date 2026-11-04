@@ -8,7 +8,7 @@ const { test } = require("node:test");
 const { CrowkisError } = require("../../index.js");
 const { FloorRuleLocked, RuleChain, UnknownRule } = require("../../src/rules/chain.js");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
-const { Verdict } = require("../../src/turns/verdict.js");
+const { Verdict } = require("../../src/turns/values.js");
 
 class Objects {
   constructor(name, objects, floor = false) {

@@ -3,7 +3,7 @@
 // FakeCall: a SessionCall for testing one rule alone. The fixtures name its settings as Python
 // does (min_words, short_turns, ...); every check answers what the test set.
 
-const { CHAT, REALTIME, VOICE } = require("../../src/turns/channel.js");
+const { CHAT, REALTIME, VOICE } = require("../../src/turns/values.js");
 const { isContextDependent, isPersonal } = require("../../src/understanding/wordRules/index.js");
 
 const CHANNELS = { voice: VOICE, chat: CHAT, realtime: REALTIME };

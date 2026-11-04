@@ -1,8 +1,8 @@
 "use strict";
 
-const { Checked } = require("../turns/checked.js");
-const { OUTCOME } = require("../turns/outcome.js");
-const { Verdict } = require("../turns/verdict.js");
+const { Checked } = require("../turns/values.js");
+const { OUTCOME } = require("../turns/values.js");
+const { Verdict } = require("../turns/values.js");
 
 const INTERRUPTED = new Verdict("Interrupted", "the caller moved on before this answer was complete", [], OUTCOME.INTERRUPTED);
 const NOTHING_SHARED = Object.freeze([0, false]);

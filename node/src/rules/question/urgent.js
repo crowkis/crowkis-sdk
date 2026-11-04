@@ -2,8 +2,8 @@
 
 // Stage 1 rules (question): an urgent turn.
 
-const { Verdict } = require("../../turns/verdict.js");
-const { URGENT } = require("../../turns/routes.js");
+const { Verdict } = require("../../turns/values.js");
+const { URGENT } = require("../../turns/results.js");
 const { tellsAboutCaller, urgent, wordsOf } = require("../../understanding/wordRules/index.js");
 
 // The UrgentTurn rule (stage 1, question; Chat, V1).

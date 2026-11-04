@@ -6,8 +6,8 @@ import concurrent.futures
 import logging
 from typing import Any, Callable, Optional
 
-from ..turns.outcome import Outcome
-from ..turns.verdict import Verdict
+from ..turns.values import Outcome
+from ..turns.values import Verdict
 from .write_result import WRITTEN, WriteResult
 from .write_workers import WriteWorkers
 from .stats import Counter

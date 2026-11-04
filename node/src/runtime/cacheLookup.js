@@ -1,6 +1,6 @@
 "use strict";
 
-const { Verdict } = require("../turns/verdict.js");
+const { Verdict } = require("../turns/values.js");
 const { LATE, within } = require("./deadline.js");
 const { COUNTER } = require("./stats.js");
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Protocol, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from ..rules.chain import RuleChain
 from ..runtime.bounded_writer import BoundedWriter
@@ -12,28 +12,17 @@ from ..understanding.chat_details import _masked
 from ..understanding.turn_frame import TurnFrame
 from .answered import ChatAnswered
 from .chat_answer import ChatAnswer
-from .chat_report import ChatReport
+from .chat_report import SAVE_REFUSED, ChatReport
 from .checked import Checked
 from .outcome import Outcome
 from .routes import SHARED
 from .verdict import Verdict
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 SAVED_COUNT = "saved"
 NOT_SHARED = Verdict("NotShared", "not a shared question the model answered", outcome=Outcome.NOT_SHARED)
-SAVE_REFUSED = "save_refused"
-
-
-class ChatSessionSaves(Protocol):
-    """What ChatSaving reads of the chat, live."""
-
-    state: CallState
-    counts: Dict[str, int]
-    agent: Any
-    instructions: str
-    latency_budget_ms: Optional[float]
-
-    def prompt_key(self) -> Tuple:
-        """Whose system prompts this chat's is compared with."""
 
 
 class ChatSaving:
@@ -43,7 +32,7 @@ class ChatSaving:
     as voice; waited for without a budget; a failed write is ``report``'s refusal), then the question
     it was saved for is kept."""
 
-    def __init__(self, session: ChatSessionSaves, *, save_rules: RuleChain, writer: BoundedWriter,
+    def __init__(self, session: CallSession, *, save_rules: RuleChain, writer: BoundedWriter,
                  question_records: QuestionRecords, report: ChatReport) -> None:
         self._session = session
         self._report = report

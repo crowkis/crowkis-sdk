@@ -82,9 +82,6 @@ class Report(Protocol):
     def kept(self, verdict: Verdict) -> Any:
         """An answer is not saved (dropped or kept out of the shared cache): the outcome."""
 
-    def refused(self, error: Exception) -> Any:
-        """The write of an answer failed: the outcome."""
-
     def recorded(self, answered: Any, outcome: Any) -> Any:
         """Whatever happened to an answer: counted or reported as the channel does; the outcome."""
 

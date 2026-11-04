@@ -63,7 +63,6 @@
  *   a hit is served (`looked.cached`)
  * @property {(verdict: import("./verdict.js").Verdict) => any} kept an answer is not saved (dropped or
  *   kept out of the shared cache): the outcome
- * @property {(error: Error) => any} refused the write of an answer failed: the outcome
  * @property {(answered: object, outcome: any) => any} recorded whatever happened to an answer: counted or
  *   reported as the channel does; the outcome
  */

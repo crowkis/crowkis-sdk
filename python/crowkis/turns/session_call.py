@@ -1,4 +1,4 @@
-"""SessionCall: the call a VoiceSession's turn steps and rules read, as the VoiceCall interface."""
+"""SessionCall: the call a VoiceSession's turn steps and rules read."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ CHAIN_LIMIT = 6
 
 
 class SessionCall:
-    """A voice call as its rules and turn steps see it (``VoiceCall``). The session's settings are read
+    """A voice call as its rules and turn steps see it (``SessionCall``). The session's settings are read
     live (an app may change them between turns); what the call works out from what it has heard is
     done here: the earlier turns a follow-up leans on (``chain``), a turn's cache key, a turn after an
     urgent one, the IDs the caller said before, whose system prompts it is compared with, and whether

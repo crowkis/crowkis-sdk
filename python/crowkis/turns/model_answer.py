@@ -6,17 +6,17 @@ from functools import cached_property
 from typing import Optional
 
 from ..understanding.word_rules import _is_non_answer
-from .voice_call import VoiceCall
+from .session_call import SessionCall
 
 
 class ModelAnswer:
     """What the model said to a turn, with what is known about that turn when it is recorded.
 
-    ``key`` is the turn's cache key (see ``keyed``), worked out before the turn joined the transcript.
+    ``key`` is the turn's cache key (set once the answer is known to be one), worked out before the turn joined the transcript.
     ``private`` means the answer was built from a tool's result; ``instructions`` is the system
     prompt the model read; ``cacheable`` is whether decide() let the answer be shared."""
 
-    def __init__(self, said: str, answer: str, key: Optional[str], call: VoiceCall, *, private: bool,
+    def __init__(self, said: str, answer: str, key: Optional[str], call: SessionCall, *, private: bool,
                  instructions: Optional[str], cacheable: bool) -> None:
         self.said = said
         self.text = (said or "").strip()
@@ -26,11 +26,6 @@ class ModelAnswer:
         self.private = private
         self.instructions = instructions
         self.cacheable = cacheable
-
-    def keyed(self, key: Optional[str]) -> "ModelAnswer":
-        """This answer with the turn's cache key, worked out once the answer is known to be one."""
-        return ModelAnswer(self.said, self.answer, key, self.call, private=self.private,
-                           instructions=self.instructions, cacheable=self.cacheable)
 
     @cached_property
     def is_personal(self) -> bool:

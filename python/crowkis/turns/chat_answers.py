@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from ..state.call_state import CallState
 from ..understanding.chat_details import _masked, _norm
@@ -13,27 +13,12 @@ from .checked import Checked
 from .routes import AGENT, FILLER, PERSONAL, TOOLS, URGENT
 from .turn_result import TurnResult
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 SHARING_OFF = "off"
 URGENT_SCRIPT_REASON = "urgent script"
 TOOLS_REASON = "answered by the business's tools"
-
-
-class ChatSessionHooks(Protocol):
-    """What ChatAnswers reads of the chat, live: an app may change these between turns."""
-
-    state: CallState
-    counts: Dict[str, int]
-    mode: str
-    on_urgent: Optional[Callable[[str, TurnFrame], None]]
-    urgent_reply: Optional[str]
-    on_tools: Optional[Callable[[str, TurnFrame], Optional[str]]]
-
-    @property
-    def fillers(self) -> Dict[str, str]:
-        """Registered fillers, by normalised trigger."""
-
-    def emit(self, event: Dict[str, Any]) -> None:
-        """Send a monitoring event (never raises)."""
 
 
 class ChatAnswers:
@@ -42,7 +27,7 @@ class ChatAnswers:
     runs on an urgent turn and its ``urgent_reply`` answers it; ``on_tools`` may answer a personal
     or live turn. None of these is ever cached; a hook that fails never ends the chat (``hooks``)."""
 
-    def __init__(self, session: ChatSessionHooks, turns: ChatTurns, hooks: AppHooks) -> None:
+    def __init__(self, session: CallSession, turns: ChatTurns, hooks: AppHooks) -> None:
         self._session = session
         self._turns = turns
         self._hooks = hooks

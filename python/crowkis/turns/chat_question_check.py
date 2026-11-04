@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol
+from typing import TYPE_CHECKING, Any, Dict
 
 from ..rules.chain import RuleChain
 from ..rules.question import UrgentWords
@@ -15,16 +15,10 @@ from .checked import Checked
 from .routes import AGENT, URGENT
 from .verdict import Verdict
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 CHECK_RULE = "ChatQuestionCheck"
-
-
-class ChatSessionChecks(Protocol):
-    """What ChatQuestionCheck reads of the chat, live."""
-
-    state: CallState
-    counts: Dict[str, int]
-    checker: Any
-    replay: Any
 
 
 class ChatQuestionCheck:
@@ -34,7 +28,7 @@ class ChatQuestionCheck:
     state takes the turn in, and its route is counted. A shared question is remembered by the safe
     fallback; any other route is the objection (the model answers with the whole chat)."""
 
-    def __init__(self, session: ChatSessionChecks, *, shared_question_rules: RuleChain,
+    def __init__(self, session: CallSession, *, shared_question_rules: RuleChain,
                  urgent_words: UrgentWords) -> None:
         self._session = session
         self._shared_question_rules = shared_question_rules

@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Any, Dict, Optional
 
 from ..understanding.word_rules import _CONTEXT_BOUND_THRESHOLD
-from .voice_call import VoiceCall
+from .session_call import SessionCall
 
 
 class VoiceTurn:
@@ -16,7 +16,7 @@ class VoiceTurn:
     call's answers are looked up (None: no segment, as before); ``number`` is the turn's number in
     the call."""
 
-    def __init__(self, said: str, call: VoiceCall, reading: Any, rewritten: Optional[str] = None, *,
+    def __init__(self, said: str, call: SessionCall, reading: Any, rewritten: Optional[str] = None, *,
                  segment: Optional[str] = None, number: int = 0) -> None:
         self.said = said
         self.text = (said or "").strip()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..runtime.bounded_writer import BoundedWriter
 from ..runtime.write_result import WriteResult
@@ -29,18 +29,8 @@ from .session_call import SessionCall
 from .voice_report import VoiceReport
 
 if TYPE_CHECKING:
+    from ..channels.voice_session import VoiceSession
     from ..rules.rule_set import RuleSet
-
-
-class VoiceSessionSaves(Protocol):
-    """What VoiceSaving reads of the voice session, live: an app may change these between turns."""
-
-    agent: Any
-    latency_budget_ms: Optional[float]
-    ttl: Optional[int]
-    share_templates: bool
-    values: Dict[str, str]
-    transcript: List[Dict[str, str]]
 
 
 class VoiceSaving:
@@ -53,7 +43,7 @@ class VoiceSaving:
     call's ``segment``, if any), with the question it was saved for. ``last_stored`` is the question
     the latest shared answer was stored under."""
 
-    def __init__(self, session: VoiceSessionSaves, *, rules: "RuleSet", call: SessionCall,
+    def __init__(self, session: VoiceSession, *, rules: "RuleSet", call: SessionCall,
                  state: CallState, report: VoiceReport, writer: BoundedWriter, stats: Stats,
                  segment: Optional[str]) -> None:
         self._session = session
@@ -73,8 +63,7 @@ class VoiceSaving:
         verdict = self._rules.answer_given.first_objection(answer)
         if verdict is not None:
             return Checked(answer, verdict)
-        answer = answer.keyed(self._state.rewritten_for(answer.text)
-                              or self._call.context_key(answered.said, answer.text))
+        answer.key = self._state.rewritten_for(answer.text) or self._call.context_key(answered.said, answer.text)
         self._session.transcript.append({"role": "user", "content": answered.said})
         self._session.transcript.append({"role": "assistant", "content": answered.model_said})
         return Checked(answer, self._rules.before_sharing.first_objection(answer))

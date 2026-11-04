@@ -2,13 +2,13 @@
 
 const { masked } = require("../understanding/chatDetails.js");
 const { ChatAnswer } = require("./chatAnswer.js");
+const { SAVE_REFUSED } = require("./chatReport.js");
 const { Checked } = require("./checked.js");
 const { OUTCOME, because } = require("./outcome.js");
 const { SHARED } = require("./routes.js");
 const { Verdict } = require("./verdict.js");
 
 const SAVED_COUNT = "saved";
-const SAVE_REFUSED = "save_refused";
 const NOT_SHARED = new Verdict("NotShared", "not a shared question the model answered", [], OUTCOME.NOT_SHARED);
 
 /**

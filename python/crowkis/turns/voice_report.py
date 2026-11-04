@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import weakref
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Protocol, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
 from ..runtime.stats import Counter, Stats
 from ..runtime.turn_pairing import TurnPairing
@@ -14,22 +14,17 @@ from .checked import Checked, LookedUp
 from .decision import TurnDecision
 from .outcome import Outcome, RecordedOutcome
 from .verdict import Verdict
-from .voice_call import VoiceCall
+from .session_call import SessionCall
 from .voice_turn import VoiceTurn
 
 if TYPE_CHECKING:
+    from ..channels.voice_session import VoiceSession
     from ..state.call_state import CallState
 
 _LOG = logging.getLogger("crowkis")
 SERVED_REASON = "confident cache hit"
 WRITE_REFUSED = "WriteRefused"
 Messages = Optional[List[Dict[str, str]]]
-
-
-class VoiceSessionTranscript(Protocol):
-    """What VoiceReport reads of the voice session, live."""
-
-    transcript: List[Dict[str, str]]
 
 
 class VoiceReport:
@@ -42,8 +37,8 @@ class VoiceReport:
     the model reads (``model_messages``), and whether its answer may be shared is offered to the
     call's ``pairing`` for that turn."""
 
-    def __init__(self, session: VoiceSessionTranscript, stats: Stats, *, voiced: Callable[..., Optional[bytes]],
-                 pairing: TurnPairing, call: VoiceCall, state: "CallState") -> None:
+    def __init__(self, session: VoiceSession, stats: Stats, *, voiced: Callable[..., Optional[bytes]],
+                 pairing: TurnPairing, call: SessionCall, state: "CallState") -> None:
         self._session = session
         # A weak reference, so a kept decision never keeps a call alive.
         self._owner = weakref.ref(session)

@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from ..understanding.turn_frame import TurnFrame
 
-
-class ChatSessionAppHooks(Protocol):
-    """The hooks the app set on the chat, read live: an app may change them between turns."""
-
-    on_urgent: Optional[Callable[[str, TurnFrame], None]]
-    on_tools: Optional[Callable[[str, TurnFrame], Optional[str]]]
-    on_event: Optional[Callable[[Dict[str, Any]], None]]
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
 
 
 class AppHooks:
@@ -20,7 +15,7 @@ class AppHooks:
     fails changes nothing, and a failing tool means the model answers. Never ends the chat. The
     callers call a hook only when the app set one."""
 
-    def __init__(self, session: ChatSessionAppHooks) -> None:
+    def __init__(self, session: CallSession) -> None:
         self._session = session
 
     def urgent(self, text: str, frame: TurnFrame) -> None:

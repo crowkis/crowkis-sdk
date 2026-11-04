@@ -1,4 +1,4 @@
-"""FakeCall: a VoiceCall for testing one rule alone."""
+"""FakeCall: a SessionCall for testing one rule alone."""
 
 from __future__ import annotations
 

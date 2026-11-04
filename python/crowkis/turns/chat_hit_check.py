@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ..rules.chain import RuleChain
 from ..runtime.question_records import QuestionRecords
@@ -11,20 +11,17 @@ from .checked import Checked
 from .hit import CACHE_ROUTE, Hit
 from .verdict import Verdict
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 # A miss, or a hit below the bar: the model answers; not counted.
 NOT_CONFIDENT = Verdict("NotConfident", "no confident cached answer")
 # Chat speaks a cached commitment (a price, a refund, a policy) only for the exact same question (decision V2).
 CHAT_COMMITMENTS = "exact"
 
 
-class ChatSessionBudget(Protocol):
-    """What ChatHitCheck reads of the chat, live."""
-
-    latency_budget_ms: Optional[float]
-
-
 class ChatHitCall:
-    """Adapter: the call a chat hit belongs to, as the hit rules read it (voice's VoiceCall, hit side)."""
+    """Adapter: the call a chat hit belongs to, as the hit rules read it (the SessionCall of voice, hit side)."""
 
     commitments = CHAT_COMMITMENTS
 
@@ -56,7 +53,7 @@ class ChatHitCheck:
     counted under the rule's name. Not voice's check (``RuleSet.check_hit``): a chat stops an
     unconfident hit before its rules and uncounted, and counts a refusal by the rule's name."""
 
-    def __init__(self, session: ChatSessionBudget, *, hit_rules: RuleChain, question_records: QuestionRecords) -> None:
+    def __init__(self, session: CallSession, *, hit_rules: RuleChain, question_records: QuestionRecords) -> None:
         self._session = session
         self._hit_rules = hit_rules
         self._question_records = question_records

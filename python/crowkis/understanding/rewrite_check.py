@@ -8,7 +8,7 @@ from .slots import Reading
 from .word_rules import _is_personal, _leaks, _numbers, _proper_nouns, _words
 
 if TYPE_CHECKING:
-    from ..turns.voice_call import VoiceCall
+    from ..turns.session_call import SessionCall
 
 
 class RewriteCheck:
@@ -19,7 +19,7 @@ class RewriteCheck:
     the call something, no rewrite is used: the classifier read those facts, and a rewrite could carry one
     into a shared key. Anything else keeps the caller's words."""
 
-    def accept(self, text: str, reading: Reading, rewritten: object, call: "VoiceCall") -> Optional[str]:
+    def accept(self, text: str, reading: Reading, rewritten: object, call: "SessionCall") -> Optional[str]:
         """The rewrite to key the turn on, or None for the caller's words."""
         if not isinstance(rewritten, str) or not rewritten.strip():
             return None

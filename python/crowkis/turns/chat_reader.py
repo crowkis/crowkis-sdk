@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Set
+from typing import TYPE_CHECKING, Set
 
 from ..state.call_state import CallState
 from ..understanding.chat_details import _names, _told
@@ -10,11 +10,8 @@ from ..understanding.word_rules import _identifiers, _instructs, _tells_about_ca
 from .chat_reading import ChatReading
 from .chat_understanding import ChatUnderstanding
 
-
-class ChatSessionState(Protocol):
-    """What ChatReader reads of the chat, live."""
-
-    state: CallState
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
 
 
 class ChatReader:
@@ -22,7 +19,7 @@ class ChatReader:
     (an allergy, an age, a trip), the names and IDs they give and a language they ask for, noted in
     the chat's state before any check, this turn's included."""
 
-    def __init__(self, session: ChatSessionState, understanding: ChatUnderstanding) -> None:
+    def __init__(self, session: CallSession, understanding: ChatUnderstanding) -> None:
         self._session = session
         self._understanding = understanding
 

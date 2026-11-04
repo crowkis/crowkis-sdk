@@ -4,19 +4,21 @@ const { isThenable } = require("./turnCore.js");
 const { leansOn } = require("../understanding/wordRules/index.js");
 const { VoiceTurn } = require("./voiceTurn.js");
 const { unnamed } = require("../understanding/chatDetails.js");
+const { RewriteCheck } = require("../understanding/rewriteCheck.js");
+
+const REWRITE_CHECK = new RewriteCheck();
 
 /**
  * Reads a caller's turn with the classifier and the rewriter (the word rules and no rewrite unless an
- * understander is plugged in). The rewrite is kept only when `rewriteCheck` accepts it; the call's
+ * understander is plugged in). The rewrite is kept only when `RewriteCheck` accepts it; the call's
  * state remembers what was made of each turn. `segment` is where the call's answers are looked up
  * (null: no segment). The default slots answer at once, and so does read(); only a plugged-in
  * model's promise is awaited.
  */
 class VoiceReader {
-  constructor({ classifier, rewriter, rewriteCheck, state, call, segment }) {
+  constructor({ classifier, rewriter, state, call, segment }) {
     this._classifier = classifier;
     this._rewriter = rewriter;
-    this._rewriteCheck = rewriteCheck;
     this._state = state;
     this._call = call;
     this._segment = segment;
@@ -41,7 +43,7 @@ class VoiceReader {
   }
 
   _turn(said, turn, text, reading, rewritten) {
-    rewritten = this._rewriteCheck.accept(text, reading, rewritten, this._call);
+    rewritten = REWRITE_CHECK.accept(text, reading, rewritten, this._call);
     this._state.noteReading(text, reading, rewritten);
     const chain = this._call.chain();
     if (leansOn(text, (chain || [""]).slice(-1)[0])) this._state.readFollowUp.add(text); // keyed with the turn it leans on (T21)

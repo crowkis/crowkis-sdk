@@ -16,7 +16,6 @@ const { VoiceReader } = require("../turns/voiceReader.js");
 const { VoiceReport } = require("../turns/voiceReport.js");
 const { VoiceSaving } = require("../turns/voiceSaving.js");
 const { Stats } = require("../runtime/stats.js");
-const { RewriteCheck } = require("../understanding/rewriteCheck.js");
 const { NoRewrite } = require("../understanding/noRewrite.js");
 const { BudgetedUnderstanding } = require("../understanding/budgetedUnderstanding.js");
 const { Channel, VOICE } = require("../turns/channel.js");
@@ -582,7 +581,7 @@ class VoiceSession {
     });
     this._report = report;
     const reader = new VoiceReader({
-      classifier: this._classifier, rewriter: this._rewriter, rewriteCheck: new RewriteCheck(),
+      classifier: this._classifier, rewriter: this._rewriter,
       state: this.state, call: this._call, segment: this._segment,
     });
     this._saving = new VoiceSaving(this, {

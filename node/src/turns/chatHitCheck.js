@@ -15,7 +15,7 @@ function counted(objection) {
   return objection ? new Verdict(objection.rule, objection.reason, [objection.rule]) : null;
 }
 
-/** Adapter: the call a chat hit belongs to, as the hit rules read it (voice's VoiceCall, hit side). */
+/** Adapter: the call a chat hit belongs to, as the hit rules read it (the SessionCall of voice, hit side). */
 class ChatHitCall {
   constructor(records, budgetMs) {
     this._records = records;

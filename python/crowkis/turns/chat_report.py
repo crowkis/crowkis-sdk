@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Protocol
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from ..state.call_state import CallState
 from .answered import ChatAnswered
@@ -13,20 +13,13 @@ from .routes import SHARED
 from .turn_result import Message, TurnResult
 from .verdict import Verdict
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 HIT_REASON = "cache hit"
 MISS_REASON = "cache miss"
 WRITE_FAILED = Outcome.REFUSED.because("write_failed")
 SAVE_REFUSED = "save_refused"
-
-
-class ChatSessionReports(Protocol):
-    """What ChatReport reads of the chat, live."""
-
-    state: CallState
-    counts: Dict[str, int]
-
-    def emit(self, event: Dict[str, Any]) -> None:
-        """Send a monitoring event (never raises)."""
 
 
 class ChatReport:
@@ -35,7 +28,7 @@ class ChatReport:
     verdict names, a "turn" event (an "answer" event once recorded), and the agent's reply noted in the chat's state when it is
     already known (a hit)."""
 
-    def __init__(self, session: ChatSessionReports, turns: ChatTurns) -> None:
+    def __init__(self, session: CallSession, turns: ChatTurns) -> None:
         self._session = session
         self._turns = turns
 

@@ -4,24 +4,16 @@ from __future__ import annotations
 
 import concurrent.futures
 import copy
-from typing import Any, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ..runtime.deadline import within
 from ..state.call_state import CallState
 from ..understanding.turn_frame import TurnFrame
 
+if TYPE_CHECKING:
+    from ..channels.call_session import CallSession
+
 REPLAY_ONLY = "replay_only"
-
-
-class ChatSessionUnderstanding(Protocol):
-    """What ChatUnderstanding reads of the chat, live: an app may change these between turns."""
-
-    state: CallState
-    counts: Dict[str, int]
-    mode: str
-    understander: Any
-    replay: Any
-    understand_budget_ms: Optional[float]
 
 
 class ChatUnderstanding:
@@ -32,7 +24,7 @@ class ChatUnderstanding:
     ``fallback_used``); nothing is logged, as Chat never logged them. In replay-only mode the
     fallback alone reads every turn."""
 
-    def __init__(self, session: ChatSessionUnderstanding, pool: concurrent.futures.Executor) -> None:
+    def __init__(self, session: CallSession, pool: concurrent.futures.Executor) -> None:
         self._session = session
         self._pool = pool
 

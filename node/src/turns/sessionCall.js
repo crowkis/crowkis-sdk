@@ -11,7 +11,7 @@ const {
 const CHAIN_LIMIT = 6;
 
 /**
- * A voice call as its rules and turn steps see it (the VoiceCall interface). The session's settings
+ * A voice call as its rules and turn steps see it (SessionCall). The session's settings
  * are read live (an app may change them between turns); what the call works out from what it has
  * heard is done here: the earlier turns a follow-up leans on (chain), a turn's cache key, a turn
  * after an urgent one, the IDs the caller said before, whose system prompts it is compared with, and

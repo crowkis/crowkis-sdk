@@ -60,10 +60,10 @@ class VoiceSaving {
   // Once it is known to be an answer: its cache key (worked out before it joins the transcript), then
   // its place in the transcript; `beforeSharing`'s objection may still be pending.
   _keyed(answered, answer) {
-    const keyed = answer.keyed(this._state.rewrittenFor(answer.text) ?? this._call.contextKey(answered.said, answer.text));
+    answer.key = this._state.rewrittenFor(answer.text) ?? this._call.contextKey(answered.said, answer.text);
     this._session.transcript.push({ role: "user", content: answered.said });
     this._session.transcript.push({ role: "assistant", content: answered.modelSaid });
-    return new Checked(keyed, this._rules.beforeSharing.firstObjection(keyed));
+    return new Checked(answer, this._rules.beforeSharing.firstObjection(answer));
   }
 
   // agent.learn() through the bounded write (twice the latency budget; waited for without one), in the

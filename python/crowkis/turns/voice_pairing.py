@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Protocol
+from typing import TYPE_CHECKING, Dict, List
 
 from ..runtime.turn_pairing import TurnPairing
 from .answered import VoiceAnswered
@@ -10,13 +10,10 @@ from .checked import Checked
 from .outcome import Outcome
 from .verdict import Verdict
 
+if TYPE_CHECKING:
+    from ..channels.voice_session import VoiceSession
+
 INTERRUPTED = Verdict("Interrupted", "the caller moved on before this answer was complete", outcome=Outcome.INTERRUPTED)
-
-
-class VoiceSessionTranscript(Protocol):
-    """What VoicePairing reads of the voice session, live."""
-
-    transcript: List[Dict[str, str]]
 
 
 class VoicePairing:
@@ -25,7 +22,7 @@ class VoicePairing:
     the caller moved on from is ``Interrupted``; a paired answer carries whether decide() let it be
     shared."""
 
-    def __init__(self, pairing: TurnPairing, session: VoiceSessionTranscript) -> None:
+    def __init__(self, pairing: TurnPairing, session: VoiceSession) -> None:
         self._pairing = pairing
         self._session = session
 

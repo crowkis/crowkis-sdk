@@ -96,4 +96,4 @@ class ChatReport {
   }
 }
 
-module.exports = { ChatReport };
+module.exports = { ChatReport, SAVE_REFUSED };

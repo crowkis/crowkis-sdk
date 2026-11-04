@@ -72,14 +72,10 @@ class TurnCore:
         """What happens to the model's answer: dropped when the caller moved on, kept out of the shared
         cache by a save rule, or shared. Never raises for the write: a refused write (security
         pipeline, tenant limit, cache down) must not end a call; the channel reports it."""
-        return self._report.recorded(answered, self._outcome(answered))
-
-    def _outcome(self, answered: Any) -> Any:
-        """The pairing, the save check and the write: what happened to the answer."""
         paired = self._pairing.settle(answered)
         if paired.objection is not None:
-            return self._report.kept(paired.objection)
+            return self._report.recorded(answered, self._report.kept(paired.objection))
         checked = self._saving.check(paired.subject)
         if checked.objection is not None:
-            return self._report.kept(checked.objection)
-        return self._saving.write(checked.subject)
+            return self._report.recorded(answered, self._report.kept(checked.objection))
+        return self._report.recorded(answered, self._saving.write(checked.subject))

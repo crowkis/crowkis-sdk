@@ -1,6 +1,6 @@
 "use strict";
 
-// FakeCall: a VoiceCall for testing one rule alone. The fixtures name its settings as Python
+// FakeCall: a SessionCall for testing one rule alone. The fixtures name its settings as Python
 // does (min_words, short_turns, ...); every check answers what the test set.
 
 const { CHAT, REALTIME, VOICE } = require("../../src/turns/channel.js");

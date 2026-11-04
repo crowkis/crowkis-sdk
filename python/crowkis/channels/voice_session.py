@@ -25,7 +25,6 @@ from ..turns.voice_pairing import VoicePairing
 from ..turns.voice_reader import VoiceReader
 from ..turns.voice_report import VoiceReport
 from ..turns.voice_saving import VoiceSaving
-from ..understanding.rewrite_check import RewriteCheck
 from ..understanding.no_rewrite import NoRewrite
 from ..turns.channel import VOICE, Channel
 from ..keys import KnowledgeSegment
@@ -622,7 +621,7 @@ class VoiceSession:
         ``rules`` are the question, hit and save checks. The session is the core's live settings."""
         self._report = report = VoiceReport(self, self._stats, voiced=self._voiced, pairing=self._pairing,
                                             call=self._call, state=self.state)
-        reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter, rewrite_check=RewriteCheck(),
+        reader = VoiceReader(classifier=self._classifier, rewriter=self._rewriter,
                              state=self.state, call=self._call, segment=self._segment)
         self._saving = VoiceSaving(self, rules=rules, call=self._call, state=self.state,
                                    report=report, writer=self._writer, stats=self._stats, segment=self._segment)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from crowkis.rules import hit, question, save
 from crowkis.state.call_state import CallState
-from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.understanding.model.frame import TurnFrame, FrameReading
 from crowkis.turns.values import CachedAnswer
 from crowkis.turns.voice.turn import ModelAnswer, VoiceTurn
 from crowkis.turns.chat.turn import ChatAnswer
@@ -15,8 +15,7 @@ from crowkis.turns.values import CHAT, REALTIME, VOICE
 from crowkis.turns.chat.turn import ChatTurn
 from crowkis.turns.values import Hit
 from crowkis.rules.rule_checker import Verdict as ChatVerdict
-from crowkis.understanding.frame_reading import FrameReading
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.slots import WordRuleClassifier
 
 from fake_call import FakeCall
 

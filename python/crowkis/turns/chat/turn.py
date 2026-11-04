@@ -9,10 +9,10 @@ from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING, Tuple
 
 from ...runtime.deadline import within
 from ...state.call_state import CallState
-from ...understanding.chat_details import _names, _told
-from ...understanding.turn_frame import TurnFrame
+from ...understanding.word_rules.chat import _names, _told
+from ...understanding.model.frame import TurnFrame
 from ...understanding.word_rules.call_context import _instructs, _tells_about_caller
-from ...understanding.word_rules.identifiers import _identifiers
+from ...understanding.word_rules.personal import _identifiers
 from ...understanding.word_rules.text import _words
 
 if TYPE_CHECKING:

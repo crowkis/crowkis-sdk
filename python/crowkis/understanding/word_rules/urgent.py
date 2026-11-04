@@ -4,14 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
-from .text import (  # noqa: F401
-    _RELATIONS,
-    _first_words,
-    _has_phrase,
-)
-from .phrases import (  # noqa: F401
-    _CRISIS_PHRASES,
-)
+from .text import _RELATIONS, _first_words, _has_phrase, _CRISIS_PHRASES
 
 
 _CRISIS_PHRASES_BY_FIRST = _first_words(_CRISIS_PHRASES)

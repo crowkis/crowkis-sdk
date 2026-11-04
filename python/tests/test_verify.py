@@ -6,7 +6,7 @@ Run:  python -m pytest tests/ -q
 import unittest
 
 from crowkis.state.call_state import CallState
-from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.understanding.model.frame import TurnFrame
 from crowkis.turns.results import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT
 from crowkis.rules.rule_checker import RuleChecker
 

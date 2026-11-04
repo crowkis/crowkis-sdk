@@ -9,10 +9,10 @@ from ...runtime.stats import Counter
 from ...turns.voice.turn import ModelAnswer
 from ...turns.values import Outcome, Verdict
 from ...turns.chat.turn import ChatAnswer
-from ...understanding.answer_patterns import _ACTION_CLAIM, _EMAIL, _LONG_DIGITS
+from ...understanding.word_rules.chat import _ACTION_CLAIM, _ANSWER_EMAIL, _ANSWER_LONG_DIGITS
 from ...understanding.word_rules.follow_up import _unfinished
-from ...understanding.word_rules.identifiers import _identifiers, _leaks, _repeats_identifier
-from ...understanding.word_rules.prompt_details import _repeats_prompt_details
+from ...understanding.word_rules.personal import _identifiers, _leaks, _repeats_identifier
+from ...understanding.word_rules.answers import _repeats_prompt_details
 from ...understanding.word_rules.text import _words
 
 
@@ -57,7 +57,7 @@ class IdentifyingAnswer:
     def check(self, answer: ChatAnswer) -> Optional[Verdict]:
         text = answer.text
         tagged = answer.frame is not None and any(t.lower() in text.lower() for t in answer.frame.identifying_texts)
-        if not (_EMAIL.search(text) or _LONG_DIGITS.search(text) or tagged):
+        if not (_ANSWER_EMAIL.search(text) or _ANSWER_LONG_DIGITS.search(text) or tagged):
             return None
         return Verdict(self.name, "identifying")
 

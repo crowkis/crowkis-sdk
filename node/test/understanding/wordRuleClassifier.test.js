@@ -5,8 +5,7 @@
 
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { NoRewrite } = require("../../src/understanding/noRewrite.js");
-const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
+const { NoRewrite, WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { isContextDependent } = require("../../src/understanding/wordRules/followUp.js");
 const { isPersonal } = require("../../src/understanding/wordRules/personal.js");
 

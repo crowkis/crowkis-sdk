@@ -1,8 +1,7 @@
 """v4 P1: the understanding slots hold today's word rules and no rewrite."""
 import unittest
 
-from crowkis.understanding.no_rewrite import NoRewrite
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.slots import NoRewrite, WordRuleClassifier
 from crowkis.understanding.word_rules.follow_up import _is_context_dependent
 from crowkis.understanding.word_rules.personal import _is_personal
 

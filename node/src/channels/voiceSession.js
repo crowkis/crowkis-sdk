@@ -15,12 +15,10 @@ const { VoiceReader } = require("../turns/voice/turn.js");
 const { VoiceReport } = require("../turns/voice/steps.js");
 const { VoiceSaving } = require("../turns/voice/steps.js");
 const { Stats } = require("../runtime/stats.js");
-const { NoRewrite } = require("../understanding/noRewrite.js");
-const { BudgetedUnderstanding } = require("../understanding/budgetedUnderstanding.js");
+const { NoRewrite, BudgetedUnderstanding, WordRuleClassifier } = require("../understanding/slots.js");
 const { Channel, VOICE } = require("../turns/values.js");
 const { KnowledgeSegment } = require("../keys/knowledgeSegment.js");
 const { CallState } = require("../state/callState.js");
-const { WordRuleClassifier } = require("../understanding/wordRuleClassifier.js");
 
 // The server takes at most this per count in one report.
 const REPORT_MAX = 1000000;
@@ -31,19 +29,22 @@ const {
   fill,
   abstract,
   isNonAnswer,
-} = require("../understanding/wordRules/answers.js");
-const { instructs, setsContext, tellsAboutCaller, tellsFacts } = require("../understanding/wordRules/callContext.js");
-const { isContextDependent } = require("../understanding/wordRules/followUp.js");
-const { carriesCallContext, identifying } = require("../understanding/wordRules/identifiers.js");
-const { IPV4, isPersonal } = require("../understanding/wordRules/personal.js");
-const { COMMITMENTS, PII_PLACEHOLDER } = require("../understanding/wordRules/phrases.js");
-const {
   promptDetails,
   resetPromptBaselines,
   callerDetails,
   repeatsPromptDetails,
-} = require("../understanding/wordRules/promptDetails.js");
-const { normalise, wordsOf, unknown, properNouns } = require("../understanding/wordRules/text.js");
+} = require("../understanding/wordRules/answers.js");
+const { instructs, setsContext, tellsAboutCaller, tellsFacts } = require("../understanding/wordRules/callContext.js");
+const { isContextDependent } = require("../understanding/wordRules/followUp.js");
+const { carriesCallContext, identifying, IPV4, isPersonal } = require("../understanding/wordRules/personal.js");
+const {
+  COMMITMENTS,
+  PII_PLACEHOLDER,
+  normalise,
+  wordsOf,
+  unknown,
+  properNouns,
+} = require("../understanding/wordRules/text.js");
 const { urgent } = require("../understanding/wordRules/urgent.js");
 
 

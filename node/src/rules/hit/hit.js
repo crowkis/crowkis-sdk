@@ -5,7 +5,7 @@
 const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
 const { speakable } = require("../../understanding/wordRules/answers.js");
-const { PII_PLACEHOLDER } = require("../../understanding/wordRules/phrases.js");
+const { PII_PLACEHOLDER } = require("../../understanding/wordRules/text.js");
 
 // Commitment policies: how a cached commitment (a price, a refund, a policy) may be spoken. A Strategy per
 // voiceSession({ commitments }) setting: serve any match, only the same question, or never.

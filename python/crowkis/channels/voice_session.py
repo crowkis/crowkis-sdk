@@ -24,19 +24,21 @@ from ..turns.core import TurnCore
 from ..turns.voice.turn import VoiceReader
 from ..turns.voice.steps import VoiceReport
 from ..turns.voice.steps import VoiceSaving
-from ..understanding.no_rewrite import NoRewrite
+from ..understanding.slots import (
+    NoRewrite,
+    BudgetedUnderstanding,
+    TextOnlyClassifier,
+    Classifier,
+    Rewriter,
+    WordRuleClassifier,
+)
 from ..turns.values import VOICE, Channel
 from ..keys import KnowledgeSegment
-from ..understanding.budgeted_understanding import BudgetedUnderstanding
 from ..state.call_state import CallState
-from ..understanding.text_only_classifier import TextOnlyClassifier
 from ..runtime.question_records import QUESTION_TTL, QUESTIONS_KEPT, QuestionRecords, question_key, tenant_of
-from ..understanding.slots import Classifier, Rewriter
-from ..understanding.word_rule_classifier import WordRuleClassifier
 from ..understanding.word_rules.call_context import _sets_context
-from ..understanding.word_rules.identifiers import _carries_call_context
-from ..understanding.word_rules.phrases import _COMMITMENTS
-from ..understanding.word_rules.text import _normalise
+from ..understanding.word_rules.personal import _carries_call_context
+from ..understanding.word_rules.text import _COMMITMENTS, _normalise
 
 # The server takes at most this per count in one report.
 _REPORT_MAX = 1_000_000

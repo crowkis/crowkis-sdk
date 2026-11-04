@@ -6,7 +6,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Chat, ChatConflict, MemoryStore } = require("./src/channels/chat.js");
-const { TurnFrame } = require("./src/understanding/turnFrame.js");
+const { TurnFrame } = require("./src/understanding/model/frame.js");
 
 const GENERAL = { kind: "general", subject: "none", confidence: 0.9 };
 

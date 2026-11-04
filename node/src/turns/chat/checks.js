@@ -3,7 +3,7 @@
 // Chat's question check and hit check, the twin of rules/ruleSet.js's voice checks.
 
 const { Verdict: ChatVerdict } = require("../../rules/ruleChecker.js");
-const { privateWords } = require("../../understanding/chatDetails.js");
+const { privateWords } = require("../../understanding/wordRules/chat.js");
 const { AGENT, URGENT } = require("../results.js");
 const { CACHE_ROUTE, CachedAnswer, Checked, Hit, Verdict } = require("../values.js");
 const { ChatTurn } = require("./turn.js");

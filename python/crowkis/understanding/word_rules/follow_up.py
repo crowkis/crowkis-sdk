@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
-from .text import (  # noqa: F401
+from .text import (
     _BARE,
     _CLAUSE_MARKERS,
     _FRAMING_WORDS,
@@ -16,17 +16,11 @@ from .text import (  # noqa: F401
     _has_phrase,
     _stem,
     _words,
-)
-from .phrases import (  # noqa: F401
     _CONNECTIVES,
     _FOLLOW_UP_WORDS,
     _MAX_TURN_CHARS,
 )
-from .personal import (  # noqa: F401
-    _asks,
-    _is_personal,
-    _lookup_only,
-)
+from .personal import _asks, _is_personal, _lookup_only
 
 
 _CONNECTIVE_PAIRS = frozenset({"what about", "how about", "ok and", "okay and"})

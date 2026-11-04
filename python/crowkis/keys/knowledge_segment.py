@@ -7,8 +7,8 @@ import zlib
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
 
 from ..state.call_state import CallState
-from ..understanding.frame_words import _FUNCTION, _TOLD_TYPES, _stem, _toks
-from ..understanding.turn_frame import TurnFrame
+from ..understanding.word_rules.chat import _FUNCTION, _TOLD_TYPES, _stem, _toks
+from ..understanding.model.frame import TurnFrame
 
 if TYPE_CHECKING:  # the turns package imports these keys, so a runtime import would be a cycle
     from ..turns.values import Channel

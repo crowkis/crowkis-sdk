@@ -5,7 +5,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CallState } = require("../../src/state/callState.js");
-const { TurnFrame } = require("../../src/understanding/turnFrame.js");
+const { TurnFrame } = require("../../src/understanding/model/frame.js");
 const { RuleChecker } = require("../../src/rules/ruleChecker.js");
 const { FloorRuleLocked } = require("../../src/rules/chain.js");
 const { ChatRuleSet } = require("../../src/rules/chatRuleSet.js");

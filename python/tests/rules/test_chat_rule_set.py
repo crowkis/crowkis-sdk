@@ -4,7 +4,7 @@ import unittest
 from crowkis.state.call_state import CallState
 from crowkis.rules import FloorRuleLocked
 from crowkis.rules.chat_rule_set import ChatRuleSet
-from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.understanding.model.frame import TurnFrame
 from crowkis.rules.rule_checker import RuleChecker
 
 QUESTION = {"kind": "general", "subject": "none", "confidence": 0.5, "question": "What is your refund policy?"}

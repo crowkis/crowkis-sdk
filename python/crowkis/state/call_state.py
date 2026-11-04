@@ -13,9 +13,9 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
-from ..understanding.chat_details import _private_words
+from ..understanding.word_rules.chat import _private_words
 from ..understanding.slots import Reading
-from ..understanding.turn_frame import Attribute, TurnFrame
+from ..understanding.model.frame import Attribute, TurnFrame
 from ..understanding.word_rules.call_context import _sets_context
 from ..understanding.word_rules.follow_up import _is_context_dependent, _private_chain
 from ..understanding.word_rules.personal import _is_personal

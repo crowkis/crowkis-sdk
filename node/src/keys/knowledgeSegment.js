@@ -15,7 +15,7 @@ function crc32(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-const { FUNCTION, TOLD_TYPES, stem, toks } = require("../understanding/frameWords.js");
+const { FUNCTION, TOLD_TYPES, stem, toks } = require("../understanding/wordRules/chat.js");
 
 // A value can never add or change a field of the segment.
 const FIELD_BREAKERS = /[;=\s]+/g;

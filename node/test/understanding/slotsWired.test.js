@@ -7,8 +7,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { CrowkisClient } = require("../../index.js");
-const { BudgetedUnderstanding } = require("../../src/understanding/budgetedUnderstanding.js");
-const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
+const { BudgetedUnderstanding, WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession, voiceSession } = require("../../src/channels/voiceSession.js");
 
 class Store {

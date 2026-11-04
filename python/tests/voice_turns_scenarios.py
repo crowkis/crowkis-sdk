@@ -18,7 +18,7 @@ from pathlib import Path
 
 from crowkis import Agent, CacheHit, VoiceSession
 from crowkis.agent import _wait_for_audio_stores
-from crowkis.understanding.word_rules.prompt_details import _reset_prompt_baselines
+from crowkis.understanding.word_rules.answers import _reset_prompt_baselines
 from crowkis.integrations.voice_turns import AnswerPairing, AudioClips
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "voice-turns-scenarios.json"

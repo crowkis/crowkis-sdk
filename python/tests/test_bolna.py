@@ -37,7 +37,7 @@ from crowkis import Agent, AsyncVoiceSession, CrowkisError, VoiceSession  # noqa
 from crowkis.agent import _tts_key, _wait_for_audio_stores  # noqa: E402
 from crowkis.integrations.bolna import CrowkisBolnaError, CrowkisLLM, CrowkisSynthesizer, register_crowkis  # noqa: E402
 from crowkis.integrations.bolna.synthesizer import CallLinks  # noqa: E402
-from crowkis.understanding.word_rules.prompt_details import _reset_prompt_baselines  # noqa: E402
+from crowkis.understanding.word_rules.answers import _reset_prompt_baselines  # noqa: E402
 
 from test_voice_prompt_guard import PROMPT  # noqa: E402
 from voice_turns_scenarios import SceneStore  # noqa: E402

@@ -22,7 +22,7 @@ const { ChatSaving } = require("../turns/chat/steps.js");
 const { ChatTurns } = require("../turns/chat/steps.js");
 const { TurnResult } = require("../turns/results.js");
 const { FILLER } = require("../turns/results.js");
-const { names, masked, norm } = require("../understanding/chatDetails.js");
+const { names, masked, norm } = require("../understanding/wordRules/chat.js");
 const { CacheLookup } = require("../runtime/cacheLookup.js");
 const { QuestionRecords } = require("../runtime/questionRecords.js");
 const { BoundedWriter } = require("../runtime/boundedWriter.js");
@@ -40,7 +40,7 @@ const {
   _wordsOf: wordsOf, _properNouns: properNouns,
   _trackRecord: trackRecord, _pendingWrites: pendingWrites, _writesMax: writesMax,
 } = require("./voiceSession.js");
-const { TurnFrame } = require("../understanding/turnFrame.js");
+const { TurnFrame } = require("../understanding/model/frame.js");
 const { _FUNCTION: FUNCTION, AGENT, PERSONAL, RuleChecker, SHARED, TASK, TOOLS, URGENT, Verdict } = require("../rules/ruleChecker.js");
 
 const MODES = ["full", "replay_only", "off"];

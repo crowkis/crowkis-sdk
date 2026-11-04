@@ -49,12 +49,11 @@ from ..turns.chat.steps import ChatTurns
 from ..turns.core import TurnCore
 from ..turns.results import FILLER  # noqa: F401 - re-exported
 from ..turns.results import TurnResult  # noqa: F401 - re-exported
-from ..understanding.chat_details import _norm
+from ..understanding.word_rules.chat import _norm
 from ..understanding.word_rules.call_context import _instructs, _tells_about_caller
-from ..understanding.word_rules.phrases import _PII_PLACEHOLDER
-from ..understanding.word_rules.text import _proper_nouns, _words
-from ..understanding.turn_frame import TurnFrame
-from ..understanding.understanders import ReplayUnderstander, Understander
+from ..understanding.word_rules.text import _PII_PLACEHOLDER, _proper_nouns, _words
+from ..understanding.model.frame import TurnFrame
+from ..understanding.model.understanders import ReplayUnderstander, Understander
 from ..rules.rule_checker import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT, RuleChecker, Verdict
 
 

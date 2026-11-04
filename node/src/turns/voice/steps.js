@@ -5,8 +5,15 @@
 const { COUNTER } = require("../../runtime/stats.js");
 const { SLOT, abstract, slotNames } = require("../../understanding/wordRules/answers.js");
 const { unfinished } = require("../../understanding/wordRules/followUp.js");
-const { carriesCallContext, leaks } = require("../../understanding/wordRules/identifiers.js");
-const { EMAIL, asks, identifies, lookupOnly, readsOutDigits } = require("../../understanding/wordRules/personal.js");
+const {
+  carriesCallContext,
+  leaks,
+  EMAIL,
+  asks,
+  identifies,
+  lookupOnly,
+  readsOutDigits,
+} = require("../../understanding/wordRules/personal.js");
 const { AMOUNT_WORDS, MATTERS, hasDigit, wordsOf } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 const { TurnDecision } = require("../results.js");

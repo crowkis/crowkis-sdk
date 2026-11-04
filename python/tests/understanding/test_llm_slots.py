@@ -4,9 +4,8 @@ import json
 import unittest
 
 from crowkis import LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter
-from crowkis.understanding.turn_frame import TurnFrame
-from crowkis.understanding.frame_reading import FrameReading
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.model.frame import TurnFrame, FrameReading
+from crowkis.understanding.slots import WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on
 
@@ -120,11 +119,11 @@ class PromptTests(unittest.TestCase):
     when a stand-alone question only named a topic of the call, so general questions stayed private."""
 
     def test_the_prompt_says_a_product_or_topic_is_never_identifying(self):
-        from crowkis.understanding.understanders import INSTRUCTIONS
+        from crowkis.understanding.model.understanders import INSTRUCTIONS
         self.assertIn("a plan or a condition is never identifying", INSTRUCTIONS)
 
     def test_the_prompt_says_naming_a_topic_of_the_call_is_not_using_its_state(self):
-        from crowkis.understanding.understanders import INSTRUCTIONS
+        from crowkis.understanding.model.understanders import INSTRUCTIONS
         self.assertIn("uses_state is false for a stand-alone question that only names a topic", INSTRUCTIONS)
 
 

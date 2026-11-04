@@ -6,10 +6,8 @@ const { followUpKey } = require("../../keys/knowledgeSegment.js");
 const { LATE, within } = require("../../runtime/deadline.js");
 const { QuestionRecords } = require("../../runtime/questionRecords.js");
 const { isContextDependent } = require("../../understanding/wordRules/followUp.js");
-const { identifiers } = require("../../understanding/wordRules/identifiers.js");
-const { isPersonal } = require("../../understanding/wordRules/personal.js");
-const { FOLLOW_UP_WORDS, URGENT } = require("../../understanding/wordRules/phrases.js");
-const { wordsOf } = require("../../understanding/wordRules/text.js");
+const { identifiers, isPersonal } = require("../../understanding/wordRules/personal.js");
+const { FOLLOW_UP_WORDS, URGENT, wordsOf } = require("../../understanding/wordRules/text.js");
 const { urgent } = require("../../understanding/wordRules/urgent.js");
 
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.

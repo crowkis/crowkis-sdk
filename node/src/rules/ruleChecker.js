@@ -14,7 +14,7 @@ const { AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT } = require("../turns/resul
 const { ChatRuleSet } = require("./chatRuleSet.js");
 const { key, keyAttributes, segment, told } = require("../keys/knowledgeSegment.js");
 const { ChatTurn } = require("../turns/chat/turn.js");
-const { FUNCTION, NUMWORDS } = require("../understanding/frameWords.js");
+const { FUNCTION, NUMWORDS } = require("../understanding/wordRules/chat.js");
 
 // Expiry per question type, in seconds. null = until the knowledge version changes.
 const DEFAULT_TTL = { policy: null, how_to: null, product_fact: 24 * 3600, place_fact: 6 * 3600, search: 3600, other: 3600 };

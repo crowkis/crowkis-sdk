@@ -1,10 +1,11 @@
 "use strict";
+const { CallState } = require("../../state/callState.js");
+const { TurnFrame, FrameReading } = require("./frame.js");
 
 // Turn understanding: one slot that turns a caller's sentence into a TurnFrame.
 // Mirrors crowkis/understand.py. Anything with `understand(turn, state)` (sync or async)
 // plugs in; the rule checker still decides what is shared, so a weak model costs hits, never privacy.
 
-const { TurnFrame } = require("./turnFrame.js");
 
 function uncertain() {
   return TurnFrame.fromDict({ kind: "unclear", confidence: 0, abstain: true });
@@ -167,4 +168,71 @@ class LLMUnderstander {
   }
 }
 
-module.exports = { ReplayUnderstander, LLMUnderstander, WithFallback, INSTRUCTIONS, normalise };
+/**
+ * Adapter: reads a voice turn through an understander (LLMUnderstander over the app's `complete`
+ * function, or any other). The model sees the turn, the call's facts (what earlier frames
+ * remembered) and the turns in which the caller told it something (the same model already read them
+ * as they were said), so it can say which of them change this answer. The stated turns are masked
+ * (capitals, numbers, emails), not anonymised: plug in the app's own model, the one that already hears the call.
+ */
+class LLMClassifier {
+  constructor(understander) {
+    this._understander = understander;
+  }
+
+  /** The model's reading of the turn. */
+  async classify(text, facts = []) {
+    return new FrameReading(await this._understander.understand(text, new CallState({ facts })));
+  }
+}
+
+/**
+ * Adapter: keys a shareable turn on the understander's stand-alone, de-identified question. When the
+ * classifier's reading already carries the model's frame (LLMClassifier over the same understander),
+ * that frame is reused and the model is asked once per turn.
+ */
+class LLMRewriter {
+  constructor(understander) {
+    this._understander = understander;
+  }
+
+  /** The model's question for a turn that may be shared, else null (the caller's words). */
+  async rewrite(text, reading) {
+    if (reading.isPersonal) return null;
+    if (reading instanceof FrameReading) return reading.question;
+    return new FrameReading(await this._understander.understand(text, new CallState())).question;
+  }
+}
+
+/**
+ * Keys a turn on a verified question only when the turn repeats it word for word (case, punctuation
+ * and spacing aside); anything else keeps the caller's words. It needs no model and cannot be talked
+ * into a different question.
+ */
+class ReplayRewriter {
+  constructor(known = {}) {
+    this._replay = new ReplayUnderstander(known);
+  }
+
+  /** Recognise `turn` (and `question` itself) as the verified `question` from now on. */
+  remember(turn, question, questionType = "other") {
+    this._replay.remember(turn, question, questionType);
+  }
+
+  /** The verified question this turn repeats, or null (also for a turn read as personal). */
+  rewrite(text, reading) {
+    if (reading.isPersonal) return null;
+    return new FrameReading(this._replay.understand(text)).question;
+  }
+}
+
+module.exports = {
+  ReplayUnderstander,
+  LLMUnderstander,
+  WithFallback,
+  INSTRUCTIONS,
+  normalise,
+  LLMClassifier,
+  LLMRewriter,
+  ReplayRewriter,
+};

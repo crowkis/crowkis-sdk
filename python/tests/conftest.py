@@ -29,6 +29,6 @@ def _no_crowkis_settings_from_the_shell(monkeypatch):
 def _no_system_prompts_from_other_tests():
     """Each test starts with no agent's system prompts remembered (the prompt guard
     compares a call's prompt with the agent's earlier ones, in this process)."""
-    from crowkis.understanding.word_rules.prompt_details import _reset_prompt_baselines
+    from crowkis.understanding.word_rules.answers import _reset_prompt_baselines
 
     _reset_prompt_baselines()

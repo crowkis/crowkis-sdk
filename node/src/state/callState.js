@@ -5,8 +5,8 @@
 // at turn 40; the agent's own words ("that hotel") stay resolvable. No I/O.
 
 const crypto = require("node:crypto");
-const { Attribute } = require("../understanding/turnFrame.js");
-const { privateWords } = require("../understanding/chatDetails.js");
+const { Attribute } = require("../understanding/model/frame.js");
+const { privateWords } = require("../understanding/wordRules/chat.js");
 const { setsContext } = require("../understanding/wordRules/callContext.js");
 const { isContextDependent, privateChain } = require("../understanding/wordRules/followUp.js");
 const { isPersonal } = require("../understanding/wordRules/personal.js");

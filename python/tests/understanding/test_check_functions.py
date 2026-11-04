@@ -2,10 +2,9 @@
 
 import unittest
 
-from crowkis.understanding.fact_relevance import stated_fact_irrelevant
-from crowkis.understanding.rewrite_check import accepted_rewrite
-from crowkis.understanding.turn_frame import TurnFrame
-from crowkis.understanding.word_rule_classifier import WordReading
+from crowkis.understanding.model.checks import stated_fact_irrelevant, accepted_rewrite
+from crowkis.understanding.model.frame import TurnFrame
+from crowkis.understanding.slots import WordReading
 
 
 def _frame(confidence=0.9, changes=False, fact="my car was hit", ftype="other"):

@@ -3,7 +3,7 @@
 const crypto = require("node:crypto");
 const { LATE, within } = require("./deadline.js");
 const { differentSpecifics } = require("../understanding/wordRules/answers.js");
-const { QUESTIONS_KEPT, QUESTION_TTL } = require("../understanding/wordRules/phrases.js");
+const { QUESTIONS_KEPT, QUESTION_TTL } = require("../understanding/wordRules/text.js");
 
 /** Where an answer's questions are kept: by the tenant and a hash of the answer. */
 function questionKey(tenant, answer) {

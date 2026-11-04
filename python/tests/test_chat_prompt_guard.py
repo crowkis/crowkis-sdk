@@ -5,7 +5,7 @@ import unittest
 
 from crowkis.channels.chat import Chat
 from crowkis.channels.call_session import CallSession
-from crowkis.understanding.word_rules.prompt_details import _reset_prompt_baselines
+from crowkis.understanding.word_rules.answers import _reset_prompt_baselines
 
 from test_chat import GENERAL, Model, Scripted, SegmentedAgent
 

@@ -17,11 +17,11 @@ const {
   REFERRING,
   stem,
   toks,
-} = require("../../understanding/frameWords.js");
-const { contentStems, statedFactIrrelevant } = require("../../understanding/factRelevance.js");
-const { unnamed } = require("../../understanding/chatDetails.js");
+  unnamed,
+} = require("../../understanding/wordRules/chat.js");
+const { contentStems, statedFactIrrelevant } = require("../../understanding/model/checks.js");
 const { wordDigest } = require("../../state/callState.js");
-const { DETAIL_TYPES } = require("../../understanding/turnFrame.js");
+const { DETAIL_TYPES } = require("../../understanding/model/frame.js");
 
 const PRIVATE_CHAIN_REASON =
   "a follow-up to a private turn of this call: its answer depends on what " +

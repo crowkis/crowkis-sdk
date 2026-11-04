@@ -8,8 +8,8 @@ from ...rules.chain import RuleChain
 from ...runtime.bounded_writer import BoundedWriter
 from ...runtime.question_records import QuestionRecords
 from ...state.call_state import CallState
-from ...understanding.chat_details import _masked, _norm
-from ...understanding.turn_frame import TurnFrame
+from ...understanding.word_rules.chat import _masked, _norm
+from ...understanding.model.frame import TurnFrame
 from ..results import AGENT, ChatAnswered, FILLER, Message, PERSONAL, SHARED, TOOLS, TurnResult, URGENT
 from ..values import Checked, LookedUp, Outcome, Verdict
 from .turn import ChatAnswer

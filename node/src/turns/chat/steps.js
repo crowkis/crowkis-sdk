@@ -2,7 +2,7 @@
 
 // Chat's turn numbering, answers, report and saving steps for TurnCore.
 
-const { masked, norm } = require("../../understanding/chatDetails.js");
+const { masked, norm } = require("../../understanding/wordRules/chat.js");
 const { AGENT, FILLER, PERSONAL, SHARED, TOOLS, TurnResult, URGENT } = require("../results.js");
 const { Checked, OUTCOME, Verdict, because } = require("../values.js");
 const { ChatAnswer } = require("./turn.js");

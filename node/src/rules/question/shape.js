@@ -7,7 +7,7 @@ const { COUNTER } = require("../../runtime/stats.js");
 const { unfinished } = require("../../understanding/wordRules/followUp.js");
 const { normalise } = require("../../understanding/wordRules/text.js");
 const { TASK } = require("../../turns/results.js");
-const { FUNCTION, QUESTION_WORDS, stem, toks } = require("../../understanding/frameWords.js");
+const { FUNCTION, QUESTION_WORDS, stem, toks } = require("../../understanding/wordRules/chat.js");
 
 /** An empty transcript goes to the model. */
 class EmptyTurn {

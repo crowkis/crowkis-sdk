@@ -1403,7 +1403,7 @@ module.exports = {
     return require("./src/state/callState.js").CallState;
   },
   get TurnFrame() {
-    return require("./src/understanding/turnFrame.js").TurnFrame;
+    return require("./src/understanding/model/frame.js").TurnFrame;
   },
   get RuleChecker() {
     return require("./src/rules/ruleChecker.js").RuleChecker;
@@ -1412,10 +1412,10 @@ module.exports = {
     return require("./src/rules/ruleChecker.js").Verdict;
   },
   get LLMUnderstander() {
-    return require("./src/understanding/understanders.js").LLMUnderstander;
+    return require("./src/understanding/model/understanders.js").LLMUnderstander;
   },
   get ReplayUnderstander() {
-    return require("./src/understanding/understanders.js").ReplayUnderstander;
+    return require("./src/understanding/model/understanders.js").ReplayUnderstander;
   },
   get Channel() {
     return require("./src/turns/values.js").Channel;
@@ -1430,15 +1430,15 @@ module.exports = {
     return require("./src/turns/values.js").REALTIME;
   },
   get WithFallback() {
-    return require("./src/understanding/understanders.js").WithFallback;
+    return require("./src/understanding/model/understanders.js").WithFallback;
   },
   get LLMClassifier() {
-    return require("./src/understanding/llmClassifier.js").LLMClassifier;
+    return require("./src/understanding/model/understanders.js").LLMClassifier;
   },
   get LLMRewriter() {
-    return require("./src/understanding/llmRewriter.js").LLMRewriter;
+    return require("./src/understanding/model/understanders.js").LLMRewriter;
   },
   get ReplayRewriter() {
-    return require("./src/understanding/replayRewriter.js").ReplayRewriter;
+    return require("./src/understanding/model/understanders.js").ReplayRewriter;
   },
 };

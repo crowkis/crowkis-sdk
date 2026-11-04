@@ -9,7 +9,7 @@ from ...runtime.stats import Counter
 from ...turns.values import CachedAnswer, Verdict
 from ...turns.values import Hit
 from ...understanding.word_rules.answers import _speakable
-from ...understanding.word_rules.phrases import _PII_PLACEHOLDER
+from ...understanding.word_rules.text import _PII_PLACEHOLDER
 
 
 # Commitment policies: how a cached commitment (a price, a refund, a policy) may be spoken.

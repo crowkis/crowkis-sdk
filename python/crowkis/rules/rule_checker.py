@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 from ..keys import key, key_attributes, segment, told
 from ..state.call_state import CallState
-from ..understanding.turn_frame import TurnFrame
+from ..understanding.model.frame import TurnFrame
 
 from .chat_rule_set import ChatRuleSet
 from ..turns.chat.turn import ChatTurn

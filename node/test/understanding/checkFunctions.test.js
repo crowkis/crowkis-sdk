@@ -5,10 +5,9 @@
 
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { statedFactIrrelevant } = require("../../src/understanding/factRelevance.js");
-const { acceptedRewrite } = require("../../src/understanding/rewriteCheck.js");
-const { TurnFrame } = require("../../src/understanding/turnFrame.js");
-const { WordReading } = require("../../src/understanding/wordRuleClassifier.js");
+const { statedFactIrrelevant, acceptedRewrite } = require("../../src/understanding/model/checks.js");
+const { TurnFrame } = require("../../src/understanding/model/frame.js");
+const { WordReading } = require("../../src/understanding/slots.js");
 
 function frame({ confidence = 0.9, changes = false, fact = "my car was hit", type = "other" } = {}) {
   return TurnFrame.fromDict({ kind: "general", subject: "none", confidence,

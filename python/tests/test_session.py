@@ -9,8 +9,8 @@ import unittest
 
 from crowkis.turns.results import FILLER
 from crowkis.channels.call_session import CallSession
-from crowkis.understanding.turn_frame import TurnFrame
-from crowkis.understanding.understanders import ReplayUnderstander
+from crowkis.understanding.model.frame import TurnFrame
+from crowkis.understanding.model.understanders import ReplayUnderstander
 from crowkis.turns.results import AGENT, PERSONAL, SHARED, TASK, TOOLS, URGENT
 
 

@@ -2,15 +2,7 @@
 
 // Crisis and urgent turns: self-harm, poisoning, injury, collapse, assault.
 
-const {
-  RELATIONS,
-  firstWords,
-  hasPhrase,
-  stem,
-} = require("./text.js");
-const {
-  CRISIS_PHRASES,
-} = require("./phrases.js");
+const { RELATIONS, firstWords, hasPhrase, stem, CRISIS_PHRASES } = require("./text.js");
 
 const CRISIS_PHRASES_BY_FIRST = firstWords(CRISIS_PHRASES);
 

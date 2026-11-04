@@ -11,8 +11,8 @@ from ...state.call_state import word_digest
 from ...turns.values import Verdict
 from ...turns.voice.turn import VoiceTurn
 from ...turns.chat.turn import ChatTurn
-from ...understanding.frame_words import _CALENDAR, _COMMON_ACRONYMS, _FUNCTION, _looks_identifying
-from ...understanding.turn_frame import NOT_GENERAL_TYPES
+from ...understanding.word_rules.chat import _CALENDAR, _COMMON_ACRONYMS, _FUNCTION, _looks_identifying
+from ...understanding.model.frame import NOT_GENERAL_TYPES
 from ...understanding.word_rules.text import _words
 
 

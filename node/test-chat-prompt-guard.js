@@ -7,7 +7,7 @@ const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
 const { Chat } = require("./src/channels/chat.js");
 const { CallSession } = require("./src/channels/callSession.js");
-const { TurnFrame } = require("./src/understanding/turnFrame.js");
+const { TurnFrame } = require("./src/understanding/model/frame.js");
 const { _resetPromptBaselines } = require("./src/channels/voiceSession.js");
 
 beforeEach(() => _resetPromptBaselines()); // no other test's prompts remembered

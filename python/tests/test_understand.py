@@ -7,7 +7,7 @@ import json
 import unittest
 
 from crowkis.state.call_state import CallState
-from crowkis.understanding.understanders import LLMUnderstander, ReplayUnderstander, WithFallback
+from crowkis.understanding.model.understanders import LLMUnderstander, ReplayUnderstander, WithFallback
 from crowkis.turns.results import SHARED
 from crowkis.rules.rule_checker import RuleChecker
 

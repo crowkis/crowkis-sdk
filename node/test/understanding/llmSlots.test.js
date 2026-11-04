@@ -8,9 +8,8 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../agent.js");
 const { LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter } = require("../../index.js");
-const { TurnFrame } = require("../../src/understanding/turnFrame.js");
-const { FrameReading } = require("../../src/understanding/frameReading.js");
-const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
+const { TurnFrame, FrameReading } = require("../../src/understanding/model/frame.js");
+const { WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 const GENERAL = { kind: "general", subject: "none", confidence: 0.95, question: "What is the refund policy?" };
@@ -157,11 +156,11 @@ test("ReplayRewriter: it remembers a verified question", () => {
 // F4b: the model marked a product or a topic as identifying ("UPI", "iPhone 16") and set uses_state
 // when a stand-alone question only named a topic of the call, so general questions stayed private.
 test("the prompt says a product or topic is never identifying", () => {
-  const { INSTRUCTIONS } = require("../../src/understanding/understanders.js");
+  const { INSTRUCTIONS } = require("../../src/understanding/model/understanders.js");
   assert.ok(INSTRUCTIONS.includes("a plan or a condition is never identifying"));
 });
 
 test("the prompt says naming a topic of the call is not using its state", () => {
-  const { INSTRUCTIONS } = require("../../src/understanding/understanders.js");
+  const { INSTRUCTIONS } = require("../../src/understanding/model/understanders.js");
   assert.ok(INSTRUCTIONS.includes("uses_state is false for a stand-alone question that only names a topic"));
 });

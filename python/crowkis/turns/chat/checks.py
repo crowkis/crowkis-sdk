@@ -9,7 +9,7 @@ from ...rules.question import UrgentWords
 from ...rules.rule_checker import Verdict as ChatVerdict
 from ...runtime.question_records import QuestionRecords
 from ...state.call_state import CallState
-from ...understanding.chat_details import _private_words
+from ...understanding.word_rules.chat import _private_words
 from ..results import AGENT, URGENT
 from ..values import CACHE_ROUTE, CachedAnswer, Checked, Hit, Verdict
 from .turn import ChatReading, ChatTurn

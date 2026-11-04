@@ -5,11 +5,11 @@
 const { OUTCOME } = require("../../turns/values.js");
 const { Verdict } = require("../../turns/values.js");
 const { unfinished } = require("../../understanding/wordRules/followUp.js");
-const { identifiers, leaks, repeatsIdentifier } = require("../../understanding/wordRules/identifiers.js");
-const { repeatsPromptDetails } = require("../../understanding/wordRules/promptDetails.js");
+const { identifiers, leaks, repeatsIdentifier } = require("../../understanding/wordRules/personal.js");
+const { repeatsPromptDetails } = require("../../understanding/wordRules/answers.js");
 const { escapeRegExp, wordsOf } = require("../../understanding/wordRules/text.js");
 const { COUNTER } = require("../../runtime/stats.js");
-const { ACTION_CLAIM, EMAIL, LONG_DIGITS } = require("../../understanding/answerPatterns.js");
+const { ACTION_CLAIM, ANSWER_EMAIL, ANSWER_LONG_DIGITS } = require("../../understanding/wordRules/chat.js");
 
 /**
  * An answer repeating a number or ID this caller said is never shared. Its model read only the
@@ -67,7 +67,7 @@ class IdentifyingAnswer {
   check(answer) {
     const t = answer.text;
     const tagged = Boolean(answer.frame) && answer.frame.identifyingTexts.some((x) => t.toLowerCase().includes(x.toLowerCase()));
-    if (!(EMAIL.test(t) || LONG_DIGITS.test(t) || tagged)) return null;
+    if (!(ANSWER_EMAIL.test(t) || ANSWER_LONG_DIGITS.test(t) || tagged)) return null;
     return new Verdict(this.name, "identifying");
   }
 }

@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .call_session import CallSession
-from ..understanding.chat_details import _masked
-from ..understanding.understanders import Understander
+from ..understanding.word_rules.chat import _masked
+from ..understanding.model.understanders import Understander
 from ..rules.rule_checker import RuleChecker
 
 Message = Dict[str, str]

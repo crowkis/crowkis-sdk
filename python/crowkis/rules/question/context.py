@@ -9,9 +9,8 @@ from ...state.call_state import word_digest
 from ...turns.values import Verdict
 from ...turns.voice.turn import VoiceTurn
 from ...turns.chat.turn import ChatTurn
-from ...understanding.chat_details import _unnamed
-from ...understanding.fact_relevance import _content_stems, stated_fact_irrelevant
-from ...understanding.frame_words import (
+from ...understanding.word_rules.chat import (
+    _unnamed,
     _CLAUSE_START,
     _CONTRACTION,
     _FUNCTION,
@@ -22,7 +21,8 @@ from ...understanding.frame_words import (
     _stem,
     _toks,
 )
-from ...understanding.turn_frame import DETAIL_TYPES
+from ...understanding.model.checks import _content_stems, stated_fact_irrelevant
+from ...understanding.model.frame import DETAIL_TYPES
 from ...understanding.word_rules.call_context import _sets_context
 from ...understanding.word_rules.follow_up import _leans_on, _private_chain
 from ...understanding.word_rules.text import _words

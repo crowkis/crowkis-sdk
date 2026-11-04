@@ -11,18 +11,18 @@ never privacy.
   LLMUnderstander     interim: asks the app's own LLM provider for the frame. Works end to
                       end, but adds one model call per turn (fine for chat and demos, too
                       slow for production voice).
-  WithFallback        tries one understander, falls back to another on any failure.
-"""
+  WithFallback        tries one understander, falls back to another on any failure."""
 
 from __future__ import annotations
 
 import json
 import re
 import string
-from typing import Callable, Dict, List, Optional, Protocol
+from typing import Callable, Dict, List, Optional, Protocol, Sequence
 
-from ..state.call_state import CallState
-from .turn_frame import TurnFrame
+from ...state.call_state import CallState
+from ..slots import Reading
+from .frame import TurnFrame, FrameReading
 
 Message = Dict[str, str]
 
@@ -206,3 +206,53 @@ class LLMUnderstander:
             return _uncertain("model output was not a JSON object")
         return TurnFrame.from_dict(data)
 
+
+class LLMClassifier:
+    """Adapter: reads a voice turn through an ``Understander`` (``LLMUnderstander`` over the app's
+    ``complete`` function, or any other). The model sees the turn, the call's facts (what earlier
+    frames remembered) and the turns in which the caller told it something (the same model already read
+    them as they were said), so it can say which of them change this answer. The stated turns are masked (capitals, numbers,
+    emails), not anonymised: plug in the app's own model, the one that already hears the call."""
+
+    def __init__(self, understander: Understander) -> None:
+        self._understander = understander
+
+    def classify(self, text: str, facts: Sequence[str] = ()) -> FrameReading:
+        """The model's reading of the turn."""
+        return FrameReading(self._understander.understand(text, CallState(facts=list(facts))))
+
+
+class LLMRewriter:
+    """Adapter: keys a shareable turn on the understander's stand-alone, de-identified question. When
+    the classifier's reading already carries the model's frame (``LLMClassifier`` over the same
+    understander), that frame is reused and the model is asked once per turn."""
+
+    def __init__(self, understander: Understander) -> None:
+        self._understander = understander
+
+    def rewrite(self, text: str, reading: Reading) -> Optional[str]:
+        """The model's question for a turn that may be shared, else None (the caller's words)."""
+        if reading.is_personal:
+            return None
+        if not isinstance(reading, FrameReading):
+            reading = FrameReading(self._understander.understand(text, CallState()))
+        return reading.question
+
+
+class ReplayRewriter:
+    """Keys a turn on a verified question only when the turn repeats it word for word (case,
+    punctuation and spacing aside); anything else keeps the caller's words. It needs no model and
+    cannot be talked into a different question."""
+
+    def __init__(self, known: Optional[Dict[str, str]] = None) -> None:
+        self._replay = ReplayUnderstander(known)
+
+    def remember(self, turn: str, question: str, question_type: str = "other") -> None:
+        """Recognise ``turn`` (and ``question`` itself) as the verified ``question`` from now on."""
+        self._replay.remember(turn, question, question_type)
+
+    def rewrite(self, text: str, reading: Reading) -> Optional[str]:
+        """The verified question this turn repeats, or None (also for a turn read as personal)."""
+        if reading.is_personal:
+            return None
+        return FrameReading(self._replay.understand(text, CallState())).question

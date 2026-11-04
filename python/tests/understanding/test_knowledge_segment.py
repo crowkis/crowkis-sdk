@@ -7,7 +7,7 @@ from crowkis.agent import Agent
 from crowkis.keys import KnowledgeSegment
 from crowkis.rules.rule_checker import RuleChecker
 from crowkis.turns.values import REALTIME, VOICE
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.slots import WordRuleClassifier
 
 
 class SegmentedStore:

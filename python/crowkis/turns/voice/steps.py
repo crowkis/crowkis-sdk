@@ -13,8 +13,15 @@ from ...runtime.write_result import WriteResult
 from ...state.call_state import CallState
 from ...understanding.word_rules.answers import _SLOT, _abstract
 from ...understanding.word_rules.follow_up import _unfinished
-from ...understanding.word_rules.identifiers import _carries_call_context, _leaks
-from ...understanding.word_rules.personal import _EMAIL, _asks, _identifies, _lookup_only, _reads_out_digits
+from ...understanding.word_rules.personal import (
+    _carries_call_context,
+    _leaks,
+    _EMAIL,
+    _asks,
+    _identifies,
+    _lookup_only,
+    _reads_out_digits,
+)
 from ...understanding.word_rules.text import _AMOUNT_WORDS, _MATTERS, _has_digit, _words
 from ..results import TurnDecision, VoiceAnswered
 from ..values import Checked, LookedUp, Outcome, RecordedOutcome, Verdict

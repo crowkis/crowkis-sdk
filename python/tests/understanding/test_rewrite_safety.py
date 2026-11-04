@@ -5,7 +5,7 @@ import threading
 import time
 import unittest
 
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.slots import WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on
 
@@ -111,7 +111,7 @@ class RewriteSafetyTests(unittest.TestCase):
 
 class HungModelTests(unittest.TestCase):
     def test_a_hung_model_holds_only_a_few_workers(self):
-        from crowkis.understanding.budgeted_understanding import MAX_IN_FLIGHT
+        from crowkis.understanding.slots import MAX_IN_FLIGHT
 
         release = threading.Event()
         calls = []
@@ -134,8 +134,8 @@ class HungModelTests(unittest.TestCase):
 class ToldFactsTests(unittest.TestCase):
     def test_no_rewrite_once_the_caller_has_told_the_call_something(self):
         # The classifier reads the call's facts, so its rewrite could carry one into a shared key (P5 review).
-        from crowkis.understanding.turn_frame import TurnFrame
-        from crowkis.understanding.frame_reading import FrameReading
+        from crowkis.understanding.model.frame import TurnFrame
+        from crowkis.understanding.model.frame import FrameReading
 
         class SureTheTripDoesNotMatter:
             def classify(self, text, facts=()):

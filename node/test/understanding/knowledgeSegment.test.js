@@ -10,7 +10,7 @@ const { Agent } = require("../../agent.js");
 const { KnowledgeSegment } = require("../../src/keys/knowledgeSegment.js");
 const { RuleChecker } = require("../../src/rules/ruleChecker.js");
 const { REALTIME, VOICE } = require("../../src/turns/values.js");
-const { WordRuleClassifier } = require("../../src/understanding/wordRuleClassifier.js");
+const { WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
 
 // A cache whose answers live per segment; it records what each call sent.

@@ -3,10 +3,10 @@
 // A chat turn as read (ChatReading, ChatReader, ChatTurn) and the model's answer to it (ChatAnswer).
 
 const { LATE, within } = require("../../runtime/deadline.js");
-const { names, told } = require("../../understanding/chatDetails.js");
-const { TurnFrame } = require("../../understanding/turnFrame.js");
+const { names, told } = require("../../understanding/wordRules/chat.js");
+const { TurnFrame } = require("../../understanding/model/frame.js");
 const { instructs, tellsAboutCaller } = require("../../understanding/wordRules/callContext.js");
-const { identifiers } = require("../../understanding/wordRules/identifiers.js");
+const { identifiers } = require("../../understanding/wordRules/personal.js");
 const { wordsOf } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 

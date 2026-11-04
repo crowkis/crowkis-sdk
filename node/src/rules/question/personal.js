@@ -4,8 +4,8 @@
 
 const { Verdict } = require("../../turns/values.js");
 const { COUNTER } = require("../../runtime/stats.js");
-const { CALENDAR, COMMON_ACRONYMS, FUNCTION, looksIdentifying } = require("../../understanding/frameWords.js");
-const { NOT_GENERAL_TYPES } = require("../../understanding/turnFrame.js");
+const { CALENDAR, COMMON_ACRONYMS, FUNCTION, looksIdentifying } = require("../../understanding/wordRules/chat.js");
+const { NOT_GENERAL_TYPES } = require("../../understanding/model/frame.js");
 const { wordsOf } = require("../../understanding/wordRules/text.js");
 const { wordDigest } = require("../../state/callState.js");
 

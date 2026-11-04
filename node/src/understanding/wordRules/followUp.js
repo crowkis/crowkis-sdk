@@ -15,17 +15,10 @@ const {
   stem,
   splitPlain,
   wordsOf,
-} = require("./text.js");
-const {
   CONNECTIVES,
   FOLLOW_UP_WORDS,
-} = require("./phrases.js");
-const {
-  asks,
-  isPersonal,
-  lookupOnly,
-  tooLong,
-} = require("./personal.js");
+} = require("./text.js");
+const { asks, isPersonal, lookupOnly, tooLong } = require("./personal.js");
 
 const CONNECTIVE_PAIRS = new Set(["what about", "how about", "ok and", "okay and"]);
 

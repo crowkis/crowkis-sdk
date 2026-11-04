@@ -2,8 +2,7 @@
 import unittest
 
 from crowkis import CrowkisClient, voice_session
-from crowkis.understanding.budgeted_understanding import BudgetedUnderstanding
-from crowkis.understanding.word_rule_classifier import WordRuleClassifier
+from crowkis.understanding.slots import BudgetedUnderstanding, WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on
 

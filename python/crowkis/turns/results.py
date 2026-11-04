@@ -6,7 +6,7 @@ import weakref
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..understanding.turn_frame import TurnFrame
+from ..understanding.model.frame import TurnFrame
 
 URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT = "urgent", "task", "shared", "personal", "tools", "agent"
 FILLER = "filler"

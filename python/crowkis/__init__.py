@@ -21,14 +21,18 @@ from .channels.voice_session import TurnDecision, VoiceResponse, VoiceSession, v
 from .channels.async_voice_session import AsyncVoiceResponse, AsyncVoiceSession, async_voice_session
 
 # Turn understanding: understand once, check with fixed rules, route by contract.
-from .understanding.turn_frame import TurnFrame
+from .understanding.model.frame import TurnFrame
 from .state.call_state import CallState
 from .rules.rule_checker import RuleChecker, Verdict
-from .understanding.understanders import LLMUnderstander, ReplayUnderstander, WithFallback
+from .understanding.model.understanders import (
+    LLMUnderstander,
+    ReplayUnderstander,
+    WithFallback,
+    LLMClassifier,
+    LLMRewriter,
+    ReplayRewriter,
+)
 # Voice understanding slots (v4): a model reads the turn; the word rules still apply.
-from .understanding.llm_classifier import LLMClassifier
-from .understanding.llm_rewriter import LLMRewriter
-from .understanding.replay_rewriter import ReplayRewriter
 from .turns.values import CHAT, REALTIME, VOICE, Channel
 # Where a turn goes: public, stable names (crowkis.privacy has the privacy word rules).
 from .turns.results import AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT

@@ -8,7 +8,7 @@ private: that is tested too.
 import unittest
 
 from crowkis.channels.chat import Chat, ChatConflict, MemoryStore
-from crowkis.understanding.turn_frame import TurnFrame
+from crowkis.understanding.model.frame import TurnFrame
 
 GENERAL = {"kind": "general", "subject": "none", "confidence": 0.9}
 

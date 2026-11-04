@@ -536,3 +536,9 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 ## T1 done (2026-11-04): ponytail ultra audit of `turns/` (read-only)
 
 - `v4-notes/turns-ultra-audit.md`: 17 findings; Python 33 → 21 files (~−340 lines), Node 31 → 20 (~−115); no behaviour change, voice/chat pairs kept, public names unchanged. Waits for the owner to pick items; order of work is in the report.
+
+## T2 done (2026-11-04): `turns/` regrouped, no behaviour change
+
+- Plan `v4-notes/turns-layout-plan.md`. Commits: `1db9e8b` (one-implementation Protocols and dead bits deleted), `b285fb9` (ChatUnderstanding into ChatReader, AppHooks into functions, VoicePairing into `runtime.TurnPairing`: `settle` -> `settle_turn`, flag `open` -> `is_open`), `2d94cd3` (pure move: `core`, `values`, `results`, `voice/{call,turn,steps}`, `chat/{turn,checks,steps}`; `turns/__init__.py` no longer re-exports), `5403b05` (guard: Chat's hit chain has no rule reading `serve_above`/`channel`).
+- Files: Python 33 -> 12 (2,035 -> 1,589 lines), Node 31 -> 9 (1,813 -> 1,664). Public names identical (checked at each commit); golden files unchanged.
+- Suites run twice: Python 828, Node 62/62; Pipecat 864, LiveKit Py 23, LiveKit JS 49, Bolna 121. Opus review: no blockers. Real server not run. Audit #17 (budget-left sum in `QuestionRecords`) not done: it changes `runtime/`.

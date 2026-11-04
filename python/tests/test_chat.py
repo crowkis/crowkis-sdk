@@ -226,7 +226,7 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual((agent.saved, model.read), ([], []))
 
     def test_a_failing_tool_or_monitoring_hook_never_ends_the_chat(self):
-        # v4 P5.5: AppHooks is the one boundary around the app's hooks.
+        # v4 P5.5: call_hook is the one boundary around the app's hooks.
         def broken(*args):
             raise RuntimeError("down")
 

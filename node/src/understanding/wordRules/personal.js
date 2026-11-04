@@ -758,6 +758,7 @@ const NAMING = [["name", "is"], ["name", "s"], ["call", "me"], ["naam", "hai"], 
 const NAMING_WEAK = [["this", "is"], ["i", "m"], ["i", "am"], ["myself"], ["speaking", "with"], ["it", "s"], ["it", "is"], ["its"]].map((l) => l.join(" "));
 // Leads only at the start of the turn (after a greeting): "it's Rahul", but not "I think it is open".
 const NAMING_AT_START = [["it", "s"], ["it", "is"], ["its"]];
+const NAME_LEADS_BY_FIRST = firstWords([...NAMING, ...NAMING_AT_START]);
 // A name said first: "Rahul here", "Rahul this side", "Rahul speaking", at the start of the turn only.
 const NAME_TRAILERS = [["here"], ["this", "side"], ["speaking"]];
 const NAME_PARTS = 3;
@@ -801,7 +802,7 @@ function statedNames(texts, lowercase = true) {
     let start = 0;
     while (start < words.length && GREETINGS.has(words[start])) start += 1;
     for (let at = 0; at < words.length; at++) {
-      for (const lead of [...NAMING, ...NAMING_AT_START]) {
+      for (const lead of NAME_LEADS_BY_FIRST.get(words[at]) || []) {
         if (!lead.every((w, i) => words[at + i] === w)) continue;
         if (NAMING_AT_START.includes(lead) && at !== start) continue;
         for (const w of nameWords(tokens.slice(at + lead.length), !lowercase && NAMING_WEAK.includes(lead.join(" ")))) found.add(w);

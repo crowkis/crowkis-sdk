@@ -841,6 +841,7 @@ _NAMING = (("name", "is"), ("name", "s"), ("call", "me"), ("naam", "hai"), ("naa
 _NAMING_WEAK = frozenset({("this", "is"), ("i", "m"), ("i", "am"), ("myself",), ("speaking", "with"), ("it", "s"), ("it", "is"), ("its",)})
 # Leads only at the start of the turn (after a greeting): "it's Rahul", but not "I think it is open".
 _NAMING_AT_START = (("it", "s"), ("it", "is"), ("its",))
+_NAME_LEADS_BY_FIRST = _first_words(_NAMING + _NAMING_AT_START)
 # A name said first: "Rahul here", "Rahul this side", "Rahul speaking", at the start of the turn only.
 _NAME_TRAILERS = (("here",), ("this", "side"), ("speaking",))
 _NAME_PARTS = 3
@@ -887,7 +888,7 @@ def _stated_names(texts: Iterable[str], lowercase: bool = True) -> set:
         while start < len(words) and words[start] in _GREETINGS:
             start += 1
         for at in range(len(words)):
-            for lead in _NAMING + _NAMING_AT_START:
+            for lead in _NAME_LEADS_BY_FIRST.get(words[at], ()):
                 if tuple(words[at:at + len(lead)]) != lead or (lead in _NAMING_AT_START and at != start):
                     continue
                 found.update(_name_words(tokens[at + len(lead):], not lowercase and lead in _NAMING_WEAK))

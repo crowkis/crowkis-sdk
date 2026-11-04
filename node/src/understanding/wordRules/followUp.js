@@ -17,6 +17,8 @@ const {
   wordsOf,
   CONNECTIVES,
   FOLLOW_UP_WORDS,
+  WH_WORDS,
+  stripPreamble,
 } = require("./text.js");
 const { asks, isPersonal, lookupOnly, tooLong } = require("./personal.js");
 
@@ -28,11 +30,11 @@ const ELLIPSIS_LEADS = new Set([
 
 // Shapes that borrow their subject from the previous turn.
 const FOLLOW_UP_PHRASES = [
-  ["same", "for"], ["the", "same"], ["what", "else"], ["anything", "else"], ["tell", "me", "more"],
+  ["as", "you", "said"], ["same", "for"], ["the", "same"], ["what", "else"], ["anything", "else"], ["tell", "me", "more"],
   ["which", "one"], ["instead"],
 ];
 const FOLLOW_UP_PHRASES_BY_FIRST = firstWords(FOLLOW_UP_PHRASES);
-const FOLLOW_UP_ENDINGS = new Set(["too", "also", "instead"]);
+const FOLLOW_UP_ENDINGS = new Set(["too", "also", "instead", "again"]);
 
 const ANAPHOR_PHRASES = ["this one", "the second one", "the first one", "the other one"];
 
@@ -59,6 +61,11 @@ const PERSON_PRONOUNS = new Set(["he", "she", "him", "her", "his", "hers"]);
 
 // "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
 const PREPOSITIONS = new Set(["for", "about", "on", "with", "of", "from", "to"]);
+
+// "can i pay it": an "it" that is the object of a verb the caller's own "i" / "we" governs points back.
+// Only after "can" / "could": "should i restart it" and "how do i return it" stay as they were.
+const CAN_I = new Set(["can", "could"]);
+const FIRST_PERSON_SUBJECTS = new Set(["i", "we"]);
 
 // Words in the question's own frame ("what days does ...") are not what a pronoun points at.
 function hasClauseAntecedent(before) {
@@ -102,6 +109,7 @@ function hasBareAnaphor(words) {
     if (word === "it" && pointsForward(words, index)) continue;
     if (!hasAntecedent(words.slice(0, index))) return true;
     if ((PERSON_PRONOUNS.has(word) || (word === "it" && index && PREPOSITIONS.has(words[index - 1]))) && !hasClauseAntecedent(words.slice(0, index))) return true;
+    if (word === "it" && index > 2 && CAN_I.has(words[index - 3]) && FIRST_PERSON_SUBJECTS.has(words[index - 2]) && !hasClauseAntecedent(words.slice(0, index))) return true;
   }
   for (let index = 1; index < words.length; index += 1) {
     if (THE_ROLES.has(words[index]) && words[index - 1] === "the" && !hasClauseAntecedent(words.slice(0, index - 1))) return true;
@@ -159,15 +167,29 @@ const TRAILING_FILLERS = new Set("um uh er erm uhm hmm mm".split(" "));
 // "How do I log in?" is finished: the verb takes the word as its own.
 const TAKES_IN_ON = new Set("log logged sign signed check checked opt opted".split(" "));
 
+// "What is a PAN card used for?": a wh-question that ends in a preposition and "?" is complete.
+const STRANDABLE = new Set("on in at to for from with about of by into onto over under".split(" "));
+const STRANDED_MIN_WORDS = 4;
+
 function unfinished(text) {
   const words = wordsOf(text);
   while (words.length && TRAILING_FILLERS.has(words[words.length - 1])) words.pop();
   const lastWord = words[words.length - 1];
   if (!lastWord || !DANGLING.has(lastWord)) return false;
+  // shortcut: "?" and a wh-lead are the evidence, upgrade with the pluggable understander
+  if (STRANDABLE.has(lastWord) && WH_WORDS.has(words[0]) && words.length >= STRANDED_MIN_WORDS && String(text).trimEnd().endsWith("?")) return false;
   return !((lastWord === "in" || lastWord === "on") && words.length > 1 && TAKES_IN_ON.has(words[words.length - 2]));
 }
 
+// A question without its casual opener ("Hmm, what are your hours?"); any other turn, and a
+// question whose rest is personal, is read as it was said, as before.
+function withoutPreamble(text) {
+  const bare = stripPreamble(text);
+  return asks(bare) && !isPersonal(bare) ? bare : text;
+}
+
 module.exports = {
+  withoutPreamble,
   CONNECTIVE_PAIRS,
   ELLIPSIS_LEADS,
   FOLLOW_UP_PHRASES,

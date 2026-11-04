@@ -9,12 +9,14 @@ from .text import (
     _CLAUSE_MARKERS,
     _FRAMING_WORDS,
     _FUNCTION_WORDS,
+    _WH_WORDS,
     _NON_REFERENTS,
     _PRONOUN_FOLLOWERS,
     _ROLES,
     _first_words,
     _has_phrase,
     _stem,
+    _strip_preamble,
     _words,
     _CONNECTIVES,
     _FOLLOW_UP_WORDS,
@@ -33,7 +35,7 @@ _ELLIPSIS_LEADS = frozenset(
 
 # Shapes that borrow their subject from the previous turn.
 _FOLLOW_UP_PHRASES = (
-    ("same", "for"), ("the", "same"), ("what", "else"), ("anything", "else"), ("tell", "me", "more"),
+    ("as", "you", "said"), ("same", "for"), ("the", "same"), ("what", "else"), ("anything", "else"), ("tell", "me", "more"),
     ("which", "one"), ("instead",),
 )
 
@@ -41,7 +43,7 @@ _FOLLOW_UP_PHRASES = (
 _FOLLOW_UP_PHRASES_BY_FIRST = _first_words(_FOLLOW_UP_PHRASES)
 
 
-_FOLLOW_UP_ENDINGS = frozenset({"too", "also", "instead"})
+_FOLLOW_UP_ENDINGS = frozenset({"too", "also", "instead", "again"})
 
 
 _ANAPHOR_PHRASES = ("this one", "the second one", "the first one", "the other one")
@@ -74,6 +76,11 @@ _PERSON_PRONOUNS = frozenset({"he", "she", "him", "her", "his", "hers"})
 
 # "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
 _PREPOSITIONS = frozenset({"for", "about", "on", "with", "of", "from", "to"})
+
+# "can i pay it": an "it" that is the object of a verb the caller's own "i" / "we" governs points back.
+# Only after "can" / "could": "should i restart it" and "how do i return it" stay as they were.
+_CAN_I = frozenset({"can", "could"})
+_FIRST_PERSON_SUBJECTS = frozenset({"i", "we"})
 
 
 def _has_clause_antecedent(before: List[str]) -> bool:
@@ -116,6 +123,8 @@ def _has_bare_anaphor(words: List[str]) -> bool:
         if not _has_antecedent(words[:index]):
             return True
         if (word in _PERSON_PRONOUNS or (word == "it" and index and words[index - 1] in _PREPOSITIONS)) and not _has_clause_antecedent(words[:index]):
+            return True
+        if word == "it" and index > 2 and words[index - 3] in _CAN_I and words[index - 2] in _FIRST_PERSON_SUBJECTS and not _has_clause_antecedent(words[:index]):
             return True
     for index, word in enumerate(words[1:], 1):
         if word in _THE_ROLES and words[index - 1] == "the" and not _has_clause_antecedent(words[:index - 1]):
@@ -177,13 +186,28 @@ _TRAILING_FILLERS = frozenset("um uh er erm uhm hmm mm".split())
 _TAKES_IN_ON = frozenset("log logged sign signed check checked opt opted".split())
 
 
+# "What is a PAN card used for?": a wh-question that ends in a preposition and "?" is complete.
+_STRANDABLE = frozenset("on in at to for from with about of by into onto over under".split())
+_STRANDED_MIN_WORDS = 4
+
+
 def _unfinished(text: str) -> bool:
     words = _words(text)
     while words and words[-1] in _TRAILING_FILLERS:
         words.pop()
     if not words or words[-1] not in _DANGLING:
         return False
+    if (words[-1] in _STRANDABLE and words[0] in _WH_WORDS and len(words) >= _STRANDED_MIN_WORDS
+            and (text or "").rstrip().endswith("?")):
+        return False  # shortcut: "?" and a wh-lead are the evidence, upgrade with the pluggable understander
     return not (words[-1] in ("in", "on") and len(words) > 1 and words[-2] in _TAKES_IN_ON)
+
+
+def _without_preamble(text: str) -> str:
+    """A question without its casual opener ("Hmm, what are your hours?"); any other turn, and a
+    question whose rest is personal, is read as it was said, as before."""
+    bare = _strip_preamble(text)
+    return bare if _asks(bare) and not _is_personal(bare) else text
 
 
 def _private_chain(chain: List[str], min_words: int = 0) -> bool:

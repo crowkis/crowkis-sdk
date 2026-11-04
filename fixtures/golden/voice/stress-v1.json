@@ -511,6 +511,7 @@
      "save_rule": "NonAnswer",
      "say": "What were the options again?",
      "sees": [
+      "user: What is the most expensive plan with international roaming?",
       "user: What were the options again?"
      ],
      "stored": false
@@ -3332,21 +3333,20 @@
     "empty_answers": 0,
     "failed_writes": 0,
     "missed_latency_budget": 0,
-    "model_calls": 5,
-    "not_shareable": 2,
+    "model_calls": 6,
+    "not_shareable": 1,
     "refused_to_share_a_private_answer": 3,
-    "refused_too_short": 2,
+    "refused_too_short": 1,
     "rules": {
-     "ConfidenceBar": 2,
-     "CutOff": 1,
-     "NotShareable": 2,
+     "ConfidenceBar": 3,
+     "NotShareable": 1,
      "OwnRecords": 3,
      "PersonalTemplate": 3,
      "TooShort": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
-    "turns": 5,
+    "turns": 6,
     "uncacheable_personal": 3,
     "unspeakable_answers": 0
    },
@@ -3413,14 +3413,16 @@
     },
     {
      "action": "infer",
-     "cacheable": false,
-     "not_stored": "kept to this call: the answer depends on what this caller said",
-     "reason": "the turn was cut off mid-question",
-     "rule": "CutOff",
-     "save_rule": "NotShareable",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
      "say": "What does your charity spend donations on?",
-     "sees": null,
-     "stored": false
+     "sees": [
+      "user: What does your charity spend donations on?"
+     ],
+     "stored": true
     },
     {
      "action": "infer",
@@ -5315,20 +5317,19 @@
     "empty_answers": 0,
     "failed_writes": 0,
     "missed_latency_budget": 0,
-    "model_calls": 6,
+    "model_calls": 7,
     "not_shareable": 0,
-    "refused_to_share_a_private_answer": 2,
-    "refused_too_short": 1,
+    "refused_to_share_a_private_answer": 3,
+    "refused_too_short": 0,
     "rules": {
      "ConfidenceBar": 4,
-     "CutOff": 1,
-     "OwnRecords": 2,
+     "OwnRecords": 3,
      "PersonalTemplate": 3
     },
     "served_from_cache": 0,
     "slow_writes": 0,
-    "turns": 6,
-    "uncacheable_personal": 2,
+    "turns": 7,
+    "uncacheable_personal": 3,
     "unspeakable_answers": 0
    },
    "turns": [
@@ -5410,8 +5411,8 @@
      "action": "infer",
      "cacheable": false,
      "not_stored": "about this caller, with no declared value to make a shared answer shape from",
-     "reason": "the turn was cut off mid-question",
-     "rule": "CutOff",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
      "save_rule": "PersonalTemplate",
      "say": "What name is the booking under?",
      "sees": null,
@@ -5907,20 +5908,19 @@
     "empty_answers": 0,
     "failed_writes": 0,
     "missed_latency_budget": 0,
-    "model_calls": 6,
-    "not_shareable": 2,
+    "model_calls": 7,
+    "not_shareable": 1,
     "refused_to_share_a_private_answer": 2,
-    "refused_too_short": 1,
+    "refused_too_short": 0,
     "rules": {
-     "ConfidenceBar": 4,
-     "CutOff": 1,
-     "NotShareable": 2,
+     "ConfidenceBar": 5,
+     "NotShareable": 1,
      "OwnRecords": 2,
      "PersonalTemplate": 2
     },
     "served_from_cache": 0,
     "slow_writes": 0,
-    "turns": 6,
+    "turns": 7,
     "uncacheable_personal": 2,
     "unspeakable_answers": 0
    },
@@ -6000,14 +6000,16 @@
     },
     {
      "action": "infer",
-     "cacheable": false,
-     "not_stored": "kept to this call: the answer depends on what this caller said",
-     "reason": "the turn was cut off mid-question",
-     "rule": "CutOff",
-     "save_rule": "NotShareable",
+     "cacheable": true,
+     "not_stored": "",
+     "reason": "confidence below the spoken-answer bar of 0.92",
+     "rule": "ConfidenceBar",
+     "save_rule": null,
      "say": "What is the difference between since and for?",
-     "sees": null,
-     "stored": false
+     "sees": [
+      "user: What is the difference between since and for?"
+     ],
+     "stored": true
     }
    ]
   },
@@ -6527,7 +6529,7 @@
      "save_rule": null,
      "say": "Okay, what does your product do?",
      "sees": [
-      "user: Okay, what does your product do?"
+      "user: what does your product do?"
      ],
      "stored": true
     },
@@ -6540,7 +6542,7 @@
      "save_rule": null,
      "say": "What does it cost per month?",
      "sees": [
-      "user: Okay, what does your product do?",
+      "user: what does your product do?",
       "user: What does it cost per month?"
      ],
      "stored": true
@@ -9005,6 +9007,12 @@
    ],
    [
     "",
+    "What does your charity spend donations on?",
+    "As an AI, I do not directly collect or spend donations since I am not a charity.",
+    false
+   ],
+   [
+    "",
     "What is your refund policy?",
     "As an AI, I do not have a refund policy because I do not provide products or services that require refunds.",
     false
@@ -9221,6 +9229,12 @@
    ],
    [
     "",
+    "What is the difference between since and for?",
+    "The main difference is that 'since' refers to a specific point in time, while 'for' indicates the duration of time.",
+    false
+   ],
+   [
+    "",
     "199 wale plan mein kitna data hai?",
     "199 rupaye wale plan mein data ki matra operator par nirbhar karti hai. Kripaya apne network operator se sampark karein.",
     false
@@ -9257,13 +9271,13 @@
    ],
    [
     "",
-    "Okay, what does your product do?",
+    "what does your product do?",
     "My purpose is to be a helpful voice assistant, providing information and answering your questions.",
     false
    ],
    [
     "",
-    "Okay, what does your product do? || What does it cost per month?",
+    "what does your product do? || What does it cost per month?",
     "As a Google assistant, I don't have products or costs associated with me; I provide information and assistance through conversation.",
     false
    ],

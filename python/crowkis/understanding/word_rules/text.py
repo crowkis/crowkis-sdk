@@ -105,6 +105,24 @@ def _normalise(text: str) -> str:
     return " ".join((text or "").strip(_TRIM).lower().split())
 
 
+# Comma-separated openers that say nothing about the question: "Hi there, quick question, ...".
+_PREAMBLES = frozenset({
+    "hi", "hello", "hey", "hi there", "hello there", "hey there", "hmm", "um", "uh",
+    "okay", "ok", "quick question", "a quick question", "well",
+})  # not "so": a leading connective marks a follow-up
+
+
+def _strip_preamble(text: str) -> str:
+    """The turn without leading comma-separated openers from ``_PREAMBLES``; unchanged when nothing
+    else is left. shortcut: needs the commas, upgrade with the pluggable understander."""
+    rest = text or ""
+    while True:
+        head, comma, tail = rest.partition(",")
+        if not comma or _normalise(head) not in _PREAMBLES or not tail.strip():
+            return rest
+        rest = tail.lstrip()
+
+
 def _words(text: str) -> List[str]:
     return _WORDS.findall((text or "").lower())
 

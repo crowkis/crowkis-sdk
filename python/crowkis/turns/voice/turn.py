@@ -10,7 +10,7 @@ from ...understanding.word_rules.chat import _unnamed
 from ...understanding.model.checks import accepted_rewrite
 from ...understanding.slots import Classifier, Rewriter
 from ...understanding.word_rules.answers import _is_non_answer
-from ...understanding.word_rules.follow_up import _leans_on
+from ...understanding.word_rules.follow_up import _leans_on, _without_preamble
 from ...understanding.word_rules.text import _CONTEXT_BOUND_THRESHOLD
 from .call import SessionCall
 
@@ -117,7 +117,8 @@ class VoiceReader:
         self._segment = segment
 
     def read(self, said: str, turn: int) -> VoiceTurn:
-        text = (said or "").strip()
+        said = _without_preamble((said or "").strip())  # VD8: "Hmm, what are your hours?" keys like the bare question
+        text = said
         # The stated turns too, so the model can tag each as changing this answer or not (VD5).
         stated = tuple(_unnamed(told, self._state.private_raw) for told in self._state.stated)
         reading = self._classifier.classify(text, tuple(self._state.facts) + stated)

@@ -18,7 +18,8 @@ from crowkis.client.agent import Agent
 from crowkis.client.commands import CacheHit
 from crowkis.client.connection import CrowkisError
 from crowkis.channels.voice_session import VoiceSession
-from crowkis.understanding.word_rules.follow_up import _is_context_dependent
+from crowkis.understanding.word_rules.follow_up import _is_context_dependent, _unfinished
+from crowkis.understanding.word_rules.text import _strip_preamble
 from crowkis.understanding.word_rules.personal import _is_personal
 
 ANSWER = "Here is the answer."
@@ -714,6 +715,56 @@ class TopicDependentTests(unittest.TestCase):
             self.assertFalse(_leans_on(text, before), (text, before))
         _, _, decisions, seen = call("What is your refund policy?", "How long does a refund take?")
         self.assertEqual([m["content"] for m in seen[-1] if m["role"] == "user"], ["How long does a refund take?"])
+
+
+class FollowUpsCutOffsAndPreamblesTests(unittest.TestCase):
+    """VD4, T11, VD8: follow-ups get their context, stranded prepositions end real questions,
+    a casual opener does not change the key."""
+
+    @staticmethod
+    def turns(*said):
+        from conformance import ConformanceStore
+        from crowkis import voice_session
+        session = voice_session(client=ConformanceStore(), agent_id="a", voice=None)
+        decisions = []
+        for text in said:
+            decisions.append(session.decide(text))
+            session.record(decisions[-1], "Sure.")
+        return decisions
+
+    def test_vd4_follow_ups_are_context_dependent(self):
+        for text in ["Can I pay it in two instalments?", "What were the fees again?", "Can I pay that, as you said?"]:
+            self.assertTrue(_is_context_dependent(text), text)
+        for text in ["Can I pay by card?", "What are the fees?", "How do I reset the router?"]:
+            self.assertFalse(_is_context_dependent(text), text)
+
+    def test_vd4_the_model_gets_the_call_context(self):
+        for text in ["Can I pay it in two instalments?", "What were the fees again?"]:
+            seen = self.turns("what are the tuition fees", text)[-1].messages
+            self.assertEqual([m["content"] for m in seen], ["what are the tuition fees", text])
+        seen = self.turns("what are the tuition fees", "Can I pay by card?")[-1].messages
+        self.assertEqual(len(seen), 1)
+
+    def test_t11_a_wh_question_ending_in_a_preposition_is_finished(self):
+        for text in ["What is a PAN card used for?", "What temperature should I bake chocolate chip cookies at?",
+                     "Where does this word come from?"]:
+            self.assertFalse(_unfinished(text), text)
+            self.assertNotEqual(self.turns(text)[0].rule, "CutOff", text)
+        for text in ["What is the refund policy for", "I want to ask about the", "What is the refund policy for the?",
+                     "Do you deliver on", "What is it for um", "What is a PAN card used for"]:
+            self.assertTrue(_unfinished(text), text)
+
+    def test_vd8_a_casual_preamble_keys_like_the_bare_question(self):
+        for text in ["Hi there, quick question, what are your opening hours?", "Hmm, what are your opening hours?",
+                     "Okay, what are your opening hours?"]:
+            decision = self.turns(text)[0]
+            self.assertEqual(len(decision.messages), 1, text)
+            self.assertEqual(decision.messages[0]["content"], "what are your opening hours?")
+        self.assertEqual(_strip_preamble("Hello"), "Hello")
+        self.assertEqual(_strip_preamble("Hi, I'm Rahul, what are your hours"), "I'm Rahul, what are your hours")
+        self.assertTrue(_is_personal(_strip_preamble("Hi, my order 48213 hasn't arrived")))
+        self.assertIsNone(self.turns("Hi, my order 48213 hasn't arrived")[0].messages)
+        self.assertIsNone(self.turns("Hi, I'm Rahul, what are your hours")[0].messages)
 
 
 if __name__ == "__main__":

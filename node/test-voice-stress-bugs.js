@@ -520,3 +520,50 @@ test("T21: a short question whose only topic is an -ing form of the previous tur
   const plain = await call(["What is your refund policy?", "How long does a refund take?"]);
   assert.deepStrictEqual(last(plain.seen).filter((m) => m.role === "user").map((m) => m.content), ["How long does a refund take?"]);
 });
+
+// VD4, T11, VD8: follow-ups get their context, stranded prepositions end real questions, a casual opener does not change the key.
+const { voiceSession } = require("./src/channels/voiceSession.js");
+const { ConformanceStore } = require("./test/conformance.js");
+const { unfinished } = require("./src/understanding/wordRules/followUp.js");
+const { stripPreamble } = require("./src/understanding/wordRules/text.js");
+
+async function turns(...said) {
+  const session = voiceSession({ client: new ConformanceStore(), agentId: "a", voice: null });
+  const decisions = [];
+  for (const text of said) {
+    decisions.push(await session.decide(text));
+    await session.record(decisions[decisions.length - 1], "Sure.");
+  }
+  return decisions;
+}
+
+test("VD4: follow-ups are context dependent and the model gets the call context", async () => {
+  for (const text of ["Can I pay it in two instalments?", "What were the fees again?", "Can I pay that, as you said?"]) assert.strictEqual(_isContextDependent(text), true, text);
+  for (const text of ["Can I pay by card?", "What are the fees?", "How do I reset the router?"]) assert.strictEqual(_isContextDependent(text), false, text);
+  for (const text of ["Can I pay it in two instalments?", "What were the fees again?"]) {
+    const seen = (await turns("what are the tuition fees", text)).pop().messages;
+    assert.deepStrictEqual(seen.map((m) => m.content), ["what are the tuition fees", text]);
+  }
+  assert.strictEqual((await turns("what are the tuition fees", "Can I pay by card?")).pop().messages.length, 1);
+});
+
+test("T11: a wh-question ending in a preposition is finished; real cut-offs are not", async () => {
+  for (const text of ["What is a PAN card used for?", "What temperature should I bake chocolate chip cookies at?", "Where does this word come from?"]) {
+    assert.strictEqual(unfinished(text), false, text);
+    assert.notStrictEqual((await turns(text))[0].rule, "CutOff", text);
+  }
+  for (const text of ["What is the refund policy for", "I want to ask about the", "What is the refund policy for the?",
+    "Do you deliver on", "What is it for um", "What is a PAN card used for"]) assert.strictEqual(unfinished(text), true, text);
+});
+
+test("VD8: a casual preamble keys like the bare question", async () => {
+  for (const text of ["Hi there, quick question, what are your opening hours?", "Hmm, what are your opening hours?", "Okay, what are your opening hours?"]) {
+    const decision = (await turns(text))[0];
+    assert.strictEqual(decision.messages.length, 1, text);
+    assert.strictEqual(decision.messages[0].content, "what are your opening hours?");
+  }
+  assert.strictEqual(stripPreamble("Hello"), "Hello");
+  assert.strictEqual(stripPreamble("Hi, I'm Rahul, what are your hours"), "I'm Rahul, what are your hours");
+  assert.strictEqual((await turns("Hi, my order 48213 hasn't arrived"))[0].messages, null);
+  assert.strictEqual((await turns("Hi, I'm Rahul, what are your hours"))[0].messages, null);
+});

@@ -117,6 +117,23 @@ function normalise(text) {
     .join(" ");
 }
 
+// Comma-separated openers that say nothing about the question: "Hi there, quick question, ...".
+const PREAMBLES = new Set([
+  "hi", "hello", "hey", "hi there", "hello there", "hey there", "hmm", "um", "uh",
+  "okay", "ok", "quick question", "a quick question", "well",
+]); // not "so": a leading connective marks a follow-up
+
+// The turn without leading comma-separated openers from PREAMBLES; unchanged when nothing else is left.
+// shortcut: needs the commas, upgrade with the pluggable understander.
+function stripPreamble(text) {
+  let rest = String(text === null || text === undefined ? "" : text);
+  for (;;) {
+    const comma = rest.indexOf(",");
+    if (comma < 0 || !PREAMBLES.has(normalise(rest.slice(0, comma))) || !rest.slice(comma + 1).trim()) return rest;
+    rest = rest.slice(comma + 1).trimStart();
+  }
+}
+
 function wordsOf(text) {
   const source = String(text === null || text === undefined ? "" : text).toLowerCase();
   return source.match(WORDS) || [];
@@ -570,6 +587,7 @@ const STEERING = [
 ];
 
 module.exports = {
+  stripPreamble,
   TRIM,
   TRIM_EDGES,
   WORDS,

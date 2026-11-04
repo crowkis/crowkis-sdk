@@ -5,7 +5,7 @@
 const { unnamed } = require("../../understanding/wordRules/chat.js");
 const { acceptedRewrite } = require("../../understanding/model/checks.js");
 const { isNonAnswer } = require("../../understanding/wordRules/answers.js");
-const { leansOn } = require("../../understanding/wordRules/followUp.js");
+const { leansOn, withoutPreamble } = require("../../understanding/wordRules/followUp.js");
 const { CONTEXT_BOUND_THRESHOLD } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 
@@ -123,6 +123,8 @@ class VoiceReader {
   }
 
   read(said, turn) {
+    // VD8: "Hmm, what are your hours?" keys like the bare question.
+    said = typeof said === "string" ? withoutPreamble(said.trim()) : said;
     const text = typeof said === "string" ? said.trim() : "";
     // The stated turns too, so the model can tag each as changing this answer or not (VD5).
     const reading = this._classifier.classify(text, [...this._state.facts, ...this._state.stated.map((t) => unnamed(t, this._state.privateRaw))]);

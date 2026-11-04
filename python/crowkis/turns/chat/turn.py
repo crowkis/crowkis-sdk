@@ -12,7 +12,7 @@ from ...state.call_state import CallState
 from ...understanding.word_rules.chat import _names, _told
 from ...understanding.model.frame import TurnFrame
 from ...understanding.word_rules.call_context import _instructs, _tells_about_caller
-from ...understanding.word_rules.personal import _identifiers
+from ...understanding.word_rules.personal import _identifiers, _stated_names
 from ...understanding.word_rules.text import _words
 
 if TYPE_CHECKING:
@@ -111,7 +111,7 @@ class ChatReader:
             state.note_details(details)
         # On every turn and before the check: a name given in this very turn ("Hi, I'm Sarah.
         # What is the refund policy?") is never in a shared question or answer.
-        names = sorted(set(_names(text, frame, fact=about_caller)) | named)
+        names = sorted(set(_names(text, frame, fact=about_caller)) | named | _stated_names([text], lowercase=False))
         state.note_names(names)
         state.note_identifiers(_identifiers([text]))
         if frame.language and _instructs(text, words):

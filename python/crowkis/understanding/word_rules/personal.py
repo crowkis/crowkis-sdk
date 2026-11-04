@@ -47,6 +47,7 @@ from .text import (
     _proper_nouns,
     _unknown,
     _words,
+    _TOKEN,
     _ACTION_LEADS_BY_FIRST,
     _CONNECTIVES,
     _CRISIS_PHRASES,
@@ -781,12 +782,34 @@ _ID_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*[A-Za-z0-9]")
 _YEAR = re.compile(r"(?:19|20)[0-9]{2}")
 
 
+_SPOKEN_DIGIT_VALUES = {w: str(i) for i, w in enumerate(("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"))}
+_SPOKEN_DIGIT_VALUES["oh"] = "0"
+_SPOKEN_REPEATS = {"double": 2, "triple": 3}
+_SPOKEN_RUN_MIN = 4  # digits said as words that count as a number ("six seven zero eight")
+
+
+def _spoken_numbers(text: str) -> List[str]:
+    """Digit strings said as words: "six seven zero double eight" -> "670880"."""
+    runs, run, times = [], "", 1
+    for word in _words(text) + [""]:
+        if word in _SPOKEN_REPEATS:
+            times = _SPOKEN_REPEATS[word]
+        elif word in _SPOKEN_DIGIT_VALUES:
+            run, times = run + _SPOKEN_DIGIT_VALUES[word] * times, 1
+        else:
+            if len(run) >= _SPOKEN_RUN_MIN:
+                runs.append(run)
+            run, times = "", 1
+    return runs
+
+
 def _identifiers(texts: Iterable[str]) -> set:
     """The ID-like values said in ``texts``, flattened as _leaks compares them: tokens
     with four or more digits (not a bare year) or an @, and digit groups said with
     spaces ("2345 6789 0123")."""
     found: set = set()
     for text in texts:
+        found.update(_spoken_numbers(text or ""))
         for token in _ID_TOKEN.findall(text or ""):
             digits = sum(c in "0123456789" for c in token)
             if "@" in token or (digits >= 4 and not _YEAR.fullmatch(token)):
@@ -801,9 +824,46 @@ def _identifiers(texts: Iterable[str]) -> set:
 def _repeats_identifier(answer: str, identifiers: set) -> bool:
     """Whether ``answer`` says one of ``identifiers``. A short value must be a whole token
     of the answer ("1800" is not in "21,800"); a long one may appear anywhere in it."""
-    flat = _flatten(answer)
-    tokens = {_flatten(token) for token in _ID_TOKEN.findall(answer or "")} | set(_words(answer))
+    spoken = _spoken_numbers(answer or "")
+    flat = _flatten(answer) + "|".join(spoken)  # digits said as words
+    tokens = {_flatten(token) for token in _ID_TOKEN.findall(answer or "")} | set(_words(answer)) | set(spoken)
     return any(value in flat if len(value) >= 6 else value in tokens for value in identifiers)
+
+
+# How the caller gives a name. Case does not matter (speech-to-text often lower-cases names): over-capturing
+# only keeps answers that say the captured word private. Not a name: an article or other function word,
+# a word ending in -ing, or one of these common words after "I am" / "this is".
+_NAME_LEADS = (("my", "name", "is"), ("my", "name", "s"), ("name", "s"), ("call", "me"), ("mera", "naam"), ("naam",))
+_NAME_LEADS_WEAK = (("i", "m"), ("i", "am"), ("this", "is"))
+_NAME_PARTS = 2
+_NOT_NAMES = frozenset({
+    "not", "here", "new", "interested", "from", "about", "urgent", "regarding", "sorry", "sure", "fine", "good",
+    "ok", "okay", "ready", "back", "also", "just", "still", "very", "so", "too", "available", "unable", "unsure",
+    "happy", "glad", "wondering", "afraid", "writing", "important", "serious", "emergency", "wrong", "right",
+    "hai", "hain", "hoon", "hu",  # Hinglish "mera naam Rahul hai"
+})
+
+
+def _stated_names(texts: Iterable[str], lowercase: bool = True) -> set:
+    """The names callers gave in ``texts`` ("my name is Rahul Verma", "this is harpreet iyer calling",
+    "mera naam Rahul hai"): each word of the name, lower-cased and flattened as _leaks compares.
+    After "I'm" / "I am" / "this is" a lower-case word is a name only with ``lowercase`` (voice, where
+    it only keeps answers private); Chat reads names into its question rules too, so there "I'm
+    diabetic" must not make "diabetic" a name."""
+    found: set = set()
+    for text in texts:
+        tokens = [m.group() for m in _TOKEN.finditer(text or "")]
+        words = [t.lower() for t in tokens]
+        for at in range(len(words)):
+            for lead, weak in [(l, False) for l in _NAME_LEADS] + [(l, not lowercase) for l in _NAME_LEADS_WEAK]:
+                if tuple(words[at:at + len(lead)]) != lead:
+                    continue
+                for token in tokens[at + len(lead):at + len(lead) + _NAME_PARTS]:
+                    word = token.lower()
+                    if (weak and not token[0].isupper()) or word in _FUNCTION_WORDS or word in _GREETINGS or word in _NOT_NAMES or word.endswith("ing"):
+                        break
+                    found.add(word)
+    return {value for value in found if len(value) >= 2}
 
 
 _STEERING_BY_FIRST = _first_words(_STEERING)

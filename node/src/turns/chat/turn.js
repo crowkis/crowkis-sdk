@@ -6,7 +6,7 @@ const { LATE, within } = require("../../runtime/deadline.js");
 const { names, told } = require("../../understanding/wordRules/chat.js");
 const { TurnFrame } = require("../../understanding/model/frame.js");
 const { instructs, tellsAboutCaller } = require("../../understanding/wordRules/callContext.js");
-const { identifiers } = require("../../understanding/wordRules/personal.js");
+const { identifiers, statedNames } = require("../../understanding/wordRules/personal.js");
 const { wordsOf } = require("../../understanding/wordRules/text.js");
 const { isThenable } = require("../core.js");
 
@@ -113,7 +113,7 @@ class ChatReader {
     }
     // On every turn and before the check: a name given in this very turn ("Hi, I'm Sarah. What is the
     // refund policy?") is never in a shared question or answer.
-    const given = [...new Set([...names(text, frame, aboutCaller), ...named])].sort();
+    const given = [...new Set([...names(text, frame, aboutCaller), ...named, ...statedNames([text], false)])].sort();
     state.noteNames(given);
     state.noteIdentifiers(identifiers([text]));
     if (frame.language && instructs(text, words)) state.language = frame.language; // kept for the rest of the chat

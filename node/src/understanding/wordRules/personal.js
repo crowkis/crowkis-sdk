@@ -683,9 +683,31 @@ const YEAR = /^(?:19|20)[0-9]{2}$/;
 // The ID-like values said in `texts`, flattened as leaks() compares them: tokens with four
 // or more digits (not a bare year) or an @, and digit groups said with spaces
 // ("2345 6789 0123"). As in Python's _identifiers.
+const SPOKEN_DIGIT_VALUES = { zero: "0", oh: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9" };
+const SPOKEN_REPEATS = { double: 2, triple: 3 };
+const SPOKEN_RUN_MIN = 4; // digits said as words that count as a number ("six seven zero eight")
+
+// Digit strings said as words: "six seven zero double eight one" -> "670881".
+function spokenNumbers(text) {
+  const runs = [];
+  let run = "";
+  let times = 1;
+  for (const word of [...wordsOf(text), ""]) {
+    if (Object.hasOwn(SPOKEN_REPEATS, word)) times = SPOKEN_REPEATS[word];
+    else if (Object.hasOwn(SPOKEN_DIGIT_VALUES, word)) { run += SPOKEN_DIGIT_VALUES[word].repeat(times); times = 1; }
+    else {
+      if (run.length >= SPOKEN_RUN_MIN) runs.push(run);
+      run = "";
+      times = 1;
+    }
+  }
+  return runs;
+}
+
 function identifiers(texts) {
   const found = new Set();
   for (const text of texts) {
+    for (const run of spokenNumbers(text || "")) found.add(run);
     for (const token of String(text || "").match(ID_TOKEN) || []) {
       const digits = (token.match(/[0-9]/g) || []).length;
       if (token.includes("@") || (digits >= 4 && !YEAR.test(token))) found.add(flatten(token));
@@ -701,8 +723,9 @@ function identifiers(texts) {
 // Whether `answer` says one of `ids`. A short value must be a whole token of the answer
 // ("1800" is not in "21,800"); a long one may appear anywhere in it. As in Python.
 function repeatsIdentifier(answer, ids) {
-  const flat = flatten(answer);
-  const tokens = new Set([...(String(answer || "").match(ID_TOKEN) || []).map(flatten), ...wordsOf(answer)]);
+  const spoken = spokenNumbers(answer || "");
+  const flat = flatten(answer) + spoken.join("|"); // digits said as words
+  const tokens = new Set([...(String(answer || "").match(ID_TOKEN) || []).map(flatten), ...wordsOf(answer), ...spoken]);
   return [...ids].some((value) => (value.length >= 6 ? flat.includes(value) : tokens.has(value)));
 }
 
@@ -722,6 +745,42 @@ function carriesCallContext(answer, question, earlier) {
     for (const w of identifying(turn)) before.add(w);
   }
   return wordsOf(answer).some((w) => before.has(w) && !asked.has(w));
+}
+
+// How the caller gives a name. Case does not matter (speech-to-text often lower-cases names): over-capturing
+// only keeps answers that say the captured word private. Not a name: an article or other function word,
+// a word ending in -ing, or one of these common words after "I am" / "this is". As in Python.
+const NAME_LEADS = [["my", "name", "is"], ["my", "name", "s"], ["name", "s"], ["call", "me"], ["mera", "naam"], ["naam"]];
+const NAME_LEADS_WEAK = [["i", "m"], ["i", "am"], ["this", "is"]];
+const NAME_PARTS = 2;
+const NOT_NAMES = new Set([
+  "not", "here", "new", "interested", "from", "about", "urgent", "regarding", "sorry", "sure", "fine", "good",
+  "ok", "okay", "ready", "back", "also", "just", "still", "very", "so", "too", "available", "unable", "unsure",
+  "happy", "glad", "wondering", "afraid", "writing", "important", "serious", "emergency", "wrong", "right",
+  "hai", "hain", "hoon", "hu", // Hinglish "mera naam Rahul hai"
+]);
+
+// The names callers gave in `texts` ("my name is Rahul Verma", "this is harpreet iyer calling", "mera naam
+// Rahul hai"): each word of the name, lower-cased and flattened as leaks compares.
+// After "I'm" / "I am" / "this is" a lower-case word is a name only with `lowercase` (voice); Chat reads names
+// into its question rules too, so there "I'm diabetic" must not make "diabetic" a name.
+function statedNames(texts, lowercase = true) {
+  const found = new Set();
+  for (const text of texts) {
+    const tokens = String(text || "").match(/[\p{L}\p{M}\p{N}]+/gu) || [];
+    const words = tokens.map((t) => t.toLowerCase());
+    for (let at = 0; at < words.length; at++) {
+      for (const [lead, weak] of [...NAME_LEADS.map((l) => [l, false]), ...NAME_LEADS_WEAK.map((l) => [l, !lowercase])]) {
+        if (!lead.every((w, i) => words[at + i] === w)) continue;
+        for (const token of tokens.slice(at + lead.length, at + lead.length + NAME_PARTS)) {
+          const word = token.toLowerCase();
+          if ((weak && token[0] === token[0].toLowerCase()) || FUNCTION_WORDS.has(word) || GREETINGS.has(word) || NOT_NAMES.has(word) || word.endsWith("ing")) break;
+          found.add(word);
+        }
+      }
+    }
+  }
+  return new Set([...found].filter((value) => value.length >= 2));
 }
 
 const STEERING_BY_FIRST = firstWords(STEERING);
@@ -836,6 +895,7 @@ module.exports = {
   lookupOnly,
   leaks,
   ID_TOKEN,
+  statedNames,
   YEAR,
   identifiers,
   repeatsIdentifier,

@@ -6,7 +6,7 @@ const { followUpKey } = require("../../keys/knowledgeSegment.js");
 const { LATE, within } = require("../../runtime/deadline.js");
 const { QuestionRecords } = require("../../runtime/questionRecords.js");
 const { isContextDependent } = require("../../understanding/wordRules/followUp.js");
-const { identifiers, isPersonal } = require("../../understanding/wordRules/personal.js");
+const { identifiers, isPersonal, statedNames } = require("../../understanding/wordRules/personal.js");
 const { FOLLOW_UP_WORDS, URGENT, wordsOf } = require("../../understanding/wordRules/text.js");
 const { urgent } = require("../../understanding/wordRules/urgent.js");
 
@@ -157,7 +157,8 @@ class SessionCall {
    */
   saidIdentifiers() {
     const said = this._session.transcript.filter((turn) => turn.role === "user").map((turn) => turn.content).slice(0, -1);
-    return identifiers([...said, ...[...this._session.state.heard].sort()]);
+    const everything = [...said, ...[...this._session.state.heard].sort()];
+    return new Set([...identifiers(everything), ...statedNames(everything)]);
   }
 
   /** Which agent's system prompts this call's is compared with. */

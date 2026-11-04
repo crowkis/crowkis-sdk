@@ -9,7 +9,7 @@ from ...keys import follow_up_key
 from ...runtime.deadline import within
 from ...runtime.question_records import QuestionRecords
 from ...understanding.word_rules.follow_up import _is_context_dependent
-from ...understanding.word_rules.personal import _identifiers, _is_personal
+from ...understanding.word_rules.personal import _identifiers, _is_personal, _stated_names
 from ...understanding.word_rules.text import _FOLLOW_UP_WORDS, _URGENT, _words
 from ...understanding.word_rules.urgent import _urgent
 from ..values import Channel
@@ -143,7 +143,8 @@ class SessionCall:
         the turn being recorded is in the transcript, so that turn is left out: it passed the
         personal rules, so its numbers are not private."""
         said = [turn["content"] for turn in self._session.transcript if turn["role"] == "user"][:-1]
-        return _identifiers(said + sorted(self._session.state.heard))
+        everything = said + sorted(self._session.state.heard)
+        return _identifiers(everything) | _stated_names(everything)
 
     def agent_key(self) -> Tuple:
         """Which agent's system prompts this call's is compared with."""

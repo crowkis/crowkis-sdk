@@ -6,6 +6,7 @@ import unittest
 
 from crowkis.runtime.question_records import question_key
 from crowkis.channels.call_session import CallSession
+from crowkis.rules.chat_rule_set import ChatRuleSet
 from crowkis.understanding.turn_frame import TurnFrame
 from crowkis.turns.results import SHARED
 
@@ -88,6 +89,12 @@ class ChatHitGuardTests(unittest.TestCase):
         while key not in agent._client.values and time.monotonic() < deadline:
             time.sleep(0.01)
         self.assertEqual(json.loads(agent._client.values[key]), [QUESTION])
+
+    def test_the_hit_chain_holds_no_rule_that_needs_more_than_a_chat_hit_has(self):
+        # ConfidenceBar and ScreenOnlyAnswer read call.serve_above / call.channel, which ChatHitCall lacks.
+        names = ChatRuleSet.hit_chain().names
+        self.assertNotIn("ConfidenceBar", names)
+        self.assertNotIn("ScreenOnlyAnswer", names)
 
 
 if __name__ == "__main__":

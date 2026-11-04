@@ -7,6 +7,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CallSession } = require("../../src/channels/callSession.js");
+const { ChatRuleSet } = require("../../src/rules/chatRuleSet.js");
 const { TurnFrame } = require("../../src/understanding/turnFrame.js");
 const { SHARED } = require("../../src/rules/ruleChecker.js");
 const { questionKey } = require("../../src/runtime/questionRecords.js");
@@ -89,4 +90,11 @@ test("a saved answer keeps its question", async () => {
   assert.strictEqual(await session.recordAnswer(result, "We open at 10 on Sundays."), "saved");
   await waitForWrites();
   assert.deepStrictEqual(JSON.parse(agent.client.values.get(questionKey("voice", "We open at 10 on Sundays."))), [QUESTION]);
+});
+
+test("the hit chain holds no rule that needs more than a chat hit has", () => {
+  // ConfidenceBar and ScreenOnlyAnswer read call.serveAbove / call.channel, which ChatHitCall lacks.
+  const { names } = ChatRuleSet.hitChain();
+  assert.ok(!names.includes("ConfidenceBar"));
+  assert.ok(!names.includes("ScreenOnlyAnswer"));
 });

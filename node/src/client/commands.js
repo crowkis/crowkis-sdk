@@ -193,7 +193,7 @@ class CrowkisClient {
         socket.write(encode(["AUTH", this.authToken]));
         // A refused AUTH must not leave an unauthenticated socket behind for
         // the next command to use.
-        this.reader.read().then(resolve, (error) => {
+        this._readWithin(this.timeoutMs).then(resolve, (error) => {
           this.close();
           reject(NO_SERVER_TOKEN.test(error.message)
             ? new CrowkisError("the server has no CROWKIS_AUTH_TOKEN set; remove authToken or set the same token on the server")

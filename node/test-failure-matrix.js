@@ -10,7 +10,8 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const net = require("node:net");
-const { voiceSession } = require("./src/channels/voiceSession.js");
+const voiceInternals = require("./src/channels/voiceSession.js");
+const { voiceSession } = voiceInternals;
 const { Chat } = require("./src/channels/chat.js");
 const { CallSession } = require("./src/channels/callSession.js");
 const { RealtimeAdapter, RealtimeGate } = require("./src/channels/realtime.js");
@@ -261,13 +262,32 @@ for (const row of ["down", "hung", "slow", "wrong_token"]) {
 
 // A hung server with a token: the client has no timeout on the AUTH reply, so the lookup and the
 // write never end (the python client fails them at its read timeout).
-test("hung server with a token: the late write fails and is counted", { todo: "BUG N1: the AUTH reply has no timeout in the node client, so a write to a server that never answers AUTH never fails" }, async () => {
+test("hung server with a token: the late write fails and is counted", async () => {
   await cell("hung", async (server, lines) => {
     const session = newSession("hung", server);
     await session.answer(QUESTION, llm);
     await settle(() => session.stats(), { failedWrites: 1 });
     assertNoCallerText(lines);
   });
+});
+
+// The handshake is bounded too: the AUTH reply is cut at timeoutMs, and the dead write leaves the pending set.
+test("hung server with a token: the command fails at the client timeout and the pending writes drain", async () => {
+  const server = await standIn("hang");
+  try {
+    const client = new CrowkisClient({ host: "127.0.0.1", port: server.port, timeoutMs: 300, maxRetries: 0, authToken: TOKEN });
+    const started = Date.now();
+    await assert.rejects(client.cget("q"), (error) => error.name === "CrowkisError");
+    assert.ok(Date.now() - started < 3000);
+    const session = newSession("hung", server);
+    await session.answer(QUESTION, llm);
+    await settle(() => session.stats(), { failedWrites: 1 });
+    const deadline = Date.now() + SETTLE_MS;
+    while (voiceInternals._pendingWrites.size && Date.now() < deadline) await sleep(20);
+    assert.strictEqual(voiceInternals._pendingWrites.size, 0);
+  } finally {
+    server.close();
+  }
 });
 
 // The same server without a token: the write is cut at the client timeout, counted and logged by type.

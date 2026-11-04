@@ -6,7 +6,7 @@
 // python/tests/test_voice_stated_context.py.
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 const { VoiceSession, warmFromCalls, _setsContext, _isNonAnswer } = require("./src/channels/voiceSession.js");
 
 class FakeClient {

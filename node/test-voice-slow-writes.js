@@ -7,7 +7,7 @@
 // for. Agent.speak() is unchanged. Mirrors python/tests/test_voice_slow_writes.py.
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
-const { Agent, waitForAudioStores } = require("./agent.js");
+const { Agent, waitForAudioStores } = require("./src/client/agent.js");
 const { VoiceSession, voiceSession, _waitForWrites, _setWritesMax } = require("./src/channels/voiceSession.js");
 const { AudioClips } = require("./src/integrations/voiceTurns.js");
 

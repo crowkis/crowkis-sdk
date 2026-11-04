@@ -4,8 +4,8 @@
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
 const { voiceSession, _isPersonal: isPersonal, _waitForWrites: waitForWrites, _IPV4: IPV4 } = require("./src/channels/voiceSession.js");
-const { waitForAudioStores } = require("./agent.js");
-const { ConformanceStore } = require("./conformance.js");
+const { waitForAudioStores } = require("./src/client/agent.js");
+const { ConformanceStore } = require("./test/conformance.js");
 
 beforeEach(() => waitForAudioStores());
 

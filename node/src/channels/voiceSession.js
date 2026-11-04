@@ -1,7 +1,7 @@
 "use strict";
 
-const { Agent, voiceAddonMissing } = require("../../agent.js");
-const { CrowkisClient } = require("../../index.js");
+const { Agent, voiceAddonMissing } = require("../client/agent.js");
+const { CrowkisClient } = require("../client/commands.js");
 const { RuleSet } = require("../rules/ruleSet.js");
 const { SessionCall } = require("../turns/voice/call.js");
 const { BoundedWriter } = require("../runtime/boundedWriter.js");

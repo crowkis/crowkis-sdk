@@ -5,7 +5,7 @@
 
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { Agent } = require("../../agent.js");
+const { Agent } = require("../../src/client/agent.js");
 const { CrowkisClient } = require("../../index.js");
 const { BudgetedUnderstanding, WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession, voiceSession } = require("../../src/channels/voiceSession.js");

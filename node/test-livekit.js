@@ -13,7 +13,7 @@ try {
 } catch {
   lk = null;
 }
-const { Agent: CrowkisAgent } = require("./agent.js");
+const { Agent: CrowkisAgent } = require("./src/client/agent.js");
 const { VoiceSession, voiceSession } = require("./src/channels/voiceSession.js");
 
 const QUESTION = "what is your refund policy";
@@ -88,7 +88,7 @@ function make({ reply = ANSWER, store = new Store(), session = null, voice = "ra
   };
   Object.defineProperty(agent, "tts", { get: () => fakes.tts });
   const crowkis = session || new VoiceSession(new CrowkisAgent("caller", { client: store }), { voice: "v" });
-  return { agent: require("./livekit.js").withCrowkis(agent, { crowkis }), store, session: crowkis, fakes };
+  return { agent: require("./src/integrations/livekit.js").withCrowkis(agent, { crowkis }), store, session: crowkis, fakes };
 }
 
 // One reply: llmNode's text fed to ttsNode, as LiveKit does.
@@ -288,7 +288,7 @@ test("the agent's own ttsNode is given a ReadableStream, as LiveKit gives it", {
     return streamOf([new rtc.AudioFrame(PCM, 16000, 1, PCM.length)]);
   };
   Object.defineProperty(base, "tts", { get: () => fakes.tts });
-  require("./livekit.js").withCrowkis(base, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
+  require("./src/integrations/livekit.js").withCrowkis(base, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
   await turn(base, ctx([["user", QUESTION]]));
   assert.strictEqual(got, true);
 });
@@ -308,7 +308,7 @@ test("cancelling a reply while a read is pending stops the LLM at once", { skip 
     });
   agent2.ttsNode = agent.ttsNode;
   Object.defineProperty(agent2, "tts", { get: () => ({ sampleRate: 16000, numChannels: 1, voice: "v" }) });
-  require("./livekit.js").withCrowkis(agent2, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
+  require("./src/integrations/livekit.js").withCrowkis(agent2, { crowkis: new VoiceSession(new CrowkisAgent("c", { client: new Store() }), { voice: "v" }) });
   const stream = await agent2.llmNode(ctx([["user", QUESTION]]), {}, {});
   const reader = stream.getReader();
   await reader.read(); // "Refunds ", then the next read waits on the LLM

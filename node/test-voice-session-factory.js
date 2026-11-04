@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const net = require("node:net");
 const crowkis = require("./index.js");
 const { CrowkisClient } = crowkis;
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 const { VoiceSession, voiceSession } = require("./src/channels/voiceSession.js");
 
 const NAMES = ["CROWKIS_HOST", "CROWKIS_PORT", "CROWKIS_AUTH_TOKEN", "CROWKIS_TOKEN", "CROWKIS_TENANT", "CROWKIS_URL"];

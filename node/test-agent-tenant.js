@@ -3,7 +3,7 @@
 // environment or from the client given. As in Python (test_agent_tenant.py).
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 const { CrowkisClient } = require("./index.js");
 
 test("the tenant from the environment is shown", () => {

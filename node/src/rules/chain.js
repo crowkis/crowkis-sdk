@@ -1,7 +1,7 @@
 "use strict";
 
 /** A floor rule was asked to be turned off without the explicit unsafe flag. */
-class FloorRuleLocked extends require("../../index.js").CrowkisError {
+class FloorRuleLocked extends require("../client/connection.js").CrowkisError {
   constructor(message) {
     super(message);
     this.name = "FloorRuleLocked";
@@ -9,7 +9,7 @@ class FloorRuleLocked extends require("../../index.js").CrowkisError {
 }
 
 /** A rule was named that the rule set does not have. */
-class UnknownRule extends require("../../index.js").CrowkisError {
+class UnknownRule extends require("../client/connection.js").CrowkisError {
   constructor(message) {
     super(message);
     this.name = "UnknownRule";

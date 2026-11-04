@@ -7,7 +7,7 @@
 const assert = require("node:assert");
 const fs = require("node:fs");
 const { test } = require("node:test");
-const { ChatReplay, VoiceReplay, goldenPath, replay, suites } = require("./golden.js");
+const { ChatReplay, VoiceReplay, goldenPath, replay, suites } = require("./test/golden.js");
 
 for (const pipeline of [new VoiceReplay(), new ChatReplay()]) {
   for (const [suite, calls] of Object.entries(suites())) {

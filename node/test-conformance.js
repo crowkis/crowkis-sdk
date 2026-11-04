@@ -8,7 +8,7 @@
 // LiveKit runs when @livekit/agents is installed (pinned in CI: 1.9.3).
 const test = require("node:test");
 const assert = require("node:assert");
-const { SPEC, REAL, DRIVERS, makeStore, runScenario, check, resources } = require("./conformance.js");
+const { SPEC, REAL, DRIVERS, makeStore, runScenario, check, resources } = require("./test/conformance.js");
 
 for (const driver of DRIVERS) {
   for (const scenario of SPEC.scenarios) {

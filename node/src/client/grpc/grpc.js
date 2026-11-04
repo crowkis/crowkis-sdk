@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("node:path");
+const { toBuffer } = require("../connection.js");
 
 function loadCrowkisGrpc(options = {}) {
   let grpc;
@@ -107,12 +108,6 @@ function request(query, options = {}) {
   }
   if (options.image) payload.image = toBuffer(options.image);
   return payload;
-}
-
-function toBuffer(value) {
-  if (Buffer.isBuffer(value)) return value;
-  if (value instanceof Uint8Array) return Buffer.from(value);
-  return Buffer.from(String(value));
 }
 
 module.exports = {

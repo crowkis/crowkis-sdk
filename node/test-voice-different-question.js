@@ -4,8 +4,8 @@
 const assert = require("node:assert");
 const { test, beforeEach } = require("node:test");
 const { voiceSession, _differentSpecifics: differentSpecifics, _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
-const { waitForAudioStores } = require("./agent.js");
-const { ConformanceStore } = require("./conformance.js");
+const { waitForAudioStores } = require("./src/client/agent.js");
+const { ConformanceStore } = require("./test/conformance.js");
 
 const RIVERSIDE = "What time does the riverside greenhouse open on Sunday mornings?";
 const RIVERSIDE_ANSWER = "The riverside greenhouse opens at nine on Sunday mornings.";

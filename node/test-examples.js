@@ -3,7 +3,7 @@
 process.env.CROWKIS_SDK = __dirname + "/index.js";
 const test = require("node:test");
 const assert = require("node:assert");
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 const { VoiceSession } = require("./src/channels/voiceSession.js");
 const loop = require("../examples/node_custom_voice_loop.js");
 

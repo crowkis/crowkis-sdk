@@ -6,7 +6,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const net = require("node:net");
 const { CrowkisClient, CrowkisError } = require("./index.js");
-const { CrowkisMemory } = require("./memory.js");
+const { CrowkisMemory } = require("./src/integrations/memory.js");
 
 const NOT_NAMED = "the answer holds personal details the question does not name, so it would never be served";
 

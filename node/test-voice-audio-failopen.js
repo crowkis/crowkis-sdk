@@ -10,7 +10,7 @@
 //   defaults; with the defaults it is unchanged, so existing clips stay valid.
 const test = require("node:test");
 const assert = require("node:assert");
-const { Agent, _ttsKey } = require("./agent.js");
+const { Agent, _ttsKey } = require("./src/client/agent.js");
 const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 const ANSWER = "Here is the answer.";

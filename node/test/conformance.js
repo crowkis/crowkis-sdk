@@ -11,12 +11,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { CrowkisClient, LLMClassifier, LLMRewriter, LLMUnderstander } = require("./index.js");
-const { voiceSession } = require("./src/channels/voiceSession.js");
-const { waitForAudioStores } = require("./agent.js");
-const { _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
+const { CrowkisClient, LLMClassifier, LLMRewriter, LLMUnderstander } = require("../index.js");
+const { voiceSession } = require("../src/channels/voiceSession.js");
+const { waitForAudioStores } = require("../src/client/agent.js");
+const { _waitForWrites: waitForWrites } = require("../src/channels/voiceSession.js");
 
-const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "adapter-conformance.json"), "utf8"));
+const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "fixtures", "adapter-conformance.json"), "utf8"));
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";
 const SLOW_MS = 2000;
 const REAL_GAP_MS = 1500;
@@ -282,7 +282,7 @@ const liveKit = {
       return streamOf([new rtc.AudioFrame(new Int16Array(audioOf(said).buffer.slice(0)), RATE, 1, audioOf(said).length / 2)]);
     };
     Object.defineProperty(agent, "tts", { get: () => ({ sampleRate: RATE, numChannels: 1, voice: "v" }) });
-    const wrapped = require("./livekit.js").withCrowkis(agent, { crowkis: session });
+    const wrapped = require("../src/integrations/livekit.js").withCrowkis(agent, { crowkis: session });
     let items = [lk.llm.ChatMessage.create({ role: "system", content: ["You are Acme's assistant."] })];
     const out = [];
     for (const turn of turns) {

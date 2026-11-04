@@ -1,6 +1,6 @@
 "use strict";
 
-const { CrowkisClient } = require("./index.js");
+const { CrowkisClient } = require("./commands.js");
 
 /** The server has no audio cache for this caller: its ENTERPRISE refusal, or a server from before it. */
 function voiceAddonMissing(error) {

@@ -9,9 +9,9 @@ const assert = require("node:assert");
 const net = require("node:net");
 const util = require("node:util");
 const { CrowkisClient } = require("./index.js");
-const { Agent } = require("./agent.js");
-const { CrowkisCache } = require("./langchain.js");
-const { CrowkisMemory } = require("./memory.js");
+const { Agent } = require("./src/client/agent.js");
+const { CrowkisCache } = require("./src/integrations/langchain.js");
+const { CrowkisMemory } = require("./src/integrations/memory.js");
 
 const SECRET = "tok-env-9c2e-very-secret";
 const NAMES = [

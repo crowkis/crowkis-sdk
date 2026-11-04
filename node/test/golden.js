@@ -7,14 +7,14 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { Agent } = require("./agent.js");
-const { VoiceSession } = require("./src/channels/voiceSession.js");
-const { CallSession } = require("./src/channels/callSession.js");
-const { TurnFrame } = require("./src/understanding/model/frame.js");
+const { Agent } = require("../src/client/agent.js");
+const { VoiceSession } = require("../src/channels/voiceSession.js");
+const { CallSession } = require("../src/channels/callSession.js");
+const { TurnFrame } = require("../src/understanding/model/frame.js");
 
-const GOLDEN = path.join(__dirname, "..", "fixtures", "golden");
+const GOLDEN = path.join(__dirname, "..", "..", "fixtures", "golden");
 const INPUTS = JSON.parse(fs.readFileSync(path.join(GOLDEN, "inputs.json"), "utf8"));
-const PHRASES = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "voice-rule-phrases.json"), "utf8")).phrases;
+const PHRASES = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "fixtures", "voice-rule-phrases.json"), "utf8")).phrases;
 const PHRASE_REPLY = "Here is the answer.";
 const AGENT_ID = "golden";
 const HIT_CONFIDENCE = 0.99;

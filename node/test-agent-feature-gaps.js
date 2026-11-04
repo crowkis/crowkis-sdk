@@ -4,7 +4,7 @@
 // and the tool and speak tests in python/tests/test_agent_voice.py.
 const assert = require("node:assert");
 const { test } = require("node:test");
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 
 class ToolStore {
   constructor() { this.tools = new Map(); this.writes = 0; }
@@ -110,7 +110,7 @@ test("speak refuses a blank voice", async () => {
 
 // T9's two cases Node did not have: a filler inside a longer sentence, and the hit split.
 const { voiceSession } = require("./src/channels/voiceSession.js");
-const { ConformanceStore } = require("./conformance.js");
+const { ConformanceStore } = require("./test/conformance.js");
 const voice = (options) => voiceSession({
   client: new ConformanceStore({ seed: { "what is the return policy": "Returns are free for 30 days." } }), ...options,
 });

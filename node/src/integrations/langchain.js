@@ -10,7 +10,7 @@
 // so rephrased prompts hit the cache. Duck-typed (lookup/update) — needs no
 // @langchain/core dependency.
 
-const { CrowkisClient } = require("./index.js");
+const { CrowkisClient } = require("../client/commands.js");
 
 class CrowkisCache {
   constructor(options = {}) {

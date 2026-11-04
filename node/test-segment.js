@@ -6,7 +6,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { CrowkisClient } = require("./index.js");
-const { Agent } = require("./agent.js");
+const { Agent } = require("./src/client/agent.js");
 
 const SEGMENT = "kb=3;lang=hi;region=in;channel=chat";
 

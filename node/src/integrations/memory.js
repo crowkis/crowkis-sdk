@@ -8,7 +8,7 @@
 //   await mem.remember("Alice prefers email over phone");
 //   const hits = await mem.recall("how should I contact Alice?");
 
-const { CrowkisClient } = require("./index.js");
+const { CrowkisClient } = require("../client/commands.js");
 
 class CrowkisMemory {
   constructor(agent, options = {}) {

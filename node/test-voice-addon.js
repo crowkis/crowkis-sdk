@@ -4,7 +4,7 @@
 // caller, and voice counts reported to the Voice page. Run: node --test test-voice-addon.js
 const test = require("node:test");
 const assert = require("node:assert");
-const { Agent, waitForAudioStores } = require("./agent.js");
+const { Agent, waitForAudioStores } = require("./src/client/agent.js");
 const { VoiceSession } = require("./src/channels/voiceSession.js");
 
 const ADDON_MISSING = "ENTERPRISE Voice is an add-on to Crowkis Enterprise. Get a licence key that includes it";

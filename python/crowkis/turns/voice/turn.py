@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from ...state.call_state import CallState
 from ...understanding.chat_details import _unnamed
-from ...understanding.rewrite_check import RewriteCheck
+from ...understanding.rewrite_check import accepted_rewrite
 from ...understanding.slots import Classifier, Rewriter
 from ...understanding.word_rules.answers import _is_non_answer
 from ...understanding.word_rules.follow_up import _leans_on
@@ -102,12 +102,9 @@ class ModelAnswer:
         return _is_non_answer(self.answer)
 
 
-_REWRITE_CHECK = RewriteCheck()
-
-
 class VoiceReader:
     """Reads a caller's turn with the classifier and the rewriter (the word rules and no rewrite
-    unless an understander is plugged in). The rewrite is kept only when ``RewriteCheck`` accepts it;
+    unless an understander is plugged in). The rewrite is kept only when ``accepted_rewrite`` accepts it;
     the call's state remembers what was made of each turn. ``segment`` is where the call's answers
     are looked up (None: no segment)."""
 
@@ -124,7 +121,7 @@ class VoiceReader:
         # The stated turns too, so the model can tag each as changing this answer or not (VD5).
         stated = tuple(_unnamed(told, self._state.private_raw) for told in self._state.stated)
         reading = self._classifier.classify(text, tuple(self._state.facts) + stated)
-        rewritten = _REWRITE_CHECK.accept(text, reading, self._rewriter.rewrite(text, reading), self._call)
+        rewritten = accepted_rewrite(text, reading, self._rewriter.rewrite(text, reading), self._call)
         self._state.note_reading(text, reading, rewritten)
         if _leans_on(text, (self._call.chain() or [""])[-1]):
             self._state.read_follow_up.add(text)  # keyed with the turn it leans on (T21)

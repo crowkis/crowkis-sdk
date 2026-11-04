@@ -18,7 +18,7 @@ const {
   stem,
   toks,
 } = require("../../understanding/frameWords.js");
-const { FactRelevanceCheck } = require("../../understanding/factRelevance.js");
+const { contentStems, statedFactIrrelevant } = require("../../understanding/factRelevance.js");
 const { unnamed } = require("../../understanding/chatDetails.js");
 const { wordDigest } = require("../../state/callState.js");
 const { DETAIL_TYPES } = require("../../understanding/turnFrame.js");
@@ -132,13 +132,9 @@ class CallContextTaint {
  * (another script) cannot be checked, so it keeps the question private.
  *
  * v4: a stated turn the frame confidently tags as not changing this answer may be left out
- * (FactRelevanceCheck); an allergy, a medication, a pregnancy or an age never may.
+ * (statedFactIrrelevant); an allergy, a medication, a pregnancy or an age never may.
  */
 class StatedFacts {
-  constructor({ relevance = new FactRelevanceCheck() } = {}) {
-    this._relevance = relevance;
-  }
-
   get name() {
     return "StatedFacts";
   }
@@ -149,7 +145,7 @@ class StatedFacts {
 
   check(turn) {
     for (const dropped of StatedFacts._droppedStatements(turn.state, turn.question)) {
-      if (!this._relevance.irrelevant(dropped, turn.frame)) return new Verdict(this.name, "V7_lost:" + dropped);
+      if (!statedFactIrrelevant(dropped, turn.frame)) return new Verdict(this.name, "V7_lost:" + dropped);
     }
     return null;
   }
@@ -191,9 +187,8 @@ const DEPENDS_REASON =
 // The model was sent this stated turn with a number or a content word masked ("flying to _ with _
 // bags"), so it judged the turn without it: the turn counts.
 function hidden(stated, privateWords) {
-  const stems = FactRelevanceCheck._contentStems;
-  const kept = stems(unnamed(stated, privateWords));
-  return /\p{Nd}/u.test(stated) || [...stems(stated)].some((s) => !kept.has(s));
+  const kept = contentStems(unnamed(stated, privateWords));
+  return /\p{Nd}/u.test(stated) || [...contentStems(stated)].some((s) => !kept.has(s));
 }
 
 /**
@@ -204,10 +199,6 @@ function hidden(stated, privateWords) {
  * that turn private (markPrivate).
  */
 class VoiceStatedFacts {
-  constructor({ relevance = new FactRelevanceCheck() } = {}) {
-    this._relevance = relevance;
-  }
-
   get name() {
     return "VoiceStatedFacts";
   }
@@ -221,7 +212,7 @@ class VoiceStatedFacts {
     // The call heard something its model never read (loaded history, a private turn).
     if (turn.call.tainted) return this._private(turn, DEPENDS_REASON);
     const privateWords = turn.call.privateWords();
-    if (turn.call.stated().some((stated) => hidden(stated, privateWords) || !this._relevance.irrelevant(stated, turn.frame))) {
+    if (turn.call.stated().some((stated) => hidden(stated, privateWords) || !statedFactIrrelevant(stated, turn.frame))) {
       return this._private(turn, DEPENDS_REASON);
     }
     return null;

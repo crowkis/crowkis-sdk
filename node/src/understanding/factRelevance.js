@@ -14,33 +14,25 @@ const CLAUSE_BREAK = /[,;.!?]|\b(?:and|but|also|plus|aur|y|with|who|whose|which|
  * pregnancy or age (the floor). Late, failed, unsure or silent: the fact counts. Each clause of a stated
  * turn is a fact of its own and needs its own "does not change" entry.
  */
-class FactRelevanceCheck {
-  constructor({ confidenceFloor = CONFIDENCE_FLOOR } = {}) {
-    this._confidenceFloor = confidenceFloor;
-  }
-
-  /** The model says, sure of it, that `stated` does not change the answer to this turn. */
-  irrelevant(stated, frame) {
-    if (!frame || frame.abstain || frame.confidence < this._confidenceFloor || highRisk(stated)) return false;
-    return FactRelevanceCheck._clauses(stated).every((clause) => FactRelevanceCheck._clauseIrrelevant(clause, frame));
-  }
-
-  static _clauseIrrelevant(clause, frame) {
-    const stems = FactRelevanceCheck._contentStems(clause);
-    const about = (frame.factRelevance || [])
-      .filter((f) => [...FactRelevanceCheck._contentStems(f.fact)].some((s) => stems.has(s)));
-    return about.length > 0 && !about.some((f) => f.changesAnswer || HIGH_RISK_FACT_TYPES.has(f.type));
-  }
-
-  /** The parts of a stated turn that say something (at least one content word). */
-  static _clauses(stated) {
-    const parts = stated.split(new RegExp(CLAUSE_BREAK.source, "gi")).filter((part) => part && FactRelevanceCheck._contentStems(part).size);
-    return parts.length ? parts : [stated];
-  }
-
-  static _contentStems(text) {
-    return new Set(toks(text).filter((w) => !FUNCTION.has(w) && w.length > 2).map(stem));
-  }
+function statedFactIrrelevant(stated, frame) {
+  if (!frame || frame.abstain || frame.confidence < CONFIDENCE_FLOOR || highRisk(stated)) return false;
+  return clauses(stated).every((clause) => clauseIrrelevant(clause, frame));
 }
 
-module.exports = { FactRelevanceCheck };
+function clauseIrrelevant(clause, frame) {
+  const stems = contentStems(clause);
+  const about = (frame.factRelevance || []).filter((f) => [...contentStems(f.fact)].some((s) => stems.has(s)));
+  return about.length > 0 && !about.some((f) => f.changesAnswer || HIGH_RISK_FACT_TYPES.has(f.type));
+}
+
+/** The parts of a stated turn that say something (at least one content word). */
+function clauses(stated) {
+  const parts = stated.split(new RegExp(CLAUSE_BREAK.source, "gi")).filter((part) => part && contentStems(part).size);
+  return parts.length ? parts : [stated];
+}
+
+function contentStems(text) {
+  return new Set(toks(text).filter((w) => !FUNCTION.has(w) && w.length > 2).map(stem));
+}
+
+module.exports = { statedFactIrrelevant, contentStems };

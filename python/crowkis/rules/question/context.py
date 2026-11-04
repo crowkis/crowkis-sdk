@@ -10,7 +10,7 @@ from ...turns.values import Verdict
 from ...turns.voice.turn import VoiceTurn
 from ...turns.chat.turn import ChatTurn
 from ...understanding.chat_details import _unnamed
-from ...understanding.fact_relevance import FactRelevanceCheck
+from ...understanding.fact_relevance import _content_stems, stated_fact_irrelevant
 from ...understanding.frame_words import (
     _CLAUSE_START,
     _CONTRACTION,
@@ -119,17 +119,14 @@ class StatedFacts:
     readable word (another script) cannot be checked, so it keeps the question private.
 
     v4: a stated turn the frame confidently tags as not changing this answer may be left out
-    (``FactRelevanceCheck``); an allergy, a medication, a pregnancy or an age never may."""
+    (``stated_fact_irrelevant``); an allergy, a medication, a pregnancy or an age never may."""
 
     name = "StatedFacts"
     floor = False
 
-    def __init__(self, relevance: Optional[FactRelevanceCheck] = None) -> None:
-        self._relevance = relevance if relevance is not None else FactRelevanceCheck()
-
     def check(self, turn: ChatTurn) -> Optional[Verdict]:
         for dropped in self._dropped_statements(turn.state, turn.question):
-            if not self._relevance.irrelevant(dropped, turn.frame):
+            if not stated_fact_irrelevant(dropped, turn.frame):
                 return Verdict(self.name, "V7_lost:" + dropped)
         return None
 
@@ -172,8 +169,7 @@ DEPENDS_REASON = (
 def _hidden(stated: str, private) -> bool:
     """The model was sent this stated turn with a number or a content word masked ("flying to _ with _
     bags"), so it judged the turn without it: the turn counts."""
-    stems = FactRelevanceCheck._content_stems
-    return any(c.isdecimal() for c in stated) or bool(stems(stated) - stems(_unnamed(stated, private)))
+    return any(c.isdecimal() for c in stated) or bool(_content_stems(stated) - _content_stems(_unnamed(stated, private)))
 
 
 class VoiceStatedFacts:
@@ -186,16 +182,13 @@ class VoiceStatedFacts:
     name = "VoiceStatedFacts"
     floor = False
 
-    def __init__(self, relevance: Optional[FactRelevanceCheck] = None) -> None:
-        self._relevance = relevance if relevance is not None else FactRelevanceCheck()
-
     def check(self, turn: VoiceTurn) -> Optional[Verdict]:
         if _sets_context(turn.text):
             return self._private(turn, TELLS_REASON)
         if turn.call.tainted:  # the call heard something its model never read (loaded history, a private turn)
             return self._private(turn, DEPENDS_REASON)
         private = turn.call.private_words()
-        if any(_hidden(stated, private) or not self._relevance.irrelevant(stated, turn.frame)
+        if any(_hidden(stated, private) or not stated_fact_irrelevant(stated, turn.frame)
                for stated in turn.call.stated()):
             return self._private(turn, DEPENDS_REASON)
         return None

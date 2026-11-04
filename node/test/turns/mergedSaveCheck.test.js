@@ -8,6 +8,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../src/client/agent.js");
 const { CallSession } = require("../../src/channels/callSession.js");
+const { CallState } = require("../../src/state/callState.js");
 const { TurnFrame } = require("../../src/understanding/model/frame.js");
 const { WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
@@ -137,10 +138,14 @@ test("chat, must still work: a plain answer is saved", async () => {
   assert.deepStrictEqual(agent.saved.map(([, answer]) => answer), ["Refunds take five days."]);
 });
 
-test("chat: the user's identifiers are never exported", async () => {
-  // Short ID hashes are easy to reverse; they stay in memory for the chat only (P5 review).
+test("chat: the user's identifiers are exported hashed", async () => {
+  // Chat restores its state from the app's store each turn, so a later turn's check needs them (M2).
+  // Hashed like the private words beside them: the raw value is never in the export.
   const session = new CallSession(new ChatAgent(), scripted);
   await session.handle("my order is ORD55821");
+  const exported = session.export().state;
   assert.ok(session.state.identifiers.length > 0);
-  assert.strictEqual("identifiers" in session.export().state, false);
+  assert.deepStrictEqual(exported.identifiers, session.state.identifiers);
+  assert.ok(!JSON.stringify(exported).toLowerCase().includes("55821"));
+  assert.deepStrictEqual(CallState.fromDict(exported).identifiers, session.state.identifiers);
 });

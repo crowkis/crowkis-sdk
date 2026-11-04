@@ -5,6 +5,7 @@ import time
 import unittest
 
 from crowkis.channels.call_session import CallSession
+from crowkis.state.call_state import CallState
 from crowkis.understanding.model.frame import TurnFrame
 from crowkis.understanding.slots import WordRuleClassifier
 
@@ -108,12 +109,15 @@ class ChatMergedSaveTests(unittest.TestCase):
 
 
 class ExportTests(unittest.TestCase):
-    def test_the_users_identifiers_are_never_exported(self):
-        # Short ID hashes are easy to reverse; they stay in memory for the chat only (P5 review).
+    def test_the_users_identifiers_are_exported_hashed(self):
+        # Chat restores its state from the app's store each turn, so a later turn's check needs them (M2).
+        # Hashed like the private words beside them: the raw value is never in the export.
         session = CallSession(Agent(), Scripted())
         session.handle("my order is ORD55821")
-        self.assertTrue(session.state.identifiers)
-        self.assertNotIn("identifiers", session.export()["state"])
+        exported = session.export()["state"]
+        self.assertEqual(exported["identifiers"], session.state.identifiers)
+        self.assertNotIn("55821", str(exported).lower())
+        self.assertEqual(CallState.from_dict(exported).identifiers, session.state.identifiers)
 
 
 if __name__ == "__main__":

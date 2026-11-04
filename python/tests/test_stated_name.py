@@ -158,5 +158,21 @@ class SpokenAndLowercaseTests(unittest.TestCase):
         self.assertEqual(saved, ["what are your hours"])
 
 
+class ChatIdentifiersAcrossTurnsTests(unittest.TestCase):
+    """Chat rebuilds its state from the store each turn: the numbers said earlier must survive that."""
+
+    def test_a_phone_said_earlier_is_not_shared_when_read_back(self):
+        cases = [("my number is nine eight double four five", "Call nine eight double four five."),
+                 ("my number is 98450 67881", "We will call nine eight four five zero six seven eight eight one."),
+                 ("my number is nine eight four five zero six seven eight eight one", "We will call 98450 67881.")]
+        for intro, leak in cases:
+            with self.subTest(intro=intro):
+                self.assertEqual(_chat(intro, "how do I contact support", leak), [])
+
+    def test_control_an_unrelated_number_is_saved(self):
+        self.assertEqual(_chat("my number is nine eight double four five", "what are your hours", "We are open nine to six."),
+                         ["We are open nine to six."])
+
+
 if __name__ == "__main__":
     unittest.main()

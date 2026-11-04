@@ -99,9 +99,10 @@ function detail(kind, shown, texts = [], digits = [], said = shown) {
 const styled = (rng, text) => rng.pick([text, text.toLowerCase(), text.toUpperCase()]);
 
 const MAKERS = {
-  name(rng) {
+  name(rng, cased = false) {
     const [first, last] = [rng.pick(FIRST), rng.pick(LAST)];
-    return detail("name", styled(rng, `${first} ${last}`), [`${first} ${last}`, first]);
+    const full = `${first} ${last}`;
+    return detail("name", cased ? rng.pick([full, full.toUpperCase()]) : styled(rng, full), [full, first]);
   },
   phone(rng, style = rng.pick([...PHONE_STYLES, "words"])) {
     const d = rng.pick("6789") + rng.digits(9);
@@ -336,6 +337,22 @@ test("voice: controls, general questions are saved", async () => {
 
 // chat
 
+// A weak understanding model: the turn with the detail gets frameOf(text), with no entities.
+const asWeakChat = (build, frameOf) => (rng, d) => build(rng, d).map(([text, answer]) => {
+  const isDetail = text.includes(d.shown) || text.includes(d.said) || d.texts.some((t) => text.toLowerCase().includes(t));
+  return [text, isDetail ? frameOf(text) : generalFrame(text), answer];
+});
+test("chat: a weak understander, detail stated earlier", async () => {
+  // The frame names no entity, so the SDK's own backstops (stated names, spoken numbers, IDs) do the work.
+  const noEntities = () => ({ kind: "personal", subject: "self", confidence: 0.9 });
+  for (const [label, frameOf] of [["personal", noEntities], ["general", generalFrame]]) {
+    assert.strictEqual(await check(`c-weak-${label}`, 12, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone }), 60);
+    // shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic" must
+    // stay a fact), so that frame gets names with a capital; voice reads every casing.
+    const make = label === "personal" ? undefined : (rng) => MAKERS.name(rng, true);
+    assert.strictEqual(await check(`c-weak-name-${label}`, 30, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: ["name"], make }), 30);
+  }
+});
 test("chat: detail in the question", async () => {
   assert.strictEqual(await check("c-in", 12, asChat(inQuestion), playChat, chatBlobs), 72);
 });

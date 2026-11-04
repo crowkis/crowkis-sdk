@@ -255,6 +255,7 @@ class CallState {
       private_words: [...this.privateWords],
       names: [...this.names],
       details: [...this.details],
+      identifiers: [...this.identifiers],
     };
   }
 

@@ -150,3 +150,15 @@ test("control: these are not names", async () => {
   assert.deepStrictEqual(await voice([["what is the menu here", "Hi"], ["what is the refund policy", "Refunds take 7 days."]]),
     ["what is the refund policy"]); // "here" makes the first a private question: nothing was taken as a name
 });
+
+test("chat: a phone said earlier is not shared when read back (state is restored each turn)", async () => {
+  const cases = [["my number is nine eight double four five", "Call nine eight double four five."],
+    ["my number is 98450 67881", "We will call nine eight four five zero six seven eight eight one."],
+    ["my number is nine eight four five zero six seven eight eight one", "We will call 98450 67881."]];
+  for (const [intro, leak] of cases) assert.deepStrictEqual(await chat(intro, "how do I contact support", leak), [], intro);
+});
+
+test("chat control: an unrelated answer is saved after a phone", async () => {
+  assert.deepStrictEqual(await chat("my number is nine eight double four five", "what are your hours", "We are open nine to six."),
+    ["We are open nine to six."]);
+});

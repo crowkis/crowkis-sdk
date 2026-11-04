@@ -81,9 +81,10 @@ def _style(rng, text):
     return rng.choice([text, text.lower(), text.upper()])
 
 
-def make_name(rng):
+def make_name(rng, cased=False):
     first, last = rng.choice(FIRST), rng.choice(LAST)
-    return Detail("name", _style(rng, f"{first} {last}"), [f"{first} {last}", first])
+    shown = rng.choice([f"{first} {last}", f"{first} {last}".upper()]) if cased else _style(rng, f"{first} {last}")
+    return Detail("name", shown, [f"{first} {last}", first])
 
 
 PHONE_STYLES = ["plain", "space", "dash", "dot", "paren", "plus91", "plus91dash"]
@@ -353,6 +354,31 @@ class Fuzz(unittest.TestCase):
                 out.append((text, personal_frame(detail) if is_detail else general_frame(text), answer))
             return out, None
         return wrapped
+
+    @staticmethod
+    def as_weak_chat(build, frame_of):
+        """A weak understanding model: the turn with the detail gets ``frame_of(text)`` (no entities)."""
+        def wrapped(rng, detail):
+            turns, _ = build(rng, detail)
+            out = []
+            for text, answer in turns:
+                is_detail = detail.shown in text or (detail.said in text) or any(t in text.lower() for t in detail.texts)
+                out.append((text, frame_of(text) if is_detail else general_frame(text), answer))
+            return out, None
+        return wrapped
+
+    def test_chat_weak_understander_detail_stated_earlier(self):
+        # The frame names no entity, so the SDK's own backstops (stated names, spoken numbers, IDs) do the work.
+        no_entities = lambda text: {"kind": "personal", "subject": "self", "confidence": 0.9}
+        for label, frame_of in (("personal", no_entities), ("general", general_frame)):
+            with self.subTest(frame=label):
+                self.assertEqual(self.check(f"c-weak-{label}", 12, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
+                                            kinds=("phone", "email", "id", "address", "dob")), 60)
+                # shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic"
+                # must stay a fact), so that frame gets names with a capital; voice reads every casing.
+                make = None if label == "personal" else lambda rng, kind: make_name(rng, cased=True)
+                self.assertEqual(self.check(f"c-weak-name-{label}", 30, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
+                                            kinds=("name",), make=make), 30)
 
     def test_chat_detail_in_the_question(self):
         self.assertEqual(self.check("c-in", 12, self.as_chat(in_question), self.chat, chat_blobs), 72)

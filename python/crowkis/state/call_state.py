@@ -75,8 +75,8 @@ class CallState:
     # "december", "3"): a shared question must carry every one, or it stays private.
     details: List[str] = field(default_factory=list)
     # Hashes of the ID-like values the user said in any turn ("ord55821", an email): a shared answer
-    # repeating one is refused (ChatCallerIdentifier). Kept in memory only and never exported: a short ID's
-    # hash is easy to reverse.
+    # repeating one is refused (ChatCallerIdentifier). Exported hashed like private_words: Chat restores its
+    # state from the app's store every turn, so without them the check only sees the current turn.
     identifiers: List[str] = field(default_factory=list)
     # A voice call's memory, in memory only and never in to_dict (a chat export stays as it was).
     # Set once the caller tells the call something a later answer may depend on.
@@ -267,6 +267,7 @@ class CallState:
             "private_words": list(self.private_words),
             "names": list(self.names),
             "details": list(self.details),
+            "identifiers": list(self.identifiers),
         }
 
     @classmethod

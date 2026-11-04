@@ -44,9 +44,9 @@ caller's private details private, not when it is elegant.
 - **Don't OOPify.** No new classes, interfaces (`Protocol`s), wrappers, layers, options or
   "for later" code unless the task cannot work without them. A function is fine. Two real
   implementations that behave differently are the minimum for a new interface.
-- **Keep the structure that exists** (folders, the one turn core, one rule per file in
-  `rules/<stage>/`). Don't restructure code you aren't changing; don't merge or split files as a
-  side effect.
+- **Keep the structure that exists** (folders, the one turn core, rules grouped by stage and
+  category in `rules/<stage>/<category>`). Don't restructure code you aren't changing; don't merge
+  or split files as a side effect.
 - Deletion beats addition. Duplicated logic is fixed once, in the shared place, so every channel
   gets the fix.
 - A live call never ends because of Crowkis: a failure becomes an outcome and a count in `stats()`,

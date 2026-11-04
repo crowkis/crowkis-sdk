@@ -1,13 +1,23 @@
 "use strict";
 
-// The hit rules, one per file.
+// The hit rules, grouped by category.
+
+const {
+  CommitmentRewording,
+  ConfidenceBar,
+  DifferentQuestion,
+  PiiPlaceholder,
+  ScreenOnlyAnswer,
+  ShortTurnUnvouched,
+  TemplateSlotMissing,
+} = require("./hit.js");
 
 module.exports = {
-  ...require("./commitmentRewording.js"),
-  ...require("./confidenceBar.js"),
-  ...require("./differentQuestion.js"),
-  ...require("./piiPlaceholder.js"),
-  ...require("./screenOnlyAnswer.js"),
-  ...require("./shortTurnUnvouched.js"),
-  ...require("./templateSlotMissing.js"),
+  CommitmentRewording,
+  ConfidenceBar,
+  DifferentQuestion,
+  PiiPlaceholder,
+  ScreenOnlyAnswer,
+  ShortTurnUnvouched,
+  TemplateSlotMissing,
 };

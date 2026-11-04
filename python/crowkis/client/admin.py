@@ -6,7 +6,6 @@ from http.client import HTTPConnection
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlparse
 
-from . import config as _config
 from .connection import CrowkisError
 
 

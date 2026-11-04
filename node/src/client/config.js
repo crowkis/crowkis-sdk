@@ -10,7 +10,7 @@
 // The environment is read when a client is created, not when the module loads, so a
 // .env file loaded later (node --env-file, dotenv) still applies. The SDK never loads
 // a .env file itself. Errors name the variable and never repeat its value, since a
-// URL can carry the token. Same rule as python/crowkis/_config.py.
+// URL can carry the token. Same rule as python/crowkis/client/config.py.
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 6383;

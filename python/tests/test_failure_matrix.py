@@ -120,7 +120,7 @@ CHAT_ROWS = {
 }
 
 # The error class names the SDK may log for these failures.
-ERROR_TYPES = ("CrowkisError", "TimeoutError", "ConnectionRefusedError", "OSError", "timeout")
+ERROR_TYPES = ("CrowkisError", "TimeoutError", "ConnectionRefusedError", "OSError")  # class names: a bare word like "timeout" could be a message
 
 FRAME = {"kind": "general", "subject": "none", "confidence": 0.9, "question": QUESTION}
 
@@ -202,19 +202,15 @@ def assert_not_stored(decision):
 # Rows whose failure is logged by the SDK, so the log must name the error type. A slow server
 # that answers in time fails nothing, so nothing is logged.
 LOGS_A_TYPE = {"down", "hung", "cset_refused", "wrong_token", "cset_error_quotes_question"}
-# The echo row is checked on its own (test_server_error_quoting_the_question_stays_out_of_logs).
 QUOTES_QUESTION = "cset_error_quotes_question"
-# These are logged with a message, not the error type (BUG F1, test_refused_write_logs_the_error_type).
-LOGS_A_MESSAGE = {"down", "cset_refused", "wrong_token", QUOTES_QUESTION}
 
 
 def check_voice_cell(row, session, decision, logs):
     _, _, _, expect, zero = ROWS[row]
     assert_not_stored(decision)
     settle(session.stats, expect, zero)
-    if row != QUOTES_QUESTION:
-        no_caller_text_in_logs(logs)
-    if row in LOGS_A_TYPE - LOGS_A_MESSAGE:
+    no_caller_text_in_logs(logs)
+    if row in LOGS_A_TYPE:
         assert logged_an_error_type(logs), [r.getMessage() for r in logs.records]
 
 
@@ -270,8 +266,7 @@ def test_chat_turn(row, stand_in, logs):
     reply = chat.turn("t1", turn_messages(), llm)
     assert reply.text == ANSWER and reply.route == "shared" and not reply.from_cache
     assert not reply.outcome.startswith("saved"), reply.outcome
-    if row != QUOTES_QUESTION:
-        no_caller_text_in_logs(logs)
+    no_caller_text_in_logs(logs)
 
 
 @pytest.mark.parametrize("row", CHAT_CELLS)
@@ -282,8 +277,7 @@ def test_call_session(row, stand_in, logs):
     outcome = session.record_answer(result, ANSWER)
     assert isinstance(outcome, str) and not outcome.startswith("saved"), outcome
     settle(session.stats, CHAT_ROWS[row])
-    if row != QUOTES_QUESTION:
-        no_caller_text_in_logs(logs)
+    no_caller_text_in_logs(logs)
 
 
 @pytest.mark.parametrize("row", ["down", "hung", "slow", "wrong_token"])
@@ -306,14 +300,6 @@ def test_server_error_quoting_the_question_stays_out_of_logs(stand_in, logs):
     session = session_for(QUOTES_QUESTION, stand_in)
     session.answer(QUESTION, llm)
     no_caller_text_in_logs(logs)
-
-
-@pytest.mark.parametrize("row", sorted(LOGS_A_MESSAGE))
-def test_refused_write_logs_the_error_type(row, stand_in, logs):
-    session = session_for(row, stand_in)
-    session.answer(QUESTION, llm)
-    settle(session.stats, ROWS[row][3])
-    assert logged_an_error_type(logs), [r.getMessage() for r in logs.records]
 
 
 def test_hung_auth_reply_fails_at_the_read_timeout_and_pending_writes_drain(stand_in):

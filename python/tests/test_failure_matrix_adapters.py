@@ -53,5 +53,4 @@ def test_adapter_cell(driver, row, stand_in, logs, sessions):  # noqa: F811
     assert sessions, "the adapter made no voice session"
     stats = sessions[-1].stats
     settle(stats, expect, zero)
-    if row != "cset_error_quotes_question":  # that row's log leak is the core file's BUG F2
-        no_caller_text_in_logs(logs)
+    no_caller_text_in_logs(logs)

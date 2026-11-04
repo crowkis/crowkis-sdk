@@ -260,8 +260,8 @@ for (const row of ["down", "hung", "slow", "wrong_token"]) {
   });
 }
 
-// A hung server with a token: the client has no timeout on the AUTH reply, so the lookup and the
-// write never end (the python client fails them at its read timeout).
+// A hung server with a token: the AUTH reply is read within the client's timeout, so the lookup and
+// the write fail instead of never ending (as in the python client).
 test("hung server with a token: the late write fails and is counted", async () => {
   await cell("hung", async (server, lines) => {
     const session = newSession("hung", server);

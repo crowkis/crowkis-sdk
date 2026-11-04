@@ -532,3 +532,7 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 - Script changes (`v4-notes/stress/voice_stress_test.py`): `BEDROCK_ANSWER`, `answer_call`, the Pipecat answerer swapped in-process,
   `--understand-budget-ms`, and the spend file written under a lock with an atomic replace.
 - `crowkis-demo` stopped. Nothing pushed. **Next:** the owner's call on VD12 and VD13. F5 waits.
+
+## T1 done (2026-11-04): ponytail ultra audit of `turns/` (read-only)
+
+- `v4-notes/turns-ultra-audit.md`: 17 findings; Python 33 → 21 files (~−340 lines), Node 31 → 20 (~−115); no behaviour change, voice/chat pairs kept, public names unchanged. Waits for the owner to pick items; order of work is in the report.

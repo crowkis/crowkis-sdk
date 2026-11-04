@@ -293,3 +293,69 @@ test("close() while a connection is being made drops that connection", async () 
     server.close();
   }
 });
+
+// Slow: pack the real tarball and use it the way a user does, in a fresh project.
+test("clean install: the packed tarball loads, imports and type-checks in a fresh project", {
+  skip: process.env.CROWKIS_SLOW_TESTS === "1" ? false : "slow test: set CROWKIS_SLOW_TESTS=1",
+  timeout: 300000,
+}, () => {
+  const sh = (cmd, args, cwd) => {
+    const done = spawnSync(cmd, args, { cwd, encoding: "utf8", shell: true, timeout: 240000 });
+    assert.strictEqual(done.status, 0, `${cmd} ${args.join(" ")}\n${done.stdout}\n${done.stderr}`);
+    return done.stdout;
+  };
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "crowkis-install-"));
+  try {
+    const manifest = require("./package.json");
+    const packed = JSON.parse(sh("npm", ["pack", "--json", "--pack-destination", `"${tmp}"`], __dirname))[0];
+    const inTarball = new Set(packed.files.map((f) => f.path));
+    const subpaths = Object.keys(manifest.exports).filter((key) => key !== "." && key !== "./package.json");
+
+    // Every file an export points at is in the tarball, and so is every file those require.
+    const targets = Object.values(manifest.exports).flatMap((e) => (typeof e === "string" ? [e] : Object.values(e)));
+    for (const target of targets) assert.ok(inTarball.has(target.slice(2)), `${target} is missing from the tarball`);
+    assert.ok(inTarball.has("src/client/grpc/crowkis.proto"), "crowkis.proto is missing from the tarball");
+    const queue = targets.map((t) => t.slice(2)).filter((f) => f.endsWith(".js"));
+    for (const seen = new Set(); queue.length; ) {
+      const file = queue.pop();
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const source = fs.readFileSync(path.join(__dirname, file), "utf8");
+      for (const [, dep] of source.matchAll(/require\("(\.\.?\/[^"]+)"\)/g)) {
+        const joined = path.posix.join(path.posix.dirname(file), dep);
+        const resolved = [joined, `${joined}.js`, `${joined}/index.js`].find((c) => inTarball.has(c));
+        assert.ok(resolved, `${file} requires ${dep}, which the tarball leaves out`);
+        queue.push(resolved);
+      }
+    }
+
+    const app = path.join(tmp, "app");
+    fs.mkdirSync(app);
+    sh("npm", ["init", "-y"], app);
+    sh("npm", ["install", "--no-audit", "--no-fund", `"${path.join(tmp, packed.filename)}"`], app);
+    const names = ["@crowkis/client", ...subpaths.map((s) => `@crowkis/client/${s.slice(2)}`)];
+
+    fs.writeFileSync(path.join(app, "load.cjs"), `for (const n of ${JSON.stringify(names)}) {
+      const m = require(n); if (!m || !Object.keys(m).length) throw new Error("empty: " + n);
+    }`);
+    sh(process.execPath.includes(" ") ? `"${process.execPath}"` : process.execPath, ["load.cjs"], app);
+    fs.writeFileSync(path.join(app, "load.mjs"), `for (const n of ${JSON.stringify(names)}) {
+      const m = await import(n); if (!Object.keys(m).length) throw new Error("empty: " + n);
+    }`);
+    sh(process.execPath.includes(" ") ? `"${process.execPath}"` : process.execPath, ["load.mjs"], app);
+
+    // TypeScript from this repo's devDependencies, strict, node16 resolution; one import per subpath.
+    const modules = path.join(__dirname, "node_modules");
+    const tsSource = names.map((n, i) => `import * as m${i} from "${n}";`).join("\n")
+      + `\nimport { Crowkis, voiceSession } from "@crowkis/client";\nvoid [${names.map((_, i) => `m${i}`).join(", ")}, Crowkis, voiceSession];\n`;
+    fs.writeFileSync(path.join(app, "check.mts"), tsSource);
+    fs.writeFileSync(path.join(app, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, module: "node16", moduleResolution: "node16", skipLibCheck: true,
+        target: "es2020", typeRoots: [path.join(modules, "@types")], types: ["node"] },
+      files: ["check.mts"],
+    }));
+    sh(`"${process.execPath}"`, [`"${path.join(modules, "typescript", "bin", "tsc")}"`, "-p", "."], app);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

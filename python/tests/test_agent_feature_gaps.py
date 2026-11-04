@@ -90,7 +90,8 @@ class VoiceDetailTests(unittest.TestCase):  # T9; Node: test-voice.js and test-a
         self.assertNotEqual(session.decide("one moment, what is the return policy").action, "filler")
 
     def test_a_lookup_past_the_budget_is_counted(self):
-        session = _session(latency_budget_ms=0.000001)
+        # A server slower than the budget; a 1 ns budget could measure as 0 ms on some clocks (B4).
+        session = crowkis.voice_session(client=ConformanceStore(server="slow"), latency_budget_ms=50)
         self.assertEqual(session.decide("what is the return policy").action, "infer")
         self.assertEqual(session.stats()["missed_latency_budget"], 1)
 

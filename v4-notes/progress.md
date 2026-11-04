@@ -568,3 +568,9 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 - Fixes: P1-1 stated names leaked into shared answers (`08a24f7`, `5c6343d`, `b48d56f`, speed `ec0550a`); P1-2 phones said in words (`08a24f7`); P1-3 Chat lost identifiers between turns (`9615f68`); P1-4 Node AUTH timeout (`655d906`); P1-5 logs name the error type only, incl. V4-5 (`beb8647`); VD4, T11, VD8 (`db96224`, goldens changed: 19 voice entries); B4 (`11a7244`).
 - Results: Python 916, Node 68/68 (twice); Pipecat 958, LiveKit Py 29, Bolna 127, LiveKit JS 92; D 8+8 on the real server; G all six configurations pass except "a reworded question hits" (server S5 after a restart). One pre-existing flaky timing test (P1-11).
 - Not done: review S4 (snapshot pins names, not defaults). `crowkis-demo` stopped. Nothing pushed. **Next:** F5, after the owner reads `premerge-tests.md` and the open decisions.
+
+## F6 (2026-11-05): stress test on the newest server (`dce94b4`) - done
+
+- Notes: `v4-notes/f6-results.md`. Server `crowkis:0.5.2-dce94b4` (container removed, image kept). The script plays only the 33 `groq: true` calls; the owner asked for the 40 others too, via a new `--all-calls` flag.
+- 33 calls: voice saved 55, v4 (250 ms) 54; 0 cross-caller leaks; v4 decide p95 292 ms. 40 extra calls: voice 125, v4 118; 0 leaks; v4 p95 321 ms. v4 inline not run (spend 1.59 of 2.00).
+- New finding F6-1 (context-dependent follow-ups saved shared, voice and v4). Nothing pushed.

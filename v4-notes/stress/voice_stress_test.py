@@ -1162,7 +1162,7 @@ async def run(args):
     stopped = None
     try:
         for pipeline in results["pipelines"]:
-            todo = [c for c in chosen if pipeline == "gemini" or c["groq"]]
+            todo = [c for c in chosen if pipeline == "gemini" or c["groq"] or args.all_calls]
             done = results["runs"].setdefault(pipeline, {})
             # A chain (a pair of callers) is replayed whole, so its second caller meets the cache the first one left.
             chains_done = {c["chain"] for c in todo if all(x["id"] in done for x in todo if x["chain"] == c["chain"])}
@@ -1289,6 +1289,7 @@ def main():
     parser.add_argument("--resume", nargs="?", const=True, help="continue the newest unfinished run (or this dir)")
     parser.add_argument("--keep", action="store_true", help="do not empty the tenant first")
     parser.add_argument("--tenant", default="voice")
+    parser.add_argument("--all-calls", action="store_true", help="groq/v4: play the calls flagged groq=false too (F6)")
     parser.add_argument("--no-judge", action="store_true")
     parser.add_argument("--judge-model", default=BEDROCK_JUDGE,
                         help=f"a Groq model, or a gemini-* model (default {GROQ_JUDGE})")
@@ -1321,7 +1322,7 @@ def main():
             previous = None
         # A run stopped during judging has played every call: it is complete once judged.
         played_all = all(len(results["runs"].get(p, {})) == sum(1 for c in cases["conversations"]
-                                                                if p == "gemini" or c["groq"])
+                                                                if p == "gemini" or c["groq"] or args.all_calls)
                          for p in results["pipelines"])
         finish = results["scope"] == "full" and results["status"] != "complete" and played_all
         if finish:

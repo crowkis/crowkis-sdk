@@ -25,8 +25,9 @@ def _voice(turns):
     return [w[0] for w in store.writes if w[2] is False]  # shared answers saved
 
 
-def _chat(intro, question, answer):
-    frames = {intro: {"kind": "personal", "subject": "self", "confidence": 0.9},
+def _chat(intro, question, answer, general_intro=False):
+    first = dict(GENERAL, question=intro) if general_intro else {"kind": "personal", "subject": "self", "confidence": 0.9}
+    frames = {intro: first,
               question: dict(GENERAL, question=question)}
     agent = SegmentedAgent()
     chat = Chat(agent, Scripted(frames), system="You are Acme's assistant.")
@@ -35,7 +36,7 @@ def _chat(intro, question, answer):
         history.append({"role": "user", "content": turn})
         out = chat.turn("t", history, answer=Model(reply))
         history.append({"role": "assistant", "content": out.text})
-    return [s[2] for s in agent.saved]
+    return [s[2] for s in agent.saved if s[2] != INTRO_ANSWER]  # a general intro is itself saved
 
 
 INTROS = ["my name is Rahul Verma", "I'm Rahul Verma", "I am Rahul", "this is Rahul", "call me Rahul",
@@ -98,6 +99,17 @@ class SpokenAndLowercaseTests(unittest.TestCase):
                 saved = _voice([(intro, "Noted."), ("how can I track a parcel", "Tracking links are sent when a parcel ships, harpreet iyer.")])
                 self.assertEqual(saved, [])
                 self.assertEqual(_stated_names([intro]), {"harpreet", "iyer"})
+
+    def test_chat_lowercase_name_is_kept_out_of_shared_answers(self):
+        leak = "Tracking links are sent when a parcel ships, harpreet iyer."
+        for general_intro in (True, False):
+            with self.subTest(general_intro=general_intro):
+                self.assertEqual(_chat("i am harpreet iyer", "how can I track a parcel", leak, general_intro), [])
+
+    def test_chat_question_rules_still_read_only_capitalised_names(self):
+        # test_chat's "I'm diabetic" cases cover the behaviour; this is the reason they stay as before.
+        self.assertEqual(_stated_names(["I'm diabetic"], lowercase=False), set())
+        self.assertEqual(_stated_names(["I'm Priya"], lowercase=False), {"priya"})
 
     def test_a_phone_said_in_words_is_not_shared(self):
         phone = "six seven zero eight six six eight one zero two"

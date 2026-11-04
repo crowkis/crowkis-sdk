@@ -10,6 +10,7 @@ from ...rules.rule_checker import Verdict as ChatVerdict
 from ...runtime.question_records import QuestionRecords
 from ...state.call_state import CallState
 from ...understanding.word_rules.chat import _private_words
+from ...understanding.word_rules.personal import _stated_names
 from ..results import AGENT, URGENT
 from ..values import CACHE_ROUTE, CachedAnswer, Checked, Hit, Verdict
 from .turn import ChatReading, ChatTurn
@@ -37,7 +38,8 @@ class ChatQuestionCheck:
         verdict = self._verdict(reading)
         state = self._session.state
         state.apply(reading.frame, shared=verdict.shared)
-        state.note_private((_private_words(reading.text, reading.frame) if not verdict.shared else []) + reading.names)
+        state.note_private((_private_words(reading.text, reading.frame) if not verdict.shared else []) + reading.names
+                           + sorted(_stated_names([reading.text])))  # lower-case too: only answers are checked against these
         self._session.counts[verdict.route] += 1
         checked = reading.checked_as(verdict)
         if not verdict.shared:

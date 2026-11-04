@@ -31,8 +31,9 @@ async function voice(turns) {
   return store.writes.filter((w) => w[2] === false).map((w) => w[0]); // keys of the shared answers saved
 }
 
-async function chat(intro, question, answer) {
-  const frames = { [intro]: { kind: "personal", subject: "self", confidence: 0.9 }, [question]: { ...GENERAL, question } };
+async function chat(intro, question, answer, generalIntro = false) {
+  const first = generalIntro ? { ...GENERAL, question: intro } : { kind: "personal", subject: "self", confidence: 0.9 };
+  const frames = { [intro]: first, [question]: { ...GENERAL, question } };
   const saved = [];
   const agent = {
     async ask() { return { route: "expensive" }; },
@@ -46,7 +47,7 @@ async function chat(intro, question, answer) {
     const out = await c.turn("t", [...history], async () => reply);
     history.push({ role: "assistant", content: out.text });
   }
-  return saved;
+  return saved.filter((text) => text !== INTRO_ANSWER); // a general intro is itself saved
 }
 
 test("voice: an answer repeating a stated name is not shared", async () => {
@@ -104,4 +105,15 @@ test("control: ordinary number words are saved", async () => {
   const saved = await voice([["my phone number is six seven zero eight six six eight one zero two", "Noted."],
     ["what are your hours", "We are open from nine to six, Monday to Saturday."]]);
   assert.deepStrictEqual(saved, ["what are your hours"]);
+});
+
+test("chat: a lowercase name is kept out of shared answers", async () => {
+  const leak = "Tracking links are sent when a parcel ships, harpreet iyer.";
+  for (const generalIntro of [true, false]) assert.deepStrictEqual(await chat("i am harpreet iyer", "how can I track a parcel", leak, generalIntro), []);
+});
+
+test("chat: question rules still read only capitalised names", () => {
+  // test-chat.js's "I'm diabetic" cases cover the behaviour; this is the reason they stay as before.
+  assert.deepStrictEqual([...statedNames(["I'm diabetic"], false)], []);
+  assert.deepStrictEqual([...statedNames(["I'm Priya"], false)], ["priya"]);
 });

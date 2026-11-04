@@ -4,6 +4,7 @@
 
 const { Verdict: ChatVerdict } = require("../../rules/ruleChecker.js");
 const { privateWords } = require("../../understanding/wordRules/chat.js");
+const { statedNames } = require("../../understanding/wordRules/personal.js");
 const { AGENT, URGENT } = require("../results.js");
 const { CACHE_ROUTE, CachedAnswer, Checked, Hit, Verdict } = require("../values.js");
 const { ChatTurn } = require("./turn.js");
@@ -31,7 +32,8 @@ class ChatQuestionCheck {
     state.apply(reading.frame, { shared: verdict.shared });
     // A turn that is not telling a fact may still give a name ("hi i'm sarah"); a fact turn keeps
     // its words ("I'm allergic"), since the shared question must carry them.
-    state.notePrivate([...(verdict.shared ? [] : privateWords(reading.text, reading.frame)), ...reading.names]);
+    state.notePrivate([...(verdict.shared ? [] : privateWords(reading.text, reading.frame)), ...reading.names,
+      ...statedNames([reading.text])]); // lower-case too: only answers are checked against these
     this._session.counts[verdict.route] += 1;
     const checked = reading.checkedAs(verdict);
     if (!verdict.shared) return new Checked(checked, new Verdict(CHECK_RULE, verdict.reasons.join(";"), [], null, verdict.route));

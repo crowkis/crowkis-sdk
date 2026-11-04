@@ -421,7 +421,7 @@ class StressBugTests(unittest.TestCase):
                 self.assertFalse(decision.stored)
                 self.assertIn(str(refusal), decision.not_stored)
                 self.assertIn(str(refusal), decision.reason)
-                self.assertIn(str(refusal), "\n".join(logged.output))
+                self.assertNotIn(str(refusal), "\n".join(logged.output))  # the log names the error type only
                 self.assertEqual(session.stats()["failed_writes"], 1)
         _, _, decisions, _ = call("What are your opening hours?")
         self.assertTrue(decisions[-1].stored)

@@ -29,7 +29,7 @@ function storeLater(store) {
   audioStoresPending += 1;
   const pending = Promise.resolve()
     .then(store)
-    .catch((error) => console.warn(`crowkis: an audio clip was not cached: ${error.message || error}`))
+    .catch((error) => console.warn(`crowkis: an audio clip was not cached (${(error && error.name) || typeof error})`))
     .finally(() => {
       audioStoresPending -= 1;
       audioStores.delete(pending);
@@ -415,7 +415,7 @@ class Agent {
 
   _audioCacheError(what, error) {
     this.audioErrors += 1;
-    console.warn(`crowkis: an audio clip could not be ${what}, so it is not cached this time: ${(error && error.message) || error}`);
+    console.warn(`crowkis: an audio clip could not be ${what}, so it is not cached this time (${(error && error.name) || typeof error})`);
   }
 
   audioStats() {

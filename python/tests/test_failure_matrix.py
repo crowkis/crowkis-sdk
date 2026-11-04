@@ -302,17 +302,32 @@ def test_realtime_gate(row, stand_in, logs):
     no_caller_text_in_logs(logs)
 
 
-@pytest.mark.xfail(strict=True, reason="BUG F2: a server error that quotes the question is copied into the log")
 def test_server_error_quoting_the_question_stays_out_of_logs(stand_in, logs):
     session = session_for(QUOTES_QUESTION, stand_in)
     session.answer(QUESTION, llm)
     no_caller_text_in_logs(logs)
 
 
-@pytest.mark.xfail(strict=True, reason="BUG F1: a refused write is logged with a message, not the error type")
 @pytest.mark.parametrize("row", sorted(LOGS_A_MESSAGE))
 def test_refused_write_logs_the_error_type(row, stand_in, logs):
     session = session_for(row, stand_in)
     session.answer(QUESTION, llm)
     settle(session.stats, ROWS[row][3])
     assert logged_an_error_type(logs), [r.getMessage() for r in logs.records]
+
+
+def test_hung_auth_reply_fails_at_the_read_timeout_and_pending_writes_drain(stand_in):
+    from crowkis.channels.voice_session import _PENDING_WRITES
+    server = stand_in("hang")
+    client = CrowkisClient(host="127.0.0.1", port=server.port, timeout=0.3, auth_token=TOKEN, max_retries=0)
+    started = time.monotonic()
+    with pytest.raises(Exception):
+        client.cget("q")
+    assert time.monotonic() - started < 3.0
+    session = session_for("hung", stand_in)
+    session.answer(QUESTION, llm)
+    settle(session.stats, {"failed_writes": 1})
+    deadline = time.monotonic() + SETTLE_S
+    while _PENDING_WRITES and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert not _PENDING_WRITES

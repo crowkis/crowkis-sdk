@@ -39,7 +39,7 @@ def _audio_worker() -> None:
         try:
             store(*args, **kwargs)
         except Exception as err:  # the cache is an optimisation: never fail a call over it
-            _log.warning("crowkis: an audio clip was not cached: %s", err)
+            _log.warning("crowkis: an audio clip was not cached (%s)", type(err).__name__)
         finally:
             _AUDIO_QUEUE.task_done()
 
@@ -387,7 +387,7 @@ class Agent:
 
     def _audio_cache_error(self, what: str, err: BaseException) -> None:
         self.audio_errors += 1
-        _log.warning("crowkis: an audio clip could not be %s, so it is not cached this time: %s", what, err)
+        _log.warning("crowkis: an audio clip could not be %s, so it is not cached this time (%s)", what, type(err).__name__)
 
     def _audio_cache_usable(self, text: str, labels: tuple) -> bool:
         """Whether to ask the server's audio cache for this clip."""

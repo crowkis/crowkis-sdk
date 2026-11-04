@@ -350,7 +350,7 @@ class CrowkisClient:
     def _report(self, error: BaseException) -> None:
         handler = self.on_error
         if handler is None:
-            _LOG.warning("crowkis request failed, treated as a cache miss: %s", error)
+            _LOG.warning("crowkis request failed, treated as a cache miss (%s)", type(error).__name__)
             return
         try:
             handler(error)

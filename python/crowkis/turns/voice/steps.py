@@ -104,7 +104,7 @@ class VoiceReport:
     def refused(self, error: Exception) -> RecordedOutcome:
         self._stats.add(Counter.LEARN_ERRORS)
         why = f"the server refused the write: {str(error) or type(error).__name__}"
-        _LOG.warning("crowkis voice answer not stored, %s", why)
+        _LOG.warning("crowkis voice answer not stored, the server refused the write (%s)", type(error).__name__)
         return RecordedOutcome(Outcome.REFUSED, why, rule=WRITE_REFUSED)
 
     def recorded(self, answered: VoiceAnswered, outcome: RecordedOutcome) -> RecordedOutcome:

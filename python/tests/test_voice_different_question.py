@@ -10,7 +10,7 @@ asked one has its own, is a different question: the model answers instead."""
 import unittest
 
 import crowkis
-from crowkis.agent import _wait_for_audio_stores
+from crowkis.client.agent import _wait_for_audio_stores
 from crowkis.understanding.word_rules.answers import _different_specifics
 from crowkis.channels.voice_session import _wait_for_writes
 

@@ -9,8 +9,8 @@ import base64
 import json
 import unittest
 
-from crowkis.agent import Agent
-from crowkis.client import CacheHit
+from crowkis.client.agent import Agent
+from crowkis.client.commands import CacheHit
 from crowkis.channels.voice_session import VoiceSession
 from crowkis.understanding.word_rules.follow_up import _is_context_dependent
 from crowkis.understanding.word_rules.personal import _is_personal
@@ -1380,7 +1380,7 @@ class ExplainAndAnnounceTests(unittest.TestCase):
         self.assertEqual((miss["lifetime"], miss["commitment"], miss["vouched"], miss["exact"]), (None, False, False, False))
 
     def test_a_hit_from_a_server_without_an_engine_parses_as_not_judged(self):
-        from crowkis.client import _cache_hit, _plain
+        from crowkis.client.commands import _cache_hit, _plain
 
         old = _cache_hit({"response": b"a", "similarity": 1.0, "ttl": 5, "key": b"k", "confidence": 0.9, "hit_type": b"exact"})
         self.assertEqual((old.judged, old.lifetime, old.commitment, old.vouched), (False, None, False, False))

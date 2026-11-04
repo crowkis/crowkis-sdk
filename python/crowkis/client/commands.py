@@ -11,9 +11,7 @@ import re
 import socket
 import threading
 import time
-import warnings
 from dataclasses import dataclass
-from http.client import HTTPConnection
 from typing import (
     Any,
     AsyncIterator,
@@ -26,21 +24,26 @@ from typing import (
     Tuple,
     Union,
 )
-from urllib.parse import urlencode, urlparse
 
-from . import _config
-
-BytesLike = Union[str, bytes, bytearray, memoryview]
-
-
-class CrowkisError(Exception):
-
-    retryable = True
-
+from . import config as _config
+from .connection import (
+    ASYNC_TRANSPORT_FAILURES,
+    TRANSPORT_FAILURES,
+    BytesLike,
+    CrowkisError,
+    _AsyncConn,
+    _Conn,
+    _aread_frame,
+    _auth_refused,
+    _b,
+    _busy_retry_seconds,
+    _encode,
+    _read_frame,
+    _transport_error,
+)
 
 _LOG = logging.getLogger("crowkis")
 
-MAX_LINE_BYTES = 512 * 1024
 # CMEMEXTRACT refuses text over 64 KiB or yielding over 64 facts (at most one
 # per clause, the server splitting on the same ends as below).
 MEMEXTRACT_MAX_BYTES = 64 * 1024
@@ -49,8 +52,6 @@ MEMEXTRACT_PART_BYTES = 60 * 1024
 MEMEXTRACT_PART_CLAUSES = 40
 _CLAUSE_END = re.compile(r"(?<=[\n.!?])")
 NOT_STORED_REASONS_KEPT = 64
-BUSY_DEFAULT_RETRY_SECONDS = 0.05
-BUSY_MAX_RETRY_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -84,155 +85,12 @@ class SimResult:
     similarity: float
 
 
-def _b(value: BytesLike) -> bytes:
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, str):
-        return value.encode("utf-8")
-    return bytes(value)
-
-
 def _image_b64(value: Optional[BytesLike]) -> Optional[bytes]:
     if value is None:
         return None
     return base64.b64encode(_b(value))
 
 
-def _encode(args: Iterable[BytesLike]) -> bytes:
-    chunks: List[bytes] = []
-    materialised = [_b(arg) for arg in args]
-    chunks.append(f"*{len(materialised)}\r\n".encode())
-    for arg in materialised:
-        chunks.append(f"${len(arg)}\r\n".encode())
-        chunks.append(arg)
-        chunks.append(b"\r\n")
-    return b"".join(chunks)
-
-
-def _read_line(reader: Any) -> bytes:
-    line = reader.readline(MAX_LINE_BYTES)
-    if not line.endswith(b"\r\n"):
-        raise CrowkisError("connection closed")
-    return line[:-2]
-
-
-def _read_exact(reader: Any, n: int) -> bytes:
-    if n == 0:
-        return b""
-    data = reader.read(n)
-    if data is None or len(data) != n:
-        raise CrowkisError("connection closed")
-    return data
-
-
-def _read_frame(reader: Any) -> Any:
-    line = _read_line(reader)
-    if not line:
-        raise CrowkisError("empty RESP frame")
-    prefix, payload = line[:1], line[1:]
-
-    if prefix == b"+":
-        return payload.decode(errors="replace")
-    if prefix == b"-":
-        return CrowkisError(payload.decode(errors="replace"))
-    if prefix == b":":
-        return int(payload)
-    if prefix == b",":
-        return float(payload)
-    if prefix == b"_":
-        return None
-    if prefix == b"#":
-        return payload == b"t"
-    if prefix in (b"$", b"=", b"!"):
-        length = int(payload)
-        if length < 0:
-            return None
-        data = _read_exact(reader, length)
-        _read_exact(reader, 2)
-        return CrowkisError(data.decode(errors="replace")) if prefix == b"!" else data
-    if prefix in (b"*", b"~", b">"):
-        count = int(payload)
-        if count < 0:
-            return None
-        return [_read_frame(reader) for _ in range(count)]
-    if prefix in (b"%", b"|"):
-        count = int(payload)
-        out: Dict[Any, Any] = {}
-        for _ in range(count):
-            key = _read_frame(reader)
-            value = _read_frame(reader)
-            if isinstance(key, bytes):
-                key = key.decode(errors="replace")
-            out[key] = value
-        if prefix == b"|":
-            return _read_frame(reader)
-        return out
-    if prefix == b"(":
-        return int(payload)
-
-    raise CrowkisError(f"unexpected RESP frame: {line!r}")
-
-
-def _read_resp(reader: Any) -> Any:
-    reply = _read_frame(reader)
-    if isinstance(reply, CrowkisError):
-        raise reply
-    return reply
-
-
-async def _aread_line(reader: asyncio.StreamReader) -> bytes:
-    line = await reader.readline()
-    if not line.endswith(b"\r\n"):
-        raise CrowkisError("connection closed")
-    return line[:-2]
-
-
-async def _aread_frame(reader: asyncio.StreamReader) -> Any:
-    line = await _aread_line(reader)
-    if not line:
-        raise CrowkisError("empty RESP frame")
-    prefix, payload = line[:1], line[1:]
-
-    if prefix == b"+":
-        return payload.decode(errors="replace")
-    if prefix == b"-":
-        return CrowkisError(payload.decode(errors="replace"))
-    if prefix == b":":
-        return int(payload)
-    if prefix == b",":
-        return float(payload)
-    if prefix == b"_":
-        return None
-    if prefix == b"#":
-        return payload == b"t"
-    if prefix in (b"$", b"=", b"!"):
-        length = int(payload)
-        if length < 0:
-            return None
-        data = await reader.readexactly(length)
-        await reader.readexactly(2)
-        return CrowkisError(data.decode(errors="replace")) if prefix == b"!" else data
-    if prefix in (b"*", b"~", b">"):
-        count = int(payload)
-        if count < 0:
-            return None
-        return [await _aread_frame(reader) for _ in range(count)]
-    if prefix in (b"%", b"|"):
-        count = int(payload)
-        out: Dict[Any, Any] = {}
-        for _ in range(count):
-            key = await _aread_frame(reader)
-            value = await _aread_frame(reader)
-            if isinstance(key, bytes):
-                key = key.decode(errors="replace")
-            out[key] = value
-        if prefix == b"|":
-            return await _aread_frame(reader)
-        return out
-    if prefix == b"(":
-        return int(payload)
-
-    raise CrowkisError(f"unexpected RESP frame: {line!r}")
 
 
 def _cache_hit(payload: Dict[str, Any]) -> CacheHit:
@@ -367,78 +225,6 @@ def _tenant_model(tenant: Optional[str], model: Optional[str]) -> List[BytesLike
     return args
 
 
-def _busy_retry_seconds(error: BaseException) -> Optional[float]:
-    message = str(error)
-    if not message.upper().startswith("BUSY"):
-        return None
-    marker = "retry-after-ms"
-    at = message.find(marker)
-    if at < 0:
-        return BUSY_DEFAULT_RETRY_SECONDS
-    digits = ""
-    for char in message[at + len(marker) :].lstrip(" ="):
-        if not char.isdigit():
-            break
-        digits += char
-    if not digits:
-        return BUSY_DEFAULT_RETRY_SECONDS
-    return min(max(int(digits) / 1000.0, 0.001), BUSY_MAX_RETRY_SECONDS)
-
-
-TRANSPORT_FAILURES = (OSError, CrowkisError, ValueError, RecursionError)
-
-
-def _transport_error(host: str, port: int, attempts: int, cause: BaseException) -> CrowkisError:
-    if isinstance(cause, CrowkisError) and not cause.retryable:
-        return cause
-    return CrowkisError(
-        f"connection to {host}:{port} failed after {attempts} attempt(s): {cause}"
-    )
-
-
-def _auth_refused(denied: CrowkisError) -> CrowkisError:
-    if "without any password configured" in str(denied):
-        denied = CrowkisError(
-            "the server has no CROWKIS_AUTH_TOKEN set; remove auth_token "
-            "or set the same token on the server"
-        )
-    denied.retryable = False
-    return denied
-
-
-class _Conn:
-    __slots__ = ("sock", "reader")
-
-    def __init__(self, sock: socket.socket, reader: Any) -> None:
-        self.sock = sock
-        self.reader = reader
-
-    def close(self) -> None:
-        try:
-            self.reader.close()
-        except OSError:
-            pass
-        try:
-            self.sock.close()
-        except OSError:
-            pass
-
-
-class _AsyncConn:
-    __slots__ = ("reader", "writer")
-
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        self.reader = reader
-        self.writer = writer
-
-    def close(self) -> None:
-        try:
-            self.writer.close()
-        except (OSError, ConnectionError):
-            pass
-
-
-ASYNC_TRANSPORT_FAILURES = TRANSPORT_FAILURES + (asyncio.TimeoutError,)
 
 
 async def _stream_values(value: Any) -> AsyncIterator[Any]:
@@ -2018,134 +1804,3 @@ class AsyncCrowkisClient(CrowkisClient):
 
 
 AsyncCrowkis = AsyncCrowkisClient
-
-
-_API_KEY_WARNED = False
-
-
-class CrowkisAdmin:
-    """The management HTTP API. Reading needs no key; writes need the server's
-    CROWKIS_AUTH_TOKEN as `token`. `api_key` is a deprecated name for it."""
-
-    def __init__(
-        self,
-        base_url: str = "http://127.0.0.1:6384",
-        *,
-        token: Optional[str] = None,
-        api_key: Optional[str] = None,
-        timeout: float = 5.0,
-    ) -> None:
-        global _API_KEY_WARNED
-        if api_key and not _API_KEY_WARNED:
-            _API_KEY_WARNED = True
-            warnings.warn(
-                "CrowkisAdmin(api_key=...) is deprecated: users and API keys were removed in "
-                "Crowkis 0.5.2. Pass the server's CROWKIS_AUTH_TOKEN as token=... instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        parsed = urlparse(base_url)
-        self.host = parsed.hostname or "127.0.0.1"
-        self.port = parsed.port or 6384  # the management port (the RESP port + 1)
-        self.token = token
-        self.api_key = api_key
-        self.timeout = timeout
-
-    def _request(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Any:
-        payload = None if body is None else json.dumps(body).encode()
-        headers = {"content-type": "application/json"}
-        token = self.token or self.api_key
-        if token:
-            # http.client's own error for a bad header value quotes the value.
-            if "\r" in token or "\n" in token:
-                raise CrowkisError("token must be a single line")
-            if self.token:
-                headers["authorization"] = f"Bearer {token}"
-            else:
-                headers["x-crowkis-api-key"] = token
-        conn = HTTPConnection(self.host, self.port, timeout=self.timeout)
-        try:
-            conn.request(method, path, body=payload, headers=headers)
-            response = conn.getresponse()
-            data = response.read()
-            if response.status >= 400:
-                raise CrowkisError(data.decode(errors="replace"))
-            if not data:
-                return None
-            content_type = response.getheader("content-type") or ""
-            if "json" in content_type or data[:1] in (b"{", b"["):
-                return json.loads(data)
-            return data.decode(errors="replace")
-        finally:
-            conn.close()
-
-    def health(self) -> Dict[str, Any]:
-        return self._request("GET", "/health")
-
-    def get_stats(self) -> Dict[str, Any]:
-        return self._request("GET", "/stats")
-
-    def update_threshold(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return self._request("PUT", "/config/thresholds", config)
-
-    def register_webhook(self, webhook: Dict[str, Any]) -> Dict[str, Any]:
-        return self._request("POST", "/api/v1/webhooks", webhook)
-
-    def invalidate_source(self, source_id: str, **extra: Any) -> Dict[str, Any]:
-        return self._request("POST", "/api/v1/invalidate", {"source_id": source_id, **extra})
-
-    def flush_tenant(self, tenant_id: str) -> Dict[str, Any]:
-        return self._request("POST", f"/api/v1/tenants/{tenant_id}/flush", {})
-
-    def cache_entries(self, *, tenant: Optional[str] = None, limit: int = 100) -> Dict[str, Any]:
-        query = urlencode({k: v for k, v in {"tenant": tenant, "limit": limit}.items() if v is not None})
-        suffix = f"?{query}" if query else ""
-        return self._request("GET", f"/api/v1/cache/entries{suffix}")
-
-    def migration_progress(
-        self,
-        *,
-        tenant: Optional[str] = None,
-        canary_id: Optional[str] = None,
-        from_model_version: Optional[str] = None,
-        target_model_version: Optional[str] = None,
-        limit: int = 100,
-    ) -> Dict[str, Any]:
-        query = urlencode(
-            {
-                k: v
-                for k, v in {
-                    "tenant": tenant,
-                    "canary_id": canary_id,
-                    "from_model_version": from_model_version,
-                    "target_model_version": target_model_version,
-                    "limit": limit,
-                }.items()
-                if v is not None
-            }
-        )
-        suffix = f"?{query}" if query else ""
-        return self._request("GET", f"/api/v1/llm/migrations/progress{suffix}")
-
-    def canary_migration_progress(
-        self,
-        canary_id: str,
-        *,
-        tenant: Optional[str] = None,
-        limit: int = 100,
-    ) -> Dict[str, Any]:
-        query = urlencode({k: v for k, v in {"tenant": tenant, "limit": limit}.items() if v is not None})
-        suffix = f"?{query}" if query else ""
-        return self._request("GET", f"/api/v1/llm/canaries/{canary_id}/migration-progress{suffix}")
-
-    def lease_migration_work(self, **options: Any) -> Dict[str, Any]:
-        return self._request("POST", "/api/v1/llm/migrations/lease", options)
-
-    def lease_canary_migration_work(self, canary_id: str, **options: Any) -> Dict[str, Any]:
-        return self._request("POST", f"/api/v1/llm/canaries/{canary_id}/migration-lease", options)
-
-    def complete_migration_work(self, **item: Any) -> Dict[str, Any]:
-        return self._request("POST", "/api/v1/llm/migrations/complete", item)
-
-    def fail_migration_work(self, **item: Any) -> Dict[str, Any]:
-        return self._request("POST", "/api/v1/llm/migrations/fail", item)

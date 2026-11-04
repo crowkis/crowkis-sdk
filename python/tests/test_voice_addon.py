@@ -8,8 +8,8 @@ import threading
 import time
 import unittest
 
-from crowkis.agent import Agent, _wait_for_audio_stores
-from crowkis.client import CrowkisError
+from crowkis.client.agent import Agent, _wait_for_audio_stores
+from crowkis.client.connection import CrowkisError
 from crowkis.channels.voice_session import VoiceSession
 
 ADDON_MISSING = "ERR ENTERPRISE Voice is an add-on to Crowkis Enterprise. Get a licence key that includes it"
@@ -148,7 +148,7 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertIn("ctoolset", client.calls)
 
     def test_only_the_servers_enterprise_refusal_means_no_addon(self):
-        from crowkis.agent import _voice_addon_missing
+        from crowkis.client.agent import _voice_addon_missing
         self.assertTrue(_voice_addon_missing(CrowkisError("ERR ENTERPRISE Voice is an add-on")))
         self.assertTrue(_voice_addon_missing(CrowkisError("ERR unknown command 'CAUDIOGET'")))
         self.assertFalse(_voice_addon_missing(CrowkisError("ERR the add-on store is full")))

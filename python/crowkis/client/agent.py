@@ -11,7 +11,8 @@ import time
 import unicodedata
 from typing import Any, Callable, Iterable, List, Optional
 
-from .client import CrowkisClient, CrowkisError
+from .commands import CrowkisClient
+from .connection import CrowkisError
 
 _log = logging.getLogger("crowkis")
 

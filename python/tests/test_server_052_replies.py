@@ -8,7 +8,8 @@ import threading
 import unittest
 
 from crowkis import CrowkisMemory
-from crowkis.client import AsyncCrowkisClient, CrowkisClient, CrowkisError
+from crowkis.client.commands import AsyncCrowkisClient, CrowkisClient
+from crowkis.client.connection import CrowkisError
 
 SECRET = "tok-9c1e-very-secret"
 NO_PASSWORD = (

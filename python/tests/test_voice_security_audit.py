@@ -6,7 +6,7 @@ Python only, and runs against real Pipecat frames when pipecat-ai is installed).
 import asyncio
 import unittest
 
-from crowkis.agent import Agent
+from crowkis.client.agent import Agent
 from crowkis.channels.voice_session import VoiceSession
 
 from test_agent_voice import ScopedFakeClient

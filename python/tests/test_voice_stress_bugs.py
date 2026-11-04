@@ -14,8 +14,9 @@ import types
 import unittest
 from unittest import mock
 
-from crowkis.agent import Agent
-from crowkis.client import CacheHit, CrowkisError
+from crowkis.client.agent import Agent
+from crowkis.client.commands import CacheHit
+from crowkis.client.connection import CrowkisError
 from crowkis.channels.voice_session import VoiceSession
 from crowkis.understanding.word_rules.follow_up import _is_context_dependent
 from crowkis.understanding.word_rules.personal import _is_personal

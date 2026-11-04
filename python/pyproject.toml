@@ -40,4 +40,4 @@ where = ["."]
 include = ["crowkis*"]
 
 [tool.setuptools.package-data]
-crowkis = ["crowkis.proto"]
+crowkis = ["client/grpc/crowkis.proto"]

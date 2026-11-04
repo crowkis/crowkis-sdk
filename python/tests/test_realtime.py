@@ -8,8 +8,8 @@ Run:  python3 -m unittest discover -s tests -q
 
 import unittest
 
-from crowkis.agent import Agent
-from crowkis.client import CacheHit
+from crowkis.client.agent import Agent
+from crowkis.client.commands import CacheHit
 from crowkis.channels.realtime import RealtimeAdapter, RealtimeGate
 from crowkis.channels.voice_session import VoiceSession
 

@@ -47,7 +47,7 @@ from typing import Any, Callable, Dict, Optional, Type
 
 from bolna import providers
 
-from ...client import CrowkisError
+from ...client.connection import CrowkisError
 from ...channels.async_voice_session import AsyncVoiceSession, async_voice_session
 from .llm import CrowkisLLM
 from .synthesizer import CallLinks, CrowkisSynthesizer

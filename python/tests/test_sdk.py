@@ -40,7 +40,7 @@ sys.modules["langchain_core.outputs"] = _outputs
 sys.modules["langchain_core.load"] = _load
 
 from crowkis import CrowkisMemory, help_text  # noqa: E402
-from crowkis.client import CrowkisError, _encode, _read_resp  # noqa: E402
+from crowkis.client.connection import CrowkisError, _encode, _read_resp  # noqa: E402
 from crowkis.integrations.langchain import CrowkisCache  # noqa: E402
 
 
@@ -231,7 +231,7 @@ class NodeParityControlTests(unittest.TestCase):
         self.assertEqual(sent, [["CMEMFORGET", "bot", "", "TENANT", "acme"]])
 
     def test_busy_retry_seconds(self):
-        from crowkis.client import _busy_retry_seconds
+        from crowkis.client.connection import _busy_retry_seconds
 
         self.assertEqual(_busy_retry_seconds(CrowkisError("BUSY queue full; retry-after-ms 60")), 0.06)
         self.assertEqual(_busy_retry_seconds(CrowkisError("BUSY try later")), 0.05)

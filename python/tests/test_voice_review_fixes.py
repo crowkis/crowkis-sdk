@@ -11,7 +11,7 @@ import logging
 import time
 import unittest
 
-from crowkis.agent import Agent
+from crowkis.client.agent import Agent
 from crowkis.channels.voice_session import VoiceSession
 from crowkis.understanding.word_rules.personal import _is_personal
 

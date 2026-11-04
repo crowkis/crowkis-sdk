@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 
 from crowkis import Agent, AsyncCrowkisClient, CrowkisClient, CrowkisMemory
-from crowkis.openai_wrapper import CachedOpenAI
+from crowkis.integrations.openai import CachedOpenAI
 
 SECRET = "tok-env-9c2e-very-secret"
 

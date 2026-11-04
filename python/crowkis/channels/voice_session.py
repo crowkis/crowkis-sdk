@@ -10,8 +10,9 @@ import threading
 import time
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
-from ..agent import Agent, _voice_addon_missing
-from ..client import CrowkisClient, CrowkisError
+from ..client.agent import Agent, _voice_addon_missing
+from ..client.commands import CrowkisClient
+from ..client.connection import CrowkisError
 from ..rules import RuleSet
 from ..runtime import BoundedWriter, CacheLookup, TurnPairing, WriteWorkers
 from ..runtime.stats import Counter, CounterField, Stats

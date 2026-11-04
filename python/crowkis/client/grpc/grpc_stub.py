@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
-from typing import Iterator, Optional, Union
+from typing import Iterator, Optional
 
-BytesLike = Union[str, bytes, bytearray, memoryview]
+from ..connection import BytesLike, _b
 
 
 @dataclass(frozen=True)
@@ -99,14 +99,6 @@ class CrowkisGrpcStub:
 
     def close(self) -> None:
         self._channel.close()
-
-
-def _b(value: BytesLike) -> bytes:
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, str):
-        return value.encode("utf-8")
-    return bytes(value)
 
 
 def _encode_get_request(value: dict) -> bytes:

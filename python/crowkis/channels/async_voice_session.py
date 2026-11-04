@@ -18,7 +18,7 @@ import inspect
 import threading
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
-from ..agent import Agent
+from ..client.agent import Agent
 from .voice_session import TurnDecision, VoiceSession, voice_session
 
 # Two pools for every async session in the process. Server calls: a turn holds a

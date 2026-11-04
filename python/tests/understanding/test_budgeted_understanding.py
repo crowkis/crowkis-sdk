@@ -4,7 +4,7 @@ import threading
 import unittest
 
 from crowkis import VoiceSession
-from crowkis.agent import Agent
+from crowkis.client.agent import Agent
 
 from test_voice_stress_bugs import Store
 

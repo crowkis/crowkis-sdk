@@ -9,7 +9,7 @@
 import unittest
 
 import crowkis
-from crowkis.agent import _wait_for_audio_stores
+from crowkis.client.agent import _wait_for_audio_stores
 from crowkis.understanding.word_rules.personal import _is_personal
 from crowkis.channels.voice_session import _wait_for_writes
 

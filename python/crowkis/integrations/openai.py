@@ -5,7 +5,7 @@ Usage — change two lines, keep the rest of your code:
     from openai import OpenAI            # before
     client = OpenAI()
 
-    from crowkis.openai_wrapper import CachedOpenAI   # after
+    from crowkis.integrations.openai import CachedOpenAI   # after
     client = CachedOpenAI(tenant="my-app")
 
 Every `client.chat.completions.create(...)` first asks Crowkis. On a
@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from .client import CrowkisClient
+from ..client.commands import CrowkisClient
 
 
 class _CompletionsProxy:

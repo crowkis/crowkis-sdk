@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import crowkis
 from crowkis import CacheHit, CrowkisClient
-from crowkis.agent import _wait_for_audio_stores
+from crowkis.client.agent import _wait_for_audio_stores
 from crowkis.channels.voice_session import _wait_for_writes
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "adapter-conformance.json"

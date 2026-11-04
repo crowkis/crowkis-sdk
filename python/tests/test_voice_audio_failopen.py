@@ -15,7 +15,7 @@ import json
 import unittest
 
 from crowkis import Agent, CrowkisError, VoiceSession
-from crowkis.agent import _tts_key, _wait_for_audio_stores
+from crowkis.client.agent import _tts_key, _wait_for_audio_stores
 
 from test_voice_stress_bugs import ANSWER, Store, _pipecat
 

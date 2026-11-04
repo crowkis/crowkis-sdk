@@ -34,7 +34,7 @@ from bolna.llms.types import LatencyData, LLMStreamChunk  # noqa: E402
 from bolna.synthesizer.base_synthesizer import BaseSynthesizer  # noqa: E402
 
 from crowkis import Agent, AsyncVoiceSession, CrowkisError, VoiceSession  # noqa: E402
-from crowkis.agent import _tts_key, _wait_for_audio_stores  # noqa: E402
+from crowkis.client.agent import _tts_key, _wait_for_audio_stores  # noqa: E402
 from crowkis.integrations.bolna import CrowkisBolnaError, CrowkisLLM, CrowkisSynthesizer, register_crowkis  # noqa: E402
 from crowkis.integrations.bolna.synthesizer import CallLinks  # noqa: E402
 from crowkis.understanding.word_rules.answers import _reset_prompt_baselines  # noqa: E402

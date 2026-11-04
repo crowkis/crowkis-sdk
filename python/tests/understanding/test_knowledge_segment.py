@@ -3,7 +3,7 @@ understanders or knowledge is a deliberate new version. Without one, nothing is 
 import unittest
 
 from crowkis import VoiceSession
-from crowkis.agent import Agent
+from crowkis.client.agent import Agent
 from crowkis.keys import KnowledgeSegment
 from crowkis.rules.rule_checker import RuleChecker
 from crowkis.turns.values import REALTIME, VOICE

@@ -11,7 +11,7 @@ import unittest.mock
 
 import crowkis
 from crowkis import Agent, VoiceSession
-from crowkis.agent import _wait_for_audio_stores
+from crowkis.client.agent import _wait_for_audio_stores
 from crowkis.channels.voice_session import _wait_for_writes
 from crowkis.integrations.voice_turns import AudioClips
 

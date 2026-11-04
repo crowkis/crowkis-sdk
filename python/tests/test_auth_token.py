@@ -8,8 +8,10 @@ import unittest
 import warnings
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from crowkis import client as client_mod
-from crowkis.client import CrowkisAdmin, CrowkisClient, CrowkisError
+import crowkis.client.admin as client_mod
+from crowkis.client.admin import CrowkisAdmin
+from crowkis.client.commands import CrowkisClient
+from crowkis.client.connection import CrowkisError
 
 SECRET = "tok-7f3a-very-secret"
 

@@ -33,8 +33,8 @@ import binascii
 import collections
 from typing import Any, Awaitable, Callable, Optional
 
-from ..agent import _store_later, _tts_key
-from ..client import CrowkisError
+from ..client.agent import _store_later, _tts_key
+from ..client.connection import CrowkisError
 from ..understanding.word_rules.text import _words
 from ..channels.async_voice_session import _on_server_pool
 

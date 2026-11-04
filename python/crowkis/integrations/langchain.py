@@ -22,7 +22,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, Optional
 
-from ..client import CrowkisClient
+from ..client.commands import CrowkisClient
 
 try:
     from langchain_core.caches import RETURN_VAL_TYPE, BaseCache

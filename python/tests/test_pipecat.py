@@ -61,7 +61,7 @@ class FakeSession:
 def _key(text):
     # The basic cache key names the sample rate since Phase 1, step 6 (it used to be the
     # voice and the text only, so a clip could be played at the wrong rate).
-    from crowkis.agent import _tts_key
+    from crowkis.client.agent import _tts_key
 
     return _tts_key(text, (FakeSession.voice, "und", "1", "pcm16-24000"))
 
@@ -86,7 +86,7 @@ class AudioCacheTests(unittest.TestCase):
         asyncio.run(run())
 
     def stored(self, text):
-        from crowkis.agent import _wait_for_audio_stores
+        from crowkis.client.agent import _wait_for_audio_stores
 
         _wait_for_audio_stores()  # clips are written on the background audio workers
         clip = self.session.agent._client.stored.get((TTS_TOOL, _key(text)))

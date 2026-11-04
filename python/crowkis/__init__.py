@@ -1,21 +1,21 @@
 __version__ = "0.5.2"  # the same as pyproject.toml and the Node package; tests/test_version.py checks
 
-from .client import (
+from .client.commands import (
     AsyncCrowkis,
     AsyncCrowkisClient,
     CacheHit,
     Crowkis,
-    CrowkisAdmin,
     CrowkisClient,
-    CrowkisError,
     SimResult,
 )
-from .grpc_stub import CrowkisGrpcStub, GrpcCacheHit, GrpcStreamChunk
+from .client.admin import CrowkisAdmin
+from .client.connection import CrowkisError
+from .client.grpc.grpc_stub import CrowkisGrpcStub, GrpcCacheHit, GrpcStreamChunk
 
 # Dependency-free integration — safe to export at top level.
 from .integrations.memory import CrowkisMemory
 from ._help import help, render as help_text
-from .agent import Agent
+from .client.agent import Agent
 from .channels.realtime import RealtimeAdapter, RealtimeGate
 from .channels.voice_session import TurnDecision, VoiceResponse, VoiceSession, voice_session, warm_from_calls
 from .channels.async_voice_session import AsyncVoiceResponse, AsyncVoiceSession, async_voice_session
@@ -40,7 +40,7 @@ from .channels.call_session import CallSession, TurnResult
 from .channels.chat import Chat, ChatConflict, ChatReply, MemoryStore
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
-# model. A thin OpenAI-SDK drop-in still lives at `crowkis.openai_wrapper.CachedOpenAI`
+# model. A thin OpenAI-SDK drop-in still lives at `crowkis.integrations.openai.CachedOpenAI`
 # for that specific convenience, but it is intentionally not a headline export.
 
 __all__ = [

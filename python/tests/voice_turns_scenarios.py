@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 from crowkis import Agent, CacheHit, VoiceSession
-from crowkis.agent import _wait_for_audio_stores
+from crowkis.client.agent import _wait_for_audio_stores
 from crowkis.understanding.word_rules.answers import _reset_prompt_baselines
 from crowkis.integrations.voice_turns import AnswerPairing, AudioClips
 

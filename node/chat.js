@@ -12,7 +12,9 @@
 // with the whole chat and never cached. Per thread only a small memory is kept in `store`.
 
 const { CallSession, _masked: masked } = require("./session.js");
-const { RuleChecker } = require("./verify.js");
+const { TurnFrame } = require("./turn.js");
+const { normalise } = require("./understand.js");
+const { RuleChecker, SHARED } = require("./verify.js");
 
 class ChatConflict extends Error {
   constructor(message) {
@@ -60,6 +62,39 @@ function content(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+// The thread's memory holds nothing that can change an answer: no fact, detail, region or tier,
+// reply language or task.
+const settled = (state) => !(state.facts.length || state.stated.length || state.details.length ||
+  Object.keys(state.attributes).length || state.language || state.task !== "none");
+
+// Reads a turn without a model call when the model already read it: word for word a question that
+// an earlier turn asked on its own (not rewritten, not leaning on its chat), in a thread whose memory
+// could not change it, and that the rules shared. The rules still check every turn. In this process
+// only, at most `maxQuestions`.
+class Repeats {
+  constructor(understander, maxQuestions = 10000) {
+    this.understander = understander;
+    this.maxQuestions = maxQuestions;
+    this._known = new Map();
+  }
+
+  understand(turn, state) {
+    const frame = settled(state) ? this._known.get(normalise(turn)) : undefined;
+    return frame !== undefined ? frame : this.understander.understand(turn, state);
+  }
+
+  remember(turn, wasSettled, result) {
+    const { frame, verdict } = result;
+    if (!wasSettled || result.route !== SHARED || !frame || !verdict || frame.usesState) return;
+    const key = normalise(turn);
+    if (!key || key !== normalise(verdict.question || "")) return;
+    // A region or tier comes from the thread that asked; the next thread's own memory gives its own.
+    this._known.delete(key);
+    this._known.set(key, new TurnFrame({ ...frame, attributes: {} }));
+    while (this._known.size > this.maxQuestions) this._known.delete(this._known.keys().next().value);
+  }
+}
+
 class Chat {
   /**
    * @param agent        a crowkis Agent
@@ -71,6 +106,7 @@ class Chat {
     const { store = null, system = "", channel = "chat", knowledgeVersion = "1", ...sessionOptions } = options;
     this.agent = agent;
     this.understander = understander;
+    this._repeats = new Repeats(understander);
     this.store = store || new MemoryStore();
     this.system = String(system || "").trim();
     if (!sessionOptions.checker) sessionOptions.checker = new RuleChecker({ channel, knowledgeVersion });
@@ -107,8 +143,10 @@ class Chat {
     const user = [...(messages || [])].reverse().find((m) => m && typeof m === "object" && m.role === "user");
     const text = user ? content(user.content) : "";
     const [data, version] = await this.store.load(threadId);
-    const session = CallSession.restore(this.agent, this.understander, data, this.sessionOptions);
+    const session = CallSession.restore(this.agent, this._repeats, data, this.sessionOptions);
+    const wasSettled = settled(session.state);
     const result = await session.handle(text);
+    this._repeats.remember(text, wasSettled, result);
     let reply;
     let outcome;
     if (!result.needsModel && result.text !== null) {

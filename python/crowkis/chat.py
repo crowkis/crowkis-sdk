@@ -14,14 +14,17 @@ answered by the model with the whole chat and never cached. Per thread, only a s
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .session import CallSession, _masked
-from .understand import Understander
-from .verify import RuleChecker
+from .callstate import CallState
+from .session import CallSession, TurnResult, _masked
+from .turn import TurnFrame
+from .understand import Understander, _normalise
+from .verify import SHARED, RuleChecker
 
 Message = Dict[str, str]
 
@@ -62,6 +65,48 @@ class MemoryStore:
             self._data.pop(thread_id, None)
 
 
+def _settled(state: CallState) -> bool:
+    """The thread's memory holds nothing that can change an answer: no fact, detail, region or
+    tier, reply language or task."""
+    return not (state.facts or state.stated or state.details or state.attributes or state.language
+                or state.task != "none")
+
+
+class _Repeats:
+    """Reads a turn without a model call when the model already read it: word for word a question
+    that an earlier turn asked on its own (not rewritten, not leaning on its chat), in a thread
+    whose memory could not change it, and that the rules shared. The rules still check every turn.
+    In this process only, at most ``max_questions``."""
+
+    def __init__(self, understander: Understander, max_questions: int = 10_000) -> None:
+        self.understander = understander
+        self.max_questions = max_questions
+        self._known: "OrderedDict[str, TurnFrame]" = OrderedDict()
+        self._lock = threading.Lock()
+
+    def understand(self, turn: str, state: CallState) -> TurnFrame:
+        if _settled(state):
+            with self._lock:
+                frame = self._known.get(_normalise(turn))
+            if frame is not None:
+                return frame
+        return self.understander.understand(turn, state)
+
+    def remember(self, turn: str, settled: bool, result: TurnResult) -> None:
+        frame, verdict = result.frame, result.verdict
+        if not settled or result.route != SHARED or frame is None or verdict is None or frame.uses_state:
+            return
+        key = _normalise(turn)
+        if not key or key != _normalise(verdict.question or ""):
+            return
+        with self._lock:
+            # A region or tier comes from the thread that asked; the next thread's own memory gives its own.
+            self._known[key] = dataclasses.replace(frame, attributes={})
+            self._known.move_to_end(key)
+            while len(self._known) > self.max_questions:
+                self._known.popitem(last=False)
+
+
 @dataclass
 class ChatReply:
     text: str
@@ -81,6 +126,7 @@ class Chat:
                  channel: str = "chat", knowledge_version: str = "1", **session_options: Any) -> None:
         self.agent = agent
         self.understander = understander
+        self._repeats = _Repeats(understander)
         self.store = store if store is not None else MemoryStore()
         self.system = system.strip()
         session_options.setdefault("checker", RuleChecker(channel=channel, knowledge_version=knowledge_version))
@@ -103,8 +149,10 @@ class Chat:
                      if isinstance(m, dict) and m.get("role") == "user"), "")
         with self._thread_lock(thread_id):
             data, version = self.store.load(thread_id)
-            session = CallSession.restore(self.agent, self.understander, data, **self.session_options)
+            session = CallSession.restore(self.agent, self._repeats, data, **self.session_options)
+            settled = _settled(session.state)
             result = session.handle(text)
+            self._repeats.remember(text, settled, result)
             if not result.needs_model and result.text is not None:
                 reply, outcome = result.text, "served"
             else:

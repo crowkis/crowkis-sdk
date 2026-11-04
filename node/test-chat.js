@@ -672,3 +672,78 @@ test("memory keeps no name or long number and can be forgotten", async () => {
   await chat.forget("t");
   assert.deepStrictEqual(store.load("t"), [null, 0]);
 });
+
+// S11: the understanding model is called only when it can change what is read.
+const FEE = "What is the fee for B.Tech?";
+const FEE_FRAMES = {
+  [FEE]: { ...GENERAL, question: FEE, entities: [{ text: "B.Tech", type: "topic" }] },
+  "what is the fee for b.tech": { ...GENERAL, question: FEE, entities: [{ text: "B.Tech", type: "topic" }] },
+  "And for B.Tech?": { ...GENERAL, question: FEE, uses_state: true, entities: [{ text: "B.Tech", type: "topic" }] },
+  "What is my fee balance?": { kind: "personal", subject: "self", confidence: 0.9 },
+  "I'm allergic to peanuts.": { kind: "personal", subject: "self", confidence: 0.9 },
+  "Reply only in Hindi.": { kind: "dialogue", confidence: 0.9, language: "hi" },
+  "Is pad thai safe to eat?": { ...GENERAL, question: "Is pad thai safe to eat?", entities: [{ text: "pad thai", type: "product" }] },
+};
+
+function counting(frames) {
+  const u = scripted(frames);
+  const inner = u.understand;
+  u.read = [];
+  u.understand = (turn, state) => { u.read.push(turn); return inner.call(u, turn, state); };
+  return u;
+}
+
+function feeChat(frames = FEE_FRAMES) {
+  const understander = counting(frames);
+  const chat = new Chat(new SegmentedAgent(), understander, { system: "You are Acme's assistant." });
+  const ask = async (thread, ...turns) => {
+    const history = [];
+    const replies = [];
+    for (const t of turns) {
+      history.push({ role: "user", content: t });
+      const reply = await chat.turn(thread, [...history], model("The B.Tech fee is 1,20,000 rupees a year."));
+      history.push({ role: "assistant", content: reply.text });
+      replies.push(reply);
+    }
+    return replies;
+  };
+  return { understander, ask };
+}
+
+test("S11: an exact repeat of a shared question needs no understanding call", async () => {
+  const { understander, ask } = feeChat();
+  assert.strictEqual((await ask("a", FEE))[0].outcome, "saved");
+  for (const [thread, t] of [["b", FEE], ["c", "what is the fee for b.tech"]]) {
+    const [reply] = await ask(thread, t);
+    assert.deepStrictEqual([reply.outcome, reply.fromCache], ["served", true]);
+  }
+  assert.deepStrictEqual(understander.read, [FEE]);
+});
+
+test("S11: the model still reads every turn that can depend on the chat", async () => {
+  const { understander, ask } = feeChat();
+  await ask("a", "And for B.Tech?");
+  await ask("b", "And for B.Tech?");
+  assert.deepStrictEqual(understander.read, ["And for B.Tech?", "And for B.Tech?"]);
+  understander.read.length = 0;
+  await ask("c", "What is my fee balance?");
+  await ask("d", "What is my fee balance?");
+  assert.deepStrictEqual(understander.read, ["What is my fee balance?", "What is my fee balance?"]);
+  understander.read.length = 0;
+  await ask("e", "I'm allergic to peanuts.", "Is pad thai safe to eat?");
+  await ask("f", "Is pad thai safe to eat?");
+  assert.strictEqual(understander.read.filter((t) => t === "Is pad thai safe to eat?").length, 2);
+  await ask("g", FEE);
+  understander.read.length = 0;
+  await ask("h", "I'm allergic to peanuts.", FEE);
+  await ask("i", "Reply only in Hindi.", FEE);
+  assert.deepStrictEqual(understander.read, ["I'm allergic to peanuts.", FEE, "Reply only in Hindi.", FEE]);
+});
+
+test("S11: every rule still checks a repeat", async () => {
+  const { understander, ask } = feeChat({ ...FEE_FRAMES, "My name is Tech.": { kind: "personal", subject: "self", confidence: 0.9 } });
+  await ask("a", FEE);
+  const replies = await ask("b", "My name is Tech.", FEE);
+  assert.deepStrictEqual(understander.read, [FEE, "My name is Tech."]); // read without the model
+  assert.deepStrictEqual([replies[1].route, replies[1].reason], ["agent", "V5_private_word"]);
+});

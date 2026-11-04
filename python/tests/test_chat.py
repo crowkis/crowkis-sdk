@@ -716,5 +716,80 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(store.load("t"), (None, 0))
 
 
+class Counting(Scripted):
+    def __init__(self, frames):
+        super().__init__(frames)
+        self.read = []
+
+    def understand(self, turn, state):
+        self.read.append(turn)
+        return super().understand(turn, state)
+
+
+class S11UnderstandingCallTests(unittest.TestCase):
+    FEE = "What is the fee for B.Tech?"
+    FRAMES = {FEE: dict(GENERAL, question=FEE, entities=[{"text": "B.Tech", "type": "topic"}]),
+              "what is the fee for b.tech": dict(GENERAL, question=FEE, entities=[{"text": "B.Tech", "type": "topic"}]),
+              "And for B.Tech?": dict(GENERAL, question=FEE, uses_state=True, entities=[{"text": "B.Tech", "type": "topic"}]),
+              "What is my fee balance?": {"kind": "personal", "subject": "self", "confidence": 0.9},
+              "I'm allergic to peanuts.": {"kind": "personal", "subject": "self", "confidence": 0.9},
+              "Reply only in Hindi.": {"kind": "dialogue", "confidence": 0.9, "language": "hi"},
+              "Is pad thai safe to eat?": dict(GENERAL, question="Is pad thai safe to eat?",
+                                              entities=[{"text": "pad thai", "type": "product"}])}
+
+    def chat(self):
+        self.understander = Counting(self.FRAMES)
+        self.agent = SegmentedAgent()
+        return Chat(self.agent, self.understander, system="You are Acme's assistant.")
+
+    def ask(self, chat, thread, *turns):
+        history, replies = [], []
+        for turn in turns:
+            history.append({"role": "user", "content": turn})
+            replies.append(chat.turn(thread, history, answer=Model("The B.Tech fee is 1,20,000 rupees a year.")))
+            history.append({"role": "assistant", "content": replies[-1].text})
+        return replies
+
+    def test_an_exact_repeat_of_a_shared_question_needs_no_understanding_call(self):
+        chat = self.chat()
+        self.assertEqual(self.ask(chat, "a", self.FEE)[0].outcome, "saved")
+        for thread, turn in (("b", self.FEE), ("c", "what is the fee for b.tech")):
+            reply = self.ask(chat, thread, turn)[0]
+            self.assertEqual((reply.outcome, reply.from_cache), ("served", True))
+        self.assertEqual(self.understander.read, [self.FEE])
+
+    def test_the_model_still_reads_every_turn_that_can_depend_on_the_chat(self):
+        chat = self.chat()
+        # Rewritten from the chat: the turn is not the question, so it is never read without the model.
+        self.ask(chat, "a", "And for B.Tech?")
+        self.ask(chat, "b", "And for B.Tech?")
+        self.assertEqual(self.understander.read, ["And for B.Tech?"] * 2)
+        # Not shared: read by the model every time.
+        self.understander.read.clear()
+        self.ask(chat, "c", "What is my fee balance?")
+        self.ask(chat, "d", "What is my fee balance?")
+        self.assertEqual(self.understander.read, ["What is my fee balance?"] * 2)
+        # Shared in a thread whose memory could change it: not remembered.
+        self.understander.read.clear()
+        self.ask(chat, "e", "I'm allergic to peanuts.", "Is pad thai safe to eat?")
+        self.ask(chat, "f", "Is pad thai safe to eat?")
+        self.assertEqual(self.understander.read.count("Is pad thai safe to eat?"), 2)
+        # A known question in a thread whose memory could change the answer: the model reads it.
+        self.ask(chat, "g", self.FEE)
+        self.understander.read.clear()
+        for thread, first in (("h", "I'm allergic to peanuts."), ("i", "Reply only in Hindi.")):
+            self.ask(chat, thread, first, self.FEE)
+        self.assertEqual(self.understander.read, ["I'm allergic to peanuts.", self.FEE, "Reply only in Hindi.", self.FEE])
+
+    def test_every_rule_still_checks_a_repeat(self):
+        chat = self.chat()
+        self.ask(chat, "a", self.FEE)
+        frames = dict(self.FRAMES, **{"My name is Tech.": {"kind": "personal", "subject": "self", "confidence": 0.9}})
+        self.understander.frames = frames
+        replies = self.ask(chat, "b", "My name is Tech.", self.FEE)
+        self.assertEqual(self.understander.read, [self.FEE, "My name is Tech."])  # read without the model
+        self.assertEqual((replies[-1].route, replies[-1].reason), ("agent", "V5_private_word"))
+
+
 if __name__ == "__main__":
     unittest.main()

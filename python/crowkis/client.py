@@ -235,13 +235,6 @@ async def _aread_frame(reader: asyncio.StreamReader) -> Any:
     raise CrowkisError(f"unexpected RESP frame: {line!r}")
 
 
-async def _aread_resp(reader: asyncio.StreamReader) -> Any:
-    reply = await _aread_frame(reader)
-    if isinstance(reply, CrowkisError):
-        raise reply
-    return reply
-
-
 def _cache_hit(payload: Dict[str, Any]) -> CacheHit:
     def optional_text(value: Any) -> Optional[str]:
         if value is None:

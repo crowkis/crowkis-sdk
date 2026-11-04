@@ -472,4 +472,3 @@ def _voice_addon_missing(err: CrowkisError) -> bool:
     return text.startswith(("ENTERPRISE ", "ERR ENTERPRISE ")) or "unknown command" in text.lower()
 
 
-__all__ = ["Agent", "CrowkisError"]

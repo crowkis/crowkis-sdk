@@ -510,7 +510,7 @@ class CrowkisClient {
     return warnNotStored(await this.execute(...args));
   }
 
-  async cget(query, options = {}) {
+  _cgetArgs(query, options) {
     const args = ["CGET", query];
     if (options.threshold !== undefined) args.push("THRESHOLD", String(options.threshold));
     if (this._tenant(options)) args.push("TENANT", this._tenant(options));
@@ -525,6 +525,11 @@ class CrowkisClient {
     if (image) args.push("IMAGE", image);
     if (options.template) args.push("TEMPLATE");
     if (options.segment) args.push("SEGMENT", options.segment);
+    return args;
+  }
+
+  async cget(query, options = {}) {
+    const args = this._cgetArgs(query, options);
     const value = await this.execute(...args);
     if (value && typeof value === "object" && !Buffer.isBuffer(value)) return value.response || null;
     return Buffer.isBuffer(value) ? value : null;
@@ -532,20 +537,7 @@ class CrowkisClient {
 
   async cgetHit(query, options = {}) {
     await this._hello3();
-    const args = ["CGET", query];
-    if (options.threshold !== undefined) args.push("THRESHOLD", String(options.threshold));
-    if (this._tenant(options)) args.push("TENANT", this._tenant(options));
-    if (this._model(options)) args.push("MODEL", this._model(options));
-    if (options.modelVersion || options.model_version) {
-      args.push("MODEL_VERSION", options.modelVersion || options.model_version);
-    }
-    if (options.migrationMode || options.migration_mode) {
-      args.push("MIGRATION_MODE", options.migrationMode || options.migration_mode);
-    }
-    const image = imageBase64(options.image);
-    if (image) args.push("IMAGE", image);
-    if (options.template) args.push("TEMPLATE");
-    if (options.segment) args.push("SEGMENT", options.segment);
+    const args = this._cgetArgs(query, options);
     const value = await this.execute(...args);
     if (!value || Buffer.isBuffer(value)) return null;
     return {

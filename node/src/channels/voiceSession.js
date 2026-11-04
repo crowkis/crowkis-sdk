@@ -1,6 +1,6 @@
 "use strict";
 
-const { Agent, voiceAddonMissing, _storeLater: storeLater } = require("../../agent.js");
+const { Agent, voiceAddonMissing } = require("../../agent.js");
 const { CrowkisClient } = require("../../index.js");
 const { RuleSet } = require("../rules/ruleSet.js");
 const { SessionCall } = require("../turns/voice/call.js");

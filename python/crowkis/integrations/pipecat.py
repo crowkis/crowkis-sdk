@@ -84,8 +84,6 @@ try:  # the one-line wrappers are pipelines of their own
 except ImportError:  # pragma: no cover - a Pipecat without nested pipelines
     _Pipeline = None
 
-from ..agent import _store_later, _tts_key  # noqa: F401  (kept importable from here)
-from ..client import CrowkisError  # noqa: F401  (kept importable from here)
 from ..channels.voice_session import VoiceSession
 from ..understanding.word_rules.text import _words  # noqa: F401  (_words kept importable from here)
 from ..channels.async_voice_session import _on_server_pool

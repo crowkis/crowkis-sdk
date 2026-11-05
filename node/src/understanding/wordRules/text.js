@@ -436,9 +436,14 @@ function capitalised(word) {
   return isUpper([...word][0]) && !isUpper(word);
 }
 
-// A capitalised word right after them is a person: "named Rahul", "asks Anita", "did Priya order".
+// A capitalised word right after "named", "asks" ... is a person. After an auxiliary it is one only
+// when a person's action follows ("did Priya order", "has Sarah paid"): "does Netflix have a plan" is a brand.
 // Not "for": the rules cannot tell "for Sarah" from "for Goa" (a model's tag can).
-const NAMED_BY = new Set(["named", "called", "asks", "says", "did", "does", "has", "had", "was", "will"]);
+const NAMED_BY = new Set(["named", "called", "asks", "says"]);
+const NAME_AUXILIARIES = new Set(["did", "does", "has", "had", "was", "will"]);
+const NAME_ACTIONS = new Set(["order", "ordered", "pay", "paid", "book", "booked", "buy", "bought", "return", "returned",
+  "cancel", "cancelled", "canceled", "refund", "refunded", "call", "called", "ask", "asked", "say", "said", "ship",
+  "shipped", "receive", "received", "complain", "complained"]);
 
 // A capitalised name (one word, or two in a row) in a person's place: after a title
 // ("Dr. Iyer"), after a word that introduces one ("named Rahul", "did Priya order"), before what a person does ("Priya called", "does Mohit have an
@@ -465,6 +470,7 @@ function capitalisedName(text, words) {
     }
     const after = end < words.length ? words[end] : "";
     if (POSTPOSITIONS.has(after)) continue;
+    if (NAME_AUXILIARIES.has(lead) && NAME_ACTIONS.has(after)) return true;
     if (NAME_VERBS.has(after) && personal) return true;
     if (firstMatter < index && !PLACE_PREPOSITIONS.has(lead)) return true;
   }

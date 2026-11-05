@@ -536,9 +536,14 @@ def _capitalised(word: str) -> bool:
     return word[0].isupper() and not word.isupper()
 
 
-# A capitalised word right after them is a person: "named Rahul", "asks Anita", "did Priya order".
+# A capitalised word right after "named", "asks" ... is a person. After an auxiliary it is one only
+# when a person's action follows ("did Priya order", "has Sarah paid"): "does Netflix have a plan" is a brand.
 # Not "for": the rules cannot tell "for Sarah" from "for Goa" (a model's tag can).
-_NAMED_BY = frozenset({"named", "called", "asks", "says", "did", "does", "has", "had", "was", "will"})
+_NAMED_BY = frozenset({"named", "called", "asks", "says"})
+_NAME_AUXILIARIES = frozenset({"did", "does", "has", "had", "was", "will"})
+_NAME_ACTIONS = frozenset({"order", "ordered", "pay", "paid", "book", "booked", "buy", "bought", "return", "returned",
+                           "cancel", "cancelled", "canceled", "refund", "refunded", "call", "called", "ask", "asked",
+                           "say", "said", "ship", "shipped", "receive", "received", "complain", "complained"})
 
 
 def _capitalised_name(text: str, words: List[str]) -> bool:
@@ -567,6 +572,8 @@ def _capitalised_name(text: str, words: List[str]) -> bool:
         after = words[end] if end < len(words) else ""
         if after in _POSTPOSITIONS:
             continue
+        if lead in _NAME_AUXILIARIES and after in _NAME_ACTIONS:
+            return True
         if after in _NAME_VERBS and personal:
             return True
         if first_matter < index and lead not in _PLACE_PREPOSITIONS:

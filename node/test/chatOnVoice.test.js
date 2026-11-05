@@ -126,7 +126,8 @@ for (const [mode, makeOptions] of [["without an understander", () => ({}), ], ["
 const NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?", "asks Anita about the refund policy",
   "Is the manager named Rahul in today?"];
 const NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",
-  "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?"];
+  "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?",
+  "Does Netflix have a student plan?", "When did Apple release the iPhone 15?", "What does Mastercard charge for foreign transactions?", "Does Zomato deliver after midnight?", "Has Amazon Prime raised its price?", "What time does Walmart open on Sunday?"];
 const REQUESTS = ["Add milk and eggs to my shopping list", "Remove the red shoes from my cart", "Put two tickets in my basket"];
 const REQUEST_CONTROLS = ["How do I add an item to my cart?", "Can I add an item to my cart?"];
 const URLS = ["what is on https://shop.example.com/track?id=abc", "is www.shop.example.com/x safe to open"];

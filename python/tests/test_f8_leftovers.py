@@ -43,9 +43,6 @@ class ChainTests(unittest.TestCase):
         self.assertEqual([m["content"] for m in decision.messages], [FIRST, FOLLOW_UP])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class TemplateStore(ConformanceStore):
     def __init__(self):
@@ -119,3 +116,7 @@ class FreshAgentTests(unittest.TestCase):
 
     def test_must_still_work_without_an_engine_nothing_is_held(self):
         self.assertEqual(self.decide(engine=False).action, "serve")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -49,8 +49,10 @@ No turn Chat kept private for a *privacy* reason was shared by voice in this rep
 - **G2: a question naming a person.** "What did Priya order last week?", "Has Sarah paid yet?", "asks Anita
   about the refund policy", "the manager named Rahul": the name went into the shared key and the answer is
   about that person. `_capitalised_name` (`understanding/word_rules/text.py`, behind `OwnRecords`) now
-  also reads a capitalised word right after `named / called / asks / says / did / does / has / had /
-  was / will` as a person. **Not** "for": the rules cannot tell "for Sarah" from "for Goa", so
+  also reads a capitalised word right after `named / called / asks / says` as a person, and after
+  `did / does / has / had / was / will` only when a person's action follows ("did Priya order", "has Sarah
+  paid"); "does Netflix have a plan" is a brand and stays shared (the Opus review found the first, wider
+  version made brand questions private). **Not** "for": the rules cannot tell "for Sarah" from "for Goa", so
   "What time is check-in for Sarah?" stays shared (accepted: low severity, the answer is general; an LLM's
   entity tag handles it when one is plugged in). Lower-case names from speech-to-text are not read (known
   limit; the same as before).

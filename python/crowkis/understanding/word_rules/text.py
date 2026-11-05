@@ -584,9 +584,15 @@ _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 def _proper_nouns(text: str) -> set:
     """Words capitalised mid-sentence ("... my agent Priya said"), lower-cased."""
     found = set()
-    for match in _TOKEN.finditer(text or ""):
-        word, before = match.group(), (text[:match.start()].rstrip() or ".")
-        if word[0].isupper() and word != "I" and before[-1] not in ".!?":
+    text = text or ""
+    for match in _TOKEN.finditer(text):
+        word = match.group()
+        if not word[0].isupper() or word == "I":
+            continue
+        at = match.start() - 1  # the last non-space character before the word, without slicing the prefix
+        while at >= 0 and text[at].isspace():
+            at -= 1
+        if at >= 0 and text[at] not in ".!?":
             found.add(word.lower())
     return found
 

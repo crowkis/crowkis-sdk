@@ -498,10 +498,10 @@ function properNouns(text) {
   const source = String(text || "");
   for (const match of source.matchAll(WORDS)) {
     const word = match[0];
-    const before = source.slice(0, match.index).trimEnd() || ".";
-    if (word[0] !== word[0].toLowerCase() && word !== "I" && !".!?".includes(before[before.length - 1])) {
-      found.add(word.toLowerCase());
-    }
+    if (word[0] === word[0].toLowerCase() || word === "I") continue;
+    let at = match.index - 1; // the last non-space character before the word, without slicing the prefix
+    while (at >= 0 && /\s/.test(source[at])) at -= 1;
+    if (at >= 0 && !".!?".includes(source[at])) found.add(word.toLowerCase());
   }
   return found;
 }

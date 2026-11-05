@@ -110,3 +110,82 @@ test("odd input goes the basic way, the buffer is copied, no add-on is asked aga
   await a2.speak("New one.", async () => Buffer.from("a"), { voice: "aria" });
   assert.strictEqual(a2._audioV2, true);
 });
+
+// S12: on a server that holds answers until it judges them, a served answer's audio.
+class HoldingClient extends AudioClient {
+  constructor({ vouched = false, engine = true } = {}) {
+    super();
+    Object.assign(this, { vouched, engine });
+  }
+  async cgetHit() {
+    return { response: Buffer.from("The capital of France is Paris."), similarity: 1, confidence: 0.99, hitType: "exact", vouched: this.vouched };
+  }
+  async cdecision() {
+    this.calls.push("cdecision");
+    return { engine: this.engine, holds: this.engine, pending: !this.vouched };
+  }
+}
+const ANSWER = "The capital of France is Paris.";
+const TURN = "what is the capital of france";
+function holdingCallers(options) {
+  const client = new HoldingClient(options);
+  const spoken = [];
+  const synthesise = async (text) => { spoken.push(text); return Buffer.from("WAV:" + text); };
+  const callers = [0, 1].map(() => new VoiceSession(new Agent("caller", { client }), { voice: "alloy", synthesise }));
+  return { client, spoken, callers };
+}
+const stored = (client) => client.calls.filter((c) => Array.isArray(c) && c[0] === "caudioset").length;
+
+test("S12: unjudged audio never reaches another caller", async () => {
+  const { client, spoken, callers: [a, b] } = holdingCallers();
+  const first = await a.decide(TURN);
+  const second = await b.decide(TURN);
+  await waitForAudioStores();
+  assert.deepStrictEqual([first.action, second.action], ["serve", "serve"]);
+  assert.strictEqual(stored(client), 0, "nothing in the shared audio before the verdict");
+  assert.strictEqual(spoken.length, 2, "the second caller gets fresh speech, not the first one's clip");
+  assert.strictEqual(first.audioShareable, false);
+});
+
+test("S12: the same caller replays its own clip before the verdict", async () => {
+  const { spoken, callers: [a] } = holdingCallers();
+  const first = await a.decide(TURN);
+  const again = await a.decide(TURN);
+  assert.deepStrictEqual([first.audio, again.audio], [Buffer.from("WAV:" + ANSWER), Buffer.from("WAV:" + ANSWER)]);
+  assert.strictEqual(spoken.length, 1);
+});
+
+test("S12: once judged the held clip is shared without speaking again", async () => {
+  const { client, spoken, callers: [a, b] } = holdingCallers();
+  await a.decide(TURN);
+  client.vouched = true;
+  const cleared = await a.decide(TURN);
+  await waitForAudioStores();
+  assert.strictEqual(cleared.audioShareable, true);
+  assert.strictEqual(stored(client), 1);
+  assert.deepStrictEqual((await b.decide(TURN)).audio, Buffer.from("WAV:" + ANSWER));
+  assert.strictEqual(spoken.length, 1, "one synthesis for the whole exchange");
+  assert.strictEqual(b.agent.audioHits, 1);
+});
+
+test("S12: must still work without an engine or once vouched", async () => {
+  for (const options of [{ engine: false }, { vouched: true }]) {
+    const { client, spoken, callers: [a, b] } = holdingCallers(options);
+    assert.strictEqual((await a.decide(TURN)).audioShareable, true);
+    await waitForAudioStores();
+    await b.decide(TURN);
+    assert.deepStrictEqual([spoken.length, b.agent.audioHits, stored(client)], [1, 1, 1], JSON.stringify(options));
+  }
+});
+
+test("S12: an app that speaks itself is told unjudged audio is not shareable", async () => {
+  // No synthesiser: decide() does not ask the server; audioShareable uses what the agent knows.
+  for (const [options, shareable] of [[{}, false], [{ vouched: true }, true], [{ engine: false }, true]]) {
+    const client = new HoldingClient(options);
+    const agent = new Agent("caller", { client });
+    await agent.decides();
+    const decision = await new VoiceSession(agent, { voice: "alloy" }).decide(TURN);
+    assert.strictEqual(decision.action, "serve");
+    assert.strictEqual(decision.audioShareable, shareable, JSON.stringify(options));
+  }
+});

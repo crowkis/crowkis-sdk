@@ -1779,7 +1779,10 @@ class TurnDecision:
     @property
     def audio_shareable(self) -> bool:
         """Whether the spoken audio of this answer may go to the shared audio cache:
-        not for an answer filled with this caller's values."""
+        not for an answer filled with this caller's values, nor for one a server that
+        holds answers has not judged yet."""
+        if callable(self._audio_shareable):
+            self._audio_shareable = bool(self._audio_shareable())
         return self._audio_shareable
 
     @property
@@ -1878,6 +1881,9 @@ class VoiceSession:
         self.learn_errors = 0
         self.not_shareable = 0
         self.held_commitments = 0
+        # This call's own clips of answers the server has not judged yet: replayed to this
+        # caller only, and shared once the answer is judged.
+        self._held_audio: Dict[str, bytes] = {}
         self.unspeakable = 0
         self.empty_answers = 0
         # The question the latest stored answer was stored under.
@@ -2118,15 +2124,32 @@ class VoiceSession:
         self.served += 1
         self.transcript.append({"role": "user", "content": caller_said})
         self.transcript.append({"role": "assistant", "content": answer})
+        # Audio reaches other callers only once the server has judged the answer. Asked only when
+        # it matters: here when this turn is voiced, else when the app reads audio_shareable.
+        vouched = bool(hit.get("vouched"))
+        cleared = vouched or self.synthesise is None or not self._holds_answers()
         decision = TurnDecision(
             "serve",
             text=answer,
-            audio=self._voiced(answer, cacheable=not personal),
+            audio=self._voiced(answer, cacheable=not personal, cleared=cleared),
             confidence=hit["confidence"],
             reason="confident cache hit",
         )
-        decision._audio_shareable = not personal
+        if personal or (vouched or self.synthesise is not None):
+            decision._audio_shareable = not personal and cleared
+        else:
+            decision._audio_shareable = lambda: not self._holds_answers()
         return decision
+
+    def _holds_answers(self) -> bool:
+        """Whether the server holds answers until it judges them; not known in time counts as yes."""
+        if self.latency_budget_ms is None:
+            return self.agent.decides() and self.agent._holds
+        try:
+            decides = _LOOKUPS.submit(self.agent.decides).result(timeout=self.latency_budget_ms / 1000.0)
+        except concurrent.futures.TimeoutError:
+            return True
+        return decides and self.agent._holds
 
     def _engine_vouches(self) -> bool:
         """Whether the server judges what it caches, asked inside this call's
@@ -2412,14 +2435,21 @@ class VoiceSession:
         self.uncacheable_personal += 1
         return False
 
-    def _voiced(self, answer: str, *, cacheable: bool = True) -> Optional[bytes]:
+    def _voiced(self, answer: str, *, cacheable: bool = True, cleared: bool = True) -> Optional[bytes]:
         if self.synthesise is None:
             return None
         if not cacheable:
             return self.synthesise(answer)
+        held = self._held_audio.pop(answer, None)
+        if not cleared:
+            held = held or self.synthesise(answer)
+            self._held_audio[answer] = held
+            while len(self._held_audio) > _MAX_HELD_AUDIO:
+                self._held_audio.pop(next(iter(self._held_audio)))
+            return held
         return self.agent.speak(
             answer,
-            self.synthesise,
+            (lambda _text: held) if held else self.synthesise,
             voice=self.voice,
             ttl=self.ttl,
             language=self.language,
@@ -2427,6 +2457,9 @@ class VoiceSession:
             audio_format=self.audio_format,
             bytes_per_second=self.bytes_per_second,
         )
+
+
+_MAX_HELD_AUDIO = 16
 
 
 def _private_chain(chain: List[str], min_words: int = 0) -> bool:

@@ -1314,6 +1314,7 @@ function within(ms, promise) {
 }
 
 const LATE = Symbol("late");
+const MAX_HELD_AUDIO = 16;
 
 // How many follow-ups back a turn may lean on before it is treated as unresolvable.
 const CHAIN_LIMIT = 6;
@@ -1722,8 +1723,12 @@ class TurnDecision {
     Object.defineProperty(this, "_audioShareable", { value: false, writable: true, enumerable: false });
   }
 
-  /** Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this caller's values. */
+  /**
+   * Whether the spoken audio of this answer may go to the shared audio cache: not for an answer filled with this
+   * caller's values, nor for one a server that holds answers has not judged yet.
+   */
   get audioShareable() {
+    if (typeof this._audioShareable === "function") this._audioShareable = Boolean(this._audioShareable());
     return this._audioShareable;
   }
 
@@ -1823,6 +1828,9 @@ class VoiceSession {
     this.learnErrors = 0;
     this.notShareable = 0;
     this.heldCommitments = 0;
+    // This call's own clips of answers the server has not judged yet: replayed to this caller only, and
+    // shared once the answer is judged.
+    this._heldAudio = new Map();
     this.unspeakable = 0;
     this.emptyAnswers = 0;
     // The question the latest stored answer was stored under.
@@ -2048,14 +2056,28 @@ class VoiceSession {
     this.served += 1;
     this.transcript.push({ role: "user", content: callerSaid });
     this.transcript.push({ role: "assistant", content: answer });
+    // Audio reaches other callers only once the server has judged the answer. Asked only when this
+    // turn is voiced here; otherwise audioShareable reads what the agent already knows.
+    const vouched = Boolean(hit.vouched);
+    const cleared = personal || vouched || !this.synthesise || !(await this._holdsAnswers());
     const decision = new TurnDecision("serve", {
       text: answer,
-      audio: await this._voiced(answer, { cacheable: !personal }),
+      audio: await this._voiced(answer, { cacheable: !personal, cleared }),
       confidence: hit.confidence,
       reason: "confident cache hit",
     });
-    decision._audioShareable = !personal;
+    decision._audioShareable = personal || vouched || this.synthesise
+      ? !personal && cleared
+      : () => !(this.agent._decides === true && this.agent._holds);
     return decision;
+  }
+
+  /** Whether the server holds answers until it judges them; not known in time counts as yes. */
+  async _holdsAnswers() {
+    const asked = this.agent.decides();
+    const decides = this.latencyBudgetMs === undefined || this.latencyBudgetMs === null
+      ? await asked : await within(this.latencyBudgetMs, asked);
+    return decides === LATE || Boolean(decides && this.agent._holds);
   }
 
   /**
@@ -2338,10 +2360,18 @@ class VoiceSession {
     return false;
   }
 
-  async _voiced(answer, { cacheable = true } = {}) {
+  async _voiced(answer, { cacheable = true, cleared = true } = {}) {
     if (!this.synthesise) return null;
     if (!cacheable) return this.synthesise(answer);
-    return this.agent.speak(answer, this.synthesise, {
+    let held = this._heldAudio.get(answer);
+    this._heldAudio.delete(answer);
+    if (!cleared) {
+      held = held || (await this.synthesise(answer));
+      this._heldAudio.set(answer, held);
+      while (this._heldAudio.size > MAX_HELD_AUDIO) this._heldAudio.delete(this._heldAudio.keys().next().value);
+      return held;
+    }
+    return this.agent.speak(answer, held ? () => held : this.synthesise, {
       voice: this.voice,
       ttl: this.ttl,
       language: this.language,

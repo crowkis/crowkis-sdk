@@ -1487,3 +1487,69 @@ class RecordOutcomeTests(unittest.TestCase):
         session.decide("what is the refund policy")
         self.assertEqual(session._record_model_turn("what is the refund policy", "We refund in 3 days."), "refused")
         self.assertEqual(session.learn_errors, 1)
+
+
+class S12HeldAudioTests(unittest.TestCase):
+    """A served answer's audio, on a server that holds answers until it judges them."""
+
+    ANSWER = b"The capital of France is Paris."
+    TURN = "what is the capital of france"
+
+    def callers(self, *, vouched=False, engine=True):
+        client = EngineClient(hit=_judged(similarity=1.0, response=self.ANSWER, vouched=vouched), engine=engine)
+        self.spoken = []
+
+        def synthesise(text):
+            self.spoken.append(text)
+            return b"WAV:" + text.encode()
+
+        return client, [VoiceSession(Agent("caller", client=client), voice="alloy", synthesise=synthesise)
+                        for _ in range(2)]
+
+    def stored(self, client):
+        return [c for c in client.calls if c[0] == "ctoolset" and c[1] == "crowkis.tts"]
+
+    def test_unjudged_audio_never_reaches_another_caller(self):
+        client, (a, b) = self.callers()
+        first, second = a.decide(self.TURN), b.decide(self.TURN)
+        self.assertEqual((first.action, second.action), ("serve", "serve"))
+        self.assertEqual(self.stored(client), [], "nothing in the shared audio before the verdict")
+        self.assertEqual(len(self.spoken), 2, "the second caller gets fresh speech, not the first one's clip")
+        self.assertFalse(first.audio_shareable)
+
+    def test_the_same_caller_replays_its_own_clip_before_the_verdict(self):
+        _, (a, _b) = self.callers()
+        first, again = a.decide(self.TURN), a.decide(self.TURN)
+        self.assertEqual((first.audio, again.audio), (b"WAV:" + self.ANSWER, b"WAV:" + self.ANSWER))
+        self.assertEqual(len(self.spoken), 1)
+
+    def test_once_judged_the_held_clip_is_shared_without_speaking_again(self):
+        client, (a, b) = self.callers()
+        a.decide(self.TURN)
+        client.hit = _judged(similarity=1.0, response=self.ANSWER, vouched=True)
+        cleared = a.decide(self.TURN)
+        self.assertTrue(cleared.audio_shareable)
+        self.assertEqual(len(self.stored(client)), 1)
+        self.assertEqual(b.decide(self.TURN).audio, b"WAV:" + self.ANSWER)
+        self.assertEqual(len(self.spoken), 1, "one synthesis for the whole exchange")
+        self.assertEqual(b.agent.audio_hits, 1)
+
+    def test_must_still_work_without_an_engine_or_once_vouched(self):
+        for kwargs in ({"engine": False}, {"vouched": True}):
+            with self.subTest(**kwargs):
+                client, (a, b) = self.callers(**kwargs)
+                self.assertTrue(a.decide(self.TURN).audio_shareable)
+                b.decide(self.TURN)
+                self.assertEqual((len(self.spoken), b.agent.audio_hits, len(self.stored(client))), (1, 1, 1))
+
+    def test_an_app_that_speaks_itself_is_told_unjudged_audio_is_not_shareable(self):
+        # No synthesiser (a Pipecat pipeline): the engine is asked only when audio_shareable is read.
+        for hit, engine, shareable in ((_judged(similarity=1.0, response=self.ANSWER), True, False),
+                                       (_judged(similarity=1.0, response=self.ANSWER, vouched=True), True, True),
+                                       (_hit(0.99, response=self.ANSWER, similarity=1.0), False, True)):
+            with self.subTest(vouched=hit.vouched, engine=engine):
+                client = EngineClient(hit=hit, engine=engine)
+                decision = VoiceSession(Agent("caller", client=client), voice="alloy").decide(self.TURN)
+                self.assertEqual(decision.action, "serve")
+                self.assertNotIn("cdecision", client.kinds())
+                self.assertEqual(decision.audio_shareable, shareable)

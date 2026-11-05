@@ -345,9 +345,10 @@ class CrowkisGate(FrameProcessor):
             await self.writeback.caller_moved_on()
         started = time.perf_counter()
         decision = await asyncio.to_thread(self._session.decide, self.question)
+        # A served answer filled with this caller's values, or one the server has not judged yet,
+        # never uses the shared audio cache. Read in the thread: it may ask the server.
+        shared_audio = await asyncio.to_thread(lambda: decision.audio_shareable)
         gate_ms = (time.perf_counter() - started) * 1000
-        # A served answer filled with this caller's values never uses the shared audio cache.
-        shared_audio = decision.audio_shareable
         audio = None if decision.needs_model or not shared_audio else await self._audio.get(decision.text)
         if decision.needs_model and decision.messages is not None:
             # The full call stays in the Pipecat context; the model just doesn't read it.

@@ -417,7 +417,7 @@
  "writes": {
   "a personal answer stored as a shape": [
    [
-    "",
+    "kb=1",
     "when will my order arrive",
     "Your order arrives on {eta}.",
     true
@@ -425,7 +425,7 @@
   ],
   "a server placeholder in the answer": [
    [
-    "",
+    "kb=1",
     "what is your refund policy",
     "Here is the answer.",
     false
@@ -438,7 +438,7 @@
   "an answer holding a declared value": [],
   "an answer written for a screen": [
    [
-    "",
+    "kb=1",
     "what is your refund policy",
     "Here is the answer.",
     false
@@ -446,7 +446,7 @@
   ],
   "commitment, reworded": [
    [
-    "",
+    "kb=1",
     "how do refunds work at your shop",
     "Here is the answer.",
     false

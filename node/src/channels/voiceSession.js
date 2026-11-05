@@ -236,9 +236,8 @@ class VoiceSession {
     this.bytesPerSecond = bytesPerSecond;
     // What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
     this.channel = Channel.of(channel);
-    // With an understander, answers live in kb=<version>;channel=<name>: switching understanders or
-    // knowledge is a deliberate new version (P5). Without one, no segment, as before.
-    this._segment = classifier || rewriter ? new KnowledgeSegment(knowledgeVersion, this.channel).segment : null;
+    // One pool per tenant: every channel, with or without an understander, lives in kb=<version>.
+    this._segment = new KnowledgeSegment(knowledgeVersion).segment;
     this._reported = {};
     this.serveAbove = serveAbove;
     this.minWords = minWords;

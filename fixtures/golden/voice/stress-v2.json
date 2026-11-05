@@ -8724,1105 +8724,1105 @@
  "writes": {
   "suite": [
    [
-    "",
+    "kb=1",
     "What is the capital of Australia?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which city is the capital of Australia?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which city is the capital of Australia? || And of New Zealand?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the population of Australia?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the capital of Canada?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the interest rate on a fixed deposit for one year?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the interest rate on a fixed deposit for five years?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver on Sundays?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your return window for clothes?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for shoes?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for shoes? || What about electronics?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you offer cash on delivery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is cash on delivery available?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to Port Blair?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to Port Blair? || How long does it take?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data? || And the cheapest?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data? || And the cheapest? || Does it include international roaming?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cheapest plan with international roaming?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the most expensive plan with international roaming?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the most expensive plan with international roaming? || What were the options again?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 2 kg parcel from Mumbai to Delhi?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 20 kg parcel from Mumbai to Delhi?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 20 kg parcel from Mumbai to Delhi? || And by express?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I send a laptop battery by courier?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to PO box addresses?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if nobody is home at delivery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if nobody is home at delivery? || How many times do you try again after that?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the OPD timings at the hospital?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which department should I visit for a skin rash?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you accept Star Health insurance?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is parking available at the hospital?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I get a copy of my lab report?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the outpatient timings at the hospital?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Are you open on Republic Day?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have vegan options?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the paneer tikka gluten free?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the paneer tikka gluten free? || Does it contain nuts?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your opening hours?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time do you close on Sundays?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time do you close on Sundays? || And on weekdays?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you take table reservations for large groups?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What documents are needed for a new passport?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does passport police verification take?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the fee for a Tatkal passport?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the fee for a normal passport?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I report a pothole on my street?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Where do I pay property tax?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the electricity tariff for the first 100 units?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the electricity tariff for the first 200 units?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the fixed charge different for three phase connections?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the fixed charge different for three phase connections? || What about single phase?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the late payment fee if I pay after fifteen days?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the late payment fee if I pay after fifty days?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply for a new electricity connection?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply for a new electricity connection? || Do I need an ID proof for that?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I block a lost debit card?",
     "To block a lost debit card, you should call your bank’s customer service number immediately and request that your card be frozen or cancelled.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the daily ATM withdrawal limit?",
     "The daily ATM withdrawal limit is typically $500.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does a cashless claim mean?",
     "A cashless claim means that the insurer pays the repair or replacement cost directly to the service provider, so you do not receive a refund and therefore do not have to pay out of pocket. This way the claim is settled without you making any payments.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does claim settlement usually take?",
     "Claim settlement typically takes a few weeks, usually between two and four weeks, but the exact time can vary based on the complexity of the case and the insurer’s processing speed.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What documents are needed for a reimbursement claim?",
     "The documents needed for a reimbursement claim are a completed claim form, the original receipts or invoices for the expenses, and any supporting documentation such as a prescription or medical report, if applicable. Be sure to keep copies for your records.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the visiting hours in the ICU?",
     "The ICU is open for visits from 10 a.m. to 4 p.m. each day.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I bring home food for a patient?",
     "Yes, you can bring home food for a patient, but make sure it meets any dietary restrictions and follows the hospital’s rules for outside food.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your return policy for jackets?",
     "The return policy for jackets allows you to return or exchange the item within 30 days of purchase, provided it is in its original condition and packaging.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long do refunds take to reach a UPI account?",
     "Refunds typically take 1 to 3 business days to reach a UPI account.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I get a refund to a different card?",
     "Yes, you can request a refund to a different card. You’ll need to provide the new card details and the refund will be processed to that card.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the process to port my number to another network?",
     "The process is called a number port. You request a port with the new network, provide your current carrier details and account information, then the new network coordinates with the old carrier to transfer your number while you keep your existing number.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the process to port my number to another network? || How long does porting take?",
     "The amount of time porting takes depends on the complexity of the project, the platform being moved to, and the resources available. Typically, a small, straightforward codebase may be ported in a few weeks, while larger, more complex systems can take several months.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if I enter the wrong PIN three times?",
     "If you enter the wrong PIN three times, the system will lock the account or device, and you’ll need to reset the PIN through the recovery or support process.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How can I reset my ATM PIN?",
     "To reset your ATM PIN, visit a bank branch or use the ATM's PIN reset option, following the prompts to enter your account details and set a new PIN.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you skip the verification this once?",
     "I’m sorry, but I can’t skip the verification.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What personal data does HR hold about me?",
     "The personal data that HR holds about you typically includes your contact details, employment history, payroll information, performance reviews, and any relevant medical or disability information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have parking?",
     "Yes, we have parking available for our guests.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey? || Not that one, the other one.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey? || Not that one, the other one. || Compare it with the MacBook Air.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How far is Agra from Delhi by road?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How far is Agra from Delhi by road? || And by train?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the speed limit on the Yamuna Expressway?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the speed limit on the Yamuna Expressway? || Is it the same for trucks?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I change my wifi password?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have a swimming pool?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time is check-in?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent? || And for 15 years?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which is cheaper overall, the 15 or the 20 year option?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What if I prepay 2 lakh after 5 years?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is a donation tax deductible under section 80G?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is a donation tax deductible under section 80G? || How much of it can I claim?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does your charity spend donations on?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your refund policy?",
     "Our refund policy allows you to request a refund within 30 days of purchase, provided the product is unused and in its original condition. If you meet these conditions, we’ll process your refund promptly.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the refund policy?",
     "The refund policy allows you to return items within 30 days of purchase for a full refund, provided the product is in its original condition and packaging.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What discount codes are available?",
     "The available discount codes are currently XYZ123 for 10% off and SAVE20 for 20% off your next purchase.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the maximum dose of paracetamol for an adult?",
     "The maximum recommended dose of paracetamol for an adult is 4,000 milligrams in a 24‑hour period.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I report a fraud call?",
     "To report a fraud call, contact your local police and your phone carrier, and file a complaint with the Federal Trade Commission through its website.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cyber crime helpline number in India?",
     "The cyber crime helpline number in India is 155.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the chicken burger spicy?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the service centre open on Tuesday?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the service centre open on Thursday?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you spell that for me?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What payment methods do you accept for electricity bills?",
     "We accept payment by cash, debit or credit card, online bank transfer, and electronic payment through our mobile app.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I pay my electricity bill with UPI?",
     "Yes, you can pay your electricity bill with UPI if your electricity provider accepts UPI payments; you would just need to enter the bill reference or UPI ID in your UPI app to complete the transaction.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I export my data to CSV?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I reset two factor authentication?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Tell me about the baggage rules for international flights.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Stop, I only need the cabin bag weight.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cabin bag weight limit on international flights?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Tell me everything about travel insurance for international trips.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "When does the check-in counter close for international flights?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Explain the full refund process for cancelled flights.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Hello hello, can you hear me?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have valet parking at the hotel?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is there a corkage fee at the hotel restaurant?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have high chairs for kids?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the dress code at the hotel restaurant?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the minimum balance for a salary account?",
     "The minimum balance for a salary account is typically zero rupees.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I update my KYC?",
     "To update your KYC, go to the app’s settings, tap “Verification,” upload new ID photos, and submit them for review. The system will notify you once your updated documents are approved.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Return policy kya hai?",
     "The return policy allows you to return items within 30 days of purchase, provided they are in original condition and packaging, and you’ll receive a full refund or store credit once the return is processed.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Delivery kitne din mein hoti hai?",
     "Delivery typically takes about 3 to 5 business days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Delivery kitne din mein hoti hai? || Aur COD available hai?",
     "Delivery typically takes 3 to 5 business days after your order is processed. Yes, we offer Cash on Delivery for eligible items.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover?",
     "The premium for a 10 lakh health cover depends on factors such as your age, health history, and the insurer, but it typically ranges from a few thousand to around fifteen thousand rupees per year.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover? || Aur 1 crore term plan ka?",
     "I’m sorry, I don’t have the exact premium amounts for those plans right now. Typically, a ₹10 lakh health cover can cost anywhere from a few thousand rupees to over ₹15 000 per year depending on age, health, and rider options, while a ₹1 crore term life plan usually ranges from about ₹10 000 to ₹25 000 per year for a healthy 30‑year‑old. If you’d like a precise quote, I can connect you with a licensed agent.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover? || Aur 1 crore term plan ka? || Is it 1,24,500 rupees per year?",
     "The premium for a 10 lakh health cover is around 24,000 rupees per year. For a 1 crore term plan, the annual premium would be approximately 1,24,500 rupees.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do you say good morning in Tamil?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the language centre open on 15/08?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the language centre open on 15/08? || What about 26 January?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the difference between since and for?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "199 wale plan mein kitna data hai?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "199 wale plan mein kitna data hai? || Aur 299 wale mein?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I get a payment plan for a personal loan?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What number should a patient call to reschedule an appointment?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long is this survey?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what does your product do?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what does your product do? || What does it cost per month?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the data analyst role remote or in office?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the salary range for the data analyst role?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I claim warranty for headphones?",
     "To claim a warranty on your headphones, contact the retailer or manufacturer where you purchased them, provide your proof of purchase and a description of the issue, and follow their instructions for repair or replacement.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you give free replacements for faulty headphones?",
     "We do offer free replacements for faulty headphones if they are still covered by our warranty.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the UPI daily limit?",
     "The UPI daily limit in India is ₹2,50,000, with a per‑transaction cap of ₹1,00,000.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the bank holidays in October?",
     "There are no bank holidays in October.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the UPI transaction limit per day?",
     "The daily UPI transaction limit is typically ₹200,000 per user, but some banks may set it lower.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the clinic timings on Saturday?",
     "The clinic is open on Saturday from 9 a.m. to 3 p.m.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the refund timeline for card payments?",
     "The refund timeline for card payments typically takes about 5 to 7 business days to appear on your statement.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the starting price of the iPhone 16 in India?",
     "The starting price of the iPhone 16 in India is ₹69,999.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the store open on Sundays?",
     "The store is open on Sundays.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What discount do new customers get?",
     "New customers receive a 10% discount on their first purchase.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is shipping free on all orders?",
     "Shipping is free on all orders that meet the minimum purchase requirement for your country. If your order is below that threshold, a small shipping fee applies.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the time in London?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Add milk and eggs to my shopping list.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many teaspoons are in a tablespoon?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many teaspoons are in a tablespoon? || And in a cup?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Who won the cricket world cup in 2011?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Who was the captain?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the boiling point of water in Fahrenheit?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is 15 percent of 2,340?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is 50 percent of 2,340?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Tell me a joke.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the capital of Peru?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Give me a table comparing the fees of your three online courses.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the link to your course catalogue?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Write a Python function to reverse a string.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "List all 12 months of the year.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on restaurant food?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what is the gst rate on restaurant food",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on restaurant food??",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the GST rate on restaurant food?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on gold jewellery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does standard shipping take?",
     "Standard shipping typically takes between five to seven business days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for kitchen appliances?",
     "The return window for kitchen appliances is typically thirty days from the date of purchase.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you ship to Canada?",
     "Yes, we ship to Canada. If you have any specific order questions, let me know.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How can I track an order?",
     "To track your order, log into your account, go to the orders section, and click the tracking link for the specific purchase.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does standerd shipping take?",
     "Standard shipping typically takes about five to seven business days to arrive.",
     false
    ],
    [
-    "",
+    "kb=1",
     "how long does standard shipping take?",
     "Standard shipping typically takes between five to seven business days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "how long does standard shipping, uh, take?",
     "Standard shipping generally takes five to seven business days to reach you.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what is the retun windo for kichen appliances",
     "The return window for kitchen appliances is 30 days from the date of delivery.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How can I trak an order?",
     "To track an order, go to the retailer’s website and log into your account, then navigate to the “Order History” or “Track Order” section, where you can enter your order number or find the tracking link that will show the shipment status.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How can I trak an order? || So, um, like, do you guys ship to Canada?",
     "To track an order, go to our website and enter your order number in the “Track Order” section; you’ll receive updates on its status. Yes, we do ship to Canada.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you ship to Mexico?",
     "We do ship to Mexico, and you can check delivery times and costs at checkout.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your support hours?",
     "Our support team is available 24 hours a day, seven days a week, so you can reach out at any time.",
     false

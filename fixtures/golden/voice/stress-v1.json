@@ -8459,1003 +8459,1003 @@
  "writes": {
   "suite": [
    [
-    "",
+    "kb=1",
     "What is the capital of Australia?",
     "The capital of Australia is Canberra.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which city is the capital of Australia?",
     "The city that is the capital of Australia is Canberra.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which city is the capital of Australia? || And of New Zealand?",
     "The capital of Australia is Canberra, while the capital of New Zealand is Wellington.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the population of Australia?",
     "The estimated population of Australia is currently around 26 million people.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the capital of Canada?",
     "The capital of Canada is Ottawa.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the interest rate on a fixed deposit for one year?",
     "The interest rate on a one-year fixed deposit depends on the specific bank and prevailing market conditions.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the interest rate on a fixed deposit for five years?",
     "The interest rate on a five-year fixed deposit varies depending on the bank and current market conditions.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver on Sundays?",
     "Whether delivery is available on Sundays depends on the specific company you are ordering from.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your return window for clothes?",
     "To determine the specific return window for clothes, I would need to know the specific retailer or brand you are interested in. Return policies vary greatly depending on the company.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for shoes?",
     "The return window for shoes typically depends on the specific store or retailer you purchased them from. Policies often range from 30 to 90 days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for shoes? || What about electronics?",
     "The standard return window for shoes is typically 30 to 60 days, though policies can vary by retailer. For electronics, the return window can be much shorter, often just 14 or 30 days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you offer cash on delivery?",
     "Whether cash on delivery is offered depends on the specific policies of the service or retailer you are using.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is cash on delivery available?",
     "Whether cash on delivery is available depends on the specific company or seller you are purchasing from.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to Port Blair?",
     "Whether delivery to Port Blair depends on the specific company or service you are using.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to Port Blair? || How long does it take?",
     "Whether delivery to Port Blair is possible depends on the product and seller. Standard delivery typically takes several business days, but exact timelines can vary greatly.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees?",
     "I am unable to provide specific details about prepaid plans under 300 rupees as that information can vary depending on the provider and region. To find the best plans, you should directly check the websites of different telecom",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data?",
     "Prepaid plans under 300 rupees typically offer various combinations of data, calls, and SMS. To determine which plan has the most data, I would need to know the specific provider you are interested in, as offers can vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data? || And the cheapest?",
     "Prepaid plans under 300 rupees typically offer various combinations of data, voice, and SMS benefits. The plan with the most data varies based on current offers and providers, so specific details are subject to change. The cheapest plan",
     false
    ],
    [
-    "",
+    "kb=1",
     "What prepaid plans do you have under 300 rupees? || Which one has the most data? || And the cheapest? || Does it include international roaming?",
     "I do not have current pricing or plan details for prepaid plans under 300 rupees. Therefore, I cannot determine the plans with the most data, the cheapest or international roaming.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cheapest plan with international roaming?",
     "The cheapest plan with international roaming depends on your specific carrier and region. To find the best deal, you should compare plans from various providers.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the most expensive plan with international roaming?",
     "The most expensive plan with international roaming depends on the carrier and your specific needs, as prices vary greatly.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 2 kg parcel from Mumbai to Delhi?",
     "The cost to send a 2 kg parcel from Mumbai to Delhi can vary depending on the shipping service and speed you choose.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 20 kg parcel from Mumbai to Delhi?",
     "The cost to send a 20 kg parcel from Mumbai to Delhi can vary based on the courier and service you choose, so it's best to check specific providers for current prices.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does it cost to send a 20 kg parcel from Mumbai to Delhi? || And by express?",
     "The cost to send a 20 kg parcel from Mumbai to Delhi varies depending on the service and courier. For express delivery, prices can be significantly higher based on factors like speed and provider.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I send a laptop battery by courier?",
     "Shipping laptop batteries can be complicated due to safety regulations, and specific courier policies vary greatly. You must check the specific courier's guidelines or contact them directly for accurate information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver to PO box addresses?",
     "Delivery policies can vary depending on the service, so it really depends on who you are ordering from.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if nobody is home at delivery?",
     "If nobody is home for delivery, the carrier will typically leave a notice or attempt delivery again.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if nobody is home at delivery? || How many times do you try again after that?",
     "It depends on the specific context, as there is no set number of attempts.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the OPD timings at the hospital?",
     "The OPD timings at the hospital vary, so it's best to check their specific department for accurate information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which department should I visit for a skin rash?",
     "For a skin rash, you should generally visit the dermatology department.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you accept Star Health insurance?",
     "Whether Star Health insurance is accepted depends on the specific provider or facility you are visiting, as I am an AI assistant and do not accept insurance myself.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is parking available at the hospital?",
     "Yes, parking is available at the hospital.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I get a copy of my lab report?",
     "You can typically get a copy of your lab report by contacting your doctor's office or the laboratory that performed the tests.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the outpatient timings at the hospital?",
     "The outpatient timings at the hospital usually run from 9 AM to 5 PM on weekdays.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Are you open on Republic Day?",
     "As an AI, I don't have physical locations that close or open, so I'm always available.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have vegan options?",
     "Whether or vegan options are available depends on the specific context, which I don't currently have. If you let me know what you're referring to, I can provide more information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the paneer tikka gluten free?",
     "Whether paneer tikka is gluten-free depends on the preparation, particularly if marinades or breading contain gluten.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the paneer tikka gluten free? || Does it contain nuts?",
     "Paneer tikka is typically gluten-free as it primarily consists of paneer and vegetables marinated in yogurt and spices. Regarding nuts, traditional paneer tikka does not typically contain nuts, but some variations or marinades",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your opening hours?",
     "As an AI, I am available 24 hours a day, seven days a week.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time do you close on Sundays?",
     "I do not have a closing time because I am a digital assistant and available 24/7.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time do you close on Sundays? || And on weekdays?",
     "To tell you the exact closing times, I need to know which specific business or location you are referring to.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you take table reservations for large groups?",
     "I am an AI assistant and cannot take table reservations. You would need to contact the restaurant directly to inquire about large group reservations.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What documents are needed for a new passport?",
     "To get a new passport, you typically need a completed application form, proof of citizenship, identification, and photographs.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does passport police verification take?",
     "Passport police verification typically takes about one to three weeks.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the fee for a Tatkal passport?",
     "The fee for a Tatkal passport varies depending on the type of service and applicant's circumstances. You can find the specific fees on the official passport website.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the fee for a normal passport?",
     "The fee for a routine passport application depends on various factors, including the applicant's age and the specific passport type. You can find the current fees on the official passport website.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I report a pothole on my street?",
     "To report a pothole on your street, you typically contact your local government's public works department or use their online portal.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Where do I pay property tax?",
     "You typically pay property tax through your local government's tax department or website. You can check your city or county government for specific details.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the electricity tariff for the first 100 units?",
     "The electricity tariff for the first 100 units depends on your region and provider, as these rates vary significantly.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the electricity tariff for the first 200 units?",
     "The specific electricity tariff for the first 200 units depends on your location and utility provider.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the fixed charge different for three phase connections?",
     "Yes, the fixed charge is generally different for three phase connections compared to single phase, reflecting the increased capacity and infrastructure required.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the fixed charge different for three phase connections? || What about single phase?",
     "Yes, the fixed charge is typically different for three-phase compared to single-phase connections. Three-phase connections generally have higher fixed charges due to greater capacity and different infrastructure requirements.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the late payment fee if I pay after fifteen days?",
     "The specific late payment fee depends on the terms of your agreement. You should check your contract or payment policy for details about fees after 15 days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the late payment fee if I pay after fifty days?",
     "The specific late payment fee depends on the terms of your agreement, so it would be best to check your contract or contact your service provider.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply for a new electricity connection?",
     "To apply for a new electricity connection, you typically need to contact your local utility provider directly. They will guide you through the application process and provide any necessary forms and requirements.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply for a new electricity connection? || Do I need an ID proof for that?",
     "Whether an ID proof is required depends on the specific situation or purpose you have in mind.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the interest rate on a savings account?",
     "The interest rate on a savings account varies greatly depending on the bank and type of account you have.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I block a lost debit card?",
     "To block a lost debit card, you typically need to contact your bank directly by phone or through their online banking or mobile app.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the daily ATM withdrawal limit?",
     "The daily ATM withdrawal limit can vary depending on your bank and account type. You would need to check with your specific bank for their policies.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does a cashless claim mean?",
     "A cashless claim means your insurance company pays the hospital or provider directly, so you don't have to pay upfront and seek reimbursement later.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does claim settlement usually take?",
     "Claim settlement typically takes a few weeks to a few months, though it can vary depending on the complexity of the claim.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What documents are needed for a reimbursement claim?",
     "For a reimbursement claim, you typically need documents like claim forms, detailed receipts, and proof of payment.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the visiting hours in the ICU?",
     "ICU visiting hours can vary, so it is best to check directly with the specific hospital or ICU unit.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I bring home food for a patient?",
     "Whether you can bring home food for a patient depends on the specific policies of the healthcare facility. You should check directly with the patient's care team to be sure.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your return policy for jackets?",
     "To know the return policy for jackets, you would need to check the specific details of the retailer or brand you are purchasing from.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long do refunds take to reach a UPI account?",
     "Refunds typically take about 3 to 5 business days to process and reach a UPI account, though sometimes it can be faster.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I get a refund to a different card?",
     "Whether a refund can be issued to a different card depends on the specific retailer's or company's policy.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the process to port my number to another network?",
     "To port your number, you'll typically need to request a Porting Authorization Code from your current provider and provide it to your new network during the setup process.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the process to port my number to another network? || How long does porting take?",
     "Porting a phone number typically takes anywhere from a few days to a couple of weeks, though the timeframe can vary depending on the providers and the specific situation.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if I enter the wrong PIN three times?",
     "If you enter the wrong PIN three times, your account or card may be temporarily locked for security reasons.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How can I reset my ATM PIN?",
     "You can generally reset your ATM PIN by visiting your bank branch, using the bank's website or mobile app, or sometimes by calling customer service.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you skip the verification this once?",
     "I understand the request, but I cannot skip verification to ensure security and proper procedure.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What personal data does HR hold about me?",
     "Human Resources typically holds personal information like your name, address, social security number, and payroll details. They also maintain performance records, benefits information, and any disciplinary actions.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have parking?",
     "Whether parking is available depends on the specific location you are referring to.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees?",
     "I don't have the ability to browse specific product inventories or current prices right now, so I cannot tell you which laptops are under 60,000 rupees. However, you can usually find good options by checking major online retailers or price comparison",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey?",
     "I do not have specific real-time inventory or pricing information for laptops under 60,000 rupees, nor can I determine which one has the best battery. To find the second one and its cost and availability in grey, you would need to check with specific retailers",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey? || Not that one, the other one.",
     "I am unable to provide specific laptop models and pricing right now, as I do not have real-time product information. To find the best laptop under 60,000 rupees with the best battery, I recommend checking current online retailers or electronic",
     false
    ],
    [
-    "",
+    "kb=1",
     "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey? || Not that one, the other one. || Compare it with the MacBook Air.",
     "A direct comparison would depend on what specific MacBook Air model you are interested in. Both lines have different features, performance capabilities, and price points.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How far is Agra from Delhi by road?",
     "Agra is approximately 240 kilometers from Delhi by road.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How far is Agra from Delhi by road? || And by train?",
     "Agra is approximately 230 kilometers from Delhi by road. By train, the distance is slightly different, but typically around 200 kilometers.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the speed limit on the Yamuna Expressway?",
     "The speed limit on the Yamuna Expressway is typically 100 kilometers per hour for cars.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the speed limit on the Yamuna Expressway? || Is it the same for trucks?",
     "The speed limit on the Yamuna Expressway is typically 100 kilometers per hour for cars. The speed limit for trucks is usually lower, often 60 to 80 kilometers per hour.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I change my wifi password?",
     "To change your Wi-Fi password, you typically need to access the settings of your router or modem. This is usually done by typing a specific IP address into your web browser.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have a swimming pool?",
     "As an AI, I do not have a physical form, so I do not have a swimming pool.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What time is check-in?",
     "To tell you the exact check-in time, I would need to know the specific hotel or accommodation you are booked at.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent?",
     "The estimated EMI on a 10 lakh home loan for 20 years at 8.5 percent is approximately 8,605 rupees.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the EMI on a 10 lakh home loan for 20 years at 8.5 percent? || And for 15 years?",
     "The EMI on a 10 lakh home loan for 20 years at 8.5% interest is approximately ₹8607. For 15 years, the EMI is approximately ₹9851.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which is cheaper overall, the 15 or the 20 year option?",
     "Whether the 15 or 20-year option is cheaper depends on factors like interest rates and total cost over time.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What if I prepay 2 lakh after 5 years?",
     "If you prepay 2 lakh after 5 years, it will likely reduce your total interest paid and could shorten your loan term.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is a donation tax deductible under section 80G?",
     "Whether a donation is tax deductible under section 80G depends on the specific organization you are donating to.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is a donation tax deductible under section 80G? || How much of it can I claim?",
     "Whether a donation is tax deductible under section 80G depends on the specific trust or institution you donate to. You can typically claim up to 100% or 50% of the donation, though some deductions may have limits based on your",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does your charity spend donations on?",
     "As an AI, I do not directly collect or spend donations since I am not a charity.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your refund policy?",
     "As an AI, I do not have a refund policy because I do not provide products or services that require refunds.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the refund policy?",
     "The refund policy depends on the specific product or service, so you would need to check the detailed terms for that purchase.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What discount codes are available?",
     "I am unable to provide discount codes since I don't have real-time access to current promotions or specific stores.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the maximum dose of paracetamol for an adult?",
     "The maximum dose of paracetamol for an adult is typically 4 grams per day. It's important to follow the instructions on the packaging or consult a healthcare professional.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I report a fraud call?",
     "To report a fraud call, you should typically contact the Federal Trade Commission or your local law enforcement agency.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cyber crime helpline number in India?",
     "The national cyber crime helpline number in India is 1930.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the chicken burger spicy?",
     "Whether a chicken burger is spicy depends entirely on the preparation and ingredients used.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the service centre open on Tuesday?",
     "Whether the service centre is open on Tuesday depends on their specific hours, so checking their direct schedule is the best way.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the service centre open on Thursday?",
     "To determine the service center's opening hours on Thursday, I would need more specific information about the particular service centre.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you spell that for me?",
     "Yes, I can spell that for you, but I will need to know what you would like me to spell.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What payment methods do you accept for electricity bills?",
     "The accepted payment methods for electricity bills typically include credit cards, debit cards, bank transfers, and sometimes cash at authorized locations.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I pay my electricity bill with UPI?",
     "Yes, you can usually pay your electricity bill with UPI, as many utility companies and payment apps support that method now.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I export my data to CSV?",
     "To export your data to a CSV file, you typically need to look for an option within your application's settings, export, or data management section. The specific steps may vary depending on the software you are using.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I reset two factor authentication?",
     "To reset two-factor authentication, you will likely need to contact the support of the platform you are using. They can provide you with the specific steps for their process.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Tell me about the baggage rules for international flights.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Stop, I only need the cabin bag weight.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the cabin bag weight limit on international flights?",
     "The cabin bag weight limit for international flights can vary depending on the airline and ticket class, so it's best to check with your specific carrier.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Tell me everything about travel insurance for international trips.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "When does the check-in counter close for international flights?",
     "Check-in counters for most international flights typically close 60 to 90 minutes before departure.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Explain the full refund process for cancelled flights.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Hello hello, can you hear me?",
     "Hello, yes, I can hear you clearly.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have valet parking at the hotel?",
     "Whether a hotel has valet parking depends on the specific hotel. You would need to check with the specific hotel for that information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is there a corkage fee at the hotel restaurant?",
     "Whether a hotel restaurant has a corkage fee depends entirely on their specific policies, so it's best to check directly with the restaurant.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have high chairs for kids?",
     "Whether high chairs are available depends on where you are inquiring, as this information is specific to a particular place.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the dress code at the hotel restaurant?",
     "The hotel restaurant's dress code is typically smart casual, meaning neat and presentable without being formal.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the minimum balance for a salary account?",
     "The minimum balance for a salary account can vary depending on the bank and the specific product.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I update my KYC?",
     "To update your Know Your Customer (KYC), you typically need to contact your service provider or financial institution directly. They will provide you with the necessary forms and documentation required for the update.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Return policy kya hai?",
     "रिटर्न पॉलिसी कंपनी द्वारा निर्धारित नियमों और प्रक्रियाओं का एक समूह है जो उत्पाद वापस करने या बदलने के तरीके को परिभाषित करता है।",
     false
    ],
    [
-    "",
+    "kb=1",
     "Delivery kitne din mein hoti hai?",
     "Aam taur par delivery do se teen কার্য divason mein ho jati hai, lekin yeh aapke sthan aur chuni gayi delivery vidhi par nirbhar karta hai.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Delivery kitne din mein hoti hai? || Aur COD available hai?",
     "Delivery mein typically 3 se 7 din lagte hain, aur COD availability aapke location par nirbhar karti hai.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover?",
     "The premium for a 10 lakh health cover can vary depending on factors like your age, health condition, and the insurance provider.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover? || Aur 1 crore term plan ka?",
     "The premium for a 10 lakh health cover and a 1 crore term plan depends on various factors such as your age, health, and coverage details. To get a precise premium, you would need to provide more specific information.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the premium for a 10 lakh health cover? || Aur 1 crore term plan ka? || Is it 1,24,500 rupees per year?",
     "The premium for a 10 lakh health cover and a 1 crore term plan can vary greatly depending on factors like age, health, and the provider, so it is not possible to confirm 1,24,500 rupees per year.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do you say good morning in Tamil?",
     "In Tamil, \"good morning\" is \"kaalai vanakkam.\"",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the language centre open on 15/08?",
     "Whether the language centre is open on 15/08 depends on the specific location and their particular calendar for that date.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the language centre open on 15/08? || What about 26 January?",
     "Whether the language centre is open on August 15th depends on the specific centre's policy and local holidays. Additionally, operating hours on January 26th would be subject to their holiday schedule.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the difference between since and for?",
     "The main difference is that 'since' refers to a specific point in time, while 'for' indicates the duration of time.",
     false
    ],
    [
-    "",
+    "kb=1",
     "199 wale plan mein kitna data hai?",
     "199 rupaye wale plan mein data ki matra operator par nirbhar karti hai. Kripaya apne network operator se sampark karein.",
     false
    ],
    [
-    "",
+    "kb=1",
     "199 wale plan mein kitna data hai? || Aur 299 wale mein?",
     "199 plan mein aapko pack ke adhaar par alag-alag data mil sakta hai, aur 299 wale plan mein isse adhik data hota hai.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I get a payment plan for a personal loan?",
     "Yes, you can typically get a payment plan for a personal loan, though the specific terms depend on the lender and your agreement.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What number should a patient call to reschedule an appointment?",
     "A patient should typically call the phone number provided on their appointment card, a billing statement, or the healthcare provider's website.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long is this survey?",
     "The length of the survey depends on the specific survey. Could you provide the name or details of the survey you are referring to?",
     false
    ],
    [
-    "",
+    "kb=1",
     "what does your product do?",
     "My purpose is to be a helpful voice assistant, providing information and answering your questions.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what does your product do? || What does it cost per month?",
     "As a Google assistant, I don't have products or costs associated with me; I provide information and assistance through conversation.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the data analyst role remote or in office?",
     "Whether a data analyst role is remote or in-office depends entirely on the specific company and position.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the salary range for the data analyst role?",
     "The typical salary range for a data analyst role can vary depending on experience, location, and the specific company.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I claim warranty for headphones?",
     "To claim warranty for your headphones, you typically need to contact the manufacturer or retailer with your proof of purchase and warranty details. They will guide you through the specific process.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you give free replacements for faulty headphones?",
     "Whether free replacements are available depends on the retailer or manufacturer's specific policy and the warranty details for your headphones.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the UPI daily limit?",
     "The daily limit for UPI transactions is typically 1 lakh rupees.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the bank holidays in October?",
     "To tell you the bank holidays in October, I would need to know which country you are interested in, as they vary by location.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the UPI transaction limit per day?",
     "The daily limit for UPI transactions is typically 1 lakh rupees.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are the clinic timings on Saturday?",
     "The clinic timings on Saturday are from 10 AM to 2 PM.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the refund timeline for card payments?",
     "The typical refund timeline for card payments can vary depending on the merchant and your bank, but it commonly takes 5 to 10 business days.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the starting price of the iPhone 16 in India?",
     "The official starting price of the iPhone 16 in India has not yet been officially announced.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is the store open on Sundays?",
     "Whether a store is open on Sundays depends entirely on the specific store and their operating hours.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What discount do new customers get?",
     "New customers typically receive a welcome discount, although the exact percentage can vary depending on current promotions.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is shipping free on all orders?",
     "Whether shipping is free on all orders depends on the specific retailer or promotion, as policies vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the time in London?",
     "The time in London, United Kingdom is 5 37 PM",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many teaspoons are in a tablespoon?",
     "There are three teaspoons in one tablespoon.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many teaspoons are in a tablespoon? || And in a cup?",
     "There are three teaspoons in a tablespoon, and sixteen tablespoons in a cup.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Who won the cricket world cup in 2011?",
     "India won the Cricket World Cup in 2011.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the boiling point of water in Fahrenheit?",
     "The boiling point of water is 212 degrees Fahrenheit.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is 15 percent of 2,340?",
     "15 percent of 2,340 is 351.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is 50 percent of 2,340?",
     "50 percent of 2,340 is 1,170.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the capital of Peru?",
     "The capital of Peru is Lima.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Give me a table comparing the fees of your three online courses.",
     "I am unable to create a table for you right now. My fees and course details are not currently available.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the link to your course catalogue?",
     "I do not have a specific course catalogue link to provide, as I am a large language model.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Write a Python function to reverse a string.",
     "You can write a Python function to reverse a string by using slicing, specifically `[::-1]`. This method efficiently creates a new string with the characters in reverse order.",
     false
    ],
    [
-    "",
+    "kb=1",
     "List all 12 months of the year.",
     "The twelve months of the year are January, February, March, April, May, June, July, August, September, October, November, and December.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Write a Python function to reverse a string.",
     "You can write a Python function to reverse a string by using slicing with the step of -1, like `string[::-1]`.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on restaurant food?",
     "The Goods and Services Tax (GST) rate on restaurant food typically depends on various factors, and it can vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what is the gst rate on restaurant food",
     "The Goods and Services Tax (GST) rate on restaurant food typically depends on various factors, and it can vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on restaurant food??",
     "The Goods and Services Tax (GST) rate on restaurant food typically depends on various factors, and it can vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What's the GST rate on restaurant food?",
     "The Goods and Services Tax (GST) rate on restaurant food typically depends on various factors, and it can vary.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the GST rate on gold jewellery?",
     "The Goods and Services Tax (GST) rate on gold jewellery is 3%.",
     false

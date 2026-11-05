@@ -52,7 +52,7 @@ async function save(store, options = {}) {
 test("every lookup and save carries the version with an understander", async () => {
   const store = new SegmentedStore();
   await save(store, { classifier: new WordRuleClassifier() });
-  assert.deepStrictEqual([...new Set(store.sent)].sort(), ["get kb=1;channel=voice", "set kb=1;channel=voice"]);
+  assert.deepStrictEqual([...new Set(store.sent)].sort(), ["get kb=1", "set kb=1"]);
 });
 
 test("a new version does not meet the old answers", async () => {
@@ -64,27 +64,28 @@ test("a new version does not meet the old answers", async () => {
   assert.strictEqual((await newer.decide("what are your opening hours on sunday")).action, "infer");
 });
 
-test("must still work: without an understander no segment is sent", async () => {
+test("the same segment without an understander", async () => {
   const store = new SegmentedStore();
   await save(store);
-  assert.deepStrictEqual([...new Set(store.sent)].sort(), ["get null", "set null"]);
+  assert.deepStrictEqual([...new Set(store.sent)].sort(), ["get kb=1", "set kb=1"]);
 });
 
-test("the segment names the channel and cannot be broken", () => {
-  assert.strictEqual(new KnowledgeSegment("2", REALTIME).segment, "kb=2;channel=realtime");
-  assert.strictEqual(new KnowledgeSegment("v1;x=y", VOICE).segment, "kb=v1_x_y;channel=voice");
+test("voice and chat share one pool in both modes", async () => {
+  for (const options of [{}, { classifier: new WordRuleClassifier() }]) {
+    const store = new SegmentedStore();
+    const voice = sessionOn(store, options);
+    await voice.record(await voice.decide("what are your opening hours on sunday"), "We open at 10 on Sundays.");
+    const chat = sessionOn(store, { channel: "chat", ...options });
+    assert.strictEqual((await chat.decide("what are your opening hours on sunday")).action, "serve");
+  }
 });
 
-// Full segments differ by lang= and told= (voice has neither); kb= and channel= and the key do not.
+test("the segment cannot be broken", () => {
+  assert.strictEqual(new KnowledgeSegment("2").segment, "kb=2");
+  assert.strictEqual(new KnowledgeSegment("v1;x=y").segment, "kb=v1_x_y");
+});
+
 const QUESTION = "what are your opening hours on sunday";
-
-test("voice and chat share one key builder: the same question gets the same key and segment fields", () => {
-  const session = sessionOn(new SegmentedStore(), { classifier: new WordRuleClassifier() });
-  const chat = new RuleChecker({ channel: "voice" });
-  assert.strictEqual(session._call.contextKey(QUESTION, QUESTION), chat.buildKey(QUESTION, {}));
-  const chatFields = chat.buildSegment({}, "en").split(";").filter((f) => !f.startsWith("lang="));
-  assert.deepStrictEqual(session._segment.split(";"), chatFields);
-});
 
 test("must still work: voice with stated facts does not share", async () => {
   const session = sessionOn(new SegmentedStore(), { classifier: new WordRuleClassifier() });

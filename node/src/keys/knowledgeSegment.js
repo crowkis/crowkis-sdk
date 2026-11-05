@@ -74,19 +74,17 @@ function told(frame, state, question) {
 }
 
 /**
- * `kb=<version>;channel=<name>`: answers made with one understanding (its prompt, its model) and
- * knowledge version only ever meet each other, so switching understanders, or the knowledge behind the
- * answers, is a deliberate new version, never a silent mix. Chat builds the same fields in its own,
- * longer segment (RuleChecker.buildSegment).
+ * `kb=<version>`: one pool per tenant. Answers made with one knowledge version only ever meet each
+ * other, so changing the knowledge behind the answers is a deliberate new version, never a silent
+ * mix. Voice and chat, with or without an understander, share it.
  */
 class KnowledgeSegment {
-  constructor(version, channel) {
+  constructor(version) {
     this.version = String(version).trim().replace(FIELD_BREAKERS, "_") || "1";
-    this.channel = channel;
   }
 
   get segment() {
-    return segment([["kb", this.version], ["channel", this.channel.name]]);
+    return segment([["kb", this.version]]);
   }
 }
 

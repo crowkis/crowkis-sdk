@@ -38,14 +38,14 @@ class GoldenStore:
     shapes apart, with the flags the server's decision engine sets. ``engine``: whether that
     engine is on. ``down``: every lookup and write fails, as an unreachable server."""
 
-    def __init__(self, seed: List[Dict], aliases: Dict[str, str], engine: bool = False) -> None:
+    def __init__(self, seed: List[Dict], aliases: Dict[str, str], engine: bool = False, pool: str = "") -> None:
         self.down = False
         self.engine = engine
         self.aliases = dict(aliases)
         self.answers: Dict[Tuple[str, str, bool], Dict] = {}
         self.writes: List[list] = []
         for entry in seed:
-            self.answers[("", entry["question"], bool(entry.get("template")))] = entry
+            self.answers[(pool, entry["question"], bool(entry.get("template")))] = entry
 
     def cget_hit(self, query: str, **kwargs: Any) -> Optional[CacheHit]:
         self._fail_if_down()
@@ -100,6 +100,7 @@ class VoiceReplay:
     (as a tool's result, or after the caller talked over it, when the turn says so)."""
 
     pipeline = "voice"
+    pool = "kb=1"  # where the seeded answers live: the one pool per tenant
 
     def call(self, store: GoldenStore, call: Dict) -> Dict:
         session = VoiceSession(Agent(AGENT_ID, client=store), voice="v", **call.get("options", {}))
@@ -127,6 +128,7 @@ class ChatReplay:
     (after the caller talked over it, when the turn says so)."""
 
     pipeline = "chat"
+    pool = ""
 
     def call(self, store: GoldenStore, call: Dict) -> Dict:
         session = CallSession(Agent(AGENT_ID, client=store), ScriptedUnderstander(INPUTS["frames"]),
@@ -167,7 +169,7 @@ def replay(pipeline: Any, calls: List[Dict]) -> Dict:
     for call in calls:
         group = call.get("store", SUITE_STORE)
         if group not in stores:
-            stores[group] = GoldenStore(call.get("seed", []), call.get("aliases", {}), bool(call.get("engine")))
+            stores[group] = GoldenStore(call.get("seed", []), call.get("aliases", {}), bool(call.get("engine")), pipeline.pool)
         store = stores[group]
         store.down = bool(call.get("down"))
         decisions[call["id"]] = pipeline.call(store, call)

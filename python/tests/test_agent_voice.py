@@ -51,7 +51,7 @@ class FakeClient:
         self.calls.append(("cget_hit", query, kwargs.get("tenant")))
         return self.hit
 
-    def cset(self, query, response, *, ttl=None, tenant=None, template=False):
+    def cset(self, query, response, *, ttl=None, tenant=None, template=False, segment=None):
         self.calls.append(("cset", query, response, ttl, tenant, template))
         self.entries[query] = response
 
@@ -80,7 +80,7 @@ class ScopedFakeClient:
             response = response.encode()
         return _hit(self.confidence, response=response)
 
-    def cset(self, query, response, *, ttl=None, tenant=None, template=False):
+    def cset(self, query, response, *, ttl=None, tenant=None, template=False, segment=None):
         self.writes.append(
             {
                 "query": query,

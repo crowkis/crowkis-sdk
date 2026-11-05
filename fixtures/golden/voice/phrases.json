@@ -10875,409 +10875,409 @@
  "writes": {
   "suite": [
    [
-    "",
+    "kb=1",
     "How long does shipping take?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your refund policy?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I reset my password?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I return an item?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I make a return?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What payment methods do you accept?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does the warranty cover?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you ship internationally?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you ship to Canada?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I track my order?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I change the address on my account?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is there a student discount?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What do premium members get?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your support hours?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you explain the refund policy for me?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "I want to know your return policy.",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I cancel a subscription?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the process to cancel an order?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I update my billing address?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Which plan is most popular?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the difference between the monthly and annual plan?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Are you a bot?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if I miss a payment?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply a coupon?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many days do I have to return an item?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you deliver on weekends?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your store hours on Sundays?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you offer cash on delivery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is there a warranty on laptops?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your exchange policy for damaged products?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I contact customer support?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I pay with UPI?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the shipping cost for express delivery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I change my delivery address?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the return window for electronics?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you offer EMI on laptops?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I pay cash on delivery?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I apply a discount code?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What happens if my package is lost?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is there a fee for returns?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you have a loyalty program?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I create an account?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How long does a replacement take?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you ship to Australia?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is your exchange policy?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I contact customer care?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I cancel an order after it ships?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What does express delivery cost?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do gift cards expire?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I check my order status?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What are your customer support hours?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is international shipping free?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I return a gift?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I unsubscribe from emails?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What is the warranty on headphones?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do you price match?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How many items can I return at once?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can I change my order after placing it?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Do I have to pay for return shipping?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How do I track a return?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "What should I do if I receive a damaged product?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Can you tell me about your premium plan?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "How does the referral program work?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Is cash on delivery available everywhere?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Where are your stores located?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "how long does delivery take?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "what is the refund policy?",
     "Here is the answer.",
     false
    ],
    [
-    "",
+    "kb=1",
     "Thanks, and how do I return an item?",
     "Here is the answer.",
     false

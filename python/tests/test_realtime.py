@@ -39,7 +39,7 @@ class FakeClient:
             hit_type="semantic",
         )
 
-    def cset(self, query, response, *, ttl=None, tenant=None, template=False):
+    def cset(self, query, response, *, ttl=None, tenant=None, template=False, segment=None):
         self.writes.append(query)
         self.shared[query] = response
 

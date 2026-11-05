@@ -69,15 +69,13 @@ def told(frame: TurnFrame, state: CallState, question: str) -> Optional[str]:
 
 
 class KnowledgeSegment:
-    """``kb=<version>;channel=<name>``: answers made with one understanding (its prompt, its model) and
-    knowledge version only ever meet each other, so switching understanders, or the knowledge behind
-    the answers, is a deliberate new version, never a silent mix. Chat builds the same fields in its
-    own, longer segment (RuleChecker.build_segment)."""
+    """``kb=<version>``: one pool per tenant. Answers made with one knowledge version only ever meet
+    each other, so changing the knowledge behind the answers is a deliberate new version, never a
+    silent mix. Voice and chat, with or without an understander, share it."""
 
-    def __init__(self, version: str, channel: "Channel") -> None:
+    def __init__(self, version: str) -> None:
         self.version = _FIELD_BREAKERS.sub("_", str(version).strip()) or "1"
-        self.channel = channel
 
     @property
     def segment(self) -> str:
-        return segment([("kb", self.version), ("channel", self.channel.name)])
+        return segment([("kb", self.version)])

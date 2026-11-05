@@ -279,10 +279,8 @@ class VoiceSession:
         self.bytes_per_second = bytes_per_second
         # What the channel can do, as the rules read it (a voice call unless a factory says otherwise).
         self.channel = Channel.of(channel)
-        # With an understander, answers live in kb=<version>;channel=<name>: switching understanders or
-        # knowledge is a deliberate new version (P5). Without one, no segment, as before.
-        understood = classifier is not None or rewriter is not None
-        self._segment = KnowledgeSegment(knowledge_version, self.channel).segment if understood else None
+        # One pool per tenant: every channel, with or without an understander, lives in kb=<version>.
+        self._segment = KnowledgeSegment(knowledge_version).segment
         self._reported: Dict[str, int] = {}
         self.serve_above = serve_above
         self.min_words = min_words

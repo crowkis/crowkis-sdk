@@ -197,7 +197,7 @@ class SceneStore:
         return CacheHit(response=found.encode(), similarity=0.99, ttl_remaining=600,
                         matched_key=b"k", confidence=0.99, hit_type="semantic")
 
-    def cset(self, query, response, *, ttl=None, tenant=None, template=False):
+    def cset(self, query, response, *, ttl=None, tenant=None, template=False, segment=None):
         self.writes.append([query, response, bool(template)])
         if not template:
             self.shared[query] = response

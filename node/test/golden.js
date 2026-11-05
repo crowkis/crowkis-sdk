@@ -37,13 +37,13 @@ const VOICE_OPTION_NAMES = { short_turns: "shortTurns", share_templates: "shareT
 // the flags the server's decision engine sets. `engine`: whether that engine is on. `down`: every
 // lookup and write fails, as an unreachable server.
 class GoldenStore {
-  constructor(seed, aliases, engine = false) {
+  constructor(seed, aliases, engine = false, pool = "") {
     this.down = false;
     this.engine = engine;
     this.aliases = new Map(Object.entries(aliases));
     this.answers = new Map();
     this.writes = [];
-    for (const entry of seed) this.answers.set(GoldenStore._key("", entry.question, entry.template), entry);
+    for (const entry of seed) this.answers.set(GoldenStore._key(pool, entry.question, entry.template), entry);
   }
 
   async cgetHit(query, options = {}) {
@@ -121,6 +121,11 @@ class VoiceReplay {
     return "voice";
   }
 
+  // Where the seeded answers live: the one pool per tenant.
+  get pool() {
+    return "kb=1";
+  }
+
   async call(store, call) {
     const options = { voice: "v", ...voiceOptions(call.options) };
     const session = new VoiceSession(new Agent(AGENT_ID, { client: store }), options);
@@ -153,6 +158,10 @@ class VoiceReplay {
 class ChatReplay {
   get pipeline() {
     return "chat";
+  }
+
+  get pool() {
+    return "";
   }
 
   async call(store, call) {
@@ -198,7 +207,7 @@ async function replay(pipeline, calls) {
   const decisions = {};
   for (const call of calls) {
     const group = call.store || SUITE_STORE;
-    if (!stores.has(group)) stores.set(group, new GoldenStore(call.seed || [], call.aliases || {}, Boolean(call.engine)));
+    if (!stores.has(group)) stores.set(group, new GoldenStore(call.seed || [], call.aliases || {}, Boolean(call.engine), pipeline.pool));
     const store = stores.get(group);
     store.down = Boolean(call.down);
     decisions[call.id] = await pipeline.call(store, call);

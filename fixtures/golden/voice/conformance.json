@@ -828,19 +828,19 @@
  "writes": {
   "Unicode, Hinglish and numbers": [
    [
-    "",
+    "kb=1",
     "refund kitne din mein milta hai",
     "Paanch din mein milta hai.",
     false
    ],
    [
-    "",
+    "kb=1",
     "¿cuál es el horario de atención de la tienda?",
     "Abrimos de 9 a 18 h, de lunes a sábado.",
     false
    ],
    [
-    "",
+    "kb=1",
     "do you ship orders of 2,500 units or more",
     "Yes, orders of 2,500 units ship free.",
     false
@@ -848,7 +848,7 @@
   ],
   "a barge-in mid-answer is never recorded and never served": [
    [
-    "",
+    "kb=1",
     "how do I reset my password",
     "Go to settings and choose security.",
     false
@@ -856,7 +856,7 @@
   ],
   "a miss streams and is recorded; the next caller hits without the LLM, then without the TTS": [
    [
-    "",
+    "kb=1",
     "what is your refund policy",
     "Refunds take five business days.",
     false
@@ -865,7 +865,7 @@
   "a private turn is never shared with a second caller": [],
   "a reworded question hits": [
    [
-    "",
+    "kb=1",
     "how do I turn on dark mode",
     "Open settings and pick a theme.",
     false
@@ -874,7 +874,7 @@
   "a tool-call turn is never cached": [],
   "an audio cache error: the cached text is still served": [
    [
-    "",
+    "kb=1",
     "what is your refund policy",
     "Refunds take five business days.",
     false

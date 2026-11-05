@@ -31,7 +31,7 @@ const ELLIPSIS_LEADS = new Set([
 // Shapes that borrow their subject from the previous turn.
 const FOLLOW_UP_PHRASES = [
   ["as", "you", "said"], ["same", "for"], ["the", "same"], ["what", "else"], ["anything", "else"], ["tell", "me", "more"],
-  ["which", "one"], ["instead"],
+  ["which", "one"], ["instead"], ["what", "next"],
 ];
 const FOLLOW_UP_PHRASES_BY_FIRST = firstWords(FOLLOW_UP_PHRASES);
 const FOLLOW_UP_ENDINGS = new Set(["too", "also", "instead", "again"]);
@@ -61,6 +61,18 @@ const PERSON_PRONOUNS = new Set(["he", "she", "him", "her", "his", "hers"]);
 
 // "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
 const PREPOSITIONS = new Set(["for", "about", "on", "with", "of", "from", "to"]);
+
+// "Do I need an ID proof for that?": a "that" / "this" that ends the turn after one of these points back.
+const ENDING_DEMONSTRATIVES = new Set(["that", "this"]);
+const ENDING_LEADS = new Set([...PREPOSITIONS, "after", "before"]);
+
+// "Compare it with the MacBook Air": a turn that opens with one of these verbs and then "it".
+const OPENING_VERBS = new Set(
+  "compare explain cancel change upgrade track check show send fix repeat describe return pay renew activate".split(" "),
+);
+
+// "Yes, who is this?": a bare "yes" / "no" and a comma answers the bot's own question.
+const ANSWER_OPENER = /^\s*(yes|no)\s*,/i;
 
 // "can i pay it": an "it" that is the object of a verb the caller's own "i" / "we" governs points back.
 // Only after "can" / "could": "should i restart it" and "how do i return it" stay as they were.
@@ -107,6 +119,8 @@ function hasBareAnaphor(words) {
       continue;
     }
     if (word === "it" && pointsForward(words, index)) continue;
+    if (word === "it" && index === 1 && OPENING_VERBS.has(words[0])) return true;
+    if (ENDING_DEMONSTRATIVES.has(word) && index === words.length - 1 && index && ENDING_LEADS.has(words[index - 1])) return true;
     if (!hasAntecedent(words.slice(0, index))) return true;
     if ((PERSON_PRONOUNS.has(word) || (word === "it" && index && PREPOSITIONS.has(words[index - 1]))) && !hasClauseAntecedent(words.slice(0, index))) return true;
     if (word === "it" && index > 2 && CAN_I.has(words[index - 3]) && FIRST_PERSON_SUBJECTS.has(words[index - 2]) && !hasClauseAntecedent(words.slice(0, index))) return true;
@@ -122,6 +136,11 @@ function isContextDependent(text) {
   const words = wordsOf(text);
   if (!words.length) return false;
   if (CONNECTIVES.has(words[0])) return true;
+  const opener = ANSWER_OPENER.exec(String(text));
+  if (opener) {
+    const rest = String(text).slice(opener[0].length);
+    if (!asks(rest) || isContextDependent(rest)) return true; // "Yes, what are your hours?" stays shareable
+  }
   if (CONNECTIVE_PAIRS.has(words.slice(0, 2).join(" "))) return true;
   if (ELLIPSIS_LEADS.has(words[0]) && !words.slice(1).some((w) => CLAUSE_MARKERS.has(w))) {
     return true;

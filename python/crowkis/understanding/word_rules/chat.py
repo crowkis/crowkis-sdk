@@ -93,9 +93,10 @@ _CALENDAR = frozenset("january february march april may june july august septemb
 _ANSWER_EMAIL = re.compile(r"\S+@\S+")
 _ANSWER_LONG_DIGITS = re.compile(r"\d(?:[\s-]?\d){5,}")
 _ACTION_CLAIM = re.compile(
-    r"\b(i\s*(have|'ve)|i\s+just|we\s*(have|'ve))\s+(cancel+ed|booked|refunded|processed|changed|updated|"
+    r"\b(i\s*(have|['’]ve)|i\s+just|we\s*(have|['’]ve))\s+(cancel+ed|booked|refunded|processed|changed|updated|"
     r"reset|sent|placed|scheduled|reserved|blocked|deleted|removed|added|issued)\b"
-    r"|\b(has|have)\s+been\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted)\b", re.I)
+    r"|\bi(\s+will|['’]ll)\s+(add|cancel|book|send|schedule|reserve|place|remind|order)\b"
+    r"|\b(has|have)\s+been\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted|added)\b", re.I)
 
 
 # Phrases a name follows ("my name is sarah", "call me raj", "this is priya"). "I'm" is not

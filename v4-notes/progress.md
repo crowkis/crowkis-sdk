@@ -574,3 +574,9 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 - Notes: `v4-notes/f6-results.md`. Server `crowkis:0.5.2-dce94b4` (container removed, image kept). The script plays only the 33 `groq: true` calls; the owner asked for the 40 others too, via a new `--all-calls` flag.
 - 33 calls: voice saved 55, v4 (250 ms) 54; 0 cross-caller leaks; v4 decide p95 292 ms. 40 extra calls: voice 125, v4 118; 0 leaks; v4 p95 321 ms. v4 inline not run (spend 1.59 of 2.00).
 - New finding F6-1 (context-dependent follow-ups saved shared, voice and v4). Nothing pushed.
+
+## F7 (2026-11-05): the three F6 rule gaps - done
+
+- F6-1 follow-ups (that/this after a preposition, "Compare it ...", "what next"), F6-2 "Yes, who is this?" (a "yes,"/"no," opener whose rest asks nothing or is itself a follow-up), F6-3 VoiceActionClaim in `RuleSet.voice()` plus `_ACTION_CLAIM` also matching "I will / I'll" + action verb, curly apostrophes and "has been added". Python and Node; commit F7HASH.
+- Golden: 3 voice files changed, listed in `v4-notes/f7-golden-changes.md`. Two old tests asserted the pre-fix default and were updated (`test_rule_chain`, `test_merged_save_check` / `mergedSaveCheck`).
+- Suites: Python 919 passed x2, Node 69/69 x2, Pipecat venv and LiveKit JS green (the Pipecat venv was gutted by a scratch cleanup and rebuilt). Opus review: 2 must-fix (yes/no opener too wide: narrowed; action gap in answer wording: logged as F7-1), notes in the golden doc. Nothing pushed.

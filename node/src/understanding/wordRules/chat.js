@@ -82,9 +82,10 @@ const TOLD_TYPES = new Set(["condition"]);
 const ANSWER_EMAIL = /\S+@\S+/;
 const ANSWER_LONG_DIGITS = /\d(?:[\s-]?\d){5,}/;
 const ACTION_CLAIM = new RegExp(
-  "\\b(i\\s*(have|'ve)|i\\s+just|we\\s*(have|'ve))\\s+(cancel+ed|booked|refunded|processed|changed|updated|" +
+  "\\b(i\\s*(have|['’]ve)|i\\s+just|we\\s*(have|['’]ve))\\s+(cancel+ed|booked|refunded|processed|changed|updated|" +
   "reset|sent|placed|scheduled|reserved|blocked|deleted|removed|added|issued)\\b" +
-  "|\\b(has|have)\\s+been\\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted)\\b", "i");
+  "|\\bi(\\s+will|['’]ll)\\s+(add|cancel|book|send|schedule|reserve|place|remind|order)\\b" +
+  "|\\b(has|have)\\s+been\\s+(cancel+ed|booked|refunded|processed|reserved|blocked|deleted|added)\\b", "i");
 
 // What a chat turn tells and gives away: the names in it, the details the user told, its private
 // words, and a reply masked before it is kept. Moved unchanged from session.js in v4 P3.

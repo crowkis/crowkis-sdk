@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import List
 
 from .text import (
@@ -36,7 +37,7 @@ _ELLIPSIS_LEADS = frozenset(
 # Shapes that borrow their subject from the previous turn.
 _FOLLOW_UP_PHRASES = (
     ("as", "you", "said"), ("same", "for"), ("the", "same"), ("what", "else"), ("anything", "else"), ("tell", "me", "more"),
-    ("which", "one"), ("instead",),
+    ("which", "one"), ("instead",), ("what", "next"),
 )
 
 
@@ -76,6 +77,18 @@ _PERSON_PRONOUNS = frozenset({"he", "she", "him", "her", "his", "hers"})
 
 # "fast for it": an "it" after a preposition points at an earlier topic; "return it" stays as it was.
 _PREPOSITIONS = frozenset({"for", "about", "on", "with", "of", "from", "to"})
+
+# "Do I need an ID proof for that?": a "that" / "this" that ends the turn after one of these points back.
+_ENDING_DEMONSTRATIVES = frozenset({"that", "this"})
+_ENDING_LEADS = _PREPOSITIONS | {"after", "before"}
+
+# "Compare it with the MacBook Air": a turn that opens with one of these verbs and then "it".
+_OPENING_VERBS = frozenset(
+    "compare explain cancel change upgrade track check show send fix repeat describe return pay renew activate".split()
+)
+
+# "Yes, who is this?": a bare "yes" / "no" and a comma answers the bot's own question.
+_ANSWER_OPENER = re.compile(r"\s*(yes|no)\s*,", re.I)
 
 # "can i pay it": an "it" that is the object of a verb the caller's own "i" / "we" governs points back.
 # Only after "can" / "could": "should i restart it" and "how do i return it" stay as they were.
@@ -120,6 +133,10 @@ def _has_bare_anaphor(words: List[str]) -> bool:
             continue
         if word == "it" and _points_forward(words, index):
             continue
+        if word == "it" and index == 1 and words[0] in _OPENING_VERBS:
+            return True
+        if word in _ENDING_DEMONSTRATIVES and index == len(words) - 1 and index and words[index - 1] in _ENDING_LEADS:
+            return True
         if not _has_antecedent(words[:index]):
             return True
         if (word in _PERSON_PRONOUNS or (word == "it" and index and words[index - 1] in _PREPOSITIONS)) and not _has_clause_antecedent(words[:index]):
@@ -140,6 +157,9 @@ def _is_context_dependent(text: str) -> bool:
         return False
     if words[0] in _CONNECTIVES:
         return True
+    opener = _ANSWER_OPENER.match(text)
+    if opener and (not _asks(text[opener.end():]) or _is_context_dependent(text[opener.end():])):
+        return True  # "Yes, what are your hours?" asks a question of its own and stays shareable
     if " ".join(words[:2]) in _CONNECTIVE_PAIRS:
         return True
     if words[0] in _ELLIPSIS_LEADS and not any(w in _CLAUSE_MARKERS for w in words[1:]):

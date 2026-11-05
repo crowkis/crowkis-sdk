@@ -49,7 +49,7 @@ class RuleSet {
       beforeSharing: new RuleChain([new NoKey(), new ToolResult(), new PromptCallerDetails()]),
       personal: new PersonalTemplate(),
       sharing: new RuleChain([new TaintedCall(), new NotShareable(), new DeclaredValue(), new CallerIdentifier(),
-        new NonAnswer()]),
+        new VoiceActionClaim(), new NonAnswer()]),
     });
   }
 

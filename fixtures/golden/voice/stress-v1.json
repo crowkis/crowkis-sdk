@@ -633,6 +633,7 @@
      "save_rule": null,
      "say": "How many times do you try again after that?",
      "sees": [
+      "user: What happens if nobody is home at delivery?",
       "user: How many times do you try again after that?"
      ],
      "stored": true
@@ -1156,6 +1157,7 @@
      "save_rule": null,
      "say": "Do I need an ID proof for that?",
      "sees": [
+      "user: How do I apply for a new electricity connection?",
       "user: Do I need an ID proof for that?"
      ],
      "stored": true
@@ -2524,7 +2526,9 @@
     "refused_to_share_a_private_answer": 0,
     "refused_too_short": 1,
     "rules": {
-     "ConfidenceBar": 8,
+     "ConfidenceBar": 7,
+     "FollowUpWithoutContext": 1,
+     "NoKey": 1,
      "NonAnswer": 3,
      "PersonalTemplate": 1,
      "TooShort": 1
@@ -2638,23 +2642,26 @@
      "save_rule": null,
      "say": "Compare it with the MacBook Air.",
      "sees": [
+      "user: What laptops do you have under 60,000 rupees?",
+      "user: Which one has the best battery?",
+      "user: And the second one?",
+      "user: How much does that cost?",
+      "user: Is it available in grey?",
+      "user: Not that one, the other one.",
       "user: Compare it with the MacBook Air."
      ],
      "stored": true
     },
     {
      "action": "infer",
-     "cacheable": true,
-     "not_stored": "",
-     "reason": "confidence below the spoken-answer bar of 0.92",
-     "rule": "ConfidenceBar",
-     "save_rule": null,
+     "cacheable": false,
+     "not_stored": "a follow-up with no earlier turn to key it on",
+     "reason": "the utterance only has meaning against an earlier turn and this call has none, so no cache key can be built for it",
+     "rule": "FollowUpWithoutContext",
+     "save_rule": "NoKey",
      "say": "Which is cheaper?",
-     "sees": [
-      "user: Compare it with the MacBook Air.",
-      "user: Which is cheaper?"
-     ],
-     "stored": true
+     "sees": null,
+     "stored": false
     },
     {
      "action": "infer",
@@ -2811,14 +2818,14 @@
     "missed_latency_budget": 0,
     "model_calls": 9,
     "not_shareable": 2,
-    "refused_to_share_a_private_answer": 6,
+    "refused_to_share_a_private_answer": 7,
     "refused_too_short": 0,
     "rules": {
-     "ConfidenceBar": 3,
-     "NonAnswer": 1,
-     "NotShareable": 1,
+     "ConfidenceBar": 2,
+     "NotShareable": 2,
      "OwnRecords": 6,
-     "PersonalTemplate": 6
+     "PersonalTemplate": 6,
+     "PrivateChain": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
@@ -2862,15 +2869,13 @@
     },
     {
      "action": "infer",
-     "cacheable": true,
-     "not_stored": "not saved: the answer asks back or does not answer",
-     "reason": "confidence below the spoken-answer bar of 0.92",
-     "rule": "ConfidenceBar",
-     "save_rule": "NonAnswer",
+     "cacheable": false,
+     "not_stored": "kept to this call: the answer depends on what this caller said",
+     "reason": "a follow-up to a private turn of this call: its answer depends on what this caller said, so it is never answered from a shared cache",
+     "rule": "PrivateChain",
+     "save_rule": "NotShareable",
      "say": "Done, what next?",
-     "sees": [
-      "user: Done, what next?"
-     ],
+     "sees": null,
      "stored": false
     },
     {
@@ -6125,14 +6130,15 @@
     "failed_writes": 0,
     "missed_latency_budget": 0,
     "model_calls": 7,
-    "not_shareable": 1,
-    "refused_to_share_a_private_answer": 5,
+    "not_shareable": 2,
+    "refused_to_share_a_private_answer": 6,
     "refused_too_short": 1,
     "rules": {
-     "ConfidenceBar": 2,
-     "NotShareable": 1,
+     "ConfidenceBar": 1,
+     "NotShareable": 2,
      "OwnRecords": 5,
      "PersonalTemplate": 5,
+     "PrivateChain": 1,
      "TooShort": 1
     },
     "served_from_cache": 0,
@@ -6155,16 +6161,14 @@
     },
     {
      "action": "infer",
-     "cacheable": true,
-     "not_stored": "",
-     "reason": "confidence below the spoken-answer bar of 0.92",
-     "rule": "ConfidenceBar",
-     "save_rule": null,
+     "cacheable": false,
+     "not_stored": "kept to this call: the answer depends on what this caller said",
+     "reason": "a follow-up to a private turn of this call: its answer depends on what this caller said, so it is never answered from a shared cache",
+     "rule": "PrivateChain",
+     "save_rule": "NotShareable",
      "say": "Yes, who is this?",
-     "sees": [
-      "user: Yes, who is this?"
-     ],
-     "stored": true
+     "sees": null,
+     "stored": false
     },
     {
      "action": "infer",
@@ -7757,7 +7761,7 @@
     "failed_writes": 0,
     "missed_latency_budget": 0,
     "model_calls": 19,
-    "not_shareable": 6,
+    "not_shareable": 7,
     "refused_to_share_a_private_answer": 7,
     "refused_too_short": 3,
     "rules": {
@@ -7766,7 +7770,8 @@
      "NotShareable": 4,
      "OwnRecords": 7,
      "PersonalTemplate": 7,
-     "TooShort": 3
+     "TooShort": 3,
+     "VoiceActionClaim": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
@@ -7802,15 +7807,15 @@
     {
      "action": "infer",
      "cacheable": true,
-     "not_stored": "",
+     "not_stored": "kept to this call: the answer says something was done for this caller",
      "reason": "confidence below the spoken-answer bar of 0.92",
      "rule": "ConfidenceBar",
-     "save_rule": null,
+     "save_rule": "VoiceActionClaim",
      "say": "Add milk and eggs to my shopping list.",
      "sees": [
       "user: Add milk and eggs to my shopping list."
      ],
-     "stored": true
+     "stored": false
     },
     {
      "action": "infer",
@@ -8617,7 +8622,7 @@
    ],
    [
     "",
-    "How many times do you try again after that?",
+    "What happens if nobody is home at delivery? || How many times do you try again after that?",
     "It depends on the specific context, as there is no set number of attempts.",
     false
    ],
@@ -8785,7 +8790,7 @@
    ],
    [
     "",
-    "Do I need an ID proof for that?",
+    "How do I apply for a new electricity connection? || Do I need an ID proof for that?",
     "Whether an ID proof is required depends on the specific situation or purpose you have in mind.",
     false
    ],
@@ -8917,14 +8922,8 @@
    ],
    [
     "",
-    "Compare it with the MacBook Air.",
+    "What laptops do you have under 60,000 rupees? || Which one has the best battery? || And the second one? || How much does that cost? || Is it available in grey? || Not that one, the other one. || Compare it with the MacBook Air.",
     "A direct comparison would depend on what specific MacBook Air model you are interested in. Both lines have different features, performance capabilities, and price points.",
-    false
-   ],
-   [
-    "",
-    "Compare it with the MacBook Air. || Which is cheaper?",
-    "To determine which is cheaper, I would need to know what \"it\" is compared to the MacBook Air, and consider current prices and configurations.",
     false
    ],
    [
@@ -9247,12 +9246,6 @@
    ],
    [
     "",
-    "Yes, who is this?",
-    "This is a voice assistant.",
-    false
-   ],
-   [
-    "",
     "Can I get a payment plan for a personal loan?",
     "Yes, you can typically get a payment plan for a personal loan, though the specific terms depend on the lender and your agreement.",
     false
@@ -9363,12 +9356,6 @@
     "",
     "What's the time in London?",
     "The time in London, United Kingdom is 5 37 PM",
-    false
-   ],
-   [
-    "",
-    "Add milk and eggs to my shopping list.",
-    "I've added milk and eggs to your shopping list.",
     false
    ],
    [

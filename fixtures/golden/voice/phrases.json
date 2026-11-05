@@ -1116,7 +1116,7 @@
     "refused_too_short": 0,
     "rules": {
      "CallContextTaint": 1,
-     "PersonalTemplate": 1
+     "NoKey": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
@@ -1128,10 +1128,10 @@
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "not_stored": "a follow-up with no earlier turn to key it on",
      "reason": "the caller has told this call something a later answer may depend on (a condition, an age, a plan, an instruction, a step in their own task); a shared answer to the bare question could be wrong for them",
      "rule": "CallContextTaint",
-     "save_rule": "PersonalTemplate",
+     "save_rule": "NoKey",
      "say": "Can I sue you for this?",
      "sees": null,
      "stored": false
@@ -4112,23 +4112,23 @@
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
     "rules": {
-     "OwnRecords": 1,
-     "PersonalTemplate": 1
+     "NoKey": 1,
+     "OwnRecords": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
-    "uncacheable_personal": 1,
+    "uncacheable_personal": 0,
     "unspeakable_answers": 0
    },
    "turns": [
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "not_stored": "a follow-up with no earlier turn to key it on",
      "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
      "rule": "OwnRecords",
-     "save_rule": "PersonalTemplate",
+     "save_rule": "NoKey",
      "say": "How much will I pay for this?",
      "sees": null,
      "stored": false
@@ -7004,23 +7004,23 @@
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
     "rules": {
-     "OwnRecords": 1,
-     "PersonalTemplate": 1
+     "NoKey": 1,
+     "OwnRecords": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
-    "uncacheable_personal": 1,
+    "uncacheable_personal": 0,
     "unspeakable_answers": 0
    },
    "turns": [
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "not_stored": "a follow-up with no earlier turn to key it on",
      "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
      "rule": "OwnRecords",
-     "save_rule": "PersonalTemplate",
+     "save_rule": "NoKey",
      "say": "No, I meant the blue one.",
      "sees": null,
      "stored": false
@@ -7043,23 +7043,23 @@
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
     "rules": {
-     "OwnRecords": 1,
-     "PersonalTemplate": 1
+     "NoKey": 1,
+     "OwnRecords": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
-    "uncacheable_personal": 1,
+    "uncacheable_personal": 0,
     "unspeakable_answers": 0
    },
    "turns": [
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "not_stored": "a follow-up with no earlier turn to key it on",
      "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
      "rule": "OwnRecords",
-     "save_rule": "PersonalTemplate",
+     "save_rule": "NoKey",
      "say": "No, that's wrong.",
      "sees": null,
      "stored": false
@@ -10575,23 +10575,23 @@
     "refused_to_share_a_private_answer": 1,
     "refused_too_short": 0,
     "rules": {
-     "OwnRecords": 1,
-     "PersonalTemplate": 1
+     "NoKey": 1,
+     "OwnRecords": 1
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 1,
-    "uncacheable_personal": 1,
+    "uncacheable_personal": 0,
     "unspeakable_answers": 0
    },
    "turns": [
     {
      "action": "infer",
      "cacheable": false,
-     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "not_stored": "a follow-up with no earlier turn to key it on",
      "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
      "rule": "OwnRecords",
-     "save_rule": "PersonalTemplate",
+     "save_rule": "NoKey",
      "say": "Yes, that's right.",
      "sees": null,
      "stored": false

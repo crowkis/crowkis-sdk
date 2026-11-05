@@ -60,12 +60,13 @@ test("voice: an answer saying it was done is never shared", async () => {
   assert.strictEqual(store.shared.size, 0);
 });
 
-test("voice, must still work: without an understander nothing changes", async () => {
+test("voice, F7: the default rules also keep an action claim private", async () => {
   const store = new Store();
   const session = voiceOn(store);
   const decision = await session.decide("what is your refund policy");
   await session.record(decision, "I have cancelled your order and refunded you.");
-  assert.strictEqual(store.shared.has("what is your refund policy"), true);
+  assert.strictEqual(decision.saveRule, "VoiceActionClaim");
+  assert.strictEqual(store.shared.has("what is your refund policy"), false);
 });
 
 class ChatAgent {

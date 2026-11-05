@@ -32,12 +32,13 @@ class VoiceMergedSaveTests(unittest.TestCase):
         self.assertEqual(decision.save_rule, "VoiceActionClaim")
         self.assertEqual(store.shared, {})
 
-    def test_must_still_work_without_an_understander_nothing_changes(self):
+    def test_f7_the_default_voice_rules_also_keep_an_action_claim_private(self):
         store = Store()
         session = session_on(store)
         decision = session.decide("what is your refund policy")
         session.record(decision, "I have cancelled your order and refunded you.")
-        self.assertIn("what is your refund policy", store.shared)
+        self.assertEqual(decision.save_rule, "VoiceActionClaim")
+        self.assertEqual(store.shared, {})
 
 
 class Agent:

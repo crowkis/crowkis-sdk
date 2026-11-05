@@ -81,7 +81,8 @@ class RuleSet:
             answer_given=RuleChain([EmptyAnswer()]),
             before_sharing=RuleChain([NoKey(), ToolResult(), PromptCallerDetails()]),
             personal=PersonalTemplate(),
-            sharing=RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), NonAnswer()]),
+            sharing=RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoiceActionClaim(),
+                               NonAnswer()]),
         )
 
     @classmethod

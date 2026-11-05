@@ -577,6 +577,6 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 
 ## F7 (2026-11-05): the three F6 rule gaps - done
 
-- F6-1 follow-ups (that/this after a preposition, "Compare it ...", "what next"), F6-2 "Yes, who is this?" (a "yes,"/"no," opener whose rest asks nothing or is itself a follow-up), F6-3 VoiceActionClaim in `RuleSet.voice()` plus `_ACTION_CLAIM` also matching "I will / I'll" + action verb, curly apostrophes and "has been added". Python and Node; commit F7HASH.
+- F6-1 follow-ups (that/this after a preposition, "Compare it ...", "what next"), F6-2 "Yes, who is this?" (a "yes,"/"no," opener whose rest asks nothing or is itself a follow-up), F6-3 VoiceActionClaim in `RuleSet.voice()` plus `_ACTION_CLAIM` also matching "I will / I'll" + action verb, curly apostrophes and "has been added". Python and Node; commit d6e46dd.
 - Golden: 3 voice files changed, listed in `v4-notes/f7-golden-changes.md`. Two old tests asserted the pre-fix default and were updated (`test_rule_chain`, `test_merged_save_check` / `mergedSaveCheck`).
 - Suites: Python 919 passed x2, Node 69/69 x2, Pipecat venv and LiveKit JS green (the Pipecat venv was gutted by a scratch cleanup and rebuilt). Opus review: 2 must-fix (yes/no opener too wide: narrowed; action gap in answer wording: logged as F7-1), notes in the golden doc. Nothing pushed.

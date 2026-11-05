@@ -441,9 +441,11 @@ async def play_v4(conv: dict, crowkis, opts, chat: bool = False) -> dict:
             spent[0] += time.perf_counter() - started
 
     understander = LLMUnderstander(complete)
-    session = voice_session(client=crowkis, voice=None, ttl=settings.CACHE_TTL_S,
-                            fillers=settings.FILLERS, classifier=LLMClassifier(understander),
-                            rewriter=LLMRewriter(understander), understand_budget_ms=opts.understand_budget_ms)
+    # chat: the same session on the chat channel with the word rules only (no model reading the turn)
+    reading = {} if chat else {"classifier": LLMClassifier(understander), "rewriter": LLMRewriter(understander),
+                               "understand_budget_ms": opts.understand_budget_ms}
+    session = voice_session(client=crowkis, voice=None, ttl=settings.CACHE_TTL_S, fillers=settings.FILLERS,
+                            channel="chat" if chat else "voice", **reading)
     outcomes: list = []
     record_model_turn = session._record_model_turn
 

@@ -20,12 +20,12 @@
       "real": true,
       "aliases": {"how can I turn on dark mode": "how do I turn on dark mode"},
       "calls": [
-        [{"say": "how do I turn on dark mode", "reply": ["Open settings and pick a theme."],
+        [{"say": "how do I turn on dark mode", "reply": ["To turn on dark mode, open Settings, choose Appearance, and pick the Dark theme."],
           "expect": {"llm": true}}],
         [{"say": "how can I turn on dark mode", "reply": ["Wrong: the cache was not used."],
-          "expect": {"llm": false, "heard": "Open settings and pick a theme."}}]
+          "expect": {"llm": false, "heard": "To turn on dark mode, open Settings, choose Appearance, and pick the Dark theme."}}]
       ],
-      "saved": [["how do I turn on dark mode", "Open settings and pick a theme."]]
+      "saved": [["how do I turn on dark mode", "To turn on dark mode, open Settings, choose Appearance, and pick the Dark theme."]]
     },
     {
       "name": "a barge-in mid-answer is never recorded and never served",
@@ -94,13 +94,13 @@
       "name": "Unicode, Hinglish and numbers",
       "real": true,
       "calls": [
-        [{"say": "refund kitne din mein milta hai", "reply": ["Paanch din mein milta hai."], "expect": {"llm": true}}],
+        [{"say": "refund kitne din mein milta hai", "reply": ["Refund aapke wapas bhejne ke baad paanch din mein aapke account mein aa jata hai."], "expect": {"llm": true}}],
         [{"say": "refund kitne din mein milta hai", "reply": ["Wrong."],
-          "expect": {"llm": false, "heard": "Paanch din mein milta hai."}}],
-        [{"say": "¿cuál es el horario de atención de la tienda?", "reply": ["Abrimos de 9 a 18 h, de lunes a sábado."],
+          "expect": {"llm": false, "heard": "Refund aapke wapas bhejne ke baad paanch din mein aapke account mein aa jata hai."}}],
+        [{"say": "¿cuál es el horario de atención de la tienda?", "reply": ["Nuestra tienda abre de nueve de la mañana a seis de la tarde, de lunes a sábado, y cierra los domingos."],
           "expect": {"llm": true}}],
         [{"say": "¿cuál es el horario de atención de la tienda?", "reply": ["Wrong."],
-          "expect": {"llm": false, "heard": "Abrimos de 9 a 18 h, de lunes a sábado."}}],
+          "expect": {"llm": false, "heard": "Nuestra tienda abre de nueve de la mañana a seis de la tarde, de lunes a sábado, y cierra los domingos."}}],
         [{"say": "do you ship orders of 2,500 units or more", "reply": ["Yes, orders of 2,500 units ship free."],
           "expect": {"llm": true}}],
         [{"say": "do you ship orders of 2,500 units or more", "reply": ["Wrong."],

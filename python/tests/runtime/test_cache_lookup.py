@@ -1,4 +1,4 @@
-"""v4 P3: CacheLookup refuses a late hit for voice, and keeps it for Chat (as Chat always did)."""
+"""v4 P3: CacheLookup refuses a late hit."""
 import concurrent.futures
 import time
 import unittest
@@ -14,7 +14,6 @@ class CacheLookupTests(unittest.TestCase):
         started = time.monotonic() - 1.0  # the budget was spent before the hit came back
         hit, verdict = CacheLookup(POOL).find(lambda: HIT, started, 100)
         self.assertEqual((hit, verdict.rule), (HIT, "LookupDeadline"))
-        self.assertEqual(CacheLookup(POOL, refuse_late_hits=False).find(lambda: HIT, started, 100), (HIT, None))
 
     def test_an_unreachable_cache_means_the_model_answers(self):
         def down():

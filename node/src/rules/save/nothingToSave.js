@@ -23,23 +23,6 @@ class EmptyAnswer {
   }
 }
 
-// The ChatEmptyAnswer rule (stage 3, save; Chat, "empty").
-/** An empty answer has nothing to save. */
-class ChatEmptyAnswer {
-  get name() {
-    return "ChatEmptyAnswer";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(answer) {
-    if (answer.text) return null;
-    return new Verdict(this.name, "empty");
-  }
-}
-
 /** An answer that asks back or does not answer is not saved. */
 class NonAnswer {
   get name() {
@@ -56,23 +39,6 @@ class NonAnswer {
   }
 }
 
-// The ChatNonAnswer rule (stage 3, save; Chat, "non_answer").
-/** An answer that asks back or does not answer is not saved. */
-class ChatNonAnswer {
-  get name() {
-    return "ChatNonAnswer";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(answer) {
-    if (!isNonAnswer(answer.text)) return null;
-    return new Verdict(this.name, "non_answer");
-  }
-}
-
 /** An answer built from a tool's result stays in the call. */
 class ToolResult {
   get name() {
@@ -86,26 +52,6 @@ class ToolResult {
   check(answer) {
     if (!answer.private) return null;
     return new Verdict(this.name, "kept to this call: the answer was built from a tool's result", [COUNTER.NOT_SHAREABLE], OUTCOME.KEPT);
-  }
-}
-
-// The ChatToolResult rule (stage 3, save; Chat).
-/**
- * Voice's ToolResult on Chat (v4): an answer the app built from a tool's result
- * (recordAnswer(..., { private: true })) stays in the chat.
- */
-class ChatToolResult {
-  get name() {
-    return "ChatToolResult";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(answer) {
-    if (!answer.private) return null;
-    return new Verdict(this.name, "tool_result");
   }
 }
 
@@ -158,4 +104,4 @@ class TaintedCall {
   }
 }
 
-module.exports = { EmptyAnswer, ChatEmptyAnswer, NonAnswer, ChatNonAnswer, ToolResult, ChatToolResult, NoKey, NotShareable, TaintedCall };
+module.exports = { EmptyAnswer, NonAnswer, ToolResult, NoKey, NotShareable, TaintedCall };

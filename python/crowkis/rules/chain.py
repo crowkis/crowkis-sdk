@@ -33,7 +33,7 @@ def _holds_floor(rule: Rule) -> bool:
 
 class RuleChain:
     """Chain of Responsibility: the rules of one stage, run in order; the first objection
-    wins and names its rule. ``all_objections`` runs every rule instead (Chat reports each
+    wins and names its rule. ``all_objections`` runs every rule instead (the checks report each
     objection). A chain is itself a rule (Composite): its ``check`` is its first objection, so a
     group where one objection is enough can sit inside a chain that collects them all."""
 

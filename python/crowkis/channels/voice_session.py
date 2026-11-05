@@ -743,7 +743,7 @@ def voice_session(
     it is an error, and closing the agent leaves it open.
 
     ``classifier`` / ``rewriter`` plug in a model that reads the turn (``LLMClassifier``,
-    ``LLMRewriter``, ``ReplayRewriter``). It gets ``understand_budget_ms`` (250) per turn; late
+    ``LLMRewriter``). It gets ``understand_budget_ms`` (250) per turn; late
     or failed, the word rules read the turn. The word rules apply either way, so a model can make
     a call more private, never less. ``None`` turns the budget off.
 

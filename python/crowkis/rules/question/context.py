@@ -2,30 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Iterator, Optional
+from typing import Optional
 
 from ...runtime.stats import Counter
-from ...state.call_state import word_digest
 from ...turns.values import Verdict
 from ...turns.voice.turn import VoiceTurn
-from ...turns.chat.turn import ChatTurn
-from ...understanding.word_rules.chat import (
-    _unnamed,
-    _CLAUSE_START,
-    _CONTRACTION,
-    _FUNCTION,
-    _GENERIC_FACT,
-    _NUMWORDS,
-    _QUESTION_WORDS,
-    _REFERRING,
-    _stem,
-    _toks,
-)
+from ...understanding.word_rules.private_words import _unnamed
 from ...understanding.model.checks import _content_stems, stated_fact_irrelevant
-from ...understanding.model.frame import DETAIL_TYPES
 from ...understanding.word_rules.call_context import _sets_context
-from ...understanding.word_rules.follow_up import _leans_on, _private_chain
-from ...understanding.word_rules.text import _words
+from ...understanding.word_rules.follow_up import _private_chain
 
 
 PRIVATE_CHAIN_REASON = (
@@ -68,27 +53,6 @@ class FollowUpWithoutContext:
         return Verdict(self.name, NO_KEY_REASON, (Counter.INFERRED,))
 
 
-# The UnresolvedReference rule (stage 1, question; Chat, V10).
-class UnresolvedReference:
-    """The model says the turn leans on the chat ("how far is it from London?") but the turn or its
-    question says "it" and the question names nothing new from the chat (a neutral "population"
-    names nothing; "Who is their president?" -> "Who is the president?" dropped it): the reference
-    was not resolved. A rewrite that resolved it ("Is it safe to eat pad thai in Thailand?") keeps
-    a filler "it" and is fine."""
-
-    name = "UnresolvedReference"
-    floor = False
-
-    def check(self, turn: ChatTurn) -> Optional[Verdict]:
-        qwords, said = set(_toks(turn.question)), set(_toks(turn.text))
-        named = {w for w in qwords - said if w not in _FUNCTION and w not in _QUESTION_WORDS and w not in _CONTRACTION}
-        # shortcut: Chat checks only the last shared question; after a personal turn this misses (as before).
-        leans = _leans_on(turn.question, turn.state.active_question or "")
-        if not (leans or turn.frame.uses_state and (qwords | said) & _REFERRING and not named):
-            return None
-        return Verdict(self.name, "V10_unresolved")
-
-
 TAINTED_REASON = (
     "the caller has told this call something a later answer may depend on "
     "(a condition, an age, a plan, an instruction, a step in their own task); "
@@ -109,53 +73,6 @@ class CallContextTaint:
             return None
         turn.call.mark_tainted()
         return Verdict(self.name, TAINTED_REASON, (Counter.REFUSED_PRIVATE, Counter.INFERRED))
-
-
-# The StatedFacts rule (stage 1, question; Chat, V7).
-class StatedFacts:
-    """A fact the caller stated in this chat (an allergy, an age, a trip) that the question does
-    not carry. Fixed code, so the allergy case never rests on the model having tagged the
-    allergy: the question must keep at least one content word of each such turn. A turn with no
-    readable word (another script) cannot be checked, so it keeps the question private.
-
-    v4: a stated turn the frame confidently tags as not changing this answer may be left out
-    (``stated_fact_irrelevant``); an allergy, a medication, a pregnancy or an age never may."""
-
-    name = "StatedFacts"
-    floor = False
-
-    def check(self, turn: ChatTurn) -> Optional[Verdict]:
-        for dropped in self._dropped_statements(turn.state, turn.question):
-            if not stated_fact_irrelevant(dropped, turn.frame):
-                return Verdict(self.name, "V7_lost:" + dropped)
-        return None
-
-    @staticmethod
-    def _dropped_statements(state, question) -> Iterator[str]:
-        qstems = {_stem(w) for w in _toks(question)}
-        for turn in state.stated:
-            words = [w for w in _toks(turn) if w not in _FUNCTION and (len(w) > 2 or w.isdigit())]
-            # "allergies" alone does not carry "allergic to penicillin": the specific word must be there.
-            words = [w for w in words if _stem(w) not in _GENERIC_FACT] or words
-            if not words or not any(_stem(w) in qstems for w in words):
-                yield turn
-                continue
-            if StatedFacts._drops_a_listed_item(turn, qstems):
-                yield turn
-
-    @staticmethod
-    def _drops_a_listed_item(turn: str, qstems) -> bool:
-        """Every item of a list is carried: "penicillin and peanuts" is not "peanuts"."""
-        toks = _toks(turn)
-        for i, w in enumerate(toks):
-            # "and I live alone" starts a new clause; it is not a list.
-            if w in ("and", "or") and (i + 1 == len(toks) or toks[i + 1] not in _CLAUSE_START):
-                for side in (reversed(toks[:i]), toks[i + 1:]):
-                    item = next((x for x in side if x not in _FUNCTION), None)
-                    if item and (len(item) > 2 or item.isdigit()) and _stem(item) not in _GENERIC_FACT \
-                            and _stem(item) not in qstems:
-                        return True
-        return False
 
 
 # The StatedFacts rule for voice with an understander (stage 1, question).
@@ -196,43 +113,3 @@ class VoiceStatedFacts:
     def _private(self, turn: VoiceTurn, reason: str) -> Verdict:
         turn.call.mark_private(turn.text)
         return Verdict(self.name, reason, (Counter.REFUSED_PRIVATE, Counter.INFERRED))
-
-
-# The ToldDetailDropped rule (stage 1, question; Chat, "V7_lost_detail", checked once the rule checker would share).
-class ToldDetailDropped:
-    """A place, month or number the caller told ("Goa in December") is missing from the question."""
-
-    name = "ToldDetailDropped"
-    floor = False
-
-    def check(self, turn: ChatTurn) -> Optional[Verdict]:
-        words = _words(turn.question or "")
-        asked = {word_digest(w) for w in words} | {word_digest(_NUMWORDS.get(w, w)) for w in words}  # "three" is "3"
-        if not any(d not in asked for d in turn.state.details):
-            return None
-        return Verdict(self.name, "V7_lost_detail")
-
-
-# The LostDetail rule (stage 1, question; Chat, V7).
-class LostDetail:
-    """An answer-relevant detail of the turn (a product, a time, a place) missing from the key."""
-
-    name = "LostDetail"
-    floor = False
-
-    def check(self, turn: ChatTurn) -> Optional[Verdict]:
-        lost = self._lost_detail(turn.frame, turn.question)
-        if lost is None:
-            return None
-        return Verdict(self.name, "V7_lost:" + lost)
-
-    @staticmethod
-    def _lost_detail(frame, question) -> Optional[str]:
-        qstems = {_stem(w) for w in _toks(question)}
-        attr_text = " ".join(f"{a.value} {a.normalised}" for a in frame.attributes.values()).lower()
-        for e in frame.entities:
-            if e.answer_relevant and not e.identifying and e.type in DETAIL_TYPES:
-                words = [w for w in _toks(e.text) if w not in _FUNCTION]
-                if words and not any(_stem(w) in qstems for w in words) and not any(w in attr_text for w in words):
-                    return e.text
-        return None

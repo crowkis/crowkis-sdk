@@ -1,8 +1,6 @@
 """Replays the golden inputs through today's pipelines and records every decision (v4 P0).
 
-Two pipelines, the same calls: ``VoiceReplay`` (VoiceSession: decide, then record the
-reply) and ``ChatReplay`` (CallSession: handle, then record_answer, with the stand-in frames
-of fixtures/golden/inputs.json). Calls run in order; calls of one ``store`` group share one
+One pipeline: ``VoiceReplay`` (VoiceSession: decide, then record the reply). Calls run in order; calls of one ``store`` group share one
 ``GoldenStore`` (a whole stress suite shares one, so a later caller can be served what an
 earlier one saved; each conformance scenario and hit-guard call has its own). Each call
 records every turn's decision and the session's counters. node/golden.js is the Node twin
@@ -17,8 +15,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from crowkis import Agent, CacheHit, VoiceSession
-from crowkis.channels.call_session import CallSession
-from crowkis.understanding.model.frame import TurnFrame
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN = ROOT / "fixtures" / "golden"
@@ -81,16 +77,6 @@ class GoldenStore:
             raise ConnectionRefusedError("crowkis server down")
 
 
-class ScriptedUnderstander:
-    """Chat's understanding step, answered from the frozen stand-in frames."""
-
-    def __init__(self, frames: Dict[str, Dict]) -> None:
-        self.frames = frames
-
-    def understand(self, turn: str, state: Any) -> TurnFrame:
-        return TurnFrame.from_dict(self.frames.get(turn))
-
-
 def _sees(messages: Optional[List[Dict[str, str]]]) -> Optional[List[str]]:
     return None if messages is None else [f"{m['role']}: {m['content']}" for m in messages]
 
@@ -120,35 +106,6 @@ class VoiceReplay:
             record.update(stored=decision.stored, save_rule=decision.save_rule, not_stored=decision.not_stored)
         else:
             record["text"] = decision.text
-        return record
-
-
-class ChatReplay:
-    """One call through CallSession: handle each turn, record the reply when the model is asked
-    (after the caller talked over it, when the turn says so)."""
-
-    pipeline = "chat"
-    pool = ""
-
-    def call(self, store: GoldenStore, call: Dict) -> Dict:
-        session = CallSession(Agent(AGENT_ID, client=store), ScriptedUnderstander(INPUTS["frames"]),
-                              latency_budget_ms=None, understand_budget_ms=None)
-        turns = [self._turn(session, turn) for turn in call["turns"]]
-        return {"turns": turns, "stats": dict(session.counts)}
-
-    @staticmethod
-    def _turn(session: CallSession, turn: Dict) -> Dict:
-        result = session.handle(turn["say"])
-        verdict = result.verdict
-        record = {"say": turn["say"], "route": result.route, "reason": result.reason,
-                  "needs_model": result.needs_model, "sees": _sees(result.messages),
-                  "key": verdict.key if verdict else None, "segment": verdict.segment if verdict else None}
-        if result.needs_model:
-            if turn.get("barge_in"):
-                session.cancel()
-            record["outcome"] = session.record_answer(result, turn["reply"])
-        else:
-            record["text"] = result.text
         return record
 
 
@@ -185,7 +142,7 @@ def as_text(recorded: Dict) -> str:
 
 
 def write_all() -> None:
-    for pipeline in (VoiceReplay(), ChatReplay()):
+    for pipeline in (VoiceReplay(),):
         for suite, calls in suites().items():
             path = golden_path(pipeline.pipeline, suite)
             path.parent.mkdir(parents=True, exist_ok=True)

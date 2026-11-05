@@ -23,21 +23,16 @@ from .channels.async_voice_session import AsyncVoiceResponse, AsyncVoiceSession,
 # Turn understanding: understand once, check with fixed rules, route by contract.
 from .understanding.model.frame import TurnFrame
 from .state.call_state import CallState
-from .rules.rule_checker import RuleChecker, Verdict
 from .understanding.model.understanders import (
     LLMUnderstander,
-    ReplayUnderstander,
     WithFallback,
     LLMClassifier,
     LLMRewriter,
-    ReplayRewriter,
 )
 # Voice understanding slots (v4): a model reads the turn; the word rules still apply.
 from .turns.values import CHAT, REALTIME, VOICE, Channel
 # Where a turn goes: public, stable names (crowkis.privacy has the privacy word rules).
 from .turns.results import AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, URGENT
-from .channels.call_session import CallSession, TurnResult
-from .channels.chat import Chat, ChatConflict, ChatReply, MemoryStore
 
 # NOTE: Crowkis is model-agnostic. Use `Crowkis().cached()` / `.ask()` to cache ANY
 # model. A thin OpenAI-SDK drop-in still lives at `crowkis.integrations.openai.CachedOpenAI`
@@ -57,22 +52,12 @@ __all__ = [
     "RealtimeAdapter",
     "RealtimeGate",
     # turn understanding
-    "Chat",
-    "ChatReply",
-    "ChatConflict",
-    "MemoryStore",
-    "CallSession",
-    "TurnResult",
     "CallState",
     "TurnFrame",
-    "RuleChecker",
-    "Verdict",
     "LLMUnderstander",
-    "ReplayUnderstander",
     "WithFallback",
     "LLMClassifier",
     "LLMRewriter",
-    "ReplayRewriter",
     "Channel",
     "VOICE",
     "CHAT",

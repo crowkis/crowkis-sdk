@@ -1,11 +1,12 @@
-"""Chat and voice on a real server share nothing private (CROWKIS_CONFORMANCE_SERVER=1).
+"""Chat (voice_session(channel="chat")) and voice on a real server share nothing private
+(CROWKIS_CONFORMANCE_SERVER=1).
 
 Each run uses made-up words, so old data on the server and repeated runs never interfere.
 One channel saves a general answer and a caller's private details; a fresh session of the
 other channel (another call, another agent id) asks. Privacy: nothing the second channel
 gets back, no write the SDK sent and no raw lookup holds the details.
-Sharing: a general answer stays inside its channel (the segment holds ``channel=``), which
-the same-channel controls prove and the cross-channel cases assert (v4 P5 item 5).
+Sharing: both channels use one pool per tenant (the segment is ``kb=<version>`` only), so a
+general answer saved by one is served to the other.
 
     CROWKIS_CONFORMANCE_SERVER=1 CROWKIS_HOST=... CROWKIS_PORT=... CROWKIS_AUTH_TOKEN=... \
         CROWKIS_TENANT=voice python -m pytest tests/test_cross_channel_server.py
@@ -17,16 +18,14 @@ import unittest
 import uuid
 
 import crowkis
-from crowkis.channels.chat import Chat
 from crowkis.understanding.model.frame import TurnFrame
 
 REAL = os.environ.get("CROWKIS_CONFORMANCE_SERVER") == "1"
 # Read once, at import: conftest.py clears the CROWKIS_* variables for each test.
 _SERVER = {name: os.environ.get("CROWKIS_" + name.upper()) for name in ("host", "port", "auth_token", "tenant")}
 FINDABLE_S = 10.0  # a new answer is findable on a real server within about a second
-SEPARATE_S = 3.0  # waiting for something that must not happen: shorter
-# What the two channels build their cache segments from (kb version, language, channel).
-SEGMENTS = (None, "kb=1;channel=voice", "kb=1;lang=und;channel=chat")
+# The one segment both channels build (the knowledge version).
+SEGMENTS = (None, "kb=1")
 
 
 class Scripted:
@@ -101,22 +100,16 @@ class CrossChannelServerTests(unittest.TestCase):
         self.w = Words()
 
     # -- the two channels ---------------------------------------------------------
-    def chat_ask(self, thread, texts, reply):
-        agent = crowkis.Agent(client=self.client, agent_id=self.w.agent("chat"))
-        chat = Chat(agent, Scripted(self.w.frames), system="You are the store's assistant.")
-        history, out = [], []
-        for text in texts:
-            history.append({"role": "user", "content": text})
-            out.append(chat.turn(thread, history, answer=lambda m: reply))
-            history.append({"role": "assistant", "content": out[-1].text})
-        return out
+    def chat_ask(self, texts, reply):
+        session = self.voice(channel="chat")
+        return [session.answer(text, lambda m: reply) for text in texts]
 
-    def voice(self, understood=True):
+    def voice(self, understood=True, channel="voice"):
         extra = {}
         if understood:
             understander = Scripted(self.w.frames)
             extra = {"classifier": crowkis.LLMClassifier(understander), "rewriter": crowkis.LLMRewriter(understander)}
-        session = crowkis.voice_session(client=self.client, agent_id=self.w.agent("voice"), **extra)
+        session = crowkis.voice_session(client=self.client, agent_id=self.w.agent(channel), channel=channel, **extra)
         self.addCleanup(session.agent.close)
         return session
 
@@ -144,10 +137,10 @@ class CrossChannelServerTests(unittest.TestCase):
 
     # -- direction 1: chat saves, voice asks --------------------------------------
     def chat_saves(self):
-        general = self.chat_ask("t-general", [self.w.general_q], self.w.general_a)[0]
-        self.assertEqual(general.outcome, "saved", general)
-        private = self.chat_ask("t-private", [self.w.intro, self.w.private_q], self.w.private_a)
-        self.assertTrue(all(r.outcome != "saved" for r in private), private)  # never shared
+        general = self.chat_ask([self.w.general_q], self.w.general_a)[0]
+        self.assertTrue(general.stored, general)
+        private = self.chat_ask([self.w.intro, self.w.private_q], self.w.private_a)
+        self.assertFalse(any(r.stored for r in private), private)  # never shared
         time.sleep(1.5)
 
     def test_chat_to_voice_keeps_private_details_private(self):
@@ -156,11 +149,11 @@ class CrossChannelServerTests(unittest.TestCase):
             got = self.voice_ask([self.w.general_q, self.w.intro, self.w.private_q], "Sorry, one moment.", understood)
             self.assert_private_stayed_private(got)
 
-    def test_chat_to_voice_does_not_serve_the_general_answer(self):
-        # By design (v4 P5 item 5): every segment holds channel=<name>, so channels never serve each other's answers.
+    def test_chat_to_voice_serves_the_general_answer(self):
+        # One pool per tenant: what chat saved, a call is served.
         self.chat_saves()
-        got = self.until_served(lambda: served_text(self.voice_ask([self.w.general_q], "LLM-VOICE")[0], "LLM-VOICE"), SEPARATE_S)
-        self.assertIsNone(got)
+        got = self.until_served(lambda: served_text(self.voice_ask([self.w.general_q], "LLM-VOICE")[0], "LLM-VOICE"))
+        self.assertEqual(got, self.w.general_a)
 
     # -- direction 2: voice saves, chat asks --------------------------------------
     def voice_saves(self):
@@ -174,14 +167,13 @@ class CrossChannelServerTests(unittest.TestCase):
 
     def test_voice_to_chat_keeps_private_details_private(self):
         self.voice_saves()
-        got = self.chat_ask("t-other", [self.w.general_q, self.w.intro, self.w.private_q], "Sorry, one moment.")
+        got = self.chat_ask([self.w.general_q, self.w.intro, self.w.private_q], "Sorry, one moment.")
         self.assert_private_stayed_private(got)
 
-    def test_voice_to_chat_does_not_serve_the_general_answer(self):
-        # By design (v4 P5 item 5), as above.
+    def test_voice_to_chat_serves_the_general_answer(self):
         self.voice_saves()
-        got = self.until_served(lambda: served_text(self.chat_ask("t-g2", [self.w.general_q], "LLM-CHAT")[0], "LLM-CHAT"), SEPARATE_S)
-        self.assertIsNone(got)
+        got = self.until_served(lambda: served_text(self.chat_ask([self.w.general_q], "LLM-CHAT")[0], "LLM-CHAT"))
+        self.assertEqual(got, self.w.general_a)
 
     # -- details stated early, repeated by the model in a general answer ---------------
     def assert_stated_details_not_shared(self, first_reply, second_caller):
@@ -197,16 +189,13 @@ class CrossChannelServerTests(unittest.TestCase):
         self.assert_stated_details_not_shared(first, lambda: self.voice_ask([self.w.general_q], "LLM-VOICE"))
 
     def test_chat_answer_repeating_stated_details_is_not_shared(self):
-        first = self.chat_ask("t-stated", [self.w.stated, self.w.general_q], self.w.leaky_a)[1]
-        self.assertNotEqual(first.outcome, "saved", first)
-        self.assert_stated_details_not_shared(
-            type("R", (), {"stored": False}), lambda: self.chat_ask("t-second", [self.w.general_q], "LLM-CHAT"))
+        first = self.chat_ask([self.w.stated, self.w.general_q], self.w.leaky_a)[1]
+        self.assert_stated_details_not_shared(first, lambda: self.chat_ask([self.w.general_q], "LLM-CHAT"))
 
     # -- controls: the lookup, the wait and the checks do work within a channel ----
     def test_control_chat_to_chat_shares_the_general_answer(self):
         self.chat_saves()
-        got = self.until_served(lambda: served_text(
-            self.chat_ask(f"t-{uuid.uuid4().hex[:6]}", [self.w.general_q], "LLM-CHAT")[0], "LLM-CHAT"))
+        got = self.until_served(lambda: served_text(self.chat_ask([self.w.general_q], "LLM-CHAT")[0], "LLM-CHAT"))
         self.assertEqual(got, self.w.general_a)
 
     def test_control_voice_to_voice_shares_the_general_answer(self):

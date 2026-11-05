@@ -168,33 +168,19 @@ accepts (under 64 KiB and 64 facts each), in order, and the facts come back as o
 
 ## Chat apps
 
-A chat turn often depends on what the user said earlier ("I'm allergic to peanuts", then
-"is pad thai safe?"). `Chat` turns each message into one stand-alone question that carries
-it ("Is pad thai safe for someone with a peanut allergy?"), checks it with fixed rules,
-looks it up, and on a miss lets your model answer that question alone, so the answer can be
-shared. Anything personal, urgent, part of a booking or unclear is answered with the whole
-chat and never cached.
+A chat runs on the same session as a voice call: `voice_session(channel="chat")`, one session
+per chat thread, with the same `decide` / `answer` / `record` API and the same privacy rules.
+A chat and a call on one tenant share one cache pool, so an answer saved by one is served to
+the other. Plug in `classifier=` and `rewriter=` (`LLMClassifier`, `LLMRewriter`) to have your
+model read each turn; the word rules still apply, so a model can only make a turn more private.
 
 ```python
-from crowkis import Agent, Chat, CrowkisClient, LLMUnderstander
+import crowkis
 
-agent = Agent("support-bot", client=CrowkisClient(tenant="acme"))
-chat = Chat(agent, LLMUnderstander(complete), system="You are Acme's assistant.")
-
-reply = chat.turn(thread_id, messages, answer=complete)   # messages: the whole chat
-print(reply.text, reply.from_cache, reply.outcome, reply.reason)
+session = crowkis.voice_session(channel="chat")   # one per chat thread
+decision = session.answer(user_said, complete)    # complete(messages) -> str is your model
+print(decision.text, decision.action, decision.stored)
 ```
-
-`complete(messages) -> str` is your model; the same function does both jobs (reading each turn
-into a question, and answering). `reply.outcome` is `served` (from the cache), `saved` (answered
-and shared), `not_shared` (answered for this user only; `reply.reason` says why) or
-`refused:<why>` (answered, but the answer was not kept). If the cache cannot be reached the user
-still gets the model's answer, with `outcome` `refused:write_failed`. Keep a user's details out of
-`system`: an answer that repeats one ("Hi Asha! ...") is answered but never saved
-(`refused:prompt_detail`). Per thread, `Chat` keeps a small memory (facts,
-topic, reply language), never the transcript; pass `store=` with `load`/`save` to keep it
-across several servers. The reply language is part of the cache identity: a Hindi chat never
-gets the English answer.
 
 ## Voice agents
 

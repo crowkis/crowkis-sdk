@@ -13,9 +13,8 @@ if TYPE_CHECKING:
     from ..runtime.stats import Counter
 
 class Outcome(str, Enum):
-    """The words callers see for an answer: ``decision.not_stored`` and the save rule's outcome on voice,
-    Chat's outcomes and its "answer" events. A ``str`` enum, so each one compares, hashes, prints and
-    serialises as its word."""
+    """The words callers see for an answer: ``decision.not_stored`` and the save rule's outcome on voice.
+    A ``str`` enum, so each one compares, hashes, prints and serialises as its word."""
 
     SAVED = "saved"
     TEMPLATE = "template"
@@ -35,10 +34,6 @@ class Outcome(str, Enum):
 
     def __format__(self, spec: str) -> str:
         return format(self.value, spec)
-
-    def because(self, why: str) -> str:
-        """Chat's form of this outcome with its reason: ``"refused:<why>"``."""
-        return f"{self.value}:{why}"
 
 
 class RecordedOutcome(str):
@@ -62,8 +57,7 @@ class Verdict:
 
     ``rule`` names the rule (in decisions, logs and ``stats()``), ``reason`` says why in words,
     ``counts`` are the session counters it adds to (``runtime.stats.Counter``),
-    ``outcome`` is, for a save rule, what happened to the answer (an ``Outcome``; Chat's refusal adds
-    its reason: ``Outcome.REFUSED.because(why)``), and
+    ``outcome`` is, for a save rule, what happened to the answer (an ``Outcome``), and
     ``route`` is, for a rule that decides alone, where the turn goes ("urgent", "task", "filler"),
     and ``answer`` is what to say at once when the rule answers the turn itself (a filler).
     """
@@ -126,8 +120,7 @@ class Hit:
 
 
 class CachedAnswer:
-    """What the cache returned for a turn: a voice ``VoiceTurn``, or the shared question a chat
-    looked up (``ChatHitTurn``, never personal). ``started`` is when the lookup began
+    """What the cache returned for a turn: a voice ``VoiceTurn``. ``started`` is when the lookup began
     (``time.monotonic()``)."""
 
     def __init__(self, turn: Any, hit: Hit, started: float) -> None:

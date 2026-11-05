@@ -750,9 +750,9 @@ const SESSION_OPTIONS = new Set([
  * `client` uses a client you built, as it is: passing host/port/authToken/token/tenant/
  * timeoutMs with it is an error, and closing the agent leaves it open.
  *
- * `classifier` / `rewriter` plug in a model that reads the turn (LLMClassifier, LLMRewriter,
- * ReplayRewriter). It gets `understandBudgetMs` (250) per turn; late or failed, the word rules read
- * the turn. The word rules apply either way, so a model can make a call more private, never less.
+ * `classifier` / `rewriter` plug in a model that reads the turn (LLMClassifier, LLMRewriter).
+ * It gets `understandBudgetMs` (250) per turn; late or failed, the word rules read the turn.
+ * The word rules apply either way, so a model can make a call more private, never less.
  * null turns the budget off.
  *
  * `channel` ("voice", the default, or "realtime", or a Channel) is the profile the budgets not

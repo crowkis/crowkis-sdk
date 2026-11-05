@@ -1,11 +1,10 @@
-"""v4 P4 step 4: the model-backed slots (LLMClassifier, LLMRewriter, ReplayRewriter) and a rewritten
+"""v4 P4 step 4: the model-backed slots (LLMClassifier, LLMRewriter) and a rewritten
 turn's answer saved under the question it was looked up with."""
 import json
 import unittest
 
-from crowkis import LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter
+from crowkis import LLMClassifier, LLMRewriter, LLMUnderstander
 from crowkis.understanding.model.frame import TurnFrame, FrameReading
-from crowkis.understanding.slots import WordRuleClassifier
 
 from test_voice_stress_bugs import Store, session_on
 
@@ -90,28 +89,6 @@ class LLMSlotTests(unittest.TestCase):
         self.assertEqual(decision.rule, "OwnRecords")
         session.record(decision, "Order 48213 ships tomorrow.")
         self.assertEqual(store.shared, {})
-
-
-class ReplayRewriterTests(unittest.TestCase):
-    def test_an_exact_repeat_is_keyed_on_the_verified_question(self):
-        rewriter = ReplayRewriter({"What is the refund policy?": "policy"})
-        words = WordRuleClassifier().classify("what is the refund policy")
-        self.assertEqual(rewriter.rewrite("what is the refund policy", words), "What is the refund policy?")
-
-    def test_another_wording_keeps_the_callers_words(self):
-        rewriter = ReplayRewriter({"What is the refund policy?": "policy"})
-        words = WordRuleClassifier().classify("how do refunds work")
-        self.assertIsNone(rewriter.rewrite("how do refunds work", words))
-
-    def test_a_turn_read_as_personal_is_never_rewritten(self):
-        rewriter = ReplayRewriter({"What is the refund policy?": "policy"})
-        self.assertIsNone(rewriter.rewrite("what is the refund policy", reading(kind="personal")))
-
-    def test_it_remembers_a_verified_question(self):
-        rewriter = ReplayRewriter()
-        rewriter.remember("refunds?", "What is the refund policy?")
-        words = WordRuleClassifier().classify("Refunds?")
-        self.assertEqual(rewriter.rewrite("Refunds?", words), "What is the refund policy?")
 
 
 class PromptTests(unittest.TestCase):

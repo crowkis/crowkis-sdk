@@ -2,7 +2,7 @@
 
 // A voice turn as read (VoiceTurn, VoiceReader) and the model's answer to it (ModelAnswer).
 
-const { unnamed } = require("../../understanding/wordRules/chat.js");
+const { unnamed } = require("../../understanding/wordRules/privateWords.js");
 const { acceptedRewrite } = require("../../understanding/model/checks.js");
 const { isNonAnswer } = require("../../understanding/wordRules/answers.js");
 const { leansOn, withoutPreamble } = require("../../understanding/wordRules/followUp.js");

@@ -1,12 +1,11 @@
-"""Chat's own word checks: tokens and stems for its frame rules, the patterns its save rules look for
-in an answer, and what a chat turn tells and gives away. Tuned apart from the voice word rules."""
+"""Private words: tokens and stems, the names, numbers and capitalised words that may identify a caller, the
+masking of a stated turn, and the answer patterns the save rules look for."""
 
 from __future__ import annotations
 
 import re
-import string
 import unicodedata
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any, List, Optional, Set
 
 from ..model.frame import TurnFrame
 from .text import _proper_nouns, _words
@@ -25,16 +24,8 @@ tell find found look looking show give know serve serves served recommend sugges
 someone somebody anyone person people year years old aged""".split())
 
 _WORD = re.compile(r"[a-z0-9]+")
-# Facts that tailor an answer to the caller: what they have, how old, where and when.
-# Facts that tailor an answer. What the user told (a place, a time, a number) is in `stated`, from
-# fixed code; a place or time in an earlier shared question is only its topic ("France").
-_TOLD_TYPES = frozenset({"condition"})
 _NUMWORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
              "eight": "8", "nine": "9", "ten": "10"}
-_UNITS = r"(rupees?|rs|inr|dollars?|usd|items?|people|persons?|days?|weeks?|months?|years?|hours?|kg|gb|inch(es)?|%)"
-_EMAIL = re.compile(r"\S+@\S+|\bat\s+(gmail|yahoo|hotmail|outlook)\b", re.I)
-_PHONE = re.compile(r"\b\d{10}\b|\(\d{3}\)\s*\d{3}-\d{4}")
-_LONG_DIGITS = re.compile(r"\d(?:[\s-]?\d){4,}")
 
 
 def _toks(text: str) -> List[str]:
@@ -54,35 +45,6 @@ def _stem(word: str) -> str:
     if len(word) > 3 and word.endswith(("y", "i")):
         word = word[:-1]
     return word
-
-
-# Neutral words a stand-alone rewrite may add although the user did not say them ("how many people
-# live there" -> "population"). Exact words, never stems ("tim" is not "time"), and none that could
-# change what is asked ("avoid", "best", "cheapest", "safe") or tailor it ("vegan", "child").
-_QUESTION_WORDS = frozenset("population distance duration step steps process amount number list requirements difference differences type types kind kinds".split())
-_REFERRING = frozenset("it its they them their there here this that those these he she him his her".split())
-_CONTRACTION = frozenset("s t d m re ll ve".split())  # "what's" -> "what", "s": "s" names nothing
-_CLAUSE_START = frozenset("i we you he she they it my our your his her their me".split())
-# Acronyms of things, never of a person ("SIM porting", "a UPI refund"): an all-caps word in a shared
-# question that is one of these is no name (v4, misfire B05). "Ram" or "Sim" written as a name is.
-_COMMON_ACRONYMS = frozenset(
-    {"sim", "esim", "upi", "otp", "pin", "emi", "kyc", "gst", "atm", "usb", "api", "faq", "pdf", "sms", "mms", "gdpr",
-     "icu", "opd", "ac", "tv", "wifi", "gps", "id", "sso", "csv", "vpn", "url", "ssd", "ram", "cpu", "nfc", "qr",
-     "pnr", "ifsc", "neft", "rtgs", "imps", "cod", "eta", "ev", "abs"}
-)
-# Words that name a kind of fact, not which one: "allergies" alone does not carry "allergic to
-# penicillin". A heuristic list; a fact made only of them ("I'm allergic.") still counts them.
-_GENERIC_FACT = frozenset(_stem(w) for w in "allergy allergic allergies intolerant intolerance sensitive sensitivity condition disease illness problem issue".split())
-
-
-def _looks_identifying(question: str) -> bool:
-    if _EMAIL.search(question) or _PHONE.search(question):
-        return True
-    low = question.lower()
-    for match in _LONG_DIGITS.finditer(low):
-        if not re.match(r"\s*" + _UNITS, low[match.end(): match.end() + 12]):
-            return True  # a long number that is not a quantity: an order ID, account, phone...
-    return False
 
 
 _DAYS = "monday tuesday wednesday thursday friday saturday sunday".split()
@@ -153,30 +115,11 @@ def _names(text: str, frame: Optional[TurnFrame] = None, fact: bool = True) -> L
     return sorted(found)
 
 
-def _told(text: str, frame: TurnFrame) -> Tuple[Set[str], List[str]]:
-    """A turn telling a fact, in two parts: what names the caller (never kept, never in a shared
-    question) and the details a shared question must carry: a short number, a month or day, a
-    place or thing the understanding model tagged ("3", "December", "Goa"). Any other capitalised
-    word, a sentence's first included ("Priya and I..."), is a name AND a detail: a question can
-    never both carry it and leave it out, so a chat whose model tagged nothing stays private."""
-    words = _words(text)
-    named = set(_names(text, frame))
-    tagged = {w for e in frame.entities if not e.identifying and e.type != "other_person" for w in _words(e.text)}
-    capitalised = {w.lower() for w in re.findall(r"[^\W\d_]+", text) if w[0].isupper() and w != "I"} - _FUNCTION
-    untagged = {w for w in capitalised if w not in _CALENDAR and w not in tagged}
-    named |= untagged | {w for w in words if any(c.isdecimal() for c in w) and len(w) > 3}
-    details = ({w for w in words if any(c.isdecimal() for c in w)} | capitalised) - named
-    return named, sorted(details | untagged)
-
-
 def _private_words(text: str, frame: Optional[TurnFrame] = None) -> List[str]:
     """Everything in a turn that may identify the caller: its names, any number, any capitalised
     word. Broad on purpose; it only ever refuses a shared answer, so a wrong guess costs a hit."""
     found = {w for w in _words(text) if any(c.isdecimal() for c in w)} | _proper_nouns(text)
     return sorted(found | set(_names(text, frame)))
-
-
-_TRIM = string.punctuation + string.whitespace
 
 
 # A reply to a private turn is kept between turns only to follow the conversation: names,
@@ -199,6 +142,3 @@ def _unnamed(text: str, private: Set[str]) -> str:
     return re.sub(r"\w+", lambda m: "_" if m.group().lower() in private else m.group(), _masked(text))
 
 
-def _norm(text: str) -> str:
-    """A filler trigger or a turn, normalised for matching: lower case, no edge punctuation, single spaces."""
-    return " ".join((text or "").lower().strip(_TRIM).split())

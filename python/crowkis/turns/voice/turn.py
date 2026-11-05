@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Any, Dict, Optional
 
 from ...state.call_state import CallState
-from ...understanding.word_rules.chat import _unnamed
+from ...understanding.word_rules.private_words import _unnamed
 from ...understanding.model.checks import accepted_rewrite
 from ...understanding.slots import Classifier, Rewriter
 from ...understanding.word_rules.answers import _is_non_answer

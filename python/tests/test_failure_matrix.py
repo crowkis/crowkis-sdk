@@ -15,11 +15,8 @@ import time
 import pytest
 
 import crowkis
-from crowkis import Chat, CallSession
 from crowkis.channels.realtime import RealtimeAdapter, RealtimeGate
-from crowkis.client.agent import Agent
 from crowkis.client.commands import CrowkisClient
-from crowkis.understanding.model.frame import TurnFrame
 
 # Distinctive phrases so the log check is real.
 QUESTION = "how do wyvern eggs hatch under a gloomy moonlit sky"
@@ -109,29 +106,8 @@ ROWS = {
                                    {"failed_writes": 1}, ("missed_latency_budget", "cache_unavailable")),
 }
 
-# Chat / CallSession keep their own counts (CallSession.stats()).
-CHAT_ROWS = {
-    "down": {"lookup_errors": 1},
-    "hung": {"lookup_timeouts": 1},
-    "slow": {"lookup_timeouts": 1},
-    "cset_refused": {"save_refused": 1},
-    "wrong_token": {"lookup_errors": 1},
-    "cset_error_quotes_question": {"save_refused": 1},
-}
-
 # The error class names the SDK may log for these failures.
 ERROR_TYPES = ("CrowkisError", "TimeoutError", "ConnectionRefusedError", "OSError")  # class names: a bare word like "timeout" could be a message
-
-FRAME = {"kind": "general", "subject": "none", "confidence": 0.9, "question": QUESTION}
-
-
-class OneFrame:
-    def understand(self, turn, state):
-        return TurnFrame.from_dict(FRAME)
-
-
-def turn_messages():
-    return [{"role": "user", "content": QUESTION}]
 
 
 def llm(messages):
@@ -215,8 +191,6 @@ def check_voice_cell(row, session, decision, logs):
 
 
 ALL_ROWS = list(ROWS)
-# Chat and CallSession log nothing for these failures (counts only), which is allowed.
-CHAT_CELLS = list(ROWS)
 
 
 @pytest.mark.parametrize("row", ALL_ROWS)
@@ -250,34 +224,6 @@ def test_async_voice_answer(row, stand_in, logs):
                                           latency_budget_ms=budget, auth_token=TOKEN)
     decision = asyncio.run(session.answer(QUESTION, llm))
     check_voice_cell(row, session, decision, logs)
-
-
-def chat_agent(row, stand_in):
-    mode, _, timeout, _, _ = ROWS[row]
-    server = stand_in(mode)
-    client = CrowkisClient("127.0.0.1", server.port, timeout=timeout, max_retries=0, auth_token=TOKEN)
-    return Agent("matrix", client=client)
-
-
-@pytest.mark.parametrize("row", CHAT_CELLS)
-def test_chat_turn(row, stand_in, logs):
-    budget = ROWS[row][1]
-    chat = Chat(chat_agent(row, stand_in), OneFrame(), latency_budget_ms=budget)
-    reply = chat.turn("t1", turn_messages(), llm)
-    assert reply.text == ANSWER and reply.route == "shared" and not reply.from_cache
-    assert not reply.outcome.startswith("saved"), reply.outcome
-    no_caller_text_in_logs(logs)
-
-
-@pytest.mark.parametrize("row", CHAT_CELLS)
-def test_call_session(row, stand_in, logs):
-    session = CallSession(chat_agent(row, stand_in), OneFrame(), latency_budget_ms=ROWS[row][1])
-    result = session.handle(QUESTION)
-    assert result.needs_model
-    outcome = session.record_answer(result, ANSWER)
-    assert isinstance(outcome, str) and not outcome.startswith("saved"), outcome
-    settle(session.stats, CHAT_ROWS[row])
-    no_caller_text_in_logs(logs)
 
 
 @pytest.mark.parametrize("row", ["down", "hung", "slow", "wrong_token"])

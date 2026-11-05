@@ -1,10 +1,9 @@
 // Type-checks the README's examples against index.d.ts: `npm run typecheck`.
-import { Agent, Chat, ChatReply, Crowkis, CrowkisClient, LLMUnderstander, MemoryStore } from "@crowkis/client";
+import { Crowkis, CrowkisClient } from "@crowkis/client";
 import { CrowkisMemory } from "@crowkis/client/memory";
 import { CrowkisCache } from "@crowkis/client/langchain";
 
 declare function myModel(prompt: string): Promise<string>;
-declare function complete(messages: Array<{ role: string; content: string }>): Promise<string>;
 
 async function readme(): Promise<void> {
   const cache = new Crowkis({ tenant: "my-app" });
@@ -22,10 +21,6 @@ async function readme(): Promise<void> {
   new CrowkisCache({ tenant: "my-app", ttl: 3600 });
 
   const client = new CrowkisClient({ tenant: "acme" });
-  const chat = new Chat(new Agent("support-bot", { client }), new LLMUnderstander(complete),
-    { system: "You are Acme's assistant.", store: new MemoryStore() });
-  const reply: ChatReply = await chat.turn("thread-1", [{ role: "user", content: "hi" }], complete);
-  console.log(reply.text, reply.fromCache, reply.outcome, reply.reason);
   client.close();
 }
 void readme;

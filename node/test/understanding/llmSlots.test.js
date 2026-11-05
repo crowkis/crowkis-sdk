@@ -1,13 +1,13 @@
 "use strict";
 
-// v4 P4 step 4: the model-backed slots (LLMClassifier, LLMRewriter, ReplayRewriter) and a rewritten
+// v4 P4 step 4: the model-backed slots (LLMClassifier, LLMRewriter) and a rewritten
 // turn's answer saved under the question it was looked up with. The same cases as
 // python/tests/understanding/test_llm_slots.py.
 
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../src/client/agent.js");
-const { LLMClassifier, LLMRewriter, LLMUnderstander, ReplayRewriter } = require("../../index.js");
+const { LLMClassifier, LLMRewriter, LLMUnderstander } = require("../../index.js");
 const { TurnFrame, FrameReading } = require("../../src/understanding/model/frame.js");
 const { WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");
@@ -127,30 +127,6 @@ test("the word rules still apply when the model says general", async () => {
   assert.strictEqual(decision.rule, "OwnRecords");
   await session.record(decision, "Order 48213 ships tomorrow.");
   assert.strictEqual(store.shared.size, 0);
-});
-
-test("ReplayRewriter: an exact repeat is keyed on the verified question", () => {
-  const rewriter = new ReplayRewriter({ "What is the refund policy?": "policy" });
-  const words = new WordRuleClassifier().classify("what is the refund policy");
-  assert.strictEqual(rewriter.rewrite("what is the refund policy", words), "What is the refund policy?");
-});
-
-test("ReplayRewriter: another wording keeps the caller's words", () => {
-  const rewriter = new ReplayRewriter({ "What is the refund policy?": "policy" });
-  const words = new WordRuleClassifier().classify("how do refunds work");
-  assert.strictEqual(rewriter.rewrite("how do refunds work", words), null);
-});
-
-test("ReplayRewriter: a turn read as personal is never rewritten", () => {
-  const rewriter = new ReplayRewriter({ "What is the refund policy?": "policy" });
-  assert.strictEqual(rewriter.rewrite("what is the refund policy", reading({ kind: "personal" })), null);
-});
-
-test("ReplayRewriter: it remembers a verified question", () => {
-  const rewriter = new ReplayRewriter();
-  rewriter.remember("refunds?", "What is the refund policy?");
-  const words = new WordRuleClassifier().classify("Refunds?");
-  assert.strictEqual(rewriter.rewrite("Refunds?", words), "What is the refund policy?");
 });
 
 // F4b: the model marked a product or a topic as identifying ("UPI", "iPhone 16") and set uses_state

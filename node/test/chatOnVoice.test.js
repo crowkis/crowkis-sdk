@@ -7,7 +7,6 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { voiceSession } = require("../src/channels/voiceSession.js");
-const { ReplayRewriter } = require("../src/understanding/model/understanders.js");
 const { WordRuleClassifier } = require("../src/understanding/slots.js");
 
 const HOURS = "what are your opening hours on sunday";
@@ -46,7 +45,9 @@ class Tenant {
   async close() {}
 }
 
-const understood = () => ({ classifier: new WordRuleClassifier(), rewriter: new ReplayRewriter({ [HOURS]: HOURS }) });
+// A rewriter that keys the one known phrasing on its verified question and keeps the caller's words otherwise.
+const stubRewriter = { rewrite: (text, reading) => (!reading.isPersonal && text.toLowerCase().trim() === HOURS ? HOURS : null) };
+const understood = () => ({ classifier: new WordRuleClassifier(), rewriter: stubRewriter });
 const chat = (tenant, options) => voiceSession({ client: tenant, channel: "chat", ...options });
 const call = (tenant, options) => voiceSession({ voice: "v", client: tenant, ...options });
 

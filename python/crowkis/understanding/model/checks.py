@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, List, Optional, Set
 
 from ..slots import Reading
 from ..word_rules.call_context import HIGH_RISK_FACT_TYPES, _high_risk
-from ..word_rules.chat import _FUNCTION, _stem, _toks
+from ..word_rules.private_words import _FUNCTION, _stem, _toks
 from ..word_rules.personal import _leaks, _is_personal
 from ..word_rules.text import _numbers, _proper_nouns, _words
 from .frame import TurnFrame, CONFIDENCE_FLOOR

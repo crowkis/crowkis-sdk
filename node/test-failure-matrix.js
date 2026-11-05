@@ -12,12 +12,8 @@ const assert = require("node:assert");
 const net = require("node:net");
 const voiceInternals = require("./src/channels/voiceSession.js");
 const { voiceSession } = voiceInternals;
-const { Chat } = require("./src/channels/chat.js");
-const { CallSession } = require("./src/channels/callSession.js");
 const { RealtimeAdapter, RealtimeGate } = require("./src/channels/realtime.js");
-const { Agent } = require("./src/client/agent.js");
 const { CrowkisClient } = require("./index.js");
-const { TurnFrame } = require("./src/understanding/model/frame.js");
 
 const QUESTION = "how do wyvern eggs hatch under a gloomy moonlit sky";
 const ANSWER = "Wyvern eggs hatch only when the quartzmoss ember is kept warm.";
@@ -98,24 +94,11 @@ const ROWS = {
   [QUOTES_QUESTION]: ["cset_echo", 500, 500, { failedWrites: 1 }, ["missedLatencyBudget", "cacheUnavailable"]],
 };
 
-// Chat / CallSession keep their own counts (session.stats()).
-const CHAT_COUNTS = {
-  down: { lookup_errors: 1 },
-  hung: { lookup_timeouts: 1 },
-  slow: { lookup_timeouts: 1 },
-  cset_refused: { save_refused: 1 },
-  wrong_token: { lookup_errors: 1 },
-  [QUOTES_QUESTION]: { save_refused: 1 },
-};
-
 // Node logs nothing for a refused write (the counter is the record), so the log checks are: no
 // caller text in anything logged, even when the server's error quotes the question.
 const ERROR_TYPES = ["CrowkisError", "TimeoutError", "ConnectionRefusedError", "ECONNREFUSED"];
 
-const frameOf = { kind: "general", subject: "none", confidence: 0.9, question: QUESTION };
-const oneFrame = { understand: () => TurnFrame.fromDict(frameOf) };
 const llm = async () => ANSWER;
-const messages = [{ role: "user", content: QUESTION }];
 
 // Everything the SDK says: console output and process warnings.
 function captureLogs() {
@@ -172,11 +155,6 @@ function newSession(row, server) {
   return voiceSession({ host: "127.0.0.1", port: server.port, timeoutMs: timeout, latencyBudgetMs: budget, authToken: TOKEN });
 }
 
-function chatAgent(row, server) {
-  const client = new CrowkisClient({ host: "127.0.0.1", port: server.port, timeoutMs: ROWS[row][2], maxRetries: 0, authToken: TOKEN });
-  return new Agent("matrix", { client });
-}
-
 function assertNotStored(decision) {
   assert.strictEqual(decision.action, "infer");
   assert.strictEqual(decision.text, ANSWER);
@@ -219,27 +197,6 @@ for (const row of Object.keys(ROWS)) {
     });
   });
 
-  test(`chat turn: ${row}`, async () => {
-    await cell(row, async (server, lines) => {
-      const chat = new Chat(chatAgent(row, server), oneFrame, { latencyBudgetMs: ROWS[row][1] });
-      const reply = await chat.turn("t1", messages, llm);
-      assert.ok(reply.text === ANSWER && reply.route === "shared" && !reply.fromCache, JSON.stringify(reply));
-      assert.ok(!String(reply.outcome).startsWith("saved"), reply.outcome);
-      assertNoCallerText(lines);
-    });
-  });
-
-  test(`call session: ${row}`, async () => {
-    await cell(row, async (server, lines) => {
-      const session = new CallSession(chatAgent(row, server), oneFrame, { latencyBudgetMs: ROWS[row][1] });
-      const result = await session.handle(QUESTION);
-      assert.ok(result.needsModel);
-      const outcome = await session.recordAnswer(result, ANSWER);
-      assert.ok(typeof outcome === "string" && !outcome.startsWith("saved"), outcome);
-      await settle(() => session.stats(), CHAT_COUNTS[row]);
-      assertNoCallerText(lines);
-    });
-  });
 }
 
 for (const row of ["down", "hung", "slow", "wrong_token"]) {

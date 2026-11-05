@@ -1,34 +1,13 @@
-"""What a session hands out and takes back: the route names, TurnResult, TurnDecision and the answered records."""
+"""What a session hands out and takes back: the route names, TurnDecision and the answered records."""
 
 from __future__ import annotations
 
 import weakref
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Optional, Tuple
-
-from ..understanding.model.frame import TurnFrame
+from typing import Dict, List, Optional
 
 URGENT, TASK, SHARED, PERSONAL, TOOLS, AGENT = "urgent", "task", "shared", "personal", "tools", "agent"
 FILLER = "filler"
-
-
-Message = Dict[str, str]
-
-
-@dataclass
-class TurnResult:
-    turn_id: int
-    route: str
-    text: Optional[str] = None             # what to say now (cache hit or filler), else None
-    needs_model: bool = True
-    messages: Optional[List[Message]] = None  # what the model reads; None = the whole call
-    frame: Optional[TurnFrame] = None
-    verdict: Optional[Any] = None  # a Verdict; the real class would make an import cycle
-    reason: str = ""
-
-    @property
-    def served_from_cache(self) -> bool:
-        return self.route == SHARED and self.text is not None
 
 
 class TurnDecision:
@@ -121,14 +100,3 @@ class VoiceAnswered:
         return replace(self, shareable=shareable)
 
 
-@dataclass(frozen=True)
-class ChatAnswered:
-    """A chat turn's answer: the turn's result, the agent's answer, the places / products / options it
-    named (``mentions``), the task it started collecting details for, and whether the app built it
-    from a tool's result (``private``)."""
-
-    result: TurnResult
-    answer: str
-    mentions: Tuple = ()
-    task: Optional[str] = None
-    private: bool = False

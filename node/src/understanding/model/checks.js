@@ -1,6 +1,6 @@
 "use strict";
 const { HIGH_RISK_FACT_TYPES, highRisk } = require("../wordRules/callContext.js");
-const { FUNCTION, stem, toks } = require("../wordRules/chat.js");
+const { FUNCTION, stem, toks } = require("../wordRules/privateWords.js");
 const { leaks, isPersonal } = require("../wordRules/personal.js");
 const { numbersOf, properNouns, wordsOf } = require("../wordRules/text.js");
 const { CONFIDENCE_FLOOR } = require("./frame.js");

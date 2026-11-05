@@ -195,7 +195,7 @@ class TurnFrame:
 SHAREABLE_KIND = "general"
 # A turn that only means something next to the turn before it.
 FOLLOW_UP_KIND = "dialogue"
-# Below this the frame is a guess, and a guess is read as private (Chat's rule checker uses the same floor).
+# Below this the frame is a guess, and a guess is read as private.
 CONFIDENCE_FLOOR = 0.6
 
 

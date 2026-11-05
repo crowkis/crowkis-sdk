@@ -7,8 +7,6 @@ from typing import Optional
 from ...runtime.stats import Counter
 from ...turns.voice.turn import ModelAnswer
 from ...turns.values import Outcome, Verdict
-from ...turns.chat.turn import ChatAnswer
-from ...understanding.word_rules.answers import _is_non_answer
 
 
 class EmptyAnswer:
@@ -23,19 +21,6 @@ class EmptyAnswer:
         return Verdict(self.name, "the model returned an empty answer", (Counter.EMPTY_ANSWERS,), Outcome.NON_ANSWER)
 
 
-# The ChatEmptyAnswer rule (stage 3, save; Chat, "empty").
-class ChatEmptyAnswer:
-    """An empty answer has nothing to save."""
-
-    name = "ChatEmptyAnswer"
-    floor = False
-
-    def check(self, answer: ChatAnswer) -> Optional[Verdict]:
-        if answer.text:
-            return None
-        return Verdict(self.name, "empty")
-
-
 class NonAnswer:
     """An answer that asks back or does not answer is not saved."""
 
@@ -46,19 +31,6 @@ class NonAnswer:
         if not answer.is_non_answer:
             return None
         return Verdict(self.name, "not saved: the answer asks back or does not answer", (Counter.NOT_SHAREABLE,), Outcome.NON_ANSWER)
-
-
-# The ChatNonAnswer rule (stage 3, save; Chat, "non_answer").
-class ChatNonAnswer:
-    """An answer that asks back or does not answer is not saved."""
-
-    name = "ChatNonAnswer"
-    floor = False
-
-    def check(self, answer: ChatAnswer) -> Optional[Verdict]:
-        if not _is_non_answer(answer.text):
-            return None
-        return Verdict(self.name, "non_answer")
 
 
 class ToolResult:
@@ -72,20 +44,6 @@ class ToolResult:
             return None
         return Verdict(self.name, "kept to this call: the answer was built from a tool's result",
                        (Counter.NOT_SHAREABLE,), Outcome.KEPT)
-
-
-# The ChatToolResult rule (stage 3, save; Chat).
-class ChatToolResult:
-    """Voice's ToolResult on Chat (v4): an answer the app built from a tool's result
-    (``record_answer(..., private=True)``) stays in the chat."""
-
-    name = "ChatToolResult"
-    floor = False
-
-    def check(self, answer: ChatAnswer) -> Optional[Verdict]:
-        if not answer.private:
-            return None
-        return Verdict(self.name, "tool_result")
 
 
 class NoKey:

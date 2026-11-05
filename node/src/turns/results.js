@@ -1,8 +1,8 @@
 "use strict";
 
-// What a session hands out and takes back: the route names, TurnResult, TurnDecision and the answered records.
+// What a session hands out and takes back: the route names, TurnDecision and the answered record.
 
-// Where a Chat turn goes: the routes Chat's rules and sessions name.
+// Where a turn goes: public, stable route names.
 
 const URGENT = "urgent";
 const TASK = "task";
@@ -12,23 +12,6 @@ const TOOLS = "tools";
 const AGENT = "agent";
 
 const FILLER = "filler";
-
-class TurnResult {
-  constructor(turnId, route, fields = {}) {
-    this.turnId = turnId;
-    this.route = route;
-    this.text = fields.text ?? null;            // what to say now (cache hit or filler)
-    this.needsModel = fields.needsModel ?? true;
-    this.messages = fields.messages ?? null;    // what the model reads; null = the whole call
-    this.frame = fields.frame ?? null;
-    this.verdict = fields.verdict ?? null;
-    this.reason = fields.reason ?? "";
-  }
-
-  get servedFromCache() {
-    return this.route === SHARED && this.text !== null;
-  }
-}
 
 // TurnDecision: what a voice session decided for one turn.
 
@@ -114,16 +97,4 @@ class VoiceAnswered {
   }
 }
 
-/**
- * A chat turn's answer, as CallSession hands it to TurnCore.record(): the turn's result, the agent's
- * answer, the places / products / options it named (`mentions`), the task it started collecting
- * details for, and whether the app built it from a tool's result (`private`). Immutable.
- */
-class ChatAnswered {
-  constructor(result, answer, mentions = [], task = null, isPrivate = false) {
-    Object.assign(this, { result, answer, mentions, task, private: isPrivate });
-    Object.freeze(this);
-  }
-}
-
-module.exports = { AGENT, ChatAnswered, FILLER, PERSONAL, SHARED, TASK, TOOLS, TurnDecision, TurnResult, URGENT, VoiceAnswered };
+module.exports = { AGENT, FILLER, PERSONAL, SHARED, TASK, TOOLS, TurnDecision, URGENT, VoiceAnswered };

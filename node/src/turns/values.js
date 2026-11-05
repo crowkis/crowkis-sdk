@@ -6,7 +6,7 @@ const { fill } = require("../understanding/wordRules/answers.js");
 
 /**
  * What happened to a model's answer: the words callers see in `decision.notStored`, a voice record's
- * `outcome`, Chat's outcomes and its "answer" events. Named constants, like COUNTER.
+ * `outcome`. Named constants, like COUNTER.
  */
 const OUTCOME = Object.freeze({
   SAVED: "saved",
@@ -23,17 +23,11 @@ const OUTCOME = Object.freeze({
   REFUSED: "refused",
 });
 
-/** Chat's form of an outcome with its reason: "refused:<why>". */
-function because(outcome, why) {
-  return `${outcome}:${why}`;
-}
-
 /**
  * What a rule says when it objects. `rule` names the rule (in decisions, logs and stats()),
  * `reason` says why in words, `counts` are the session counters it adds to, `outcome` is, for a
- * save rule, what happened to the answer (an OUTCOME; Chat's refusal adds its reason:
- * `because(OUTCOME.REFUSED, why)`), and `route` is, for a Chat
- * rule that decides alone, where the turn goes ("urgent", "task", "filler"), and `answer` is what to
+ * save rule, what happened to the answer (an OUTCOME), and `route` is, for a rule that decides
+ * alone, where the turn goes ("filler"), and `answer` is what to
  * say at once when the rule answers the turn itself (a filler). Immutable.
  */
 class Verdict {
@@ -161,4 +155,4 @@ const REALTIME = new Channel({ name: "realtime", isolatesContext: false, budgetM
 
 const CHANNELS = new Map([VOICE, CHAT, REALTIME].map((channel) => [channel.name, channel]));
 
-module.exports = { CACHE_ROUTE, CHANNELS, CHAT, CachedAnswer, Channel, Checked, Hit, LookedUp, OUTCOME, REALTIME, VOICE, Verdict, because };
+module.exports = { CACHE_ROUTE, CHANNELS, CHAT, CachedAnswer, Channel, Checked, Hit, LookedUp, OUTCOME, REALTIME, VOICE, Verdict };

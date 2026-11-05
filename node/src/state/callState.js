@@ -6,7 +6,7 @@
 
 const crypto = require("node:crypto");
 const { Attribute } = require("../understanding/model/frame.js");
-const { privateWords } = require("../understanding/wordRules/chat.js");
+const { privateWords } = require("../understanding/wordRules/privateWords.js");
 const { setsContext } = require("../understanding/wordRules/callContext.js");
 const { isContextDependent, privateChain } = require("../understanding/wordRules/followUp.js");
 const { isPersonal } = require("../understanding/wordRules/personal.js");

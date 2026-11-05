@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
-from ..understanding.word_rules.chat import _private_words
+from ..understanding.word_rules.private_words import _private_words
 from ..understanding.slots import Reading
 from ..understanding.model.frame import Attribute, TurnFrame
 from ..understanding.word_rules.call_context import _sets_context
@@ -75,7 +75,7 @@ class CallState:
     # "december", "3"): a shared question must carry every one, or it stays private.
     details: List[str] = field(default_factory=list)
     # Hashes of the ID-like values the user said in any turn ("ord55821", an email): a shared answer
-    # repeating one is refused (ChatCallerIdentifier). Exported hashed like private_words: Chat restores its
+    # repeating one is refused (CallerIdentifier). Exported hashed like private_words: a chat restores its
     # state from the app's store every turn, so without them the check only sees the current turn.
     identifiers: List[str] = field(default_factory=list)
     # A voice call's memory, in memory only and never in to_dict (a chat export stays as it was).

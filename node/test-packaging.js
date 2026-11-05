@@ -54,26 +54,22 @@ test("ESM: every export of the package can be imported by name, and they are req
     import { createRequire } from "node:module";
     import * as ns from "@crowkis/client";
     import crowkis, { Crowkis, CrowkisClient, Agent, VoiceSession, voiceSession, TurnDecision,
-      VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate, CrowkisError, CrowkisAdmin, Chat, ChatConflict,
-      MemoryStore, CallSession, TurnResult, CallState, TurnFrame, RuleChecker, Verdict, LLMUnderstander,
-      ReplayUnderstander, WithFallback } from "@crowkis/client";
+      VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate, CrowkisError, CrowkisAdmin, CallState, TurnFrame,
+      LLMUnderstander, WithFallback } from "@crowkis/client";
     import { VoiceSession as FromVoice } from "@crowkis/client/voice";
     import { Agent as FromAgent } from "@crowkis/client/agent";
     import { AudioClips } from "@crowkis/client/voiceTurns";
     import { CrowkisCache } from "@crowkis/client/langchain";
     import { CrowkisMemory } from "@crowkis/client/memory";
-    import { Chat as FromChat } from "@crowkis/client/chat";
-    import { CallSession as FromSession } from "@crowkis/client/session";
     const cjs = createRequire(import.meta.url)("@crowkis/client");
     const missing = Object.keys(cjs).filter((name) => !(name in ns));
     console.log(JSON.stringify({
       missing,
       same: VoiceSession === cjs.VoiceSession && FromVoice === VoiceSession && FromAgent === Agent
-        && crowkis === cjs && Crowkis === CrowkisClient && FromChat === Chat && FromSession === CallSession,
+        && crowkis === cjs && Crowkis === CrowkisClient,
       kinds: [Agent, voiceSession, TurnDecision, VoiceResponse, warmFromCalls, RealtimeAdapter, RealtimeGate,
-        CrowkisError, CrowkisAdmin, AudioClips, CrowkisCache, CrowkisMemory, Chat, ChatConflict, MemoryStore,
-        CallSession, TurnResult, CallState, TurnFrame, RuleChecker, Verdict, LLMUnderstander, ReplayUnderstander,
-        WithFallback].map((x) => typeof x),
+        CrowkisError, CrowkisAdmin, AudioClips, CrowkisCache, CrowkisMemory, CallState, TurnFrame,
+        LLMUnderstander, WithFallback].map((x) => typeof x),
     }));
   `);
   assert.strictEqual(out.status, 0, out.stderr);
@@ -116,18 +112,14 @@ test("types: every subpath is typed and the types match the code", (t) => {
       type RealtimeTurnSource, type RealtimeClientEvent, type RealtimeInjectEvent,
       type RealtimeRespondEvent } from "@crowkis/client/realtime";
     import { AudioClips, AnswerPairing, TTS_TOOL, type AskedContext, type TurnGate, type AnswerReport } from "@crowkis/client/voiceTurns";
-    import { Crowkis, Chat, MemoryStore, LLMUnderstander, CallSession, RuleChecker, type ChatReply, type ChatOptions,
-      type CallSessionOptions } from "@crowkis/client";
-    import { Chat as Chat2, ChatConflict, MemoryStore as Store2, type ChatStore, type ChatMessage,
-      type ChatReply as Reply2 } from "@crowkis/client/chat";
-    import { CallSession as Session2, TurnResult, FILLER, MODES, type CallSessionOptions as Options2 } from "@crowkis/client/session";
+    import { Crowkis, LLMUnderstander, FILLER } from "@crowkis/client";
     // Every re-exported name resolves (a re-export of a name that does not exist fails here).
     type Named = [VoiceSessionOptions, VoiceSessionFactoryOptions, TurnAction, TurnDecisionOptions, VoiceStats,
       VoiceValues, Commitments, ModelCall, StreamingModelCall, ModelMessage, TranscriptTurn, PastTurn,
       WarmStartTotals, AgentOptions, AskOptions, AskResult, AudioStats, RouteStats, ToolStats,
       CachedTool<() => void>, Synthesise, CrowkisCacheOptions, CrowkisMemoryOptions, RealtimeAdapterOptions,
       RealtimeStats, RealtimeTurnSource, RealtimeClientEvent, RealtimeInjectEvent, RealtimeRespondEvent,
-      TurnGate, AnswerReport, ChatReply, ChatOptions, CallSessionOptions, ChatStore, ChatMessage, Reply2, Options2];
+      TurnGate, AnswerReport];
     const values = [warmFromCalls, waitForAudioStores, voiceAddonMissing, RealtimeAdapter, CrowkisGrpcClient,
       loadCrowkisGrpc, TTS_TOOL] as const;
 
@@ -160,19 +152,14 @@ test("types: every subpath is typed and the types match the code", (t) => {
       const todo = await pairing.responseEnd();
       if (todo) await pairing.record(...todo);
     }
-    async function chats(complete: (m: Array<{ role: string; content: string }>) => Promise<string>) {
+    async function understood(complete: (m: Array<{ role: string; content: string }>) => Promise<string>) {
       const asked = await agent.ask("q", { segment: "lang=hi" });
       const quick = new Crowkis({ tenant: "t" });
-      const chat = new Chat(agent, new LLMUnderstander(complete), { system: "s", store: new MemoryStore() });
-      const reply: ChatReply = await chat.turn("thread", [{ role: "user", content: "hi" }], complete);
-      const outcome: string = reply.outcome;
-      const same: Chat2 = chat;
-      const guarded = new Session2(agent, new LLMUnderstander(complete), { instructions: "The caller is Asha." });
-      const mode: "full" | "replay_only" | "off" = MODES[0];
+      const understander = new LLMUnderstander(complete);
       const route: "filler" = FILLER;
-      void [asked, quick, outcome, CallSession, RuleChecker, same, guarded, mode, route, ChatConflict, Store2, TurnResult];
+      void [asked, quick, understander, route];
     }
-    void [n, s2, label, counts, flags, bps, unavailable, go, chats, RealtimeGate, values];
+    void [n, s2, label, counts, flags, bps, unavailable, go, understood, RealtimeGate, values];
     export type { Named };
   `);
   const tsc = spawnSync("npx", ["-y", "-p", "typescript@5.6.3", "tsc", "-p", "."], {

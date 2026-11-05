@@ -1,24 +1,22 @@
 "use strict";
 
-// Chat and voice on a real server share nothing private (CROWKIS_CONFORMANCE_SERVER=1). The Node
-// twin of python/tests/test_cross_channel_server.py: each run uses made-up words; one channel saves
-// a general answer and a caller's private details, a fresh session of the other channel asks. Nothing
-// it gets back, no write the SDK sent and no raw lookup may hold the details. A general answer stays
-// inside its channel (the segment holds channel=): the same-channel controls prove it, the
-// cross-channel cases assert it (v4 P5 item 5).
+// Chat (voiceSession({ channel: "chat" })) and voice on a real server share nothing private
+// (CROWKIS_CONFORMANCE_SERVER=1). The Node twin of python/tests/test_cross_channel_server.py: each run
+// uses made-up words; one channel saves a general answer and a caller's private details, a fresh
+// session of the other channel asks. Nothing it gets back, no write the SDK sent and no raw lookup
+// may hold the details. The general answer is shared: one pool per tenant (the segment is kb=<version>).
 //
 //   CROWKIS_CONFORMANCE_SERVER=1 CROWKIS_HOST=... CROWKIS_PORT=... CROWKIS_AUTH_TOKEN=... \
 //     CROWKIS_TENANT=voice node --test test-cross-channel-server.js
 const assert = require("node:assert");
 const crypto = require("node:crypto");
 const { test } = require("node:test");
-const { Agent, Chat, CrowkisClient, LLMClassifier, LLMRewriter, voiceSession } = require("./index.js");
+const { CrowkisClient, LLMClassifier, LLMRewriter, voiceSession } = require("./index.js");
 const { TurnFrame } = require("./src/understanding/model/frame.js");
 
 const REAL = process.env.CROWKIS_CONFORMANCE_SERVER === "1";
 const FINDABLE_MS = 10_000; // a new answer is findable on a real server within about a second
-const SEPARATE_MS = 3_000; // waiting for something that must not happen: shorter
-const SEGMENTS = [null, "kb=1;channel=voice", "kb=1;lang=und;channel=chat"];
+const SEGMENTS = [null, "kb=1"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // One run's made-up words: nothing already on the server can match them.
@@ -69,26 +67,15 @@ function setup() {
   client.cset = (...args) => { writes.push(args); return cset(...args); };
   const understander = { understand: (turn) => TurnFrame.fromDict(w.frames[turn]) };
 
-  async function chatAsk(thread, texts, reply) {
-    const agent = new Agent(`xchan-chat-${w.u}`, { client });
-    const chat = new Chat(agent, understander, { system: "You are the store's assistant." });
-    const history = [];
-    const out = [];
-    for (const text of texts) {
-      history.push({ role: "user", content: text });
-      out.push(await chat.turn(thread, [...history], async () => reply));
-      history.push({ role: "assistant", content: out[out.length - 1].text });
-    }
-    return out;
-  }
-
-  async function voiceAsk(texts, reply, understood = true) {
+  async function voiceAsk(texts, reply, understood = true, channel = "voice") {
     const extra = understood ? { classifier: new LLMClassifier(understander), rewriter: new LLMRewriter(understander) } : {};
-    const session = voiceSession({ client, agentId: `xchan-voice-${w.u}`, ...extra });
+    const session = voiceSession({ client, agentId: `xchan-${channel}-${w.u}`, channel, ...extra });
     const out = [];
     for (const text of texts) out.push(await session.answer(text, async () => reply));
     return { out, session };
   }
+
+  const chatAsk = async (texts, reply) => (await voiceAsk(texts, reply, true, "chat")).out;
 
   async function untilServed(ask, wait = FINDABLE_MS) {
     const deadline = Date.now() + wait;
@@ -112,10 +99,10 @@ function setup() {
   }
 
   async function chatSaves() {
-    const [general] = await chatAsk("t-general", [w.generalQ], w.generalA);
-    assert.strictEqual(general.outcome, "saved", JSON.stringify(general));
-    const priv = await chatAsk("t-private", [w.intro, w.privateQ], w.privateA);
-    assert.ok(priv.every((r) => r.outcome !== "saved"), JSON.stringify(priv)); // never shared
+    const [general] = await chatAsk([w.generalQ], w.generalA);
+    assert.ok(general.stored, JSON.stringify(general));
+    const priv = await chatAsk([w.intro, w.privateQ], w.privateA);
+    assert.ok(priv.every((r) => !r.stored), JSON.stringify(priv)); // never shared
     await sleep(1500);
   }
 
@@ -152,23 +139,23 @@ real("chat to voice keeps private details private", {}, async (t) => {
   }
 });
 
-// By design (v4 P5 item 5): every segment holds channel=<name>, so channels never serve each other's answers.
-real("chat to voice does not serve the general answer", {}, async (t) => {
+// One pool per tenant: a general answer saved on one channel is served on the other.
+real("chat to voice serves the general answer", {}, async (t) => {
   await t.chatSaves();
-  const got = await t.untilServed(async () => servedText((await t.voiceAsk([t.w.generalQ], "LLM-VOICE")).out[0], "LLM-VOICE"), SEPARATE_MS);
-  assert.strictEqual(got, null);
+  const got = await t.untilServed(async () => servedText((await t.voiceAsk([t.w.generalQ], "LLM-VOICE")).out[0], "LLM-VOICE"));
+  assert.strictEqual(got, t.w.generalA);
 });
 
 real("voice to chat keeps private details private", {}, async (t) => {
   await t.voiceSaves();
-  const got = await t.chatAsk("t-other", [t.w.generalQ, t.w.intro, t.w.privateQ], "Sorry, one moment.");
+  const got = await t.chatAsk([t.w.generalQ, t.w.intro, t.w.privateQ], "Sorry, one moment.");
   await t.assertPrivateStayedPrivate(got);
 });
 
-real("voice to chat does not serve the general answer", {}, async (t) => { // P5 item 5, as above
+real("voice to chat serves the general answer", {}, async (t) => {
   await t.voiceSaves();
-  const got = await t.untilServed(async () => servedText((await t.chatAsk("t-g2", [t.w.generalQ], "LLM-CHAT"))[0], "LLM-CHAT"), SEPARATE_MS);
-  assert.strictEqual(got, null);
+  const got = await t.untilServed(async () => servedText((await t.chatAsk([t.w.generalQ], "LLM-CHAT"))[0], "LLM-CHAT"));
+  assert.strictEqual(got, t.w.generalA);
 });
 
 real("a voice answer repeating stated details is not shared", {}, async (t) => {
@@ -178,15 +165,15 @@ real("a voice answer repeating stated details is not shared", {}, async (t) => {
 });
 
 real("a chat answer repeating stated details is not shared", {}, async (t) => {
-  const first = (await t.chatAsk("t-stated", [t.w.stated, t.w.generalQ], t.w.leakyA))[1];
-  assert.notStrictEqual(first.outcome, "saved", JSON.stringify(first));
-  await t.assertStatedDetailsNotShared(false, () => t.chatAsk("t-second", [t.w.generalQ], "LLM-CHAT"));
+  const first = (await t.chatAsk([t.w.stated, t.w.generalQ], t.w.leakyA))[1];
+  assert.notStrictEqual(first.stored, true, JSON.stringify(first));
+  await t.assertStatedDetailsNotShared(false, () => t.chatAsk([t.w.generalQ], "LLM-CHAT"));
 });
 
 real("control: chat to chat shares the general answer", {}, async (t) => {
   await t.chatSaves();
   const got = await t.untilServed(async () =>
-    servedText((await t.chatAsk(`t-${crypto.randomBytes(3).toString("hex")}`, [t.w.generalQ], "LLM-CHAT"))[0], "LLM-CHAT"));
+    servedText((await t.chatAsk([t.w.generalQ], "LLM-CHAT"))[0], "LLM-CHAT"));
   assert.strictEqual(got, t.w.generalA);
 });
 

@@ -4,24 +4,10 @@
 
 const { Verdict } = require("../../turns/values.js");
 const { setsContext } = require("../../understanding/wordRules/callContext.js");
-const { leansOn, privateChain } = require("../../understanding/wordRules/followUp.js");
-const { wordsOf } = require("../../understanding/wordRules/text.js");
+const { privateChain } = require("../../understanding/wordRules/followUp.js");
 const { COUNTER } = require("../../runtime/stats.js");
-const {
-  CLAUSE_START,
-  CONTRACTION,
-  FUNCTION,
-  GENERIC_FACT,
-  NUMWORDS,
-  QUESTION_WORDS,
-  REFERRING,
-  stem,
-  toks,
-  unnamed,
-} = require("../../understanding/wordRules/chat.js");
+const { unnamed } = require("../../understanding/wordRules/privateWords.js");
 const { contentStems, statedFactIrrelevant } = require("../../understanding/model/checks.js");
-const { wordDigest } = require("../../state/callState.js");
-const { DETAIL_TYPES } = require("../../understanding/model/frame.js");
 
 const PRIVATE_CHAIN_REASON =
   "a follow-up to a private turn of this call: its answer depends on what " +
@@ -69,35 +55,6 @@ class FollowUpWithoutContext {
   }
 }
 
-// The UnresolvedReference rule (stage 1, question; Chat, V10).
-/**
- * The model says the turn leans on the chat ("how far is it from London?") but the turn or its
- * question says "it" and the question names nothing new from the chat (a neutral "population" names
- * nothing; "Who is their president?" -> "Who is the president?" dropped it): the reference was not
- * resolved. A rewrite that resolved it ("Is it safe to eat pad thai in Thailand?") keeps a filler
- * "it" and is fine.
- */
-class UnresolvedReference {
-  get name() {
-    return "UnresolvedReference";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(turn) {
-    const saidList = toks(turn.text);
-    const said = new Set(saidList);
-    const qwords = toks(turn.question);
-    const named = qwords.some((w) => !said.has(w) && !FUNCTION.has(w) && !QUESTION_WORDS.has(w) && !CONTRACTION.has(w));
-    // shortcut: Chat checks only the last shared question; after a personal turn this misses (as before).
-    const leans = leansOn(turn.question, turn.state.activeQuestion || "");
-    if (!(leans || (turn.frame.usesState && [...qwords, ...saidList].some((w) => REFERRING.has(w)) && !named))) return null;
-    return new Verdict(this.name, "V10_unresolved");
-  }
-}
-
 const TAINTED_REASON =
   "the caller has told this call something a later answer may depend on " +
   "(a condition, an age, a plan, an instruction, a step in their own task); " +
@@ -121,60 +78,6 @@ class CallContextTaint {
     if (!(turn.call.tainted || setsContext(turn.text))) return null;
     turn.call.markTainted();
     return new Verdict(this.name, TAINTED_REASON, [COUNTER.REFUSED_PRIVATE, COUNTER.INFERRED]);
-  }
-}
-
-// The StatedFacts rule (stage 1, question; Chat, V7).
-/**
- * A fact the caller stated in this chat (an allergy, an age, a trip) that the question does not
- * carry. Fixed code, so the allergy case never rests on the model having tagged the allergy: the
- * question must keep at least one content word of each such turn. A turn with no readable word
- * (another script) cannot be checked, so it keeps the question private.
- *
- * v4: a stated turn the frame confidently tags as not changing this answer may be left out
- * (statedFactIrrelevant); an allergy, a medication, a pregnancy or an age never may.
- */
-class StatedFacts {
-  get name() {
-    return "StatedFacts";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(turn) {
-    for (const dropped of StatedFacts._droppedStatements(turn.state, turn.question)) {
-      if (!statedFactIrrelevant(dropped, turn.frame)) return new Verdict(this.name, "V7_lost:" + dropped);
-    }
-    return null;
-  }
-
-  static *_droppedStatements(state, question) {
-    const qstems = new Set(toks(question).map(stem));
-    for (const turn of state.stated) {
-      let words = toks(turn).filter((w) => !FUNCTION.has(w) && (w.length > 2 || /^\d+$/.test(w)));
-      // "allergies" alone does not carry "allergic to penicillin": the specific word must be there.
-      const specific = words.filter((w) => !GENERIC_FACT.has(stem(w)));
-      if (specific.length) words = specific;
-      if (!words.length || !words.some((w) => qstems.has(stem(w))) || StatedFacts._dropsAListedItem(turn, qstems)) {
-        yield turn;
-      }
-    }
-  }
-
-  /** Every item of a list is carried: "penicillin and peanuts" is not "peanuts". */
-  static _dropsAListedItem(turn, qstems) {
-    const all = toks(turn);
-    for (let i = 0; i < all.length; i++) {
-      // "and I live alone" starts a new clause; it is not a list.
-      if ((all[i] !== "and" && all[i] !== "or") || (i + 1 < all.length && CLAUSE_START.has(all[i + 1]))) continue;
-      for (const side of [all.slice(0, i).reverse(), all.slice(i + 1)]) {
-        const item = side.find((x) => !FUNCTION.has(x));
-        if (item && (item.length > 2 || /^\d+$/.test(item)) && !GENERIC_FACT.has(stem(item)) && !qstems.has(stem(item))) return true;
-      }
-    }
-    return false;
   }
 }
 
@@ -224,53 +127,4 @@ class VoiceStatedFacts {
   }
 }
 
-// The ToldDetailDropped rule (stage 1, question; Chat, "V7_lost_detail", checked once the rule checker would share).
-/** A place, month or number the caller told ("Goa in December") is missing from the question. */
-class ToldDetailDropped {
-  get name() {
-    return "ToldDetailDropped";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(turn) {
-    const words = wordsOf(turn.question || "");
-    const asked = new Set([...words.map(wordDigest), ...words.map((w) => wordDigest(NUMWORDS[w] || w))]); // "three" is "3"
-    if (!turn.state.details.some((d) => !asked.has(d))) return null;
-    return new Verdict(this.name, "V7_lost_detail");
-  }
-}
-
-// The LostDetail rule (stage 1, question; Chat, V7).
-/** An answer-relevant detail of the turn (a product, a time, a place) missing from the key. */
-class LostDetail {
-  get name() {
-    return "LostDetail";
-  }
-
-  get floor() {
-    return false;
-  }
-
-  check(turn) {
-    const lost = LostDetail._lostDetail(turn.frame, turn.question);
-    if (!lost) return null;
-    return new Verdict(this.name, "V7_lost:" + lost);
-  }
-
-  static _lostDetail(frame, question) {
-    const qstems = new Set(toks(question).map(stem));
-    const attrText = Object.values(frame.attributes).map((a) => `${a.value} ${a.normalised}`).join(" ").toLowerCase();
-    for (const e of frame.entities) {
-      if (e.answerRelevant && !e.identifying && DETAIL_TYPES.has(e.type)) {
-        const words = toks(e.text).filter((w) => !FUNCTION.has(w));
-        if (words.length && !words.some((w) => qstems.has(stem(w))) && !words.some((w) => attrText.includes(w))) return e.text;
-      }
-    }
-    return null;
-  }
-}
-
-module.exports = { PrivateChain, FollowUpWithoutContext, UnresolvedReference, CallContextTaint, StatedFacts, VoiceStatedFacts, ToldDetailDropped, LostDetail };
+module.exports = { PrivateChain, FollowUpWithoutContext, CallContextTaint, VoiceStatedFacts };

@@ -6,7 +6,6 @@ import unittest
 
 from crowkis import CacheHit, voice_session
 from crowkis.client.agent import Agent
-from crowkis.understanding.model.understanders import ReplayRewriter
 from crowkis.understanding.slots import WordRuleClassifier
 
 HOURS = "what are your opening hours on sunday"
@@ -46,8 +45,18 @@ class Tenant:
         pass
 
 
+class KnownRewriter:
+    """Keys a turn on a verified question when it repeats it (case and spacing aside); else the caller's words."""
+
+    def __init__(self, known):
+        self._known = known
+
+    def rewrite(self, text, reading):
+        return None if reading.is_personal else self._known.get(" ".join(text.lower().split()))
+
+
 def understood():
-    return {"classifier": WordRuleClassifier(), "rewriter": ReplayRewriter({HOURS: HOURS})}
+    return {"classifier": WordRuleClassifier(), "rewriter": KnownRewriter({HOURS: HOURS})}
 
 
 def chat(tenant, **options):

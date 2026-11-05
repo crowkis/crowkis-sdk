@@ -11,7 +11,7 @@ import json
 import sys
 from typing import Any, Iterator, List, Set, Tuple
 
-from replay import ChatReplay, VoiceReplay, golden_path, replay, suites
+from replay import VoiceReplay, golden_path, replay, suites
 
 
 ABSENT = "<absent>"
@@ -37,7 +37,7 @@ def field_of(path: Tuple) -> str:
 
 def main(added: Set[str]) -> int:
     unexpected: List[str] = []
-    for pipeline in (VoiceReplay(), ChatReplay()):
+    for pipeline in (VoiceReplay(),):
         for suite, calls in suites().items():
             expected = json.loads(golden_path(pipeline.pipeline, suite).read_text("utf-8"))
             actual = json.loads(json.dumps(replay(pipeline, calls)))

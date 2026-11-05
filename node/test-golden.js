@@ -7,13 +7,12 @@
 const assert = require("node:assert");
 const fs = require("node:fs");
 const { test } = require("node:test");
-const { ChatReplay, VoiceReplay, goldenPath, replay, suites } = require("./test/golden.js");
+const { VoiceReplay, goldenPath, replay, suites } = require("./test/golden.js");
 
-for (const pipeline of [new VoiceReplay(), new ChatReplay()]) {
-  for (const [suite, calls] of Object.entries(suites())) {
-    test(`golden ${pipeline.pipeline} decisions: ${suite}`, async () => {
-      const expected = JSON.parse(fs.readFileSync(goldenPath(pipeline.pipeline, suite), "utf8"));
-      assert.deepStrictEqual(await replay(pipeline, calls), expected);
-    });
-  }
+const pipeline = new VoiceReplay();
+for (const [suite, calls] of Object.entries(suites())) {
+  test(`golden ${pipeline.pipeline} decisions: ${suite}`, async () => {
+    const expected = JSON.parse(fs.readFileSync(goldenPath(pipeline.pipeline, suite), "utf8"));
+    assert.deepStrictEqual(await replay(pipeline, calls), expected);
+  });
 }

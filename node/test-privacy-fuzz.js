@@ -4,13 +4,12 @@
 // The Node twin of python/tests/test_privacy_fuzz.py (same categories and sizes; its own
 // seeded generator). Calls with names (three casings), phones (formats, in words), emails, ids,
 // addresses, dates of birth, Hinglish, Devanagari, very long and blank turns run through
-// voiceSession (decide + record) and Chat (a scripted understander, like test-chat.js). Every
+// voiceSession (decide + record), also with the chat profile. Every
 // write to the stand-in server is searched for the detail raw, lowercase, digits-only and
 // spelled out. A failure prints the seed, the case index and the leaked detail.
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { voiceSession, _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
-const { Chat } = require("./src/channels/chat.js");
 const { LLMClassifier, LLMRewriter } = require("./src/understanding/model/understanders.js");
 const { TurnFrame } = require("./src/understanding/model/frame.js");
 const { ConformanceStore } = require("./test/conformance.js");
@@ -211,33 +210,6 @@ async function playVoice(turns) {
   return store;
 }
 
-class SegmentedAgent {
-  constructor() { this.store = new Map(); this.saved = []; }
-  async ask(key, options = {}) {
-    const answer = this.store.get(`${options.segment || ""}|${key}`);
-    return answer ? { route: "cache", answer, confidence: 0.99 } : { route: "expensive" };
-  }
-  async learn(key, answer, options = {}) {
-    this.store.set(`${options.segment || ""}|${key}`, answer);
-    this.saved.push([options.segment || null, key, answer, options.ttl]);
-  }
-}
-const chatBlobs = (agent) => agent.saved.map(([, key, answer]) => `${key} ${answer}`);
-
-// turns: [user text, the frame a good understanding model returns, the model's answer]
-async function playChat(turns) {
-  const agent = new SegmentedAgent();
-  const frames = Object.fromEntries(turns.map(([t, f]) => [t, f]));
-  const answers = turns.map(([, , a]) => a);
-  const chat = new Chat(agent, { understand: (turn) => TurnFrame.fromDict(frames[turn]) }, { system: "You are Acme's assistant." });
-  const history = [];
-  for (const [text] of turns) {
-    history.push({ role: "user", content: text });
-    const reply = await chat.turn("t", [...history], async () => answers.shift());
-    history.push({ role: "assistant", content: reply.text });
-  }
-  return agent;
-}
 const personalFrame = (d) => ({ kind: "personal", subject: "self", confidence: 0.9, entities: [{ text: d.shown, type: KINDS[d.kind] }] });
 const generalFrame = (text) => ({ ...GENERAL, question: text });
 
@@ -361,50 +333,6 @@ const asWeakChat = (build, frameOf) => (rng, d) => build(rng, d).map(([text, ans
   const isDetail = text.includes(d.shown) || text.includes(d.said) || d.texts.some((t) => text.toLowerCase().includes(t));
   return [text, isDetail ? frameOf(text) : generalFrame(text), answer];
 });
-test("chat: a weak understander, detail stated earlier", async () => {
-  // The frame names no entity, so the SDK's own backstops (stated names, spoken numbers, IDs) do the work.
-  const noEntities = () => ({ kind: "personal", subject: "self", confidence: 0.9 });
-  for (const [label, frameOf] of [["personal", noEntities], ["general", generalFrame]]) {
-    assert.strictEqual(await check(`c-weak-${label}`, 12, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone, saves: MIN_CONTROL_FRACTION }), 60);
-    // shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic" must
-    // stay a fact), so that frame gets names with a capital; voice reads every casing.
-    const make = label === "personal" ? undefined : (rng) => MAKERS.name(rng, true);
-    assert.strictEqual(await check(`c-weak-name-${label}`, 30, asWeakChat(statedEarlier, frameOf), playChat, chatBlobs, { kinds: ["name"], make, saves: MIN_CONTROL_FRACTION }), 30);
-  }
-});
-test("chat: detail in the question", async () => {
-  assert.strictEqual(await check("c-in", 12, asChat(inQuestion), playChat, chatBlobs), 72);
-});
-test("chat: detail stated earlier, then a general question", async () => {
-  assert.strictEqual(await check("c-earlier", 12, asChat(statedEarlier), playChat, chatBlobs, { kinds: NO_NAME, make: digitsPhone, saves: MIN_CONTROL_FRACTION }), 60);
-});
-test("chat: name stated earlier, then repeated by the model", async () => {
-  assert.strictEqual(await check("c-name", 30, asChat(statedEarlier), playChat, chatBlobs, { kinds: ["name"], saves: MIN_CONTROL_FRACTION }), 30);
-});
-test("chat: Hinglish and Devanagari", async () => {
-  const build = (rng, d) => {
-    const [question, answer] = rng.pick(HI_QUESTIONS);
-    const said = d.said.includes("मेरा") ? d.said : fill(HINGLISH[d.kind], d.shown);
-    return [[said, "Theek hai."], [question, addressing(answer, d)]];
-  };
-  const make = (rng, kind) => (rng() < 0.5 && (kind === "phone" || kind === "id") ? makeDevanagari(rng, kind) : MAKERS[kind](rng));
-  assert.strictEqual(await check("c-hi", 10, asChat(build), playChat, chatBlobs, { kinds: ["phone", "email", "id"], make }), 30);
-});
-test("chat: long text with a buried detail", async () => {
-  assert.strictEqual(await check("c-long", 5, asChat(longText), playChat, chatBlobs), 30);
-});
-test("chat: blank turns are safe and save nothing", async () => {
-  for (const say of ["", " ", "\n\t "]) {
-    const agent = await playChat([[say, { kind: "unclear", subject: "none", confidence: 0.5 }, "Okay."]]);
-    assert.deepStrictEqual(agent.saved, [], JSON.stringify(say));
-  }
-});
-test("chat: controls, general questions are saved", async () => {
-  let saved = 0;
-  for (const [q, a] of QUESTIONS) saved += (await playChat([[q, generalFrame(q), a]])).saved.length > 0 ? 1 : 0;
-  assert.ok(saved >= MIN_CONTROL_SAVES, `only ${saved} of ${QUESTIONS.length} general answers were saved`);
-});
-
 // chat on the voice front end: voiceSession({ channel: "chat" }), with no LLM or a stub one that returns the turn's frame
 
 async function playChatOnVoice(turns, llm) {

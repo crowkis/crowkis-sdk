@@ -8,7 +8,6 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { Agent } = require("../../src/client/agent.js");
 const { KnowledgeSegment } = require("../../src/keys/knowledgeSegment.js");
-const { RuleChecker } = require("../../src/rules/ruleChecker.js");
 const { REALTIME, VOICE } = require("../../src/turns/values.js");
 const { WordRuleClassifier } = require("../../src/understanding/slots.js");
 const { VoiceSession } = require("../../src/channels/voiceSession.js");

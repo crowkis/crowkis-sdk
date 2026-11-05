@@ -2,7 +2,7 @@
 
 Calls with names (three casings), phones (many formats and in words), emails, ids, addresses,
 dates of birth, Hinglish, Devanagari, very long turns and blank turns run through
-voice_session (decide + record) and Chat (a scripted understander, like test_chat.py).
+voice_session (decide + record) and voice_session(channel="chat").
 Every write the SDK makes to a stand-in server is searched for the detail in its raw,
 lowercase, digits-only and spelled-out forms. Generators use fixed seeds; a failure prints
 the seed, the case index and the leaked detail. node/test-privacy-fuzz.js is the twin.
@@ -13,10 +13,22 @@ import unittest
 
 import crowkis
 from conformance import ConformanceStore
-from crowkis.channels.chat import Chat
+from crowkis.understanding.model.frame import TurnFrame
 from crowkis.understanding.model.understanders import LLMClassifier, LLMRewriter
 from crowkis.channels.voice_session import _wait_for_writes
-from test_chat import GENERAL, Model, Scripted, SegmentedAgent
+
+GENERAL = {"kind": "general", "subject": "none", "confidence": 0.9}
+
+
+class Scripted:
+    def __init__(self, frames):
+        self.frames = frames
+
+    def understand(self, turn, state):
+        frame = self.frames.get(turn)
+        if isinstance(frame, Exception):
+            raise frame
+        return TurnFrame.from_dict(frame)
 
 SEED = 20261104
 MIN_CONTROL_SAVES = 20  # of CONTROLS general questions
@@ -197,23 +209,6 @@ def play_voice(turns):
     return store
 
 
-def chat_blobs(agent):
-    return [f"{key} {answer}" for _, key, answer, _ in agent.saved]
-
-
-def play_chat(turns):
-    """One chat thread. ``turns``: (user text, the frame a good model returns, the model's answer)."""
-    agent = SegmentedAgent()
-    answers = iter(a for _, _, a in turns)
-    chat = Chat(agent, Scripted({t: f for t, f, _ in turns}), system="You are Acme's assistant.")
-    history = []
-    for text, _, _ in turns:
-        history.append({"role": "user", "content": text})
-        reply = chat.turn("t", history, answer=Model(lambda m: next(answers)))
-        history.append({"role": "assistant", "content": reply.text})
-    return agent
-
-
 def personal_frame(detail):
     return {"kind": "personal", "subject": "self", "confidence": 0.9,
             "entities": [{"text": detail.shown, "type": KINDS[detail.kind]}]}
@@ -357,9 +352,6 @@ class Fuzz(unittest.TestCase):
 
     # chat
 
-    def chat(self, turns, detail):
-        return play_chat(turns)
-
     @staticmethod
     def as_chat(build):
         """The same turns as a chat thread: the frames a good understanding model returns."""
@@ -384,52 +376,6 @@ class Fuzz(unittest.TestCase):
             return out, None
         return wrapped
 
-    def test_chat_weak_understander_detail_stated_earlier(self):
-        # The frame names no entity, so the SDK's own backstops (stated names, spoken numbers, IDs) do the work.
-        no_entities = lambda text: {"kind": "personal", "subject": "self", "confidence": 0.9}
-        for label, frame_of in (("personal", no_entities), ("general", general_frame)):
-            with self.subTest(frame=label):
-                self.assertEqual(self.check(f"c-weak-{label}", 12, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
-                                            kinds=("phone", "email", "id", "address", "dob"), saves=MIN_CONTROL_FRACTION), 60)
-                # shortcut: a lower-case name in a turn the model calls "general" is not read in Chat ("I'm diabetic"
-                # must stay a fact), so that frame gets names with a capital; voice reads every casing.
-                make = None if label == "personal" else lambda rng, kind: make_name(rng, cased=True)
-                self.assertEqual(self.check(f"c-weak-name-{label}", 30, self.as_weak_chat(stated_earlier, frame_of), self.chat, chat_blobs,
-                                            kinds=("name",), make=make, saves=MIN_CONTROL_FRACTION), 30)
-
-    def test_chat_detail_in_the_question(self):
-        self.assertEqual(self.check("c-in", 12, self.as_chat(in_question), self.chat, chat_blobs), 72)
-
-    def test_chat_detail_stated_earlier(self):
-        self.assertEqual(self.check("c-earlier", 12, self.as_chat(stated_earlier), self.chat, chat_blobs,
-                                    kinds=("phone", "email", "id", "address", "dob"), saves=MIN_CONTROL_FRACTION), 60)
-
-    def test_chat_name_stated_earlier_then_repeated_by_the_model(self):
-        self.assertEqual(self.check("c-name", 30, self.as_chat(stated_earlier), self.chat, chat_blobs, kinds=("name",), saves=MIN_CONTROL_FRACTION), 30)
-
-    def test_chat_hinglish_and_devanagari(self):
-        def build(rng, detail):
-            question, answer = rng.choice(HI_QUESTIONS)
-            said = detail.said if "मेरा" in detail.said else HINGLISH[detail.kind].format(detail.shown)
-            return [(said, "Theek hai."), (question, answer[:-1] + f", {detail.shown}.")], None
-        def make(rng, kind):
-            return make_devanagari(rng, kind) if rng.random() < 0.5 and kind in ("phone", "id") else MAKERS[kind](rng)
-        self.assertEqual(self.check("c-hi", 10, self.as_chat(build), self.chat, chat_blobs,
-                                    kinds=("phone", "email", "id"), make=make), 30)
-
-    def test_chat_long_text_with_a_buried_detail(self):
-        self.assertEqual(self.check("c-long", 5, self.as_chat(long_text), self.chat, chat_blobs), 30)
-
-    def test_chat_blank_turns_are_safe_and_save_nothing(self):
-        for say in ["", " ", "\n\t "]:
-            with self.subTest(say=repr(say)):
-                agent = play_chat([(say, {"kind": "unclear", "subject": "none", "confidence": 0.5}, "Okay.")])
-                self.assertEqual(agent.saved, [])
-
-    def test_chat_controls_general_questions_are_saved(self):
-        saved = sum(bool(play_chat([(q, general_frame(q), a)]).saved) for q, a in QUESTIONS)
-        self.assertGreaterEqual(saved, MIN_CONTROL_SAVES, f"only {saved} of {len(QUESTIONS)} general answers were saved")
-
 
 def play_chat_on_voice(turns, detail, llm):
     """One chat thread on the voice front end: voice_session(channel="chat"), with no LLM or, with
@@ -452,7 +398,7 @@ def play_chat_on_voice(turns, detail, llm):
 
 
 class ChatOnVoiceFuzz(Fuzz):
-    """Every chat case above, through voice_session(channel="chat") with no LLM and with a stub LLM."""
+    """Every chat case, through voice_session(channel="chat") with no LLM and with a stub LLM."""
 
     def modes(self, category, n, build, kinds=tuple(MAKERS), make=None, saves=None):
         for llm in (False, True):

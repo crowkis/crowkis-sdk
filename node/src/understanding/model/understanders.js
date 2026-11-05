@@ -3,42 +3,11 @@ const { CallState } = require("../../state/callState.js");
 const { TurnFrame, FrameReading } = require("./frame.js");
 
 // Turn understanding: one slot that turns a caller's sentence into a TurnFrame.
-// Mirrors crowkis/understand.py. Anything with `understand(turn, state)` (sync or async)
-// plugs in; the rule checker still decides what is shared, so a weak model costs hits, never privacy.
-
+// Anything with `understand(turn, state)` (sync or async)
+// plugs in; the voice rules still decide what is shared, so a weak model costs hits, never privacy.
 
 function uncertain() {
   return TurnFrame.fromDict({ kind: "unclear", confidence: 0, abstain: true });
-}
-
-/** Case, punctuation and spacing never make two wordings different; words always do. */
-function normalise(t) {
-  return String(t || "").toLowerCase().replace(/[!"#$%&()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, " ").split(/\s+/).filter(Boolean).join(" ");
-}
-
-/** Recognises only exact repeats of already-verified questions: the safe fallback with no model. */
-class ReplayUnderstander {
-  constructor(known = {}) {
-    this._known = new Map();
-    for (const [question, qtype] of Object.entries(known)) this.remember(question, question, qtype);
-  }
-
-  remember(turn, question, questionType = "other") {
-    for (const wording of [turn, question]) {
-      const key = normalise(wording);
-      if (key) this._known.set(key, [question, questionType]);
-    }
-  }
-
-  understand(turn) {
-    const hit = this._known.get(normalise(turn));
-    if (!hit) return uncertain();
-    return TurnFrame.fromDict({ kind: "general", subject: "none", confidence: 1, question: hit[0], question_type: hit[1] });
-  }
-
-  get size() {
-    return this._known.size;
-  }
 }
 
 /** Use `primary`; if it throws or returns nothing usable, use `fallback`. */
@@ -204,35 +173,10 @@ class LLMRewriter {
   }
 }
 
-/**
- * Keys a turn on a verified question only when the turn repeats it word for word (case, punctuation
- * and spacing aside); anything else keeps the caller's words. It needs no model and cannot be talked
- * into a different question.
- */
-class ReplayRewriter {
-  constructor(known = {}) {
-    this._replay = new ReplayUnderstander(known);
-  }
-
-  /** Recognise `turn` (and `question` itself) as the verified `question` from now on. */
-  remember(turn, question, questionType = "other") {
-    this._replay.remember(turn, question, questionType);
-  }
-
-  /** The verified question this turn repeats, or null (also for a turn read as personal). */
-  rewrite(text, reading) {
-    if (reading.isPersonal) return null;
-    return new FrameReading(this._replay.understand(text)).question;
-  }
-}
-
 module.exports = {
-  ReplayUnderstander,
   LLMUnderstander,
   WithFallback,
   INSTRUCTIONS,
-  normalise,
   LLMClassifier,
   LLMRewriter,
-  ReplayRewriter,
 };

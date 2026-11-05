@@ -3,7 +3,7 @@
 import unittest
 
 from crowkis.rules.rule_set import RuleSet
-from crowkis.understanding.word_rules.chat import _ACTION_CLAIM
+from crowkis.understanding.word_rules.private_words import _ACTION_CLAIM
 from crowkis.understanding.word_rules.follow_up import _is_context_dependent
 
 FOLLOW_UPS = [

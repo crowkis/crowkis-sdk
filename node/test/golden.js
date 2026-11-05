@@ -1,6 +1,6 @@
 "use strict";
 
-// Replays the golden inputs through today's pipelines and records every decision (v4 P0).
+// Replays the golden inputs through today's pipeline and records every decision (v4 P0).
 // The Node twin of python/tests/golden/replay.py: the same calls, the same store groups,
 // the same record per turn and the same counters (stats() keys in Python's names), so
 // test-golden.js can check the files Python wrote.
@@ -9,8 +9,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Agent } = require("../src/client/agent.js");
 const { VoiceSession } = require("../src/channels/voiceSession.js");
-const { CallSession } = require("../src/channels/callSession.js");
-const { TurnFrame } = require("../src/understanding/model/frame.js");
 
 const GOLDEN = path.join(__dirname, "..", "..", "fixtures", "golden");
 const INPUTS = JSON.parse(fs.readFileSync(path.join(GOLDEN, "inputs.json"), "utf8"));
@@ -91,17 +89,6 @@ class GoldenStore {
   }
 }
 
-// Chat's understanding step, answered from the frozen stand-in frames.
-class ScriptedUnderstander {
-  constructor(frames) {
-    this.frames = frames;
-  }
-
-  understand(turn) {
-    return TurnFrame.fromDict(this.frames[turn]);
-  }
-}
-
 function pythonName(name) {
   return name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
@@ -153,44 +140,6 @@ class VoiceReplay {
   }
 }
 
-// One call through CallSession: handle each turn, record the reply when the model is asked
-// (after the caller talked over it, when the turn says so).
-class ChatReplay {
-  get pipeline() {
-    return "chat";
-  }
-
-  get pool() {
-    return "";
-  }
-
-  async call(store, call) {
-    const understander = new ScriptedUnderstander(INPUTS.frames);
-    const session = new CallSession(new Agent(AGENT_ID, { client: store }), understander, {
-      latencyBudgetMs: null, understandBudgetMs: null,
-    });
-    const turns = [];
-    for (const turn of call.turns) turns.push(await ChatReplay._turn(session, turn));
-    return { turns, stats: { ...session.counts } };
-  }
-
-  static async _turn(session, turn) {
-    const result = await session.handle(turn.say);
-    const verdict = result.verdict;
-    const record = {
-      say: turn.say, route: result.route, reason: result.reason, needs_model: result.needsModel,
-      sees: sees(result.messages), key: verdict ? verdict.key : null, segment: verdict ? verdict.segment : null,
-    };
-    if (result.needsModel) {
-      if (turn.barge_in) session.cancel();
-      record.outcome = await session.recordAnswer(result, turn.reply);
-    } else {
-      record.text = result.text;
-    }
-    return record;
-  }
-}
-
 // The 277 rule phrases, each said on its own by a new caller.
 function phraseCalls() {
   return PHRASES.map((c) => ({ id: c.phrase, turns: [{ say: c.phrase, reply: PHRASE_REPLY }] }));
@@ -220,4 +169,4 @@ function goldenPath(pipeline, suite) {
   return path.join(GOLDEN, pipeline, `${suite}.json`);
 }
 
-module.exports = { ChatReplay, VoiceReplay, goldenPath, replay, suites };
+module.exports = { VoiceReplay, goldenPath, replay, suites };

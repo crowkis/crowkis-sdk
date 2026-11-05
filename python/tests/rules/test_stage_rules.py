@@ -6,34 +6,22 @@ import unittest
 from pathlib import Path
 
 from crowkis.rules import hit, question, save
-from crowkis.state.call_state import CallState
 from crowkis.understanding.model.frame import TurnFrame, FrameReading
 from crowkis.turns.values import CachedAnswer
 from crowkis.turns.voice.turn import ModelAnswer, VoiceTurn
-from crowkis.turns.chat.turn import ChatAnswer
-from crowkis.turns.values import CHAT, REALTIME, VOICE
-from crowkis.turns.chat.turn import ChatTurn
-from crowkis.turns.values import Hit
-from crowkis.rules.rule_checker import Verdict as ChatVerdict
+from crowkis.turns.values import CHAT, REALTIME, VOICE, Hit
 from crowkis.understanding.slots import WordRuleClassifier
 
 from fake_call import FakeCall
 
 RULE_FILES = sorted((Path(__file__).resolve().parents[3] / "fixtures" / "rules").glob("*/*.json"))
-CASES = [dict(case, rule=data["rule"], stage=data["stage"], subject=data.get("subject", "voice"))
+CASES = [dict(case, rule=data["rule"], stage=data["stage"])
          for data in (json.loads(path.read_text("utf-8")) for path in RULE_FILES) for case in data["cases"]]
 CHANNELS = {"voice": VOICE, "chat": CHAT, "realtime": REALTIME}
 RULES = {name: getattr(stage, name) for stage in (question, hit, save) for name in stage.__all__}
 
 
 def subject(case, call):
-    if case["subject"] == "chat_answer":
-        frame = TurnFrame.from_dict(case["frame"]) if "frame" in case else None
-        return ChatAnswer(" ".join(case["answer"].split()), ChatVerdict(True, "shared", [], **case["verdict"]), frame,
-                          CallState.from_dict(case["state"]), instructions=case["instructions"],
-                          prompt_key=(None, None, "chat"), private=case.get("private", False))
-    if case["subject"] == "chat":
-        return ChatTurn(TurnFrame.from_dict(case["frame"]), case["say"], CallState.from_dict(case["state"]))
     # A case with a frame is read by a model (v4); without one, by the word rules.
     reading = (FrameReading(TurnFrame.from_dict(case["frame"])) if "frame" in case
                else WordRuleClassifier().classify(case["say"].strip()))

@@ -5,7 +5,7 @@
 const assert = require("node:assert");
 const { test } = require("node:test");
 const { RuleSet } = require("../../src/rules/ruleSet.js");
-const { ACTION_CLAIM } = require("../../src/understanding/wordRules/chat.js");
+const { ACTION_CLAIM } = require("../../src/understanding/wordRules/privateWords.js");
 const { isContextDependent } = require("../../src/understanding/wordRules/followUp.js");
 
 const FOLLOW_UPS = [

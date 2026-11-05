@@ -37,39 +37,15 @@ module.exports = {
   get RealtimeGate() {
     return require("./src/channels/realtime.js").RealtimeGate;
   },
-  // Turn understanding: understand once, check with fixed rules, route by contract.
-  get Chat() {
-    return require("./src/channels/chat.js").Chat;
-  },
-  get ChatConflict() {
-    return require("./src/channels/chat.js").ChatConflict;
-  },
-  get MemoryStore() {
-    return require("./src/channels/chat.js").MemoryStore;
-  },
-  get CallSession() {
-    return require("./src/channels/callSession.js").CallSession;
-  },
-  get TurnResult() {
-    return require("./src/channels/callSession.js").TurnResult;
-  },
+  // Turn understanding: a model that reads a voice turn.
   get CallState() {
     return require("./src/state/callState.js").CallState;
   },
   get TurnFrame() {
     return require("./src/understanding/model/frame.js").TurnFrame;
   },
-  get RuleChecker() {
-    return require("./src/rules/ruleChecker.js").RuleChecker;
-  },
-  get Verdict() {
-    return require("./src/rules/ruleChecker.js").Verdict;
-  },
   get LLMUnderstander() {
     return require("./src/understanding/model/understanders.js").LLMUnderstander;
-  },
-  get ReplayUnderstander() {
-    return require("./src/understanding/model/understanders.js").ReplayUnderstander;
   },
   get Channel() {
     return require("./src/turns/values.js").Channel;
@@ -91,8 +67,5 @@ module.exports = {
   },
   get LLMRewriter() {
     return require("./src/understanding/model/understanders.js").LLMRewriter;
-  },
-  get ReplayRewriter() {
-    return require("./src/understanding/model/understanders.js").ReplayRewriter;
   },
 };

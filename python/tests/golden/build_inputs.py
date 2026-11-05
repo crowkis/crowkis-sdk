@@ -2,10 +2,7 @@
 
 Run once, by hand, from python/: ``python tests/golden/build_inputs.py <crowkis-testing-scripts dir>``.
 It reads the v1 and v2 voice stress cases and the replies recorded in earlier runs, so the
-golden files never depend on another repository at test time. Chat needs an understanding
-frame per turn; the stress runs did not keep the LLM's frames, so each turn gets a stand-in
-frame from fixed word checks (``stand_in_frame``). The stand-in is not a good understander:
-it only has to be the same input every time, so Chat's rules are pinned on it.
+golden files never depend on another repository at test time.
 """
 from __future__ import annotations
 
@@ -14,15 +11,9 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from crowkis.understanding.word_rules.follow_up import _is_context_dependent
-from crowkis.understanding.word_rules.personal import _asks, _is_personal
-from crowkis.understanding.word_rules.text import _words
-from crowkis.understanding.word_rules.urgent import _urgent
-
 ROOT = Path(__file__).resolve().parents[3]
 INPUTS = ROOT / "fixtures" / "golden" / "inputs.json"
 CONFORMANCE = ROOT / "fixtures" / "adapter-conformance.json"
-PHRASES = ROOT / "fixtures" / "voice-rule-phrases.json"
 FALLBACK_REPLY = "Here is the answer."
 CASE_FILES = {"v1": "text_injection_only_v1.json", "v2": "text_injection_only_v2.json"}
 # Earlier runs whose recorded replies stand in for the model, per suite, most trusted first.
@@ -39,29 +30,10 @@ FAKE_CONTACTS = {
     "harpreet.gill@yahoo.in": "harpreet.gill@example.com",
     "rahul@gmail.com": "rahul@example.com",
 }
-POLICY_WORDS = frozenset({"refund", "refunds", "policy", "return", "returns", "warranty", "fee", "fees", "price", "cost"})
-
-
 def fake_contacts(text: str) -> str:
     for real_looking, fake in FAKE_CONTACTS.items():
         text = text.replace(real_looking, fake)
     return text
-
-
-def stand_in_frame(text: str) -> Dict:
-    """A fixed frame for a turn: urgent, personal, a follow-up, a question, or dialogue."""
-    words = _words(text)
-    if _urgent(words):
-        return {"kind": "sensitive", "urgent": True, "subject": "self", "confidence": 0.9}
-    if _is_personal(text):
-        return {"kind": "personal", "subject": "self", "confidence": 0.9}
-    if _is_context_dependent(text):
-        return {"kind": "general", "subject": "none", "confidence": 0.9, "uses_state": True, "question": text}
-    if _asks(text):
-        question_type = "policy" if POLICY_WORDS & set(words) else "other"
-        return {"kind": "general", "subject": "none", "confidence": 0.9, "question": text,
-                "question_type": question_type}
-    return {"kind": "dialogue", "subject": "self", "confidence": 0.9}
 
 
 def recorded_replies(results_dir: Path, suite: str) -> Dict[str, Dict[int, str]]:
@@ -156,20 +128,15 @@ def main(testing_scripts: str) -> None:
     tests_dir = Path(testing_scripts) / "demo" / "voice-agent" / "tests"
     suites = {"stress-v1": stress_calls(tests_dir, "v1"), "stress-v2": stress_calls(tests_dir, "v2"),
               "conformance": conformance_calls(), "hit-guards": hit_guard_calls()}
-    phrases = [case["phrase"] for case in json.loads(PHRASES.read_text("utf-8"))["phrases"]]
-    said = {turn["say"] for calls in suites.values() for call in calls for turn in call["turns"]}
-    texts = sorted(said | set(phrases))
     inputs = {
         "about": "Frozen input of the golden decision files (v4 P0), built by python/tests/golden/build_inputs.py "
                  "from the v1/v2 voice stress cases, replies recorded in earlier runs, and "
-                 "fixtures/adapter-conformance.json, plus hand-written hit-guard calls. frames: a stand-in understanding frame per turn text "
-                 "(and per rule phrase), for Chat.",
+                 "fixtures/adapter-conformance.json, plus hand-written hit-guard calls.",
         "suites": suites,
-        "frames": {text: stand_in_frame(text) for text in texts},
     }
     INPUTS.parent.mkdir(parents=True, exist_ok=True)
     INPUTS.write_text(json.dumps(inputs, ensure_ascii=False, indent=1) + "\n", "utf-8")
-    print(f"{INPUTS}: {sum(len(c) for c in suites.values())} calls, {len(texts)} distinct turns")
+    print(f"{INPUTS}: {sum(len(c) for c in suites.values())} calls")
 
 
 if __name__ == "__main__":

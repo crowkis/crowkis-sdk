@@ -873,7 +873,7 @@ export class RealtimeGate {
   stats(): RealtimeStats;
   toString(): string;
 }
-// --- Turn understanding (CallSession, Chat) ---------------------------------------------
+// --- Turn understanding (a model that reads a voice turn) ---------------------------------------------
 
 export type TurnKind = "general" | "personal" | "live" | "action" | "dialogue" | "chitchat" | "sensitive" | "unclear";
 export type Route = "urgent" | "task" | "shared" | "personal" | "tools" | "agent" | "filler";
@@ -955,48 +955,8 @@ export class CallState {
   clone(): CallState;
 }
 
-export class Verdict {
-  shared: boolean;
-  route: Route;
-  reasons: string[];
-  question: string | null;
-  attributes: Record<string, string>;
-  /** The question alone. */
-  key: string | null;
-  ttl: number | null;
-  /** SEGMENT the answer is stored and looked up under: version, language, region, tier, channel. */
-  segment: string | null;
-}
-
-export interface RuleCheckerOptions {
-  /** Calibrate per business on real calls. Default 0.6. */
-  confidenceFloor?: number;
-  /** Expiry per question type in seconds; null = until the knowledge version changes. */
-  ttl?: Partial<Record<QuestionType, number | null>>;
-  /** Bump when policies or prices change: every old key retires at once. */
-  knowledgeVersion?: string;
-  /** Goes in the segment: "chat" (default) or "voice", so the two never share answers. */
-  channel?: string;
-}
-
-/** The fixed sharing rules (V1-V9) and the key builder. */
-export class RuleChecker {
-  constructor(options?: RuleCheckerOptions);
-  check(frame: TurnFrame, turn: string, state: CallState): Verdict;
-  buildKey(question: string, attrs: Record<string, string>): string;
-  buildSegment(attrs: Record<string, string>, language: string | null, options?: { told?: string | null }): string;
-}
-
 export interface Understander {
   understand(turn: string, state: CallState): TurnFrame | Promise<TurnFrame>;
-}
-
-/** Exact repeats of already-verified questions only: the safe fallback with no model. */
-export class ReplayUnderstander implements Understander {
-  constructor(known?: Record<string, QuestionType | string>);
-  remember(turn: string, question: string, questionType?: string): void;
-  understand(turn: string, state?: CallState): TurnFrame;
-  readonly size: number;
 }
 
 export type ChatMessage = { role: string; content: string };
@@ -1030,113 +990,8 @@ export class LLMRewriter implements Rewriter {
   rewrite(text: string, reading: Reading): Promise<string | null>;
 }
 
-/** The Rewriter slot for exact repeats of already-verified questions. */
-export class ReplayRewriter implements Rewriter {
-  constructor(known?: Record<string, QuestionType | string>);
-  remember(turn: string, question: string, questionType?: string): void;
-  rewrite(text: string, reading: Reading): string | null;
-}
-
 export class WithFallback implements Understander {
   constructor(primary: Understander, fallback: Understander);
   primaryFailures: number;
   understand(turn: string, state: CallState): Promise<TurnFrame>;
-}
-
-export class TurnResult {
-  turnId: number;
-  route: Route;
-  /** What to say now (cache hit or filler), else null. */
-  text: string | null;
-  needsModel: boolean;
-  /** Exactly what the model reads; null = the whole call. */
-  messages: ChatMessage[] | null;
-  frame: TurnFrame | null;
-  verdict: Verdict | null;
-  reason: string;
-  readonly servedFromCache: boolean;
-}
-
-export interface CallSessionOptions {
-  checker?: RuleChecker;
-  onUrgent?: (turn: string, frame: TurnFrame) => void | Promise<void>;
-  replay?: ReplayUnderstander;
-  serveAbove?: number;
-  /** Hard limit on the cache lookup (ms). Default 300. */
-  latencyBudgetMs?: number | null;
-  /** Hard limit on understanding (ms); past it the safe fallback or the agent decides. Default 250. */
-  understandBudgetMs?: number | null;
-  fillers?: Record<string, string>;
-  /** "full" (default), "replay_only" (no model) or "off" (share nothing). */
-  mode?: "full" | "replay_only" | "off";
-  /** Monitoring: routes, reasons, de-identified keys; never the caller's raw words. */
-  onEvent?: (event: Record<string, unknown>) => void;
-  /** The business's pre-approved reply to an emergency (its helplines). Never cached. */
-  urgentReply?: string | null;
-  /** The business's own system for "my balance", "my booking": the reply, or null for the model. Never cached. */
-  onTools?: (turn: string, frame: TurnFrame) => string | null | Promise<string | null>;
-  /** The system prompt the model reads with a shared question (Chat passes its `system`): a shared
-   *  answer repeating a detail it gives about this caller is never saved ("refused:prompt_detail"). */
-  instructions?: string;
-}
-
-/** One call or chat thread on turn understanding v2.2. */
-export class CallSession {
-  constructor(agent: Agent, understander: Understander, options?: CallSessionOptions);
-  state: CallState;
-  handle(turn: string): Promise<TurnResult>;
-  /** `private`: the answer was built from a tool's result, so it is never shared. */
-  recordAnswer(result: TurnResult, answer: string, options?: { mentions?: string[]; task?: string | null; private?: boolean }): Promise<string>;
-  cancel(): boolean;
-  setMode(mode: "full" | "replay_only" | "off"): void;
-  registerShape(field: string, template: string, options?: { requires?: "anonymous" | "identified" | "verified" }): void;
-  phrase(field: string, value: unknown, options?: { subject?: string }): string | null;
-  saveCheck(answer: string, verdict: Verdict, frame?: TurnFrame | null, isPrivate?: boolean): string | null;
-  stats(): Record<string, number>;
-  /** The thread's memory for the app's store, between turns (no transcript). */
-  export(): Record<string, unknown>;
-  static restore(agent: Agent, understander: Understander, data: unknown, options?: CallSessionOptions): CallSession;
-}
-
-/** Where Chat keeps each thread's memory; MemoryStore by default. `save` returns false when the thread moved on. */
-export interface ChatStore {
-  load(threadId: string): [Record<string, unknown> | null, number] | Promise<[Record<string, unknown> | null, number]>;
-  save(threadId: string, data: Record<string, unknown>, version: number): boolean | Promise<boolean>;
-  /** Needed for `Chat.forget` (erasure). */
-  delete?(threadId: string): void | Promise<void>;
-}
-
-export class MemoryStore implements ChatStore {
-  constructor(options?: { maxThreads?: number });
-  load(threadId: string): [Record<string, unknown> | null, number];
-  save(threadId: string, data: Record<string, unknown>, version: number): boolean;
-  delete(threadId: string): void;
-}
-
-export class ChatConflict extends Error {}
-
-export interface ChatOptions extends CallSessionOptions {
-  store?: ChatStore;
-  /** The business's instructions, sent with every shared question. */
-  system?: string;
-  channel?: string;
-  knowledgeVersion?: string;
-}
-
-export interface ChatReply {
-  text: string;
-  route: Route;
-  fromCache: boolean;
-  /** saved | not_shared | refused:<why> | served; refused:non_answer with `text` answered from the whole chat */
-  outcome: string;
-  /** Why it went this route ("V3_not_general", "cache hit", ...). */
-  reason: string;
-}
-
-/** Cache a chat app's answers safely: `await chat.turn(threadId, messages, model)`. */
-export class Chat {
-  constructor(agent: Agent, understander: Understander, options?: ChatOptions);
-  turn(threadId: string | number, messages: Array<{ role: string; content: unknown }>, answer: (messages: ChatMessage[]) => string | Promise<string>): Promise<ChatReply>;
-  /** Erase a thread's memory (a user's right to erasure). */
-  forget(threadId: string | number): Promise<void>;
 }

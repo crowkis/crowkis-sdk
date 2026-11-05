@@ -3,11 +3,9 @@
 
 Anything that implements ``understand(turn, state) -> TurnFrame`` plugs in: the server's
 model once CTURN exists, a local Rust model, or the interim LLM adapter below. Whatever
-plugs in, the rule checker still decides what is shared, so a weak model costs cache hits,
+plugs in, the word rules still decide what is shared, so a weak model costs cache hits,
 never privacy.
 
-  ReplayUnderstander  safe fallback with no model: only exact repeats of questions that
-                      were already verified are recognised; everything else is not shared.
   LLMUnderstander     interim: asks the app's own LLM provider for the frame. Works end to
                       end, but adds one model call per turn (fine for chat and demos, too
                       slow for production voice).
@@ -17,7 +15,6 @@ from __future__ import annotations
 
 import json
 import re
-import string
 from typing import Callable, Dict, List, Optional, Protocol, Sequence
 
 from ...state.call_state import CallState
@@ -34,47 +31,6 @@ class Understander(Protocol):
 def _uncertain(reason: str = "") -> TurnFrame:
     """The fail-closed frame: never shared, handled by the agent."""
     return TurnFrame.from_dict({"kind": "unclear", "confidence": 0.0, "abstain": True, "note": reason})
-
-
-_PUNCT = re.compile("[" + re.escape(string.punctuation.replace("'", "")) + "]")
-
-
-def _normalise(text: str) -> str:
-    """Case, punctuation and spacing never make two wordings different; words always do."""
-    return " ".join(_PUNCT.sub(" ", (text or "").lower()).split())
-
-
-class ReplayUnderstander:
-    """Recognises only exact repeats of already-verified questions.
-
-    Seed it with the questions the business already answers (``known``), and let the session
-    ``remember`` every question the rule checker verified. With no model loaded this is the
-    only thing allowed to share: it can miss, but it cannot be talked into a leak, because
-    a repeat of a verified standalone question is the verified question.
-    """
-
-    def __init__(self, known: Optional[Dict[str, str]] = None) -> None:
-        # normalised wording -> (verified question, question_type)
-        self._known: Dict[str, tuple] = {}
-        for question, qtype in (known or {}).items():
-            self.remember(question, question, qtype)
-
-    def remember(self, turn: str, question: str, question_type: str = "other") -> None:
-        for wording in (turn, question):
-            key = _normalise(wording)
-            if key:
-                self._known[key] = (question, question_type)
-
-    def understand(self, turn: str, state: CallState) -> TurnFrame:
-        hit = self._known.get(_normalise(turn))
-        if hit is None:
-            return _uncertain("not an exact repeat of a verified question")
-        question, qtype = hit
-        return TurnFrame.from_dict({"kind": "general", "subject": "none", "confidence": 1.0,
-                                    "question": question, "question_type": qtype})
-
-    def __len__(self) -> int:
-        return len(self._known)
 
 
 class WithFallback:
@@ -239,20 +195,3 @@ class LLMRewriter:
         return reading.question
 
 
-class ReplayRewriter:
-    """Keys a turn on a verified question only when the turn repeats it word for word (case,
-    punctuation and spacing aside); anything else keeps the caller's words. It needs no model and
-    cannot be talked into a different question."""
-
-    def __init__(self, known: Optional[Dict[str, str]] = None) -> None:
-        self._replay = ReplayUnderstander(known)
-
-    def remember(self, turn: str, question: str, question_type: str = "other") -> None:
-        """Recognise ``turn`` (and ``question`` itself) as the verified ``question`` from now on."""
-        self._replay.remember(turn, question, question_type)
-
-    def rewrite(self, text: str, reading: Reading) -> Optional[str]:
-        """The verified question this turn repeats, or None (also for a turn read as personal)."""
-        if reading.is_personal:
-            return None
-        return FrameReading(self._replay.understand(text, CallState())).question

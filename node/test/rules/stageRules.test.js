@@ -10,13 +10,9 @@ const { test } = require("node:test");
 const hit = require("../../src/rules/hit/index.js");
 const question = require("../../src/rules/question/index.js");
 const save = require("../../src/rules/save/index.js");
-const { CallState } = require("../../src/state/callState.js");
 const { TurnFrame, FrameReading } = require("../../src/understanding/model/frame.js");
 const { CachedAnswer } = require("../../src/turns/values.js");
-const { ChatAnswer } = require("../../src/turns/chat/turn.js");
-const { ChatTurn } = require("../../src/turns/chat/turn.js");
 const { Hit } = require("../../src/turns/values.js");
-const { Verdict: ChatVerdict } = require("../../src/rules/ruleChecker.js");
 const { ModelAnswer } = require("../../src/turns/voice/turn.js");
 const { VoiceTurn } = require("../../src/turns/voice/turn.js");
 const { WordRuleClassifier } = require("../../src/understanding/slots.js");
@@ -32,20 +28,7 @@ const CASES = fs.readdirSync(RULES_DIR).sort().flatMap((stage) =>
 
 const pythonName = (name) => name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
-// The fixtures name rule settings as Python does.
-const RULE_ARG_NAMES = { confidence_floor: "confidenceFloor" };
-const ruleArgs = (args = {}) => Object.fromEntries(Object.entries(args).map(([name, value]) => [RULE_ARG_NAMES[name] || name, value]));
-
 function subject(testCase, call) {
-  if (testCase.subject === "chat_answer") {
-    const frame = testCase.frame ? TurnFrame.fromDict(testCase.frame) : null;
-    const verdict = new ChatVerdict(true, "shared", [], testCase.verdict.question, testCase.verdict.attributes);
-    return new ChatAnswer(testCase.answer.split(/\s+/).filter(Boolean).join(" "), verdict, frame,
-      CallState.fromDict(testCase.state), { instructions: testCase.instructions, promptKey: [null, null, "chat"], private: Boolean(testCase.private) });
-  }
-  if (testCase.subject === "chat") {
-    return new ChatTurn(TurnFrame.fromDict(testCase.frame), testCase.say, CallState.fromDict(testCase.state));
-  }
   // A case with a frame is read by a model (v4); without one, by the word rules.
   const reading = testCase.frame ? new FrameReading(TurnFrame.fromDict(testCase.frame))
     : new WordRuleClassifier().classify(testCase.say.trim());
@@ -61,7 +44,7 @@ function subject(testCase, call) {
 for (const testCase of CASES) {
   test(`${testCase.rule}: ${testCase.name}`, async () => {
     const call = new FakeCall(testCase.call);
-    const verdict = await new RULES[testCase.rule](ruleArgs(testCase.rule_args)).check(subject(testCase, call));
+    const verdict = await new RULES[testCase.rule](testCase.rule_args).check(subject(testCase, call));
     assert.strictEqual(Boolean(verdict), testCase.objects);
     if (verdict) {
       assert.strictEqual(verdict.rule, testCase.rule);
@@ -78,7 +61,7 @@ test("every rule has cases both ways", () => {
     const outcomes = new Set(CASES.filter((c) => c.rule === name).map((c) => c.objects));
     assert.deepStrictEqual([...outcomes].sort(), [false, true], name);
   }
-  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 52);
+  assert.strictEqual(new Set(CASES.map((c) => c.rule)).size, 28);
 });
 
 test("the taint rule marks the call", async () => {

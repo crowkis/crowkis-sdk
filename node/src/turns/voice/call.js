@@ -5,7 +5,6 @@
 const { followUpKey } = require("../../keys/knowledgeSegment.js");
 const { LATE, within } = require("../../runtime/deadline.js");
 const { QuestionRecords } = require("../../runtime/questionRecords.js");
-const { isContextDependent } = require("../../understanding/wordRules/followUp.js");
 const { identifiers, isPersonal, statedNames } = require("../../understanding/wordRules/personal.js");
 const { FOLLOW_UP_WORDS, URGENT, wordsOf } = require("../../understanding/wordRules/text.js");
 const { urgent } = require("../../understanding/wordRules/urgent.js");
@@ -111,7 +110,7 @@ class SessionCall {
       const turn = transcript[index];
       if (turn.role !== "user") continue;
       chain.unshift(turn.content);
-      if (!isContextDependent(typeof turn.content === "string" ? turn.content.trim() : "")) return chain;
+      if (!this._session.state.isContextDependent(typeof turn.content === "string" ? turn.content : "")) return chain;
       if (chain.length >= CHAIN_LIMIT) return null;
     }
     return null;

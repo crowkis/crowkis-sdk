@@ -10,6 +10,7 @@ const {
   leaks,
   EMAIL,
   asks,
+  asksRecap,
   identifies,
   lookupOnly,
   readsOutDigits,
@@ -251,7 +252,7 @@ class VoiceSaving {
   // when it cannot be made generic, or when this session does not share templates.
   async _learnPersonal(keyed, modelSaid) {
     const session = this._session;
-    if (!session.shareTemplates) {
+    if (!session.shareTemplates || asksRecap(keyed)) {
       this._stats.add(COUNTER.UNCACHEABLE_PERSONAL);
       return null;
     }

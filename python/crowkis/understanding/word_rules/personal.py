@@ -210,6 +210,18 @@ _ACTION_OBJECTS = (_FUNCTION_WORDS | {
 _STATEMENT_VERBS = frozenset({"is", "are", "was", "were", "s", "costs", "cost", "means", "includes", "has", "have"})
 
 
+# A recap of what the caller told this call: its answer holds what they said, so it is never a shared shape.
+_RECAP = (
+    ("so", "far"), ("know", "about", "me"), ("have", "on", "me"), ("have", "about", "me"),
+    ("on", "file", "for", "me"), ("recap",),
+)
+_RECAP_BY_FIRST = _first_words(_RECAP)
+
+
+def _asks_recap(text: str) -> bool:
+    return _has_phrase(_words(text), _RECAP_BY_FIRST)
+
+
 _PHRASES = (
     # self-introduction, or anyone's name
     ("my", "name"), ("name", "s"), ("call", "me"), ("i", "m", "called"), ("name", "is"),
@@ -220,9 +232,7 @@ _PHRASES = (
     ("we", "discussed"), ("we", "talked"), ("this", "call"), ("did", "you"), ("did", "we"),
     ("repeat", "the"), ("repeat", "what"), ("repeat", "your"), ("last", "answer"), ("last", "question"),
     ("first", "question"), ("say", "it", "again"),
-    # a recap of what the caller told this call
-    ("so", "far"), ("know", "about", "me"), ("have", "on", "me"), ("have", "about", "me"),
-    ("on", "file", "for", "me"), ("recap",),
+    *_RECAP,
     # agreeing to what the agent offered
     ("sounds", "good"), ("sounds", "great"), ("sounds", "fine"), ("let", "s", "do"), ("let", "s", "go"),
     ("lock", "it"), ("go", "ahead"), ("works", "for"),

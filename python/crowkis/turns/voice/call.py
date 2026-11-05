@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, TYPE_CHEC
 from ...keys import follow_up_key
 from ...runtime.deadline import within
 from ...runtime.question_records import QuestionRecords
-from ...understanding.word_rules.follow_up import _is_context_dependent
 from ...understanding.word_rules.personal import _identifiers, _is_personal, _stated_names
 from ...understanding.word_rules.text import _FOLLOW_UP_WORDS, _URGENT, _words
 from ...understanding.word_rules.urgent import _urgent
@@ -103,7 +102,7 @@ class SessionCall:
             if turn["role"] != "user":
                 continue
             chain.insert(0, turn["content"])
-            if not _is_context_dependent((turn["content"] or "").strip()):
+            if not self.is_context_dependent(turn["content"] or ""):
                 return chain
             if len(chain) >= CHAIN_LIMIT:
                 return None

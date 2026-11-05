@@ -822,6 +822,8 @@ function voiceSession(options = {}) {
     channel,
   });
   session._textOnly = textOnly;
+  // Asks the engine question now, off the call's path, so the first lookup knows whether to hold an unjudged hit.
+  agent.decides();
   return session;
 }
 

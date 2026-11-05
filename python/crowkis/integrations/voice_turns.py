@@ -93,14 +93,10 @@ def _tool_context(messages: list) -> bool:
 
 
 def _leading_instructions(messages: list) -> list:
-    """The system / developer messages before the conversation starts: the app's own
-    instructions to the model."""
-    leading = []
-    for message in messages:
-        if _field(message, "role") not in ("system", "developer"):
-            break
-        leading.append(message)
-    return leading
+    """The app's own instructions to the model: the system / developer message that comes first, as
+    in LiveKit. Any other one (retrieved chunks, CRM data) is extra context, see ``_extra_context``."""
+    first = messages[0] if messages else None
+    return [first] if first is not None and _field(first, "role") in ("system", "developer") else []
 
 
 def _extra_context(messages: list) -> bool:

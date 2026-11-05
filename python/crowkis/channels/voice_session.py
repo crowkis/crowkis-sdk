@@ -788,6 +788,8 @@ def voice_session(
         **options,
     )
     session._text_only = voice is None
+    # Asks the engine question now, off the call's path, so the first lookup knows whether to hold an unjudged hit.
+    _LOOKUPS.submit(agent.decides)
     return session
 
 

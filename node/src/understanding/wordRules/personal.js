@@ -196,6 +196,17 @@ const ACTION_OBJECTS = new Set([
 ]);
 for (const subject of ["you", "i", "we", "they"]) ACTION_OBJECTS.delete(subject); // "do you ship abroad" asks, "do it" tells
 const STATEMENT_VERBS = new Set(["is", "are", "was", "were", "s", "costs", "cost", "means", "includes", "has", "have"]);
+// A recap of what the caller told this call: its answer holds what they said, so it is never a shared shape.
+const RECAP = [
+  ["so", "far"], ["know", "about", "me"], ["have", "on", "me"], ["have", "about", "me"],
+  ["on", "file", "for", "me"], ["recap"],
+];
+const RECAP_BY_FIRST = firstWords(RECAP);
+
+function asksRecap(text) {
+  return hasPhrase(wordsOf(text), RECAP_BY_FIRST);
+}
+
 const NEVER_PHRASES = [
   // self-introduction, or anyone's name
   ["my", "name"], ["name", "s"], ["call", "me"], ["i", "m", "called"], ["name", "is"],
@@ -206,9 +217,7 @@ const NEVER_PHRASES = [
   ["we", "discussed"], ["we", "talked"], ["this", "call"], ["did", "you"], ["did", "we"],
   ["repeat", "the"], ["repeat", "what"], ["repeat", "your"], ["last", "answer"], ["last", "question"],
   ["first", "question"], ["say", "it", "again"],
-  // a recap of what the caller told this call
-  ["so", "far"], ["know", "about", "me"], ["have", "on", "me"], ["have", "about", "me"],
-  ["on", "file", "for", "me"], ["recap"],
+  ...RECAP,
   // agreeing to what the agent offered
   ["sounds", "good"], ["sounds", "great"], ["sounds", "fine"], ["let", "s", "do"], ["let", "s", "go"],
   ["lock", "it"], ["go", "ahead"], ["works", "for"],
@@ -853,6 +862,7 @@ function identifying(turn) {
 }
 
 module.exports = {
+  asksRecap,
   PROCEDURAL,
   PROCEDURAL_BY_FIRST,
   MAIN_THINGS,

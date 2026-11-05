@@ -18,6 +18,7 @@ from ...understanding.word_rules.personal import (
     _leaks,
     _EMAIL,
     _asks,
+    _asks_recap,
     _identifies,
     _lookup_only,
     _reads_out_digits,
@@ -244,7 +245,7 @@ class VoiceSaving:
         """Store a personal answer as a shape: what the write did, or None (nothing written) when it
         cannot be made generic, or when this session does not share templates."""
         session = self._session
-        if not session.share_templates:
+        if not session.share_templates or _asks_recap(keyed):
             self._stats.add(Counter.UNCACHEABLE_PERSONAL)
             return None
         shaped = _abstract(model_said, session.values)

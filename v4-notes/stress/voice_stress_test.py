@@ -171,7 +171,7 @@ BEDROCK_ANSWER = "openai.gpt-oss-20b"  # F4b: the answerer for every pipeline (w
 # USD per 1M tokens (input, output). Rounded up from Bedrock on-demand list prices (about 0.15 / 0.60
 # for both models); no Mumbai price list was available offline, so this errs high to keep the cap safe.
 BEDROCK_PRICE = {BEDROCK_UNDERSTAND: (0.25, 1.00), BEDROCK_JUDGE: (0.25, 1.00), BEDROCK_ANSWER: (0.25, 1.00)}
-BEDROCK_STOP_USD = 1.90  # stop before a call that could pass this; the hard cap is 2.00
+BEDROCK_STOP_USD = 4.90  # stop before a call that could pass this; the hard cap is 5.00 (owner, F9)
 BEDROCK_URL = "https://bedrock-mantle.ap-south-1.api.aws/v1"  # Bedrock's OpenAI-compatible endpoint (Converse is refused)
 SPEND_FILE = os.path.join(RESULTS_DIR, "bedrock_spend.json")  # kept across --resume and --judge-only
 _bedrock = {}
@@ -416,82 +416,11 @@ def _groq_call(client, model: str, messages: list, **extra) -> str:
     return ""
 
 
-async def play_chat(conv: dict, crowkis, opts) -> dict:
-    from openai import OpenAI
-
-    from crowkis import Agent
-    from crowkis import FILLER, PERSONAL, SHARED, URGENT, CallSession, LLMUnderstander
-
-    import settings
-
-    # CallSession treats any understanding error as "uncertain" and keeps the turn private, as it
-    # should in production; here a rate limit must stop the run instead of skewing it.
-    limited: list = []
-
-    def complete(messages):
-        try:
-            return understand_call(messages)
-        except RateLimited as exc:
-            limited.append(exc)
-            raise
-
-    understander = LLMUnderstander(complete)
-    session = CallSession(Agent("chat-stress", client=crowkis, tenant=opts.tenant), understander,
-                          understand_budget_ms=None, latency_budget_ms=250, fillers=settings.FILLERS,
-                          instructions=settings.SYSTEM_PROMPT)
-    system = {"role": "system", "content": settings.SYSTEM_PROMPT}
-    transcript: list = []  # the whole call, for turns the rules keep to it
-    started_call = time.perf_counter()
-    turns = []
-    for n, turn in enumerate(conv["turns"], 1):
-        say = turn["say"]
-        started = time.perf_counter()
-        result = await asyncio.to_thread(session.handle, say)
-        if limited:
-            raise limited[0]
-        gate_ms = round((time.perf_counter() - started) * 1000, 1)
-        reasons = ";".join(result.verdict.reasons) if result.verdict and result.verdict.reasons else result.reason
-        got = {"say": say, "sees": None, "saved": None, "reason": reasons, "confidence": None, "gate_ms": gate_ms,
-               "audio": None, "first_audio_s": None, "interrupted": False, "errors": [],
-               "question": result.verdict.question if result.verdict else None}
-        if not result.needs_model:
-            got["route"] = "filler" if result.route == FILLER else "hit" if result.served_from_cache else "model"
-            reply = result.text or ""
-        else:
-            got["route"] = "model"
-            if result.messages is not None:
-                follow_up = bool(result.frame and result.frame.uses_state)
-                got["sees"] = "question + previous" if follow_up else "question"
-                messages = [system] + result.messages
-            else:
-                got["sees"] = "whole call"
-                messages = [system] + transcript + [{"role": "user", "content": say}]
-            reply = await asyncio.to_thread(answer_call, messages)
-            if turn.get("interrupt_after_s"):
-                session.cancel()  # the caller talks over the answer
-                got["interrupted"] = True
-            outcome = session.record_answer(result, reply)
-            got["saved"] = CHAT_SAVED.get(outcome) or (
-                "private" if outcome.startswith("refused:") or result.route in (PERSONAL, URGENT)
-                else "kept" if result.route != SHARED else outcome)
-            got["outcome"] = outcome
-        got["reply"] = reply
-        got["turn_s"] = round(time.perf_counter() - started, 2)
-        got["would_speak_chars"] = len(reply)
-        transcript += [{"role": "user", "content": say}, {"role": "assistant", "content": reply}]
-        got["n"] = n
-        turns.append(got)
-        print_turn(n, turn, got)
-        await asyncio.sleep(opts.groq_gap if got["route"] == "model" else 1)
-    return {"id": conv["id"], "turns": turns, "duration_s": round(time.perf_counter() - started_call, 1),
-            "stats": session.stats()}
-
-
 # The v4 pipeline: voice_session() with a model reading each turn (LLMClassifier + LLMRewriter on the
 # same Groq understanding model as the chat pipeline), gpt-oss-20b answering as on the others.
 # Understanding budget off, as on the chat pipeline: this measures the rules; the model's own time is
 # recorded per turn (understand_ms) so decide latency can be shown with and without it.
-async def play_v4(conv: dict, crowkis, opts) -> dict:
+async def play_v4(conv: dict, crowkis, opts, chat: bool = False) -> dict:
     from openai import OpenAI
 
     from crowkis import LLMClassifier, LLMRewriter, LLMUnderstander, voice_session
@@ -1178,7 +1107,7 @@ async def run(args):
                     continue
                 print(f"\n== {pipeline} · {c['id']} · {c['domain']} · {c['code']} · bedrock {bedrock_spent():.3f} USD ==")
                 try:
-                    done[c["id"]] = await (play_chat(c, crowkis, args) if pipeline == "chat"
+                    done[c["id"]] = await (play_v4(c, crowkis, args, chat=True) if pipeline == "chat"
                                            else play_v4(c, crowkis, args) if pipeline == "v4"
                                            else play(c, pipeline, crowkis, rt, args))
                 except RateLimited as exc:
@@ -1283,7 +1212,7 @@ def main():
     parser.add_argument("--suite", default="text_injection_only")
     parser.add_argument("--cases", help="a case file other than the suite's newest version")
     parser.add_argument("--pipeline", choices=("gemini", "groq", "chat", "v4", "both", "all"), default="both",
-                        help="chat: the groq calls through the Chat rules (CallSession); not part of both")
+                        help="chat: the groq calls on voice_session(channel='chat'), word rules; not part of both")
     parser.add_argument("--only", help="conversation ids, e.g. B01,C01")
     parser.add_argument("--group", help="groups, e.g. B,D")
     parser.add_argument("--resume", nargs="?", const=True, help="continue the newest unfinished run (or this dir)")

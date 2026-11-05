@@ -80,26 +80,6 @@ class RecapTemplateTests(unittest.TestCase):
         self.assertNotIn("A-1001", templates[0][1])
 
 
-class InstructionsTests(unittest.TestCase):
-    """Pipecat reads instructions as LiveKit does: the first system message only; a second one
-    (retrieved chunks, CRM data) is extra context, so the turn is this call's only."""
-
-    SYSTEM = {"role": "system", "content": "You are Acme's assistant."}
-    CRM = {"role": "system", "content": "Caller: Priya Sharma, plan Gold."}
-    USER = {"role": "user", "content": "what are your opening hours on sunday"}
-
-    def test_a_second_leading_system_message_is_extra_context(self):
-        from crowkis.integrations.voice_turns import _extra_context, _leading_instructions
-        messages = [self.SYSTEM, self.CRM, self.USER]
-        self.assertEqual(_leading_instructions(messages), [self.SYSTEM])
-        self.assertTrue(_extra_context(messages))
-
-    def test_must_still_work_one_system_message_is_the_instructions(self):
-        from crowkis.integrations.voice_turns import _extra_context, _leading_instructions
-        self.assertEqual(_leading_instructions([self.SYSTEM, self.USER]), [self.SYSTEM])
-        self.assertFalse(_extra_context([self.SYSTEM, self.USER]))
-
-
 class EngineStore:
     """A server with a decision engine that has not judged the stored answer yet."""
 

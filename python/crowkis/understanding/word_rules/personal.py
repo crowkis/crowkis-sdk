@@ -574,8 +574,8 @@ def _commands(text: str) -> bool:
         words = _words(clause)
         while words and words[0] in _DISCOURSE:
             words = words[1:]
-        if len(words) > 1 and words[0] in _ACTION_VERBS and words[1] in _ACTION_OBJECTS and not any(
-            w in _WH_WORDS for w in words
+        if len(words) > 1 and words[0] in _ACTION_VERBS and not any(w in _WH_WORDS for w in words) and (
+            words[1] in _ACTION_OBJECTS or any(w in ("my", "our") for w in words[1:])  # "add milk to my list"
         ):
             return True
     return False

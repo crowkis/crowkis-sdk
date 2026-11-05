@@ -16,3 +16,7 @@ The voice segment is `kb=<knowledge_version>` for every session, with or without
 No golden decision changed (`fixtures/golden/voice/*` and `fixtures/golden/chat/*` are byte-identical to
 step 1's): the new rules (G1 `VoicePrivateWord` in every voice session, G2 `named/asks/did <Name>`, G3 links)
 do not fire on any of the 1413 golden turns.
+
+## Step 5: F7-1, request-side action check
+
+Rule `OwnRecords` (word rule `_commands`: an imperative clause whose action verb acts on "my/our ..."): `fixtures/golden/voice/stress-v1.json` and `stress-v2.json`, call I02 turn 2 ("Add milk and eggs to my shopping list."): was shared (looked up, `ConfidenceBar`; v1 saved-refused by `VoiceActionClaim`, v2 saved), now private (`OwnRecords`, `sees: null`, `PersonalTemplate`, not stored). No other decision changed.

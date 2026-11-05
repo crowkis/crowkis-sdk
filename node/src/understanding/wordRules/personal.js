@@ -497,8 +497,8 @@ function commands(text) {
     let words = wordsOf(parts[index]);
     while (words.length && DISCOURSE.has(words[0])) words = words.slice(1);
     if (
-      words.length > 1 && ACTION_VERBS.has(words[0]) && ACTION_OBJECTS.has(words[1]) &&
-      !words.some((w) => WH_WORDS.has(w))
+      words.length > 1 && ACTION_VERBS.has(words[0]) && !words.some((w) => WH_WORDS.has(w)) &&
+      (ACTION_OBJECTS.has(words[1]) || words.slice(1).some((w) => w === "my" || w === "our")) // "add milk to my list"
     ) {
       return true;
     }

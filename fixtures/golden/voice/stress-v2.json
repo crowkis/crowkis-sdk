@@ -7761,19 +7761,19 @@
     "missed_latency_budget": 0,
     "model_calls": 19,
     "not_shareable": 4,
-    "refused_to_share_a_private_answer": 7,
+    "refused_to_share_a_private_answer": 8,
     "refused_too_short": 3,
     "rules": {
-     "ConfidenceBar": 12,
+     "ConfidenceBar": 11,
      "NotShareable": 4,
-     "OwnRecords": 7,
-     "PersonalTemplate": 7,
+     "OwnRecords": 8,
+     "PersonalTemplate": 8,
      "TooShort": 3
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 19,
-    "uncacheable_personal": 7,
+    "uncacheable_personal": 8,
     "unspeakable_answers": 0
    },
    "turns": [
@@ -7803,16 +7803,14 @@
     },
     {
      "action": "infer",
-     "cacheable": true,
-     "not_stored": "",
-     "reason": "confidence below the spoken-answer bar of 0.92",
-     "rule": "ConfidenceBar",
-     "save_rule": null,
+     "cacheable": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "PersonalTemplate",
      "say": "Add milk and eggs to my shopping list.",
-     "sees": [
-      "user: Add milk and eggs to my shopping list."
-     ],
-     "stored": true
+     "sees": null,
+     "stored": false
     },
     {
      "action": "infer",
@@ -9638,12 +9636,6 @@
    [
     "kb=1",
     "What's the time in London?",
-    "Here is the answer.",
-    false
-   ],
-   [
-    "kb=1",
-    "Add milk and eggs to my shopping list.",
     "Here is the answer.",
     false
    ],

@@ -127,6 +127,8 @@ const NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?"
   "Is the manager named Rahul in today?"];
 const NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",
   "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?"];
+const REQUESTS = ["Add milk and eggs to my shopping list", "Remove the red shoes from my cart", "Put two tickets in my basket"];
+const REQUEST_CONTROLS = ["How do I add an item to my cart?", "Can I add an item to my cart?"];
 const URLS = ["what is on https://shop.example.com/track?id=abc", "is www.shop.example.com/x safe to open"];
 
 async function messagesOf(text) {
@@ -141,6 +143,11 @@ test("a question naming a person is not shared", async () => {
 
 test("must still work: a question naming no one is shared", async () => {
   for (const text of NAMES_NO_ONE) for (const messages of await messagesOf(text)) assert.notStrictEqual(messages, null, text);
+});
+
+test("an action request on the caller's things is not shared, whatever the answer says", async () => {
+  for (const text of REQUESTS) for (const messages of await messagesOf(text)) assert.strictEqual(messages, null, text);
+  for (const text of REQUEST_CONTROLS) for (const messages of await messagesOf(text)) assert.notStrictEqual(messages, null, text);
 });
 
 test("a question holding a link is not shared", async () => {

@@ -7761,22 +7761,21 @@
     "failed_writes": 0,
     "missed_latency_budget": 0,
     "model_calls": 19,
-    "not_shareable": 7,
-    "refused_to_share_a_private_answer": 7,
+    "not_shareable": 6,
+    "refused_to_share_a_private_answer": 8,
     "refused_too_short": 3,
     "rules": {
-     "ConfidenceBar": 12,
+     "ConfidenceBar": 11,
      "NonAnswer": 2,
      "NotShareable": 4,
-     "OwnRecords": 7,
-     "PersonalTemplate": 7,
-     "TooShort": 3,
-     "VoiceActionClaim": 1
+     "OwnRecords": 8,
+     "PersonalTemplate": 8,
+     "TooShort": 3
     },
     "served_from_cache": 0,
     "slow_writes": 0,
     "turns": 19,
-    "uncacheable_personal": 7,
+    "uncacheable_personal": 8,
     "unspeakable_answers": 0
    },
    "turns": [
@@ -7806,15 +7805,13 @@
     },
     {
      "action": "infer",
-     "cacheable": true,
-     "not_stored": "kept to this call: the answer says something was done for this caller",
-     "reason": "confidence below the spoken-answer bar of 0.92",
-     "rule": "ConfidenceBar",
-     "save_rule": "VoiceActionClaim",
+     "cacheable": false,
+     "not_stored": "about this caller, with no declared value to make a shared answer shape from",
+     "reason": "the caller asked about their own records and this session has no values to fill a shared answer shape with, so nothing can be answered from cache without one caller's answer reaching the next",
+     "rule": "OwnRecords",
+     "save_rule": "PersonalTemplate",
      "say": "Add milk and eggs to my shopping list.",
-     "sees": [
-      "user: Add milk and eggs to my shopping list."
-     ],
+     "sees": null,
      "stored": false
     },
     {

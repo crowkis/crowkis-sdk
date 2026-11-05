@@ -155,6 +155,9 @@ class ChatProtectionsOnVoiceTests(unittest.TestCase):
                       "asks Anita about the refund policy", "Is the manager named Rahul in today?"]
     NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",
                     "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?"]
+    REQUESTS = ["Add milk and eggs to my shopping list", "Remove the red shoes from my cart",
+                "Put two tickets in my basket"]
+    REQUEST_CONTROLS = ["How do I add an item to my cart?", "Can I add an item to my cart?"]
     URLS = ["what is on https://shop.example.com/track?id=abc", "is www.shop.example.com/x safe to open"]
 
     def sessions(self):
@@ -168,6 +171,14 @@ class ChatProtectionsOnVoiceTests(unittest.TestCase):
 
     def test_must_still_work_a_question_naming_no_one_is_shared(self):
         for text in self.NAMES_NO_ONE:
+            for session in self.sessions():
+                self.assertIsNotNone(session.decide(text).messages, text)
+
+    def test_an_action_request_on_the_callers_things_is_not_shared_whatever_the_answer_says(self):
+        for text in self.REQUESTS:
+            for session in self.sessions():
+                self.assertIsNone(session.decide(text).messages, text)
+        for text in self.REQUEST_CONTROLS:
             for session in self.sessions():
                 self.assertIsNotNone(session.decide(text).messages, text)
 

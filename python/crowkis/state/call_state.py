@@ -87,7 +87,7 @@ class CallState:
     read_personal: Set[str] = field(default_factory=set, repr=False)
     read_follow_up: Set[str] = field(default_factory=set, repr=False)
     rewritten: Dict[str, str] = field(default_factory=dict, repr=False)
-    # Raw lower-case words that may identify a voice caller in turns kept private (chat hashes them).
+    # Raw lower-case words that may identify a caller in turns kept private.
     private_raw: Set[str] = field(default_factory=set, repr=False)
     # Only a voice session with an understander collects stated turns, facts and private words.
     remembers_told: bool = False
@@ -209,10 +209,10 @@ class CallState:
         text = text.strip()
         if reading.is_personal:
             self.read_personal.add(text)
+        frame = getattr(reading, "frame", None)
+        if self.is_personal(text):
+            self.private_raw.update(_private_words(text, frame))
         if self.remembers_told:
-            frame = getattr(reading, "frame", None)
-            if self.is_personal(text):
-                self.private_raw.update(_private_words(text, frame))
             if _sets_context(text):
                 self.stated = (self.stated + [text])[-MAX_VOICE_TOLD:]
             if frame is not None:
@@ -229,8 +229,7 @@ class CallState:
     def mark_private(self, text: str) -> None:
         """Read this turn as personal from now on (a rule kept it private)."""
         self.read_personal.add((text or "").strip())
-        if self.remembers_told:
-            self.private_raw.update(_private_words(text or ""))
+        self.private_raw.update(_private_words(text or ""))
 
     def is_personal(self, text: str) -> bool:
         text = (text or "").strip()

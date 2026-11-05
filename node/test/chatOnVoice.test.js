@@ -120,3 +120,47 @@ for (const [mode, makeOptions] of [["without an understander", () => ({}), ], ["
     assert.strictEqual((await call(tenant, makeOptions()).decide(HOURS)).action, "infer");
   });
 }
+
+// What Chat kept private that the voice word rules shared (v4-notes/f8-chat-replay.md): both channels.
+const NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?", "asks Anita about the refund policy",
+  "Is the manager named Rahul in today?"];
+const NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",
+  "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?"];
+const URLS = ["what is on https://shop.example.com/track?id=abc", "is www.shop.example.com/x safe to open"];
+
+async function messagesOf(text) {
+  const out = [];
+  for (const make of [call, chat]) out.push((await make(new Tenant()).decide(text)).messages);
+  return out;
+}
+
+test("a question naming a person is not shared", async () => {
+  for (const text of NAMES_A_PERSON) for (const messages of await messagesOf(text)) assert.strictEqual(messages, null, text);
+});
+
+test("must still work: a question naming no one is shared", async () => {
+  for (const text of NAMES_NO_ONE) for (const messages of await messagesOf(text)) assert.notStrictEqual(messages, null, text);
+});
+
+test("a question holding a link is not shared", async () => {
+  for (const text of URLS) for (const messages of await messagesOf(text)) assert.strictEqual(messages, null, text);
+});
+
+test("a name the caller gave never reaches a shared answer, whatever the model knows", async () => {
+  for (const make of [call, chat]) {
+    const tenant = new Tenant();
+    const thread = make(tenant);
+    await thread.decide("this is Priya Sharma, my phone is 9876543210");
+    await say(thread, HOURS, "Hello Priya Sharma, we open at 10 on Sundays.");
+    assert.ok(!JSON.stringify(tenant.writes).toLowerCase().includes("priya"));
+    assert.strictEqual((await make(tenant).decide(HOURS)).action, "infer");
+  }
+});
+
+test("must still work: a clean answer after a private turn is saved", async () => {
+  const tenant = new Tenant();
+  const thread = chat(tenant);
+  await thread.decide("this is Priya Sharma, my phone is 9876543210");
+  await say(thread, HOURS, HOURS_ANSWER);
+  assert.strictEqual((await call(tenant).decide(HOURS)).text, HOURS_ANSWER);
+});

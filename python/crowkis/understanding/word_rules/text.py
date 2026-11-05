@@ -536,10 +536,16 @@ def _capitalised(word: str) -> bool:
     return word[0].isupper() and not word.isupper()
 
 
+# A capitalised word right after them is a person: "named Rahul", "asks Anita", "did Priya order".
+# Not "for": the rules cannot tell "for Sarah" from "for Goa" (a model's tag can).
+_NAMED_BY = frozenset({"named", "called", "asks", "says", "did", "does", "has", "had", "was", "will"})
+
+
 def _capitalised_name(text: str, words: List[str]) -> bool:
     """A capitalised name (one word, or two in a row) in a person's place: after a title
-    ("Dr. Iyer"), before what a person does ("Priya called", "does Mohit have an
-    appointment"), or after one of the caller's own matters ("the order for Rahul").
+    ("Dr. Iyer"), after a word that introduces one ("named Rahul", "did Priya order"), before what
+    a person does ("Priya called", "does Mohit have an appointment"), or after one of the caller's
+    own matters ("the order for Rahul").
     Followed by a Hinglish postposition it is a place or a festival ("Durga Puja mein")."""
     tokens = list(_TOKEN.finditer(text))
     if len(tokens) != len(words):
@@ -551,7 +557,7 @@ def _capitalised_name(text: str, words: List[str]) -> bool:
         if not _capitalised(word) or words[index] in _KNOWN_WORDS:
             continue
         lead = words[index - 1] if index > 0 else ""
-        if lead in _TITLES:
+        if lead in _TITLES or lead in _NAMED_BY:
             return True  # a title, with or without its period: "Dr. Iyer"
         end = index + 1
         if end < len(tokens) and text[match.end():tokens[end].start()].isspace() and _capitalised(tokens[end].group()):

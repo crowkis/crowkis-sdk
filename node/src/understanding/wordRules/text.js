@@ -436,8 +436,12 @@ function capitalised(word) {
   return isUpper([...word][0]) && !isUpper(word);
 }
 
+// A capitalised word right after them is a person: "named Rahul", "asks Anita", "did Priya order".
+// Not "for": the rules cannot tell "for Sarah" from "for Goa" (a model's tag can).
+const NAMED_BY = new Set(["named", "called", "asks", "says", "did", "does", "has", "had", "was", "will"]);
+
 // A capitalised name (one word, or two in a row) in a person's place: after a title
-// ("Dr. Iyer"), before what a person does ("Priya called", "does Mohit have an
+// ("Dr. Iyer"), after a word that introduces one ("named Rahul", "did Priya order"), before what a person does ("Priya called", "does Mohit have an
 // appointment"), or after one of the caller's own matters ("the order for Rahul").
 // Followed by a Hinglish postposition it is a place or a festival ("Durga Puja mein").
 function capitalisedName(text, words) {
@@ -450,7 +454,7 @@ function capitalisedName(text, words) {
     const match = tokens[index];
     if (!capitalised(match[0]) || KNOWN_WORDS.has(words[index])) continue;
     const lead = index > 0 ? words[index - 1] : "";
-    if (TITLES.has(lead)) return true; // a title, with or without its period: "Dr. Iyer"
+    if (TITLES.has(lead) || NAMED_BY.has(lead)) return true; // a title, with or without its period: "Dr. Iyer"
     let end = index + 1;
     if (
       end < tokens.length && /^\s+$/.test(text.slice(match.index + match[0].length, tokens[end].index)) &&

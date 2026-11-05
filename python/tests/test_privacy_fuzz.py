@@ -14,6 +14,7 @@ import unittest
 import crowkis
 from conformance import ConformanceStore
 from crowkis.channels.chat import Chat
+from crowkis.understanding.model.understanders import LLMClassifier, LLMRewriter
 from crowkis.channels.voice_session import _wait_for_writes
 from test_chat import GENERAL, Model, Scripted, SegmentedAgent
 
@@ -428,6 +429,76 @@ class Fuzz(unittest.TestCase):
     def test_chat_controls_general_questions_are_saved(self):
         saved = sum(bool(play_chat([(q, general_frame(q), a)]).saved) for q, a in QUESTIONS)
         self.assertGreaterEqual(saved, MIN_CONTROL_SAVES, f"only {saved} of {len(QUESTIONS)} general answers were saved")
+
+
+def play_chat_on_voice(turns, detail, llm):
+    """One chat thread on the voice front end: voice_session(channel="chat"), with no LLM or, with
+    ``llm``, a stub one that returns the turn's frame (``turns``: (text, frame, answer))."""
+    store = ConformanceStore()
+    options = {}
+    if llm:
+        stub = Scripted({t: f for t, f, _ in turns})
+        options = {"classifier": LLMClassifier(stub), "rewriter": LLMRewriter(stub)}
+    session = crowkis.voice_session(client=store, agent_id="fuzz", channel="chat", **options)
+    try:
+        for text, _, answer in turns:
+            decision = session.decide(text)
+            if decision.needs_model:
+                session.record(decision, answer)
+        _wait_for_writes()
+    finally:
+        session.agent.close()
+    return store
+
+
+class ChatOnVoiceFuzz(Fuzz):
+    """Every chat case above, through voice_session(channel="chat") with no LLM and with a stub LLM."""
+
+    def modes(self, category, n, build, kinds=tuple(MAKERS), make=None, saves=None):
+        for llm in (False, True):
+            with self.subTest(llm=llm):
+                self.check(f"{category}-{llm}", n, build, lambda turns, detail: play_chat_on_voice(turns, detail, llm),
+                           store_blobs, kinds=kinds, make=make, saves=saves)
+
+    def test_chat_voice_detail_in_the_question(self):
+        self.modes("cv-in", 12, self.as_chat(in_question))
+
+    def test_chat_voice_detail_stated_earlier(self):
+        self.modes("cv-earlier", 12, self.as_chat(stated_earlier), kinds=("phone", "email", "id", "address", "dob"),
+                   saves=MIN_CONTROL_FRACTION)
+
+    def test_chat_voice_name_stated_earlier_then_repeated_by_the_model(self):
+        self.modes("cv-name", 30, self.as_chat(stated_earlier), kinds=("name",), saves=MIN_CONTROL_FRACTION)
+
+    def test_chat_voice_weak_understander_detail_stated_earlier(self):
+        no_entities = lambda text: {"kind": "personal", "subject": "self", "confidence": 0.9}
+        for label, frame_of in (("personal", no_entities), ("general", general_frame)):
+            self.modes(f"cv-weak-{label}", 12, self.as_weak_chat(stated_earlier, frame_of),
+                       kinds=("phone", "email", "id", "address", "dob", "name"), saves=MIN_CONTROL_FRACTION)
+
+    def test_chat_voice_hinglish_and_devanagari(self):
+        def build(rng, detail):
+            question, answer = rng.choice(HI_QUESTIONS)
+            said = detail.said if "मेरा" in detail.said else HINGLISH[detail.kind].format(detail.shown)
+            return [(said, "Theek hai."), (question, answer[:-1] + f", {detail.shown}.")], None
+        def make(rng, kind):
+            return make_devanagari(rng, kind) if rng.random() < 0.5 and kind in ("phone", "id") else MAKERS[kind](rng)
+        self.modes("cv-hi", 10, self.as_chat(build), kinds=("phone", "email", "id"), make=make)
+
+    def test_chat_voice_long_text_with_a_buried_detail(self):
+        self.modes("cv-long", 5, self.as_chat(long_text))
+
+    def test_chat_voice_blank_turns_are_safe_and_save_nothing(self):
+        for say in ["", " ", "\n\t "]:
+            for llm in (False, True):
+                with self.subTest(say=repr(say), llm=llm):
+                    store = play_chat_on_voice([(say, {"kind": "unclear", "subject": "none", "confidence": 0.5}, "Okay.")], None, llm)
+                    self.assertEqual([w for w in store.writes if not w[0].strip()], [])
+
+    def test_chat_voice_controls_general_questions_are_saved(self):
+        for llm in (False, True):
+            saved = sum(bool(play_chat_on_voice([(q, general_frame(q), a)], None, llm).writes) for q, a in QUESTIONS)
+            self.assertGreaterEqual(saved, MIN_CONTROL_SAVES, f"llm={llm}: only {saved} of {len(QUESTIONS)} saved")
 
 
 if __name__ == "__main__":

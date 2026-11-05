@@ -107,7 +107,7 @@ class PrivateWord:
         return Verdict(self.name, "private_word")
 
 
-# The VoicePrivateWord rule (stage 3, save; voice with an understander).
+# The VoicePrivateWord rule (stage 3, save; every voice session).
 class VoicePrivateWord:
     """Chat's PrivateWord on voice (v4): a word that identified the caller in a turn kept private ("Sarah",
     "55512") is never in a shared answer, unless the shared question itself has it."""

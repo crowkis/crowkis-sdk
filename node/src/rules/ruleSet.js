@@ -49,20 +49,18 @@ class RuleSet {
       beforeSharing: new RuleChain([new NoKey(), new ToolResult(), new PromptCallerDetails()]),
       personal: new PersonalTemplate(),
       sharing: new RuleChain([new TaintedCall(), new NotShareable(), new DeclaredValue(), new CallerIdentifier(),
-        new VoiceActionClaim(), new NonAnswer()]),
+        new VoicePrivateWord(), new VoiceActionClaim(), new NonAnswer()]),
     });
   }
 
   /**
    * The rules of a voice session with an understander plugged in (v4): StatedFacts, which keeps only
    * the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint, and the save
-   * check gains Chat's PrivateWord and ActionClaim (the merged save check).
+   * check is the same as without one.
    */
   static understood(fillers = new Map()) {
     const rules = RuleSet.voice(fillers);
-    const sharing = new RuleChain([new TaintedCall(), new NotShareable(), new DeclaredValue(), new CallerIdentifier(),
-      new VoicePrivateWord(), new VoiceActionClaim(), new NonAnswer()]);
-    return new RuleSet({ ...rules, question: rules.question.replacing("CallContextTaint", new VoiceStatedFacts()), sharing });
+    return new RuleSet({ ...rules, question: rules.question.replacing("CallContextTaint", new VoiceStatedFacts()) });
   }
 
   /**

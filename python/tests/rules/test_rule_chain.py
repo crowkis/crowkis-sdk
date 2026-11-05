@@ -62,7 +62,7 @@ class VoiceRuleSetTests(unittest.TestCase):
         self.assertEqual(rules.before_sharing.names, ("NoKey", "ToolResult", "PromptCallerDetails"))
         self.assertEqual(rules.personal.name, "PersonalTemplate")
         self.assertEqual(rules.sharing.names, ("TaintedCall", "NotShareable", "DeclaredValue", "CallerIdentifier",
-                                               "VoiceActionClaim", "NonAnswer"))
+                                               "VoicePrivateWord", "VoiceActionClaim", "NonAnswer"))
 
     def test_rule_names_are_a_list_never_one_string(self):
         with self.assertRaises(TypeError):

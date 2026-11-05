@@ -81,19 +81,17 @@ class RuleSet:
             answer_given=RuleChain([EmptyAnswer()]),
             before_sharing=RuleChain([NoKey(), ToolResult(), PromptCallerDetails()]),
             personal=PersonalTemplate(),
-            sharing=RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoiceActionClaim(),
-                               NonAnswer()]),
+            sharing=RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoicePrivateWord(),
+                               VoiceActionClaim(), NonAnswer()]),
         )
 
     @classmethod
     def understood(cls, fillers: Optional[Mapping[str, str]] = None) -> "RuleSet":
         """The rules of a voice session with an understander plugged in (v4): StatedFacts, which keeps
         only the turns whose answer a stated fact may change, replaces the call-wide CallContextTaint, and the
-        save check gains Chat's PrivateWord and ActionClaim (the merged save check)."""
+        save check is the same as without one."""
         rules = cls.voice(fillers)
-        sharing = RuleChain([TaintedCall(), NotShareable(), DeclaredValue(), CallerIdentifier(), VoicePrivateWord(),
-                             VoiceActionClaim(), NonAnswer()])
-        return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()), sharing=sharing)
+        return replace(rules, question=rules.question.replacing("CallContextTaint", VoiceStatedFacts()))
 
     def check_question(self, turn: VoiceTurn) -> Checked:
         """Stage 1: the first objection of ``before_filler``, ``filler`` (a filler answers the turn

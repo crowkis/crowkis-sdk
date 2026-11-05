@@ -139,5 +139,50 @@ class WithClassifierAndRewriterTests(ChatOnVoiceTests, unittest.TestCase):
         return understood()
 
 
+class ChatProtectionsOnVoiceTests(unittest.TestCase):
+    """What Chat kept private that the voice word rules shared (v4-notes/f8-chat-replay.md): both channels."""
+
+    NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?",
+                      "asks Anita about the refund policy", "Is the manager named Rahul in today?"]
+    NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",
+                    "Can I pay with Apple Pay?", "Is the store open on Sunday?", "Are there flights for Goa?"]
+    URLS = ["what is on https://shop.example.com/track?id=abc", "is www.shop.example.com/x safe to open"]
+
+    def sessions(self):
+        for make in (call, chat):
+            yield make(Tenant())
+
+    def test_a_question_naming_a_person_is_not_shared(self):
+        for text in self.NAMES_A_PERSON:
+            for session in self.sessions():
+                self.assertIsNone(session.decide(text).messages, text)
+
+    def test_must_still_work_a_question_naming_no_one_is_shared(self):
+        for text in self.NAMES_NO_ONE:
+            for session in self.sessions():
+                self.assertIsNotNone(session.decide(text).messages, text)
+
+    def test_a_question_holding_a_link_is_not_shared(self):
+        for text in self.URLS:
+            for session in self.sessions():
+                self.assertIsNone(session.decide(text).messages, text)
+
+    def test_a_name_the_caller_gave_never_reaches_a_shared_answer_whatever_the_model_knows(self):
+        for make in (call, chat):
+            tenant = Tenant()
+            thread = make(tenant)
+            thread.decide("this is Priya Sharma, my phone is 9876543210")
+            say(thread, HOURS, "Hello Priya Sharma, we open at 10 on Sundays.")
+            self.assertNotIn("priya", repr(tenant.writes).lower())
+            self.assertEqual(make(tenant).decide(HOURS).action, "infer")
+
+    def test_must_still_work_a_clean_answer_after_a_private_turn_is_saved(self):
+        tenant = Tenant()
+        thread = chat(tenant)
+        thread.decide("this is Priya Sharma, my phone is 9876543210")
+        say(thread, HOURS, HOURS_ANSWER)
+        self.assertEqual(call(tenant).decide(HOURS).text, HOURS_ANSWER)
+
+
 if __name__ == "__main__":
     unittest.main()

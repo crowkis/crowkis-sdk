@@ -198,9 +198,9 @@ class CallState {
     if (reading.isContextDependent) this.readFollowUp.add(trimmed);
     if (rewritten === null || rewritten === undefined) this.rewritten.delete(trimmed);
     else this.rewritten.set(trimmed, rewritten);
-    if (!this.remembersTold) return;
     const frame = reading.frame || null;
     if (this.isPersonal(trimmed)) for (const w of privateWords(trimmed, frame)) this.privateRaw.add(w);
+    if (!this.remembersTold) return;
     if (setsContext(trimmed)) this.stated = [...this.stated, trimmed].slice(-MAX_VOICE_TOLD);
     for (const entity of frame ? frame.memorable : []) {
       const fact = `${entity.type}: ${entity.text}`;
@@ -211,7 +211,7 @@ class CallState {
   /** Read this turn as personal from now on (a rule kept it private). */
   markPrivate(text) {
     this.readPersonal.add(typeof text === "string" ? text.trim() : "");
-    if (this.remembersTold) for (const w of privateWords(typeof text === "string" ? text : "")) this.privateRaw.add(w);
+    for (const w of privateWords(typeof text === "string" ? text : "")) this.privateRaw.add(w);
   }
 
   isPersonal(text) {

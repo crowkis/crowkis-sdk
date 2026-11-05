@@ -11,6 +11,7 @@ const assert = require("node:assert");
 const { test } = require("node:test");
 const { voiceSession, _waitForWrites: waitForWrites } = require("./src/channels/voiceSession.js");
 const { Chat } = require("./src/channels/chat.js");
+const { LLMClassifier, LLMRewriter } = require("./src/understanding/model/understanders.js");
 const { TurnFrame } = require("./src/understanding/model/frame.js");
 const { ConformanceStore } = require("./test/conformance.js");
 
@@ -402,4 +403,78 @@ test("chat: controls, general questions are saved", async () => {
   let saved = 0;
   for (const [q, a] of QUESTIONS) saved += (await playChat([[q, generalFrame(q), a]])).saved.length > 0 ? 1 : 0;
   assert.ok(saved >= MIN_CONTROL_SAVES, `only ${saved} of ${QUESTIONS.length} general answers were saved`);
+});
+
+// chat on the voice front end: voiceSession({ channel: "chat" }), with no LLM or a stub one that returns the turn's frame
+
+async function playChatOnVoice(turns, llm) {
+  const store = new ConformanceStore();
+  const options = {};
+  if (llm) {
+    const frames = Object.fromEntries(turns.map(([t, f]) => [t, f]));
+    const stub = { understand: (turn) => TurnFrame.fromDict(frames[turn]) };
+    options.classifier = new LLMClassifier(stub);
+    options.rewriter = new LLMRewriter(stub);
+  }
+  const session = voiceSession({ client: store, agentId: "fuzz", channel: "chat", ...options });
+  try {
+    for (const [text, , answer] of turns) {
+      const decision = await session.decide(text);
+      if (decision.needsModel) await session.record(decision, answer);
+    }
+    await waitForWrites();
+    await store.idle();
+  } finally {
+    await session.agent.close();
+  }
+  return store;
+}
+
+async function modes(category, perKind, build, options) {
+  for (const llm of [false, true]) {
+    await check(`${category}-${llm}`, perKind, build, (turns) => playChatOnVoice(turns, llm), storeBlobs, options);
+  }
+}
+
+test("chat on voice: detail in the question", async () => {
+  await modes("cv-in", 12, asChat(inQuestion));
+});
+test("chat on voice: detail stated earlier, then a general question", async () => {
+  await modes("cv-earlier", 12, asChat(statedEarlier), { kinds: NO_NAME, saves: MIN_CONTROL_FRACTION });
+});
+test("chat on voice: name stated earlier, then repeated by the model", async () => {
+  await modes("cv-name", 30, asChat(statedEarlier), { kinds: ["name"], saves: MIN_CONTROL_FRACTION });
+});
+test("chat on voice: a weak understander, detail stated earlier", async () => {
+  const noEntities = () => ({ kind: "personal", subject: "self", confidence: 0.9 });
+  for (const [label, frameOf] of [["personal", noEntities], ["general", generalFrame]]) {
+    await modes(`cv-weak-${label}`, 12, asWeakChat(statedEarlier, frameOf), { kinds: [...NO_NAME, "name"], saves: MIN_CONTROL_FRACTION });
+  }
+});
+test("chat on voice: Hinglish and Devanagari", async () => {
+  const build = (rng, d) => {
+    const [question, answer] = rng.pick(HI_QUESTIONS);
+    const said = d.said.includes("मेरा") ? d.said : fill(HINGLISH[d.kind], d.shown);
+    return [[said, "Theek hai."], [question, addressing(answer, d)]];
+  };
+  const make = (rng, kind) => (rng() < 0.5 && (kind === "phone" || kind === "id") ? makeDevanagari(rng, kind) : MAKERS[kind](rng));
+  await modes("cv-hi", 10, asChat(build), { kinds: ["phone", "email", "id"], make });
+});
+test("chat on voice: long text with a buried detail", async () => {
+  await modes("cv-long", 5, asChat(longText));
+});
+test("chat on voice: blank turns are safe and write nothing", async () => {
+  for (const say of ["", " ", "\n\t "]) {
+    for (const llm of [false, true]) {
+      const store = await playChatOnVoice([[say, { kind: "unclear", subject: "none", confidence: 0.5 }, "Okay."]], llm);
+      assert.deepStrictEqual(store.writes.filter((w) => !w[0].trim()), [], JSON.stringify(say));
+    }
+  }
+});
+test("chat on voice: controls, general questions are saved", async () => {
+  for (const llm of [false, true]) {
+    let saved = 0;
+    for (const [q, a] of QUESTIONS) saved += (await playChatOnVoice([[q, generalFrame(q), a]], llm)).writes.length > 0 ? 1 : 0;
+    assert.ok(saved >= MIN_CONTROL_SAVES, `llm=${llm}: only ${saved} of ${QUESTIONS.length} general answers were saved`);
+  }
 });

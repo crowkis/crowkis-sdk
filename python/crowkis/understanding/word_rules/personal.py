@@ -299,6 +299,7 @@ _EMAIL = re.compile(r"[A-Za-z0-9._%+-]@[A-Za-z0-9-]")
 _OCTET = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
 
 
+_URL = re.compile(r"https?://|\bwww\.", re.I)  # a link can carry a token or an id
 _IPV4 = re.compile(r"(?<![0-9.])" + _OCTET + r"(?:\." + _OCTET + r"){3}(?![0-9]|\.[0-9])")
 
 
@@ -613,7 +614,7 @@ def _never_share(text: str, words: List[str]) -> bool:
     """Whether a turn's answer must never be shared, whatever the rest of the rules say."""
     if _unreadable(text):
         return True
-    if _DIGITS.search(text) or _EMAIL.search(text) or _IPV4.search(text) or _reads_out_digits(text, words):
+    if _DIGITS.search(text) or _EMAIL.search(text) or _IPV4.search(text) or _URL.search(text) or _reads_out_digits(text, words):
         return True
     if "at" in words and "dot" in words and any(w in _EMAIL_ENDINGS for w in words):
         return True

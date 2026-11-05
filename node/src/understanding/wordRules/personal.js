@@ -262,6 +262,7 @@ const STORY_FILLERS = new Set(["just", "recently", "already", "also", "never", "
 const DIGITS = /[0-9]{5,}/;
 const EMAIL = /[A-Za-z0-9._%+-]@[A-Za-z0-9-]/;
 // An IPv4 address: personal data, as an IPv6 address already counts (its digit runs).
+const URL_RE = /https?:\/\/|\bwww\./i; // a link can carry a token or an id
 const IPV4 = /(?<![0-9.])(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?![0-9]|\.[0-9])/;
 const LETTER = /\p{L}/u;
 
@@ -532,7 +533,7 @@ function tellsOwnStory(words) {
 // Whether a turn's answer must never be shared, whatever the rest of the rules say.
 function neverShare(text, words) {
   if (unreadable(text)) return true;
-  if (DIGITS.test(text) || EMAIL.test(text) || IPV4.test(text) || readsOutDigits(text, words)) return true;
+  if (DIGITS.test(text) || EMAIL.test(text) || IPV4.test(text) || URL_RE.test(text) || readsOutDigits(text, words)) return true;
   if (words.includes("at") && words.includes("dot") && words.some((w) => EMAIL_ENDINGS.has(w))) return true;
   if (words.some((w) => SINGLE_WORDS.has(w)) || hasPhrase(words, NEVER_PHRASES_BY_FIRST)) return true;
   if (identifies(text, words) || namesSomeone(text, words)) return true;

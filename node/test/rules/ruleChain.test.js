@@ -67,7 +67,7 @@ test("the voice defaults are today's rules in today's order", () => {
   assert.deepStrictEqual(rules.beforeSharing.names, ["NoKey", "ToolResult", "PromptCallerDetails"]);
   assert.strictEqual(rules.personal.name, "PersonalTemplate");
   assert.deepStrictEqual(rules.sharing.names, ["TaintedCall", "NotShareable", "DeclaredValue", "CallerIdentifier",
-    "VoiceActionClaim", "NonAnswer"]);
+    "VoicePrivateWord", "VoiceActionClaim", "NonAnswer"]);
 });
 
 test("rule names are a list, never one string", () => {

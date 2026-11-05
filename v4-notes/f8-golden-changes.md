@@ -10,3 +10,9 @@ The voice segment is `kb=<knowledge_version>` for every session, with or without
   golden files are untouched.)
 - Cold cache, once: answers saved by an older SDK (no segment, or `kb=..;channel=..`) are not found
   by 0.6.0. The pool refills on use. Put this in the 0.6.0 release notes.
+
+## Step 3: Chat's protections on voice
+
+No golden decision changed (`fixtures/golden/voice/*` and `fixtures/golden/chat/*` are byte-identical to
+step 1's): the new rules (G1 `VoicePrivateWord` in every voice session, G2 `named/asks/did <Name>`, G3 links)
+do not fire on any of the 1413 golden turns.

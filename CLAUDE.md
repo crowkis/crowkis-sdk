@@ -14,7 +14,7 @@ caller's private details private, not when it is elegant.
 - Read the files the graph points to before editing; grep every caller.
 - Change only what the task needs. Smallest root-cause fix; no drive-by refactors.
 - Public names and behaviour stay as they are (`from crowkis import voice_session, VoiceSession,
-  Chat, CallSession, TurnResult, ...`), except where the owner has made an exception in
+  TurnDecision, ...`), except where the owner has made an exception in
   `../sdk-docs/v4-refactor-plan.md` (P5.6 removed the old module paths). Python and Node change
   together and stay in parity.
 

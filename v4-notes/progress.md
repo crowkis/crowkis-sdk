@@ -583,3 +583,11 @@ Golden changes (listed by rule): `f3-golden-changes.md` (MT4, VD3, T21; the othe
 
 ## Speed check (2026-11-05): decide p95 68 ms in F6 against 12 ms in F4b - done
 - Not v4 and not the newer server: the first SDK to run on a fresh container is slow (v4 25.5 / 27.4 ms p95, old SDK 47.9 ms), the second is fast (old 3.9 / 3.6, v4 5.1), on both `dce94b4` and `2c570ee` (`6ecdb9b` image absent). The server takes about 25 ms to look up a question it has not seen before; v4's own decide work is about 0.4 ms more than the old SDK's. Bedrock 1.59 to 1.79 USD. Notes: `v4-notes/speed-check.md`. Nothing pushed.
+
+## F8 (2026-11-05): chat on the voice front end, Chat deleted - done
+
+- Commits (none pushed): F8-1 `ebc20f1` one pool (`kb=<version>` only), F8-2 `b9931f1` chat/voice end-to-end tests, F8-3 `5e2ee80` Chat's protections on the voice rules (private words in every mode, named persons, links), F8-4 `c87f7cd` the Chat path deleted, F8-5a `ca86452` F7-1, 5b `408682e` P1-11, 5c `9a021d0` three F3 leftovers, 5d `7e49a73` undo of the fourth (owner decision), plus the review fixes after them.
+- Notes: `f8-chat-replay.md` (replay of 1413 golden turns, the Chat rules one by one, gaps G1-G3), `f8-golden-changes.md`, `f8-release-notes.md` (0.6.0: removed names, cold cache, migration).
+- Golden changes: step 1 only the segment (`""` -> `kb=1`, 430 writes); step 5 one turn (I02 turn 2, F7-1).
+- Open for the owner: Pipecat vs LiveKit instruction counting (both tested on purpose); `LLMUnderstander` / `WithFallback` / `CallState` kept.
+- Not run: the real server (optional).

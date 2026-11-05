@@ -45,10 +45,28 @@ Run dirs under `stress/results/text_injection_only/` (git-ignored): A `142306`, 
 - A, I02 turn 12 ("Alexa, stop." → "Sure, shutting down."): the "suresh" from B08 is the substring "sure, sh" with spaces and punctuation dropped. **False positive**, same kind as F4's "sethi". So real cross-caller leaks: **0 in every run.**
 - The in-call "10 rupees" / "ten rupees" (D09, every run): the model's own wrong price on the "starting price" question, as in F4b/F6 (answerer wording, not a cache decision). E's "closed forever" (Sundays question): an in-call answer wording flag, not a cross-caller one; not examined further.
 
-**Shared pool (E then F, no flush):** F's hits are a subset of B2's (15 vs 18; no hit in F that B2 lacked), so the stress run shows **no measurable extra cross-channel hits**; run-to-run noise is ±2 (E has 2 hits A lacks). Cross-channel sharing itself is proved by the server tests in B2 above. Why the stress calls do not gain (e.g. the voice-saved answers are mostly commitment/price answers held to exact words, or keys differ) was not investigated. No private detail crossed (0 cross-caller leaks in F).
+**Shared pool (E then F, no flush; re-run as E2/F2 with the same result):** F had no more hits than the chat run on an empty cache (15 vs 18), and of 181 F turns whose exact words E had saved only 7 hit. Traced: F did not flush; the tenant held E's entries (177 vectors); the same questions hit when run straight after (3-call set: 56% hits). **Cause: the server lowers a stored answer's hit confidence as it ages** (0.987 → 0.903 in 4 min, 0.81 in 8 min), and the SDK serves only above 0.92, so an answer older than about 3 minutes goes to the model. Entries are not lost (plain `cget_hit` still finds them; plain `cset` entries hit for 23 min). Hit rate by age: 56% at 0, 40% at 5 min, 12% at 10 min, 4% at 15 min. This is a server finding (F9-1 in `open-items.md`); not an SDK bug, harness fine. So the stress run cannot show cross-channel hits across a 20-minute gap; the real-server cross-channel tests (seconds apart) do show them. No private detail crossed (0 cross-caller leaks in F, F2).
 
 **Against F6** (voice 33 calls: 0 leaks, 55 saved, 7 hits, 4.29, p95 68 ms; v4 250: 54 saved, 162 private, 6 hits, 4.45, p95 292 ms; all-calls runs C/D of F6: 125/118 saved): same shape. F9 voice and v4-250 are the first full 73-call runs, so totals are not directly comparable; leaks 0, hits 15, v4-250 p95 317 ms (the 250 ms budget wait), v4 keeps far more private (294 vs 231) and saves about the same (165 vs 169). v4 inline (D) saves 36 fewer and takes 554 ms median: not usable live; the 250 ms budget is the right setting.
 
 ## Not tested / why
 
 Weekly usage limit (85% cap): the rest of Part A, the framework conformance, Part B3–4 and Part D remain. Commands to resume are in `side-session-notes/.../f9-status.md`.
+
+## Update 2026-11-06: frameworks and repeated offline runs (real-server runs use `crowkis-f9`)
+
+| Configuration | Result |
+|---|---|
+| Pipecat 1.12 (f6venv), real server: conformance + cross-channel | pass (9, 27 skipped) |
+| LiveKit Python 1.8.8, real server: `test_livekit` + conformance | pass (23 passed, 18 skipped) |
+| Node + LiveKit JS, real server: `test-livekit.js` + `test-conformance.js` | ran, no failures reported in the summary tail (not re-checked line by line) |
+| Pipecat venv, full offline Python suite | 813 passed, 122 skipped |
+| LiveKit Python offline | 23 passed, 30 skipped |
+| LiveKit JS offline | 49 passed, 0 failed |
+| System Python offline, 2nd run | 797 passed, 138 skipped (same as 1st) |
+| `CROWKIS_SLOW_TESTS=1` Python (wheel/sdist install) | 799 passed, 136 skipped |
+| Node offline, 2nd run (python3 shim on PATH) | 64/65 files (one failing file, not identified) |
+| `CROWKIS_SLOW_TESTS=1` Node | 63/65 files (two failing files, not identified) |
+| **Bolna** | **not run**: `bolna-venv2` has no pytest (`No module named pytest`); needs `pip install pytest pytest-asyncio` in that venv |
+
+Still open: which Node files fail (the one in the offline run was `test-voice.js` in the first run), Bolna, Part B3–4, Part D.

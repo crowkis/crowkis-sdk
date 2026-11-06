@@ -24,3 +24,6 @@ node_modules/
 
 # Knowledge graph (rebuilt locally)
 /graphify-out/
+
+# Working notes of the v4 refactor (kept locally, not published)
+/v4-notes/

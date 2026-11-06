@@ -149,7 +149,7 @@ class WithClassifierAndRewriterTests(ChatOnVoiceTests, unittest.TestCase):
 
 
 class ChatProtectionsOnVoiceTests(unittest.TestCase):
-    """What Chat kept private that the voice word rules shared (v4-notes/f8-chat-replay.md): both channels."""
+    """What Chat kept private that the voice word rules shared when F8 replayed Chat's test cases: both channels."""
 
     NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?",
                       "asks Anita about the refund policy", "Is the manager named Rahul in today?"]

@@ -122,7 +122,7 @@ for (const [mode, makeOptions] of [["without an understander", () => ({}), ], ["
   });
 }
 
-// What Chat kept private that the voice word rules shared (v4-notes/f8-chat-replay.md): both channels.
+// What Chat kept private that the voice word rules shared when F8 replayed Chat's test cases: both channels.
 const NAMES_A_PERSON = ["What did Priya order last week?", "Has Sarah paid yet?", "asks Anita about the refund policy",
   "Is the manager named Rahul in today?"];
 const NAMES_NO_ONE = ["Do you ship to Australia?", "Is there a discount for Diwali?", "What is the capital of France?",

@@ -70,3 +70,20 @@ Weekly usage limit (85% cap): the rest of Part A, the framework conformance, Par
 | **Bolna** | **not run**: `bolna-venv2` has no pytest (`No module named pytest`); needs `pip install pytest pytest-asyncio` in that venv |
 
 Still open: which Node files fail (the one in the offline run was `test-voice.js` in the first run), Bolna, Part B3–4, Part D.
+
+## Update 2026-11-06 (later): Bolna, Node, B3, B4
+
+**Fixed (SDK-side, test only):** `node/test-voice.js` "the node classifier agrees with the python classifier on all 44" failed on this Windows machine because `python3` is the Microsoft Store stub (exits 9009, not ENOENT), so the fallback to `python` never ran. It now falls back on any failure of `python3` (commit "test-voice: fall back to python…"). With it and `npm install` (typescript was missing), **Node: 65/65 files, also with `CROWKIS_SLOW_TESTS=1`** (the two slow failures were the missing `tsc` in `node_modules`, and the same test-voice file).
+
+| Part | Result |
+|---|---|
+| Bolna (new Python 3.12 venv `bolna-f9`: bolna, pytest, pytest-asyncio, SDK editable; the old `bolna-venv2` had lost files) | offline 121 passed, 30 skipped; **real server** (`CROWKIS_CONFORMANCE_SERVER=1`, tests/test_bolna.py + test_conformance.py) 121 passed, 18 skipped |
+| B3 server-marked tests (`test_voice_announce`, `test_voice_review_fixes`; Node `test-voice-announce`, `test-voice-rereview-fixes`) | Python 13 passed, 1 skipped; Node 7 passed, 1 skipped |
+| B3 website snippet checks on the server (`check_voice_python.py`, `check_voice_node.js`) | **3/4 in both languages**: "a later caller is served from the cache" fails (see finding F9-2). `check_sdk_pages.py` / `.js` abort with `CSET rejected by security pipeline` |
+| B3 examples (`python_custom_voice_loop.py`, `node_custom_voice_loop.js`) | run to the end; the loop prints the answer each call but the second call is not served from cache for the same reason. `python_langchain_cache.py` not run (no `langchain_core` in these venvs); `node_get_or_compute.js` ran |
+| B4 failure cases on the real server (`v4-notes/f9/failure_cases.py`, `.js`) | **Python and Node: every call survived** (no exception reached the caller). Wrong token: turn goes to the model, `stored=False`, 13–23 ms. Server stopped (`docker stop`): turns go to the model in 2–3 ms, not stored. After `docker start`: a session that was already open loses its first write (no retries by design; 95–779 ms, later calls fine); a new session works at once. Server hung (`docker pause`): turn answered by the model after ~770 ms (the 250 ms budget + bounded write), write not stored, stats count it (`failed_writes`); after `unpause` all fine |
+
+**To add to open-items** (the parent is cleaning that file; F9-1 above was already appended to it before I was asked to hold off — please keep or move it):
+- **F9-1** (already in open-items.md): hit confidence decays with age.
+- **F9-2 (server, High):** the write pipeline rejects short, ordinary answers: `CSET rejected by security pipeline (… the answer's overall score is too low, composite 0.73)` for "At nine.", "Refunds take five business days to reach your card.", and "Abrimos de 9 a 18 h, de lunes a sábado, y cerramos los domingos y festivos." (digits). Prose of 15+ words stores. A real agent's short answers ("At nine.") are never cached; the SDK reports `stored=False` / "the server refused the write", never an error to the caller. The website snippets and `fixtures/adapter-conformance.json` real-server scenarios used short answers and stopped passing on `dce94b4` (fixture fixed in 06e39f6; website pages in `sdk-docs/website/` not changed). Decide: server threshold, or make the pages' sample answers longer.
+- **F9-3 (SDK/test env):** `python3` on Windows is a Store stub; `test-voice.js` now copes.

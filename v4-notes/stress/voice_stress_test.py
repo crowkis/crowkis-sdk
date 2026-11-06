@@ -164,7 +164,7 @@ class RateLimited(Exception):
 
 
 # ------------------------------------------------------------------------------ Bedrock (F4 only)
-# Understanding (chat, v4) and the judge run on AWS Bedrock, under a hard spending cap (owner: 2 USD).
+# Understanding (chat, v4) and the judge run on AWS Bedrock, under a hard spending cap (owner: 5 USD, F9).
 BEDROCK_UNDERSTAND = "qwen.qwen3-32b"
 BEDROCK_JUDGE = "openai.gpt-oss-120b"
 BEDROCK_ANSWER = "openai.gpt-oss-20b"  # F4b: the answerer for every pipeline (was Groq gpt-oss-20b)
@@ -387,15 +387,9 @@ async def play(conv: dict, pipeline: str, crowkis, rt, opts) -> dict:
             "stats": session.stats()}
 
 
-# The chat pipeline: the same Groq turns played through the SDK's Chat rules (CallSession), to
-# compare their hit rate and safety with the voice rules. Text only, no Pipecat: the
-# understanding model rewrites each turn into a stand-alone question, V1-V10 decide what is
-# shared, and gpt-oss-20b answers as on the groq pipeline. No understanding budget: this
-# measures the rules, not the latency of the extra model call.
+# The chat pipeline: the same turns on voice_session(channel="chat") (play_v4(chat=True)): word rules only,
+# no model reading the turn, gpt-oss-20b answering as on the other pipelines.
 CHAT_UNDERSTAND_MODEL = BEDROCK_UNDERSTAND  # F4: was qwen/qwen3.8-27b on Groq (daily token limit)
-CHAT_SAVED = {"saved": "saved", "cancelled": "interrupted", "stale": "interrupted",
-              "refused:non_answer": "non_answer", "refused:empty": "non_answer",
-              "refused:write_failed": "refused"}
 
 
 def _groq_call(client, model: str, messages: list, **extra) -> str:
@@ -1018,7 +1012,7 @@ def env_info(args, judge_model) -> dict:
             "understand_budget_ms": args.understand_budget_ms, "gemini_model": settings.GEMINI_MODEL,
             "gemini_voice": settings.GEMINI_VOICE, "judge_model": judge_model if not args.no_judge else "off",
             "tenant": args.tenant, "crowkis": f"{settings.CROWKIS_HOST}:{settings.CROWKIS_PORT}", "cache_ttl_s": settings.CACHE_TTL_S,
-            **({"chat_understand_model": CHAT_UNDERSTAND_MODEL} if args.pipeline in ("chat", "v4", "all") else {})}
+            **({"chat_understand_model": CHAT_UNDERSTAND_MODEL} if args.pipeline in ("v4", "all") else {})}
 
 
 def server_info(crowkis) -> str:

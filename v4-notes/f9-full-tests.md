@@ -99,3 +99,6 @@ Still open: which Node files fail (the one in the offline run was `test-voice.js
 - Opus review of F9's changes: requested (result added below if it arrived).
 - `crowkis-f9` container: stopped and removed at the end (images kept).
 - The demo run counts above are from one pass.
+
+## Opus review of F9's changes
+No blockers. Fixed: stale comments, unused `CHAT_SAVED`, and `chat_understand_model` no longer recorded for chat-only runs. Note (not changed): the golden inputs (`fixtures/golden/inputs.json`, `golden/voice/conformance.json`) still hold the old short conformance replies; re-running `build_inputs.py` would pull in the new ones and change the golden files, so do not rebuild without reviewing.

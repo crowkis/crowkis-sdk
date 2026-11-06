@@ -87,3 +87,15 @@ Still open: which Node files fail (the one in the offline run was `test-voice.js
 - **F9-1** (already in open-items.md): hit confidence decays with age.
 - **F9-2 (server, High):** the write pipeline rejects short, ordinary answers: `CSET rejected by security pipeline (… the answer's overall score is too low, composite 0.73)` for "At nine.", "Refunds take five business days to reach your card.", and "Abrimos de 9 a 18 h, de lunes a sábado, y cerramos los domingos y festivos." (digits). Prose of 15+ words stores. A real agent's short answers ("At nine.") are never cached; the SDK reports `stored=False` / "the server refused the write", never an error to the caller. The website snippets and `fixtures/adapter-conformance.json` real-server scenarios used short answers and stopped passing on `dce94b4` (fixture fixed in 06e39f6; website pages in `sdk-docs/website/` not changed). Decide: server threshold, or make the pages' sample answers longer.
 - **F9-3 (SDK/test env):** `python3` on Windows is a Store stub; `test-voice.js` now copes.
+
+## Part D: the voice demo (`crowkis-voice-demo`, branch `v4-sdk`)
+
+- `voice-agent/vendor/crowkis-sdk/` replaced by the current `feat/v4` Python SDK (commit `1c4b9fc` on `v4-sdk` in that repo). Runtime imports (`CrowkisClient`, `voice_session`, `Agent`, `VoiceSession`, the Pipecat adapters, the two word-rule helpers) all import. The only removed names still referenced are in the old copy `voice-agent/tests/voice_stress_test.py` (`CallSession`, `LLMUnderstander`, `rules.rule_checker`): it is a stress script, not part of the demo, and was not changed (the updated one lives in `crowkis-sdk/v4-notes/stress/`).
+- `docker compose up -d --build`: agent healthy, web on http://127.0.0.1:3100/ (HTTP 200), left running. The demo's own pytest files could not run (the image has no pytest).
+- Scripted no-mic call (`tests/run_scenarios.py --pipeline groq`, scenario `clinic` default): 18 ok, 11 FAIL. The failures I looked at are not cache decisions: the clinic prompt makes the Groq model answer "I don't have that information" to general questions (scored `non_answer`, correctly not saved), where `call_scripts.py` expects real answers. Not compared with the old vendor copy, so I cannot say whether the old SDK scored the same; treat as unverified.
+
+## What is left / not verified
+
+- Opus review of F9's changes: requested (result added below if it arrived).
+- `crowkis-f9` container: stopped and removed at the end (images kept).
+- The demo run counts above are from one pass.
